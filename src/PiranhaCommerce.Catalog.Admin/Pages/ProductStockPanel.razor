@@ -1,0 +1,97 @@
+@* Panel for AdminSlots.ProductEditPanels. Adjustments are applied immediately and recorded in the stock ledger. *@
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AdminScopeRunner Scope
+
+<div class="pc-card" style="margin-top:1rem">
+    <h2 style="margin-top:0">Stock</h2>
+    @if (_loading)
+    {
+        <p class="pc-muted">Loading...</p>
+    }
+    else
+    {
+        <p>On hand: <strong data-testid="stock-quantity">@_quantity.ToString("0.####")</strong></p>
+        <div class="pc-toolbar">
+            <input type="number" step="0.0001" aria-label="Change in quantity (negative to remove)" placeholder="+/- quantity" style="width:9rem" @bind="_delta" />
+            <input aria-label="Reason" placeholder="Reason (e.g. Delivery, Stocktake)" @bind="_reason" />
+            <input aria-label="Reference" placeholder="Reference (optional)" @bind="_reference" />
+            <button type="button" @onclick="AdjustAsync" disabled="@_saving">Apply</button>
+        </div>
+        @if (_message is not null)
+        {
+            <p class="@(_failed ? "pc-error" : "pc-muted")" role="status">@_message</p>
+        }
+        @if (_movements.Count > 0)
+        {
+            <table class="pc-table">
+                <thead><tr><th>When (UTC)</th><th class="num">Change</th><th>Reason</th><th>Reference</th><th>By</th></tr></thead>
+                <tbody>
+                @foreach (var m in _movements)
+                {
+                    <tr>
+                        <td>@m.CreatedUtc.UtcDateTime.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td class="num">@m.Delta.ToString("+0.####;-0.####")</td>
+                        <td>@m.Reason</td>
+                        <td>@m.Reference</td>
+                        <td>@m.Actor</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Guid ProductId { get; set; }
+    [Inject] private AuthenticationStateProvider Auth { get; set; } = default!;
+
+    private decimal _quantity, _delta;
+    private string _reason = "", _reference = "";
+    private List<StockMovementDto> _movements = [];
+    private bool _loading = true, _saving, _failed;
+    private string? _message;
+    private Guid _loadedFor;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedFor == ProductId) return;
+        _loadedFor = ProductId;
+        _loading = true;
+        _message = null;
+        await RefreshAsync();
+        _loading = false;
+    }
+
+    private async Task RefreshAsync()
+    {
+        var level = await Scope.RunAsync<IStockService, StockLevelDto?>(s => s.GetLevelAsync(ProductId));
+        _quantity = level?.Quantity ?? 0;
+        var page = await Scope.RunAsync<IStockService, PiranhaCommerce.Core.Paging.PagedResult<StockMovementDto>?>(s => s.ListMovementsAsync(ProductId, 1, 10));
+        _movements = page?.Items.ToList() ?? [];
+    }
+
+    private async Task AdjustAsync()
+    {
+        _saving = true;
+        _failed = false;
+        try
+        {
+            var state = await Auth.GetAuthenticationStateAsync();
+            var actor = state.User.Identity?.Name;
+            var input = new StockAdjustmentInput { Delta = _delta, Reason = _reason, Reference = _reference };
+            var r = await Scope.RunAsync<IStockService, StockAdjustmentResult?>(s => s.AdjustAsync(ProductId, input, actor));
+            if (r is null) { _failed = true; _message = "Product no longer exists."; }
+            else
+            {
+                _message = "Stock updated.";
+                _delta = 0; _reason = ""; _reference = "";
+                await RefreshAsync();
+            }
+        }
+        catch (PiranhaValidationException ex) { _failed = true; _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaConflictException ex) { _failed = true; _message = ex.Message; }
+        catch (Exception ex) { _failed = true; _message = "Could not adjust stock: " + ex.Message; }
+        finally { _saving = false; }
+    }
+}

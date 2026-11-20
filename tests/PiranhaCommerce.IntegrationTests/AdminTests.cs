@@ -119,6 +119,7 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
         Assert.Contains("Online store", existing);
         Assert.Contains("<h2 style=\"margin-top:0\">Categories</h2>", existing); // Catalog panel in its own slot           // Ecommerce panel rendered inside the Catalog page
         Assert.Contains("<h2 style=\"margin-top:0\">Barcodes</h2>", existing);
+        Assert.Contains("<h2 style=\"margin-top:0\">Stock</h2>", existing);
         Assert.Contains("Published on the online store", existing);
 
         var isNew = await (await browser.GetAsync("/admin/catalog/products/new")).Content.ReadAsStringAsync();

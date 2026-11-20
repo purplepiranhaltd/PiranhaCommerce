@@ -62,7 +62,19 @@ internal sealed class ProductService(PiranhaDbContext db) : IProductService
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
-        => await db.Set<Product>().Where(x => x.Id == id).ExecuteDeleteAsync(ct) > 0;
+    {
+        // Stock movements are an audit ledger; a product with history cannot be deleted (barcodes, categories and the level cascade).
+        if (await db.Set<StockMovement>().AnyAsync(m => m.ProductId == id, ct))
+            throw new PiranhaConflictException("This product has stock history and cannot be deleted.");
+        try
+        {
+            return await db.Set<Product>().Where(x => x.Id == id).ExecuteDeleteAsync(ct) > 0;
+        }
+        catch (DbUpdateException)
+        {
+            throw new PiranhaConflictException("This product is still in use and cannot be deleted.");
+        }
+    }
 
     private async Task ValidateAsync(ProductInput input, Guid? existingId, CancellationToken ct)
     {

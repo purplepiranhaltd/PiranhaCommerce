@@ -38,7 +38,8 @@ public sealed class PiranhaFactory : WebApplicationFactory<Program>, IAsyncLifet
             {
                 var server = Environment.GetEnvironmentVariable("PIRANHA_TEST_PG_SERVER")
                     ?? throw new InvalidOperationException("Set PIRANHA_TEST_PG_SERVER for PostgreSQL runs.");
-                return $"{server};Database={_database.ToLowerInvariant()}";
+                // Generous open/command timeouts: ~10 fixtures create databases and run migrations in parallel on one container.
+                return $"{server};Database={_database.ToLowerInvariant()};Timeout=60;Command Timeout=60";
             }
             // PIRANHA_TEST_SQLSERVER="Server=host,port;User Id=sa;Password=...;TrustServerCertificate=True" targets a real SQL Server
             // (CI on Linux); otherwise LocalDB.

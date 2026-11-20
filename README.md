@@ -141,3 +141,19 @@ cache), publishes it, runs the published output and smoke-tests the API, sign-in
 - **packages**: runs `build/verify-packages.ps1` against a SQL Server container and uploads the `.nupkg` files.
 
 The workflow itself has not been run on GitHub yet; its steps were exercised locally in Docker.
+
+## Catalog features
+
+The shared `PiranhaCommerce.Catalog` package (used by every sales channel) provides, besides products:
+
+- **Categories**: a tree (`ParentId`), with products in any number of categories. Cycles are rejected; a category with
+  sub-categories cannot be deleted (409). `PUT /api/v1/products/{id}/categories` replaces the whole set.
+- **Barcodes**: several per product. GTIN-8/12/13/14 codes are check-digit validated and stored left-padded to 14 digits, so a
+  UPC-A and its EAN-13 form are the same barcode and cannot belong to two products. Look a product up with
+  `GET /api/v1/products/lookup?barcode=...` (a query string, because Code 128 values can contain `/`).
+- **Stock**: a quantity per product (`decimal(18,4)`, so weighed goods work) changed only by adjustments that are recorded in an
+  append-only ledger (`StockMovement`). Adjustments are atomic and safe under concurrency and transient-failure retries. By
+  default stock cannot go below zero; callers that must record physical reality (EPOS) pass `AllowNegative`.
+  A product with stock history cannot be deleted (409), because the ledger is an audit trail.
+
+All three have admin panels on the product edit page and API endpoints; API errors map to 400 (validation) and 409 (conflict).

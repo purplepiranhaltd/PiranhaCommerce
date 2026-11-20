@@ -46,5 +46,25 @@ internal sealed class CatalogModelContributor : IModelContributor
             e.HasIndex(x => x.ProductId);
             e.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade);
         });
+
+        b.Entity<StockLevel>(e =>
+        {
+            e.ToTable("StockLevel", Schema);
+            e.HasKey(l => l.ProductId);
+            e.Property(l => l.Quantity).HasPrecision(18, 4);
+            e.HasOne<Product>().WithMany().HasForeignKey(l => l.ProductId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<StockMovement>(e =>
+        {
+            e.ToTable("StockMovement", Schema);
+            e.Property(m => m.Delta).HasPrecision(18, 4);
+            e.Property(m => m.Reason).HasMaxLength(200).IsRequired();
+            e.Property(m => m.Reference).HasMaxLength(200);
+            e.Property(m => m.Actor).HasMaxLength(256);
+            e.HasIndex(m => new { m.ProductId, m.CreatedUtc });
+            // Audit ledger: a product with history cannot be deleted out from under it.
+            e.HasOne<Product>().WithMany().HasForeignKey(m => m.ProductId).OnDelete(DeleteBehavior.Restrict);
+        });
     }
 }

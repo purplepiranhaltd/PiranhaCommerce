@@ -37,5 +37,6 @@ internal sealed class CatalogSlotItems : IAdminSlotContributor
         [
             new(AdminSlots.ProductEditPanels, typeof(ProductCategoriesPanel), Order: 5),
             new(AdminSlots.ProductEditPanels, typeof(ProductBarcodesPanel), Order: 6),
+            new(AdminSlots.ProductEditPanels, typeof(ProductStockPanel), Order: 7),
         ];
 }
