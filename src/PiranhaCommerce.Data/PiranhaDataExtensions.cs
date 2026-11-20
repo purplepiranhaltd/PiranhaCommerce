@@ -23,6 +23,7 @@ public static class PiranhaDataExtensions
             })
             .AddRoles<PiranhaRole>()
             .AddEntityFrameworkStores<PiranhaDbContext>();
+        builder.Services.AddScoped<ICredentialChecker, CredentialChecker>();
         return builder;
     }
 

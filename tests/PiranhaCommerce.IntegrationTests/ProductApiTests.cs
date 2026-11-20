@@ -146,4 +146,42 @@ public class ProductApiTests(PiranhaFactory factory) : IClassFixture<PiranhaFact
         Assert.Equal(Paging.MaxPageSize, result.PageSize);
         Assert.Equal(1, result.Page);
     }
+
+    [Fact]
+    public async Task Token_endpoint_locks_the_account_after_repeated_wrong_passwords()
+    {
+        var (email, password) = await factory.CreateReadOnlyUserAsync();
+        var client = factory.CreateClient();
+        for (var i = 0; i < 5; i++)
+            Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync("/api/v1/auth/token", new TokenRequest(email, "wrong-" + i))).StatusCode);
+
+        // locked out: even the right password is refused, with the same answer as a wrong one
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync("/api/v1/auth/token", new TokenRequest(email, password))).StatusCode);
+    }
+
+    [Fact]
+    public async Task Parallel_wrong_guesses_still_lock_the_account()
+    {
+        var (email, password) = await factory.CreateReadOnlyUserAsync();
+        var client = factory.CreateClient();
+
+        // a burst of simultaneous guesses must not slip past the attempt counter through lost updates
+        var burst = await Task.WhenAll(Enumerable.Range(0, 30).Select(i =>
+            client.PostAsJsonAsync("/api/v1/auth/token", new TokenRequest(email, "wrong-" + i))));
+        Assert.All(burst, r => Assert.Equal(HttpStatusCode.Unauthorized, r.StatusCode));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync("/api/v1/auth/token", new TokenRequest(email, password))).StatusCode);
+    }
+
+    [Fact]
+    public async Task Simultaneous_correct_token_requests_after_a_typo_all_succeed()
+    {
+        var (email, password) = await factory.CreateReadOnlyUserAsync();
+        var client = factory.CreateClient();
+        await client.PostAsJsonAsync("/api/v1/auth/token", new TokenRequest(email, password + "x"));
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 15).Select(_ =>
+            client.PostAsJsonAsync("/api/v1/auth/token", new TokenRequest(email, password))));
+        Assert.All(results, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
+    }
 }

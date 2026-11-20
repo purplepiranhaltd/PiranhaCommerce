@@ -11,7 +11,7 @@ namespace PiranhaCommerce.Api.Auth;
 public sealed record TokenRequest(string Email, string Password);
 public sealed record TokenResponse(string AccessToken, string TokenType, int ExpiresIn);
 
-public sealed class JwtTokenService(IOptions<PiranhaJwtOptions> options, UserManager<PiranhaUser> users)
+public sealed class JwtTokenService(IOptions<PiranhaJwtOptions> options, UserManager<PiranhaUser> users, ICredentialChecker credentials)
 {
     public static SymmetricSecurityKey GetKey(PiranhaJwtOptions o)
     {
@@ -20,19 +20,11 @@ public sealed class JwtTokenService(IOptions<PiranhaJwtOptions> options, UserMan
         return new SymmetricSecurityKey(Encoding.UTF8.GetBytes(o.SigningKey));
     }
 
-    /// <summary>Returns null when credentials are invalid, the user is inactive or locked out.</summary>
-    public async Task<TokenResponse?> IssueAsync(TokenRequest request)
+    /// <summary>Returns null when credentials are invalid, the user is inactive or locked out (all look the same to the caller).</summary>
+    public async Task<TokenResponse?> IssueAsync(TokenRequest request, CancellationToken ct = default)
     {
-        var user = await users.FindByEmailAsync(request.Email);
-        if (user is null || !user.Active || await users.IsLockedOutAsync(user))
-            return null;
-
-        if (!await users.CheckPasswordAsync(user, request.Password))
-        {
-            await users.AccessFailedAsync(user);
-            return null;
-        }
-        await users.ResetAccessFailedCountAsync(user);
+        var check = await credentials.CheckAsync(request.Email, request.Password, ct);
+        if (check.User is not { } user) return null;
 
         var o = options.Value;
         var claims = new List<Claim>

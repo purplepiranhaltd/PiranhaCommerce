@@ -7,6 +7,7 @@
 @using Microsoft.AspNetCore.Identity
 @using PiranhaCommerce.Core.Identity
 @inject SignInManager<PiranhaUser> SignInManager
+@inject ICredentialChecker Credentials
 @inject NavigationManager Navigation
 
 <PageTitle>Sign in - Piranha Commerce</PageTitle>
@@ -41,37 +42,16 @@
 
     private async Task LoginAsync()
     {
-        var user = await SignInManager.UserManager.FindByEmailAsync(Input!.Email);
-        if (user is not null && user.Active)
+        var check = await Credentials.CheckAsync(Input!.Email, Input.Password);
+        if (check.User is { } user)
         {
-            var hadFailedAttempts = user.AccessFailedCount > 0;
-            var result = await SignInManager.PasswordSignInAsync(user, Input!.Password, isPersistent: false, lockoutOnFailure: true);
-
-            // Identity answers "Failed" to a CORRECT password when resetting the failed-attempt counter loses a concurrency race
-            // against another simultaneous sign-in (an anti-guessing safeguard). That can only happen when a failed attempt is
-            // already recorded. Retry, but only while the password verifies: someone who already has the right password gains
-            // nothing from the retry, and wrong guesses are never retried (so they still count towards lockout exactly once).
-            for (var attempt = 0; hadFailedAttempts && attempt < 3 && !result.Succeeded && !result.IsLockedOut
-                                  && !result.IsNotAllowed && !result.RequiresTwoFactor; attempt++)
-            {
-                user = await SignInManager.UserManager.FindByEmailAsync(Input.Email);
-                if (user is null || !user.Active || !await SignInManager.UserManager.CheckPasswordAsync(user, Input.Password))
-                    break;
-                result = await SignInManager.PasswordSignInAsync(user, Input.Password, isPersistent: false, lockoutOnFailure: true);
-            }
-
-            if (result.Succeeded)
-            {
-                Navigation.NavigateTo(IsLocal(ReturnUrl) ? ReturnUrl! : "/admin", forceLoad: true);
-                return;
-            }
-            if (result.IsLockedOut)
-            {
-                _error = "This account is temporarily locked. Try again later.";
-                return;
-            }
+            await SignInManager.SignInAsync(user, isPersistent: false);
+            Navigation.NavigateTo(IsLocal(ReturnUrl) ? ReturnUrl! : "/admin", forceLoad: true);
+            return;
         }
-        _error = "Invalid email or password.";
+        _error = check.Status == CredentialStatus.LockedOut
+            ? "This account is temporarily locked. Try again later."
+            : "Invalid email or password.";
     }
 
     // Only allow redirects back into this site (prevents open-redirect abuse of the returnUrl parameter).
