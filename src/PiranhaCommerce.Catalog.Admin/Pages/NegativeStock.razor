@@ -1,0 +1,49 @@
+@page "/admin/catalog/negative-stock"
+@inject AdminScopeRunner Scope
+
+<PageTitle>Negative stock - Piranha Commerce</PageTitle>
+<h1>Negative stock</h1>
+<p class="pc-muted">Products with less than nothing recorded at a location, usually because something was sold that the system thought
+    it did not have. Each one needs a recount: open the product and record the correct quantity under Stock. A product leaves
+    this list as soon as its quantity is back to zero or more.</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+@if (_items is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_items.Count == 0)
+{
+    <p data-testid="no-negative-stock">No negative stock. Nothing needs recounting.</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>Product</th><th>SKU</th><th>Location</th><th class="num">Quantity</th></tr></thead>
+        <tbody>
+        @foreach (var n in _items)
+        {
+            <tr>
+                <td><a href="/admin/catalog/products/@n.ProductId">@n.ProductName</a></td>
+                <td>@n.Sku</td>
+                <td>@n.LocationName (@n.LocationCode)</td>
+                <td class="num pc-error">@n.Quantity.ToString("0.####")</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IReadOnlyList<NegativeStockDto>? _items;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _items = await Scope.RunAsync<IStockService, IReadOnlyList<NegativeStockDto>>(s => s.ListNegativeAsync()); }
+        catch (Exception ex) { _error = "Could not load the report: " + ex.Message; _items = []; }
+    }
+}

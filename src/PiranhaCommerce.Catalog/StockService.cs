@@ -7,18 +7,21 @@ namespace PiranhaCommerce.Catalog;
 
 public interface IStockService
 {
-    /// <summary>Null when the product does not exist; zero for a product that never had stock.</summary>
+    /// <summary>Null when the product does not exist. Quantity is the total over locations; zero for a product that never had stock.</summary>
     Task<StockLevelDto?> GetLevelAsync(Guid productId, CancellationToken ct = default);
 
     /// <summary>Newest first. Null when the product does not exist.</summary>
     Task<PagedResult<StockMovementDto>?> ListMovementsAsync(Guid productId, int? page, int? pageSize, CancellationToken ct = default);
 
     /// <summary>
-    /// Atomically changes the level and records the movement. Safe under concurrent callers and under transient-failure retries
-    /// (a movement is never applied twice). Null when the product does not exist. Throws <see cref="PiranhaConflictException"/>
-    /// when it would go below zero and <see cref="StockAdjustmentInput.AllowNegative"/> is false.
+    /// Atomically changes the level at a location and records the movement. Safe under concurrent callers and under
+    /// transient-failure retries (a movement is never applied twice). Null when the product does not exist. Throws
+    /// <see cref="PiranhaConflictException"/> when it would go below zero and <see cref="StockAdjustmentInput.AllowNegative"/> is false.
     /// </summary>
     Task<StockAdjustmentResult?> AdjustAsync(Guid productId, StockAdjustmentInput input, string? actor = null, CancellationToken ct = default);
+
+    /// <summary>Every product/location currently below zero, most negative first. This is the "recount needed" report.</summary>
+    Task<IReadOnlyList<NegativeStockDto>> ListNegativeAsync(CancellationToken ct = default);
 }
 
 internal sealed class StockService(PiranhaDbContext db) : IStockService
@@ -26,7 +29,12 @@ internal sealed class StockService(PiranhaDbContext db) : IStockService
     public async Task<StockLevelDto?> GetLevelAsync(Guid productId, CancellationToken ct = default)
     {
         if (!await db.Set<Product>().AnyAsync(p => p.Id == productId, ct)) return null;
-        return new StockLevelDto(productId, await ReadQuantityAsync(productId, ct));
+        var locations = await db.Set<StockLevel>().AsNoTracking().Where(l => l.ProductId == productId)
+            .Join(db.Set<StockLocation>(), l => l.LocationId, loc => loc.Id, (l, loc) => new { loc.Id, loc.Code, loc.Name, l.Quantity })
+            .OrderBy(x => x.Code)
+            .Select(x => new StockLocationLevelDto(x.Id, x.Code, x.Name, x.Quantity))
+            .ToListAsync(ct);
+        return new StockLevelDto(productId, locations.Sum(x => x.Quantity), locations);
     }
 
     public async Task<PagedResult<StockMovementDto>?> ListMovementsAsync(Guid productId, int? page, int? pageSize, CancellationToken ct = default)
@@ -37,7 +45,7 @@ internal sealed class StockService(PiranhaDbContext db) : IStockService
         var total = await query.CountAsync(ct);
         var items = await query.OrderByDescending(m => m.CreatedUtc).ThenByDescending(m => m.Id)
             .Skip((p - 1) * size).Take(size)
-            .Select(m => new StockMovementDto(m.Id, m.ProductId, m.Delta, m.Reason, m.Reference, m.Actor, m.CreatedUtc))
+            .Select(m => new StockMovementDto(m.Id, m.ProductId, m.LocationId, m.Delta, m.Balance, m.Reason, m.Reference, m.Actor, m.CreatedUtc))
             .ToListAsync(ct);
         return new PagedResult<StockMovementDto>(items, p, size, total);
     }
@@ -47,12 +55,20 @@ internal sealed class StockService(PiranhaDbContext db) : IStockService
         ModelValidator.ValidateOrThrow(input);
         if (!await db.Set<Product>().AnyAsync(p => p.Id == productId, ct)) return null;
 
-        await EnsureLevelRowAsync(productId, ct); // outside the transaction: a failed insert would abort a PostgreSQL transaction
+        var locationId = input.LocationId ?? StockLocations.DefaultId;
+        var location = await db.Set<StockLocation>().AsNoTracking().Where(l => l.Id == locationId).Select(l => new { l.Active }).FirstOrDefaultAsync(ct);
+        if (location is null)
+            throw new PiranhaValidationException(nameof(StockAdjustmentInput.LocationId), "That stock location does not exist.");
+        if (!location.Active)
+            throw new PiranhaValidationException(nameof(StockAdjustmentInput.LocationId), "That stock location is not active.");
+
+        await EnsureLevelRowAsync(productId, locationId, ct); // outside the transaction: a failed insert would abort a PostgreSQL transaction
 
         // Created once, outside the retried delegate, so a retry after an ambiguous commit can tell whether it already happened.
         var movement = new StockMovement
         {
             ProductId = productId,
+            LocationId = locationId,
             Delta = input.Delta,
             Reason = input.Reason.Trim(),
             Reference = string.IsNullOrWhiteSpace(input.Reference) ? null : input.Reference.Trim(),
@@ -70,12 +86,16 @@ internal sealed class StockService(PiranhaDbContext db) : IStockService
                     db.ChangeTracker.Clear(); // every attempt starts clean
 
                     var changed = input.AllowNegative
-                        ? await db.Set<StockLevel>().Where(l => l.ProductId == productId)
+                        ? await db.Set<StockLevel>().Where(l => l.ProductId == productId && l.LocationId == locationId)
                             .ExecuteUpdateAsync(s => s.SetProperty(l => l.Quantity, l => l.Quantity + input.Delta), token)
-                        : await db.Set<StockLevel>().Where(l => l.ProductId == productId && l.Quantity + input.Delta >= 0)
+                        : await db.Set<StockLevel>().Where(l => l.ProductId == productId && l.LocationId == locationId && l.Quantity + input.Delta >= 0)
                             .ExecuteUpdateAsync(s => s.SetProperty(l => l.Quantity, l => l.Quantity + input.Delta), token);
                     if (changed == 0)
                         throw new PiranhaConflictException("Not enough stock: this would take the quantity below zero.");
+
+                    // Our update holds the row lock until commit, so this read is the exact balance after our movement.
+                    movement.Balance = await db.Set<StockLevel>().AsNoTracking()
+                        .Where(l => l.ProductId == productId && l.LocationId == locationId).Select(l => l.Quantity).FirstAsync(token);
 
                     db.Add(movement);
                     await db.SaveChangesAsync(token);
@@ -92,20 +112,27 @@ internal sealed class StockService(PiranhaDbContext db) : IStockService
             throw;
         }
 
+        var quantity = await db.Set<StockLevel>().AsNoTracking().Where(l => l.ProductId == productId).SumAsync(l => (decimal?)l.Quantity, ct) ?? 0;
         return new StockAdjustmentResult(
-            new StockMovementDto(movement.Id, productId, movement.Delta, movement.Reason, movement.Reference, movement.Actor, movement.CreatedUtc),
-            await ReadQuantityAsync(productId, ct));
+            new StockMovementDto(movement.Id, productId, locationId, movement.Delta, movement.Balance, movement.Reason, movement.Reference, movement.Actor, movement.CreatedUtc),
+            quantity);
     }
 
-    private async Task<decimal> ReadQuantityAsync(Guid productId, CancellationToken ct)
-        => await db.Set<StockLevel>().AsNoTracking().Where(l => l.ProductId == productId).Select(l => l.Quantity).FirstOrDefaultAsync(ct);
+    public async Task<IReadOnlyList<NegativeStockDto>> ListNegativeAsync(CancellationToken ct = default)
+        => await db.Set<StockLevel>().AsNoTracking().Where(l => l.Quantity < 0)
+            .Join(db.Set<Product>(), l => l.ProductId, p => p.Id, (l, p) => new { l, p })
+            .Join(db.Set<StockLocation>(), x => x.l.LocationId, loc => loc.Id,
+                (x, loc) => new { x.p.Id, x.p.Name, x.p.Sku, LocationId = loc.Id, loc.Code, LocationName = loc.Name, x.l.Quantity })
+            .OrderBy(n => n.Quantity).ThenBy(n => n.Name).ThenBy(n => n.Id)
+            .Select(n => new NegativeStockDto(n.Id, n.Name, n.Sku, n.LocationId, n.Code, n.LocationName, n.Quantity))
+            .ToListAsync(ct);
 
-    private async Task EnsureLevelRowAsync(Guid productId, CancellationToken ct)
+    private async Task EnsureLevelRowAsync(Guid productId, Guid locationId, CancellationToken ct)
     {
-        if (await db.Set<StockLevel>().AnyAsync(l => l.ProductId == productId, ct)) return;
+        if (await db.Set<StockLevel>().AnyAsync(l => l.ProductId == productId && l.LocationId == locationId, ct)) return;
         try
         {
-            db.Add(new StockLevel { ProductId = productId, Quantity = 0 });
+            db.Add(new StockLevel { ProductId = productId, LocationId = locationId, Quantity = 0 });
             await db.SaveChangesAsync(ct);
         }
         catch (DbUpdateException)

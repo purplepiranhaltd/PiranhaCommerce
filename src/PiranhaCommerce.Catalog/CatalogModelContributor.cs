@@ -47,18 +47,31 @@ internal sealed class CatalogModelContributor : IModelContributor
             e.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        b.Entity<StockLocation>(e =>
+        {
+            e.ToTable("StockLocation", Schema);
+            e.Property(l => l.Code).HasMaxLength(30).IsRequired();
+            e.Property(l => l.Name).HasMaxLength(200).IsRequired();
+            e.HasIndex(l => l.Code).IsUnique(); // stored upper-case, so this is case-insensitive on every provider
+            e.HasData(new StockLocation { Id = StockLocations.DefaultId, Code = StockLocations.DefaultCode, Name = "Main", Active = true });
+        });
+
         b.Entity<StockLevel>(e =>
         {
             e.ToTable("StockLevel", Schema);
-            e.HasKey(l => l.ProductId);
+            e.HasKey(l => new { l.ProductId, l.LocationId });
             e.Property(l => l.Quantity).HasPrecision(18, 4);
             e.HasOne<Product>().WithMany().HasForeignKey(l => l.ProductId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<StockLocation>().WithMany().HasForeignKey(l => l.LocationId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(l => l.Quantity); // the negative stock report
         });
 
         b.Entity<StockMovement>(e =>
         {
             e.ToTable("StockMovement", Schema);
             e.Property(m => m.Delta).HasPrecision(18, 4);
+            e.Property(m => m.Balance).HasPrecision(18, 4);
+            e.HasOne<StockLocation>().WithMany().HasForeignKey(m => m.LocationId).OnDelete(DeleteBehavior.Restrict);
             e.Property(m => m.Reason).HasMaxLength(200).IsRequired();
             e.Property(m => m.Reference).HasMaxLength(200);
             e.Property(m => m.Actor).HasMaxLength(256);

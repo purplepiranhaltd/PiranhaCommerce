@@ -155,6 +155,12 @@ The shared `PiranhaCommerce.Catalog` package (used by every sales channel) provi
   append-only ledger (`StockMovement`). Adjustments are atomic and safe under concurrency and transient-failure retries. By
   default stock cannot go below zero; callers that must record physical reality (EPOS) pass `AllowNegative`.
   A product with stock history cannot be deleted (409), because the ledger is an audit trail.
+- **Stock locations**: stock is held per location (a warehouse, a shop). A default location always exists and is used when a
+  caller names none, so single-site shops never need to think about it. Locations are deactivated, not deleted. Each movement
+  records the balance at its location afterwards.
+- **Negative stock report**: `GET /api/v1/stock/negative` (and Catalog > Negative stock in the admin) lists every product and
+  location below zero, for channels such as EPOS that must record a sale even when the system thought it had none.
+  A product drops off the list once a recount brings it back to zero or more.
 
 All three have admin panels on the product edit page and API endpoints; API errors map to 400 (validation) and 409 (conflict).
 

@@ -1,0 +1,93 @@
+@page "/admin/catalog/stock-locations"
+@inject AdminScopeRunner Scope
+
+<PageTitle>Stock locations - Piranha Commerce</PageTitle>
+<h1>Stock locations</h1>
+<p class="pc-muted">Places where stock is held, such as a warehouse or a shop. A single-site business only needs the default one.
+    Locations are deactivated rather than deleted, because the stock history refers to them.</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+<div class="pc-card">
+    <h2 style="margin-top:0">@(_editing is null ? "New location" : "Edit " + _editing.Code)</h2>
+    <div class="pc-toolbar">
+        @if (_editing is null)
+        {
+            <input aria-label="Location code" placeholder="Code (e.g. LEEDS)" style="width:10rem" @bind="_input.Code" />
+        }
+        <input aria-label="Location name" placeholder="Name" @bind="_input.Name" />
+        <label><input type="checkbox" @bind="_input.Active" /> Active</label>
+        <button @onclick="SaveAsync" disabled="@_saving">@(_editing is null ? "Add" : "Save")</button>
+        @if (_editing is not null)
+        {
+            <button class="secondary" @onclick="ResetForm">Cancel</button>
+        }
+    </div>
+</div>
+
+@if (_loading)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>Code</th><th>Name</th><th>Active</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var l in _locations)
+        {
+            <tr>
+                <td>@l.Code</td>
+                <td>@l.Name @(l.IsDefault ? "(default)" : "")</td>
+                <td>@(l.Active ? "Yes" : "No")</td>
+                <td class="actions"><button class="secondary" @onclick="() => Edit(l)">Edit</button></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<StockLocationDto> _locations = [];
+    private StockLocationInput _input = new();
+    private StockLocationDto? _editing;
+    private bool _loading = true, _saving;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try { _locations = (await Scope.RunAsync<IStockLocationService, IReadOnlyList<StockLocationDto>>(s => s.ListAsync())).ToList(); }
+        catch (Exception ex) { _error = "Could not load locations: " + ex.Message; }
+        _loading = false;
+    }
+
+    private void Edit(StockLocationDto l)
+    {
+        _editing = l;
+        _input = new StockLocationInput { Code = l.Code, Name = l.Name, Active = l.Active };
+    }
+
+    private void ResetForm() { _editing = null; _input = new(); }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            if (_editing is { } e) await Scope.RunAsync<IStockLocationService, StockLocationDto?>(s => s.UpdateAsync(e.Id, _input));
+            else await Scope.RunAsync<IStockLocationService, StockLocationDto>(s => s.CreateAsync(_input));
+            ResetForm();
+            await LoadAsync();
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
+        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (Exception ex) { _error = "Could not save: " + ex.Message; }
+        finally { _saving = false; }
+    }
+}

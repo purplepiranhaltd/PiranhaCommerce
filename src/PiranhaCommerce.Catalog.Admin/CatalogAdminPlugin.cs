@@ -28,6 +28,8 @@ internal sealed class CatalogAdminMenu : IAdminMenuContributor
         new("catalog", "Catalog", Order: 10),
         new("catalog.products", "Products", "/admin/catalog/products", Order: 11, ParentKey: "catalog"),
         new("catalog.categories", "Categories", "/admin/catalog/categories", Order: 12, ParentKey: "catalog"),
+        new("catalog.negative-stock", "Negative stock", "/admin/catalog/negative-stock", Order: 13, ParentKey: "catalog"),
+        new("catalog.stock-locations", "Stock locations", "/admin/catalog/stock-locations", Order: 14, ParentKey: "catalog"),
     ];
 }
 

@@ -248,13 +248,56 @@ namespace PiranhaCommerce.Web.Migrations
                     b.Property<Guid>("ProductId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid>("LocationId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<decimal>("Quantity")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
-                    b.HasKey("ProductId");
+                    b.HasKey("ProductId", "LocationId");
+
+                    b.HasIndex("LocationId");
+
+                    b.HasIndex("Quantity");
 
                     b.ToTable("StockLevel", "catalog");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Catalog.StockLocation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("StockLocation", "catalog");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Active = true,
+                            Code = "MAIN",
+                            Name = "Main"
+                        });
                 });
 
             modelBuilder.Entity("PiranhaCommerce.Catalog.StockMovement", b =>
@@ -267,12 +310,19 @@ namespace PiranhaCommerce.Web.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
+                    b.Property<decimal?>("Balance")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<DateTimeOffset>("CreatedUtc")
                         .HasColumnType("datetimeoffset");
 
                     b.Property<decimal>("Delta")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("LocationId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("ProductId")
                         .HasColumnType("uniqueidentifier");
@@ -287,6 +337,8 @@ namespace PiranhaCommerce.Web.Migrations
                         .HasColumnType("nvarchar(200)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("LocationId");
 
                     b.HasIndex("ProductId", "CreatedUtc");
 
@@ -510,6 +562,12 @@ namespace PiranhaCommerce.Web.Migrations
 
             modelBuilder.Entity("PiranhaCommerce.Catalog.StockLevel", b =>
                 {
+                    b.HasOne("PiranhaCommerce.Catalog.StockLocation", null)
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("PiranhaCommerce.Catalog.Product", null)
                         .WithMany()
                         .HasForeignKey("ProductId")
@@ -519,6 +577,12 @@ namespace PiranhaCommerce.Web.Migrations
 
             modelBuilder.Entity("PiranhaCommerce.Catalog.StockMovement", b =>
                 {
+                    b.HasOne("PiranhaCommerce.Catalog.StockLocation", null)
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("PiranhaCommerce.Catalog.Product", null)
                         .WithMany()
                         .HasForeignKey("ProductId")
