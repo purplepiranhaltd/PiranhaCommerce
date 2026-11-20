@@ -1,0 +1,58 @@
+@* Panel for AdminSlots.ProductEditPanels. One barcode per line; saves independently of the product form. *@
+@inject AdminScopeRunner Scope
+
+<div class="pc-card" style="margin-top:1rem">
+    <h2 style="margin-top:0">Barcodes</h2>
+    @if (_loading)
+    {
+        <p class="pc-muted">Loading...</p>
+    }
+    else
+    {
+        <textarea rows="4" aria-label="Barcodes, one per line" style="width:100%" @bind="_text"></textarea>
+        <p class="pc-muted">One code per line. 8, 12, 13 and 14 digit codes are checked as GTINs (UPC-A and EAN-13 forms of one code are the same barcode).</p>
+        <button type="button" @onclick="SaveAsync" disabled="@_saving">Save barcodes</button>
+        @if (_message is not null)
+        {
+            <span class="@(_failed ? "pc-error" : "pc-muted")" role="status"> @_message</span>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Guid ProductId { get; set; }
+
+    private string _text = "";
+    private bool _loading = true, _saving, _failed;
+    private string? _message;
+    private Guid _loadedFor;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedFor == ProductId) return;
+        _loadedFor = ProductId;
+        _loading = true;
+        _message = null;
+        var current = await Scope.RunAsync<IBarcodeService, ProductBarcodesDto?>(s => s.GetAsync(ProductId));
+        _text = string.Join('\n', current?.Barcodes.Select(b => b.Code) ?? []);
+        _loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _failed = false;
+        try
+        {
+            var codes = _text.Split(['\n', '\r', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            var r = await Scope.RunAsync<IBarcodeService, ProductBarcodesDto?>(s => s.SetAsync(ProductId, codes));
+            _failed = r is null;
+            _message = r is null ? "Product no longer exists." : "Saved.";
+            if (r is not null) _text = string.Join('\n', r.Barcodes.Select(b => b.Code));
+        }
+        catch (PiranhaValidationException ex) { _failed = true; _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaConflictException ex) { _failed = true; _message = ex.Message; }
+        catch (Exception ex) { _failed = true; _message = "Could not save: " + ex.Message; }
+        finally { _saving = false; }
+    }
+}

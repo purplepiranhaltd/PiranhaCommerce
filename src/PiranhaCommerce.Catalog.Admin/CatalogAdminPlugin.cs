@@ -34,5 +34,8 @@ internal sealed class CatalogAdminMenu : IAdminMenuContributor
 internal sealed class CatalogSlotItems : IAdminSlotContributor
 {
     public IEnumerable<AdminSlotItem> GetItems() =>
-        [new(AdminSlots.ProductEditPanels, typeof(ProductCategoriesPanel), Order: 5)];
+        [
+            new(AdminSlots.ProductEditPanels, typeof(ProductCategoriesPanel), Order: 5),
+            new(AdminSlots.ProductEditPanels, typeof(ProductBarcodesPanel), Order: 6),
+        ];
 }

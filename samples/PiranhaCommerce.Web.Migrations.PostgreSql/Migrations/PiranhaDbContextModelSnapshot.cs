@@ -198,6 +198,35 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.ToTable("Product", "catalog");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Catalog.ProductBarcode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("NormalizedCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NormalizedCode")
+                        .IsUnique();
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("ProductBarcode", "catalog");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Catalog.ProductCategory", b =>
                 {
                     b.Property<Guid>("ProductId")
@@ -383,6 +412,15 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.HasOne("PiranhaCommerce.Catalog.Category", null)
                         .WithMany()
                         .HasForeignKey("ParentId");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Catalog.ProductBarcode", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Catalog.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("PiranhaCommerce.Catalog.ProductCategory", b =>

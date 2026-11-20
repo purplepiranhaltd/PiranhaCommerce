@@ -36,5 +36,15 @@ internal sealed class CatalogModelContributor : IModelContributor
             e.HasOne<Category>().WithMany().HasForeignKey(l => l.CategoryId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(l => l.CategoryId);
         });
+
+        b.Entity<ProductBarcode>(e =>
+        {
+            e.ToTable("ProductBarcode", Schema);
+            e.Property(x => x.Code).HasMaxLength(BarcodeNormalizer.MaxLength).IsRequired();
+            e.Property(x => x.NormalizedCode).HasMaxLength(BarcodeNormalizer.MaxLength).IsRequired();
+            e.HasIndex(x => x.NormalizedCode).IsUnique(); // a code identifies one product, on every provider
+            e.HasIndex(x => x.ProductId);
+            e.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade);
+        });
     }
 }

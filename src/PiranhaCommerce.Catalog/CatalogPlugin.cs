@@ -16,6 +16,8 @@ public sealed class CatalogPlugin : IPiranhaPlugin
         services.AddSingleton<IApiEndpointContributor, CatalogApiEndpoints>();
         services.AddSingleton<IApiEndpointContributor, CategoryApiEndpoints>();
         services.AddScoped<IProductService, ProductService>();
+        services.AddSingleton<IApiEndpointContributor, BarcodeApiEndpoints>();
         services.AddScoped<ICategoryService, CategoryService>();
+        services.AddScoped<IBarcodeService, BarcodeService>();
     }
 }
