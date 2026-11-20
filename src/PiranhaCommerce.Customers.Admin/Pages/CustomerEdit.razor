@@ -1,0 +1,109 @@
+@page "/admin/customers/new"
+@page "/admin/customers/{Id:guid}"
+@inject AdminScopeRunner Scope
+@inject NavigationManager Navigation
+
+<PageTitle>@(IsNew ? "New customer" : "Edit customer") - Piranha Commerce</PageTitle>
+<h1>@(IsNew ? "New customer" : "Edit customer")</h1>
+
+@if (_notFound)
+{
+    <p class="pc-error">That customer no longer exists. <a href="/admin/customers">Back to customers</a></p>
+}
+else if (_input is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else
+{
+    <div class="pc-card">
+        <EditForm Model="_input" OnValidSubmit="SaveAsync" FormName="customer-edit">
+            <DataAnnotationsValidator />
+            @foreach (var message in _serverErrors)
+            {
+                <p class="pc-error" role="alert">@message</p>
+            }
+            <label>Email
+                <InputText @bind-Value="_input.Email" type="email" />
+            </label>
+            <ValidationMessage For="() => _input.Email" />
+            <label>First name
+                <InputText @bind-Value="_input.FirstName" />
+            </label>
+            <label>Last name
+                <InputText @bind-Value="_input.LastName" />
+            </label>
+            <label>Phone
+                <InputText @bind-Value="_input.Phone" />
+            </label>
+            <label>Staff notes (never shown to the customer)
+                <InputTextArea @bind-Value="_input.Notes" rows="3" />
+            </label>
+            <label>
+                <InputCheckbox @bind-Value="_input.Active" /> Active
+            </label>
+
+            <button type="submit" disabled="@_saving">Save</button>
+            <a class="pc-button secondary" href="/admin/customers">Cancel</a>
+        </EditForm>
+    </div>
+
+    @if (Id is { } customerId)
+    {
+        <AdminSlot Name="@AdminSlots.CustomerEditPanels" Parameters="@(new Dictionary<string, object?> { ["CustomerId"] = customerId })" />
+    }
+    else
+    {
+        <p class="pc-muted">Save the customer to manage their addresses.</p>
+    }
+}
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private CustomerInput? _input;
+    private bool _notFound;
+    private bool _saving;
+    private List<string> _serverErrors = [];
+
+    private bool IsNew => Id is null;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _notFound = false;
+        if (IsNew) { _input = new CustomerInput(); return; }
+
+        var c = await Scope.RunAsync<ICustomerService, CustomerDto?>(s => s.GetAsync(Id!.Value));
+        if (c is null) { _notFound = true; return; }
+        _input = new CustomerInput { Email = c.Email, FirstName = c.FirstName, LastName = c.LastName, Phone = c.Phone, Notes = c.Notes, Active = c.Active };
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _serverErrors = [];
+        try
+        {
+            if (IsNew)
+            {
+                var created = await Scope.RunAsync<ICustomerService, CustomerDto>(s => s.CreateAsync(_input!));
+                Navigation.NavigateTo($"/admin/customers/{created.Id}"); // straight on to adding addresses
+                return;
+            }
+            if (await Scope.RunAsync<ICustomerService, CustomerDto?>(s => s.UpdateAsync(Id!.Value, _input!)) is null)
+            {
+                _notFound = true;
+                return;
+            }
+            Navigation.NavigateTo("/admin/customers");
+        }
+        catch (PiranhaValidationException ex)
+        {
+            _serverErrors = ex.Errors.SelectMany(e => e.Value.Select(m => string.IsNullOrEmpty(e.Key) ? m : $"{e.Key}: {m}")).ToList();
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

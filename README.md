@@ -14,6 +14,8 @@ A commerce engine for .NET, delivered as NuGet packages. Closed source for now; 
 | `PiranhaCommerce.Admin` | Blazor admin (Razor class library): menu + slots that plugins contribute to. |
 | `PiranhaCommerce.Catalog` | Products shared by every sales channel (name, SKU, price), with API. Channels never add columns to it. |
 | `PiranhaCommerce.Catalog.Admin` | Product list/edit pages. |
+| `PiranhaCommerce.Customers` | Customers and their address books, shared by every sales channel, with API. Customers are not admin users. |
+| `PiranhaCommerce.Customers.Admin` | Customer list/edit pages and an address book panel (contributed through the `customer.edit.panels` slot). |
 | `PiranhaCommerce.Ecommerce` | Online-store data layered on the catalogue (e.g. `ecom.ProductListing`: published online). A future `PiranhaCommerce.Epos` is a sibling with its own tables. |
 | `PiranhaCommerce.Ecommerce.Admin` | Adds an "Online store" panel to the product edit page through the `ProductEditPanels` admin slot. |
 
@@ -177,3 +179,14 @@ on the product edit page (`IAdminSlotContributor` into `AdminSlots.ProductEditPa
 4. Give Razor components an explicit `@namespace` so they do not depend on the project they are compiled into.
 
 Removing a plugin is also a host migration: remove the registration, then add a migration that drops its tables.
+
+## Customers
+
+`PiranhaCommerce.Customers` holds people and businesses that buy, for every channel. A customer has an email (required, unique
+whatever the letter case, enforced by a database index), optional name, phone and staff-only notes, and an address book of up to
+50 addresses (country as an ISO two-letter code). Orders will copy the address they use, so editing an address never changes
+history. API: `/api/v1/customers` and `/api/v1/customers/{id}/addresses` (reads need the read policy, changes the write policy).
+
+A customer is deliberately not an admin user. Signing in to a storefront will be a separate, optional link added later.
+
+Open design notes (stock transfers, signing in at a location, erasing customer data) are in `docs/roadmap.md`.

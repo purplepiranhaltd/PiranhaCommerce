@@ -1,0 +1,145 @@
+@* Panel for AdminSlots.CustomerEditPanels; the slot supplies CustomerId. Saves independently of the customer form. *@
+<div class="pc-card" style="margin-top:1rem">
+    <h2 style="margin-top:0">Addresses</h2>
+    @if (_loading)
+    {
+        <p class="pc-muted">Loading...</p>
+    }
+    else
+    {
+        @if (_addresses.Count == 0)
+        {
+            <p class="pc-muted">No addresses yet.</p>
+        }
+        else
+        {
+            <table class="pc-table">
+                <thead><tr><th>Label</th><th>Address</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var a in _addresses)
+                {
+                    <tr>
+                        <td>@a.Label</td>
+                        <td>@Format(a)</td>
+                        <td class="actions">
+                            <button type="button" class="secondary" @onclick="() => Edit(a)">Edit</button>
+                            @if (_confirmDelete == a.Id)
+                            {
+                                <button type="button" class="danger" @onclick="() => DeleteAsync(a.Id)">Confirm delete</button>
+                                <button type="button" class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
+                            }
+                            else
+                            {
+                                <button type="button" class="secondary" @onclick="() => _confirmDelete = a.Id">Delete</button>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+
+        <h3>@(_editingId is null ? "Add an address" : "Edit address")</h3>
+        <div class="pc-toolbar">
+            <input aria-label="Label" placeholder="Label (e.g. Home)" @bind="_input.Label" />
+            <input aria-label="Recipient" placeholder="Recipient" @bind="_input.Recipient" />
+        </div>
+        <div class="pc-toolbar">
+            <input aria-label="Address line 1" placeholder="Address line 1" @bind="_input.Line1" />
+            <input aria-label="Address line 2" placeholder="Address line 2" @bind="_input.Line2" />
+        </div>
+        <div class="pc-toolbar">
+            <input aria-label="City" placeholder="City" @bind="_input.City" />
+            <input aria-label="Region" placeholder="County / state" @bind="_input.Region" />
+            <input aria-label="Postcode" placeholder="Postcode" style="width:8rem" @bind="_input.PostalCode" />
+            <input aria-label="Country code" placeholder="Country (GB)" style="width:7rem" maxlength="2" @bind="_input.CountryCode" />
+        </div>
+        <button type="button" @onclick="SaveAsync" disabled="@_saving">@(_editingId is null ? "Add address" : "Save address")</button>
+        @if (_editingId is not null)
+        {
+            <button type="button" class="secondary" @onclick="ResetForm">Cancel</button>
+        }
+        @if (_message is not null)
+        {
+            <span class="@(_failed ? "pc-error" : "pc-muted")" role="status"> @_message</span>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Guid CustomerId { get; set; }
+    [Inject] private AdminScopeRunner Scope { get; set; } = default!;
+
+    private List<AddressDto> _addresses = [];
+    private AddressInput _input = new();
+    private Guid? _editingId, _confirmDelete;
+    private bool _loading = true, _saving, _failed;
+    private string? _message;
+    private Guid _loadedFor;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedFor == CustomerId) return;
+        _loadedFor = CustomerId;
+        _loading = true;
+        _message = null;
+        await LoadAsync();
+        _loading = false;
+    }
+
+    private async Task LoadAsync()
+        => _addresses = (await Scope.RunAsync<ICustomerService, IReadOnlyList<AddressDto>?>(s => s.ListAddressesAsync(CustomerId)))?.ToList() ?? [];
+
+    private static string Format(AddressDto a) =>
+        string.Join(", ", new[] { a.Recipient, a.Line1, a.Line2, a.City, a.Region, a.PostalCode, a.CountryCode }.Where(p => !string.IsNullOrWhiteSpace(p)));
+
+    private void Edit(AddressDto a)
+    {
+        _editingId = a.Id;
+        _message = null;
+        _input = new AddressInput
+        {
+            Label = a.Label, Recipient = a.Recipient, Line1 = a.Line1, Line2 = a.Line2,
+            City = a.City, Region = a.Region, PostalCode = a.PostalCode, CountryCode = a.CountryCode,
+        };
+    }
+
+    private void ResetForm() { _editingId = null; _input = new(); }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _failed = false;
+        try
+        {
+            var input = _input;
+            AddressDto? saved = _editingId is { } id
+                ? await Scope.RunAsync<ICustomerService, AddressDto?>(s => s.UpdateAddressAsync(CustomerId, id, input))
+                : await Scope.RunAsync<ICustomerService, AddressDto?>(s => s.AddAddressAsync(CustomerId, input));
+            if (saved is null) { _failed = true; _message = "The customer or address no longer exists."; }
+            else
+            {
+                _message = "Saved.";
+                ResetForm();
+                await LoadAsync();
+            }
+        }
+        catch (PiranhaValidationException ex) { _failed = true; _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _failed = true; _message = "Could not save: " + ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        _confirmDelete = null;
+        _failed = false;
+        try
+        {
+            await Scope.RunAsync<ICustomerService, bool>(s => s.DeleteAddressAsync(CustomerId, id));
+            if (_editingId == id) ResetForm();
+            _message = null;
+            await LoadAsync();
+        }
+        catch (Exception ex) { _failed = true; _message = "Could not delete: " + ex.Message; }
+    }
+}

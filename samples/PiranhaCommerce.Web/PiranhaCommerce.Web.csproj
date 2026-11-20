@@ -16,6 +16,8 @@
     <ProjectReference Include="..\..\src\PiranhaCommerce.Catalog\PiranhaCommerce.Catalog.csproj" />
     <ProjectReference Include="..\..\src\PiranhaCommerce.Catalog.Admin\PiranhaCommerce.Catalog.Admin.csproj" />
     <ProjectReference Include="..\..\src\PiranhaCommerce.Ecommerce.Admin\PiranhaCommerce.Ecommerce.Admin.csproj" />
+    <ProjectReference Include="..\..\src\PiranhaCommerce.Customers\PiranhaCommerce.Customers.csproj" />
+    <ProjectReference Include="..\..\src\PiranhaCommerce.Customers.Admin\PiranhaCommerce.Customers.Admin.csproj" />
     <ProjectReference Include="..\PiranhaCommerce.Example.Warranty\PiranhaCommerce.Example.Warranty.csproj" />
     <ProjectReference Include="..\PiranhaCommerce.Web.Migrations.PostgreSql\PiranhaCommerce.Web.Migrations.PostgreSql.csproj" />
   </ItemGroup>

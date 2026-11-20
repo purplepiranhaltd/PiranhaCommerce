@@ -64,6 +64,7 @@ using Microsoft.EntityFrameworkCore;
 using PiranhaCommerce.Admin;
 using PiranhaCommerce.Api;
 using PiranhaCommerce.Core.DependencyInjection;
+using PiranhaCommerce.Customers.Admin;
 using PiranhaCommerce.Data;
 using PiranhaCommerce.Data.SqlServer;
 using PiranhaCommerce.Ecommerce;
@@ -77,6 +78,7 @@ builder.Services.AddPiranhaCore()
     .AddPiranhaApi()
     .AddPiranhaAdmin()
     .AddPlugin<EcommercePlugin>()
+    .AddPlugin<CustomersAdminPlugin>()
     .AddPlugin<EcommerceAdminPlugin>()
     .AddPlugin<WarrantyPlugin>();
 
@@ -105,7 +107,7 @@ Get-ChildItem $warranty -Include *.cs,*.razor -Recurse | Where-Object { $_.FullN
 
 # (RequiresAspNetWebAssets is a documented host requirement, see README.)
 # Reference ONLY the two top-level plugin packages + the provider; everything else must arrive transitively.
-foreach ($id in 'PiranhaCommerce.Ecommerce.Admin', 'PiranhaCommerce.Data.SqlServer') {
+foreach ($id in 'PiranhaCommerce.Ecommerce.Admin', 'PiranhaCommerce.Customers.Admin', 'PiranhaCommerce.Data.SqlServer') {
     Run dotnet @('add', 'package', $id, '--version', $version, '--no-restore') $app | Out-Null
 }
 Run dotnet @('add', 'package', 'Microsoft.EntityFrameworkCore.Design', '--version', '10.0.15', '--no-restore') $app | Out-Null
@@ -169,6 +171,11 @@ try {
     }
     Check 'ecommerce listing endpoint works (ecommerce package + cross-package FK)' {
         (Invoke-RestMethod "$base/api/v1/products/$script:productId/listing" -Method Put -Headers $h -ContentType 'application/json' -Body '{"published":true}').published
+    }
+    Check 'customers package works (own schema, address book)' {
+        $c = Invoke-RestMethod "$base/api/v1/customers" -Method Post -Headers $h -ContentType 'application/json' -Body '{"email":"pkg@example.com","lastName":"Pkg"}'
+        $a = Invoke-RestMethod "$base/api/v1/customers/$($c.id)/addresses" -Method Post -Headers $h -ContentType 'application/json' -Body '{"line1":"1 High St","city":"Leeds","countryCode":"gb"}'
+        $a.countryCode -eq 'GB'
     }
     Check 'third-party plugin compiled against the packages works (own schema, host migration)' {
         (Invoke-RestMethod "$base/api/v1/products/$script:productId/warranty" -Method Put -Headers $h -ContentType 'application/json' -Body '{"months":24,"terms":"x"}').months -eq 24

@@ -44,7 +44,22 @@
         var user = await SignInManager.UserManager.FindByEmailAsync(Input!.Email);
         if (user is not null && user.Active)
         {
+            var hadFailedAttempts = user.AccessFailedCount > 0;
             var result = await SignInManager.PasswordSignInAsync(user, Input!.Password, isPersistent: false, lockoutOnFailure: true);
+
+            // Identity answers "Failed" to a CORRECT password when resetting the failed-attempt counter loses a concurrency race
+            // against another simultaneous sign-in (an anti-guessing safeguard). That can only happen when a failed attempt is
+            // already recorded. Retry, but only while the password verifies: someone who already has the right password gains
+            // nothing from the retry, and wrong guesses are never retried (so they still count towards lockout exactly once).
+            for (var attempt = 0; hadFailedAttempts && attempt < 3 && !result.Succeeded && !result.IsLockedOut
+                                  && !result.IsNotAllowed && !result.RequiresTwoFactor; attempt++)
+            {
+                user = await SignInManager.UserManager.FindByEmailAsync(Input.Email);
+                if (user is null || !user.Active || !await SignInManager.UserManager.CheckPasswordAsync(user, Input.Password))
+                    break;
+                result = await SignInManager.PasswordSignInAsync(user, Input.Password, isPersistent: false, lockoutOnFailure: true);
+            }
+
             if (result.Succeeded)
             {
                 Navigation.NavigateTo(IsLocal(ReturnUrl) ? ReturnUrl! : "/admin", forceLoad: true);

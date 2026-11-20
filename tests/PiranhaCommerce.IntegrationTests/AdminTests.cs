@@ -36,6 +36,28 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
             }));
     }
 
+    private async Task<string> DescribeAdminAsync()
+    {
+        using var scope = factory.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<PiranhaCommerce.Core.Identity.PiranhaUser>>();
+        var u = await users.FindByEmailAsync(PiranhaFactory.AdminEmail);
+        if (u is null) return "user NOT FOUND";
+        return $"active={u.Active} lockoutEnd={u.LockoutEnd?.ToString() ?? "none"} failedCount={u.AccessFailedCount} " +
+               $"passwordOk={await users.CheckPasswordAsync(u, PiranhaFactory.AdminPassword)} inRole={await users.IsInRoleAsync(u, PiranhaCommerce.Core.Identity.PiranhaRoles.Administrator)}";
+    }
+
+    /// <summary>Signs in as the seeded admin and fails with the server's answer if that did not work (rather than a later, confusing 302).</summary>
+    private async Task SignInAsync(HttpClient browser)
+    {
+        var login = await PostLoginAsync(browser, PiranhaFactory.AdminEmail, PiranhaFactory.AdminPassword);
+        if (login.StatusCode != HttpStatusCode.Redirect)
+        {
+            var body = await login.Content.ReadAsStringAsync();
+            var error = System.Text.RegularExpressions.Regex.Match(body, "pc-error[^>]*>([^<]+)").Groups[1].Value;
+            Assert.Fail($"Sign-in did not succeed: HTTP {(int)login.StatusCode}. Page said: '{error}'. Account state: {await DescribeAdminAsync()}");
+        }
+    }
+
     [Fact]
     public async Task Plugin_page_assembly_is_registered_with_the_admin()
     {
@@ -113,7 +135,7 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
         var product = (await created.Content.ReadFromJsonAsync<PiranhaCommerce.Catalog.ProductDto>())!;
 
         var browser = NewBrowser();
-        await PostLoginAsync(browser, PiranhaFactory.AdminEmail, PiranhaFactory.AdminPassword);
+        await SignInAsync(browser);
 
         var existing = await (await browser.GetAsync($"/admin/catalog/products/{product.Id}")).Content.ReadAsStringAsync();
         Assert.Contains("Online store", existing);
@@ -154,7 +176,7 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
     public async Task Categories_page_renders_and_is_in_the_menu()
     {
         var browser = NewBrowser();
-        await PostLoginAsync(browser, PiranhaFactory.AdminEmail, PiranhaFactory.AdminPassword);
+        await SignInAsync(browser);
         var page = await browser.GetAsync("/admin/catalog/categories");
         Assert.Equal(HttpStatusCode.OK, page.StatusCode);
         Assert.Contains("<h1>Categories</h1>", await page.Content.ReadAsStringAsync());
@@ -164,7 +186,7 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
     public async Task Stock_location_and_negative_stock_pages_render()
     {
         var browser = NewBrowser();
-        await PostLoginAsync(browser, PiranhaFactory.AdminEmail, PiranhaFactory.AdminPassword);
+        await SignInAsync(browser);
 
         var locations = await browser.GetAsync("/admin/catalog/stock-locations");
         Assert.Equal(HttpStatusCode.OK, locations.StatusCode);
@@ -173,5 +195,57 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
         var negative = await browser.GetAsync("/admin/catalog/negative-stock");
         Assert.Equal(HttpStatusCode.OK, negative.StatusCode);
         Assert.Contains("<h1>Negative stock</h1>", await negative.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Customer_pages_render_and_the_edit_page_shows_the_address_panel_only_for_saved_customers()
+    {
+        var api = await factory.CreateAuthenticatedApiClientAsync();
+        var created = await api.PostAsJsonAsync("/api/v1/customers",
+            new PiranhaCommerce.Customers.CustomerInput { Email = $"admin-{Guid.NewGuid():N}@example.com", LastName = "Panel" });
+        var customer = (await created.Content.ReadFromJsonAsync<PiranhaCommerce.Customers.CustomerDto>())!;
+
+        var browser = NewBrowser();
+        await SignInAsync(browser);
+
+        var list = await browser.GetAsync("/admin/customers");
+        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+        Assert.Contains("<h1>Customers</h1>", await list.Content.ReadAsStringAsync());
+
+        var existing = await (await browser.GetAsync($"/admin/customers/{customer.Id}")).Content.ReadAsStringAsync();
+        Assert.Contains("<h2 style=\"margin-top:0\">Addresses</h2>", existing);   // contributed through the customer slot
+
+        var fresh = await (await browser.GetAsync("/admin/customers/new")).Content.ReadAsStringAsync();
+        Assert.DoesNotContain("<h2 style=\"margin-top:0\">Addresses</h2>", fresh);
+        Assert.Contains("Save the customer to manage their addresses.", fresh);
+    }
+
+    /// <summary>
+    /// ASP.NET Identity refuses a CORRECT password when resetting the failed-attempt counter loses a concurrency race against another
+    /// simultaneous sign-in (an anti-guessing measure). A real user must not be told their password is wrong because of that.
+    /// </summary>
+    [Fact]
+    public async Task Simultaneous_correct_sign_ins_after_a_typo_all_succeed()
+    {
+        var (email, password) = await factory.CreateReadOnlyUserAsync(); // own account: the shared admin must not be disturbed
+
+        var typo = await PostLoginAsync(NewBrowser(), email, password + "x"); // leaves one failed attempt recorded
+        Assert.Equal(HttpStatusCode.OK, typo.StatusCode);
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 15).Select(_ => PostLoginAsync(NewBrowser(), email, password)));
+
+        Assert.All(results, r => Assert.Equal(HttpStatusCode.Redirect, r.StatusCode));
+    }
+
+    [Fact]
+    public async Task Wrong_passwords_still_count_towards_lockout_and_never_succeed()
+    {
+        var (email, password) = await factory.CreateReadOnlyUserAsync();
+        for (var i = 0; i < 5; i++)
+            Assert.Equal(HttpStatusCode.OK, (await PostLoginAsync(NewBrowser(), email, "wrong-" + i)).StatusCode);
+
+        var afterLockout = await PostLoginAsync(NewBrowser(), email, password); // even the right password is refused while locked out
+        Assert.Equal(HttpStatusCode.OK, afterLockout.StatusCode);
+        Assert.Contains("temporarily locked", await afterLockout.Content.ReadAsStringAsync());
     }
 }

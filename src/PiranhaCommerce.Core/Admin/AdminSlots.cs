@@ -11,6 +11,9 @@ public static class AdminSlots
 
     /// <summary>Panels on the edit page of an existing product. Supplies parameter <c>Guid ProductId</c>.</summary>
     public const string ProductEditPanels = "product.edit.panels";
+
+    /// <summary>Panels on the edit page of an existing customer. Supplies parameter <c>Guid CustomerId</c>.</summary>
+    public const string CustomerEditPanels = "customer.edit.panels";
 }
 
 /// <summary>Puts a component (a Razor component type) into a slot. Components receive the slot's parameters.</summary>
