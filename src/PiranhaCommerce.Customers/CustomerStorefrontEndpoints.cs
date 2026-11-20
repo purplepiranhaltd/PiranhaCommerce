@@ -55,6 +55,19 @@ internal sealed class CustomerStorefrontEndpoints : IStorefrontEndpointContribut
             })
             .AllowAnonymous();
 
+        auth.MapPost("/forgot-password", async (ForgotPasswordInput input, ICustomerAccountService accounts, CancellationToken ct) =>
+            {
+                await accounts.RequestPasswordResetAsync(input, ct);
+                return Results.Accepted(); // always, whether or not that address belongs to a customer
+            })
+            .AllowAnonymous();
+
+        auth.MapPost("/reset-password", async (ResetPasswordInput input, ICustomerAccountService accounts, CancellationToken ct) =>
+                await accounts.ResetPasswordAsync(input, ct)
+                    ? Results.NoContent()
+                    : Results.ValidationProblem(new Dictionary<string, string[]> { [nameof(ResetPasswordInput.Token)] = ["This link is not valid, or has expired or already been used."] }))
+            .AllowAnonymous();
+
         var me = storefront.MapGroup("/me").WithTags("Storefront account").AddEndpointFilter<ActiveCustomerFilter>();
 
         me.MapGet("/", async (ClaimsPrincipal user, ICustomerAccountService accounts, CancellationToken ct) =>

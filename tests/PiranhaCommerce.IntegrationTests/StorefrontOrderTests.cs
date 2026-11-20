@@ -152,6 +152,34 @@ public class StorefrontOrderTests(PiranhaFactory factory) : IClassFixture<Piranh
     }
 
     [Fact]
+    public async Task Placing_an_order_emails_a_confirmation_but_a_broken_mail_server_never_stops_the_order()
+    {
+        var staff = await factory.CreateAuthenticatedApiClientAsync();
+        var (shopper, _, email) = await NewShopperAsync();
+        var product = await NewProduct(staff);
+
+        var firstBasket = await ShopperBasketAsync(shopper, product, 1);
+        var first = await Read<OrderDto>(await shopper.PostAsJsonAsync($"/api/v1/storefront/baskets/{firstBasket.Id}/checkout", Checkout()));
+        var mail = Assert.Single(factory.Email.To(email));
+        Assert.Contains(first.Reference, mail.Subject);
+        Assert.Contains(product.Name, mail.TextBody);
+
+        factory.Email.Fail = true;
+        try
+        {
+            var basket = await ShopperBasketAsync(shopper, product, 1);
+            Assert.Equal(HttpStatusCode.OK, (await shopper.PostAsJsonAsync($"/api/v1/storefront/baskets/{basket.Id}/checkout", Checkout())).StatusCode);
+        }
+        finally { factory.Email.Fail = false; }
+        Assert.Equal(2, (await Read<PagedResult<OrderSummaryDto>>(await shopper.GetAsync("/api/v1/storefront/orders"))).TotalCount);
+
+        // Repeating a checkout that already happened does not email again.
+        var again = await shopper.PostAsJsonAsync($"/api/v1/storefront/baskets/{firstBasket.Id}/checkout", Checkout());
+        Assert.Equal(first.Id, (await Read<OrderDto>(again)).Id);
+        Assert.Single(factory.Email.To(email));
+    }
+
+    [Fact]
     public async Task Order_history_needs_a_shopper_token()
     {
         var staff = await factory.CreateAuthenticatedApiClientAsync();

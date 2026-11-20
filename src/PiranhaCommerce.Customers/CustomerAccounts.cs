@@ -1,7 +1,11 @@
 using System.ComponentModel.DataAnnotations;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using PiranhaCommerce.Core.Email;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
 
@@ -29,6 +33,18 @@ public sealed class CustomerAccountOptions
     public int MaxFailedAttempts { get; set; } = 5;
     public int LockoutMinutes { get; set; } = 15;
     public int MinPasswordLength { get; set; } = 10;
+
+    /// <summary>How long a password-reset link works.</summary>
+    public int ResetTokenMinutes { get; set; } = 60;
+
+    /// <summary>Most reset emails sent to one customer in an hour, so the form cannot be used to flood someone's inbox.</summary>
+    public int MaxResetEmailsPerHour { get; set; } = 5;
+
+    /// <summary>
+    /// Link put in the email, for example <c>https://shop.example.com/reset?email={email}&amp;token={token}</c>. The storefront serves
+    /// that page and posts the values to <c>/auth/reset-password</c>. When empty the email carries the token itself.
+    /// </summary>
+    public string? ResetUrlTemplate { get; set; }
 }
 
 public sealed class RegisterInput
@@ -57,6 +73,30 @@ public sealed class ProfileInput
     [StringLength(40)] public string? Phone { get; set; }
 }
 
+public sealed class ForgotPasswordInput
+{
+    [Required, StringLength(256)] public string Email { get; set; } = "";
+}
+
+public sealed class ResetPasswordInput
+{
+    [Required, StringLength(256)] public string Email { get; set; } = "";
+    [Required, StringLength(200)] public string Token { get; set; } = "";
+    [Required, StringLength(128)] public string NewPassword { get; set; } = "";
+}
+
+/// <summary>A single-use emailed token. Only a hash is stored, so a copy of the database cannot reset anyone's password.</summary>
+public class CustomerToken
+{
+    public Guid Id { get; set; }
+    public Guid CustomerId { get; set; }
+    public string Purpose { get; set; } = "PasswordReset";
+    public string TokenHash { get; set; } = "";
+    public DateTimeOffset CreatedUtc { get; set; }
+    public DateTimeOffset ExpiresUtc { get; set; }
+    public DateTimeOffset? UsedUtc { get; set; }
+}
+
 public enum SignInStatus { Valid, Invalid, LockedOut }
 
 public sealed record SignInResult(SignInStatus Status, Guid? CustomerId, string? Email);
@@ -79,9 +119,20 @@ public interface ICustomerAccountService
 
     /// <summary>False when the current password is wrong (counted like a failed sign-in) or the customer cannot sign in.</summary>
     Task<bool> ChangePasswordAsync(Guid customerId, ChangePasswordInput input, CancellationToken ct = default);
+
+    /// <summary>
+    /// Emails a single-use link to the address if (and only if) an active customer has it. Says nothing either way, so it cannot be
+    /// used to find out who is a customer. The same link also CREATES a sign-in for a customer who has none (made by staff or by a
+    /// guest order): receiving the email is the proof that the address is theirs.
+    /// </summary>
+    Task RequestPasswordResetAsync(ForgotPasswordInput input, CancellationToken ct = default);
+
+    /// <summary>False when the link is wrong, used, expired or for another address. Success also clears any lockout.</summary>
+    Task<bool> ResetPasswordAsync(ResetPasswordInput input, CancellationToken ct = default);
 }
 
-internal sealed class CustomerAccountService(PiranhaDbContext db, IOptions<CustomerAccountOptions> options) : ICustomerAccountService
+internal sealed class CustomerAccountService(
+    PiranhaDbContext db, IOptions<CustomerAccountOptions> options, IEmailSender email, ILogger<CustomerAccountService> logger) : ICustomerAccountService
 {
     private static readonly PasswordHasher<CustomerLogin> Hasher = new();
     private static readonly CustomerLogin Dummy = new();
@@ -195,6 +246,80 @@ internal sealed class CustomerAccountService(PiranhaDbContext db, IOptions<Custo
             .ExecuteUpdateAsync(s => s.SetProperty(l => l.PasswordHash, hash).SetProperty(l => l.PasswordChangedUtc, now), ct) > 0;
     }
 
+    public async Task RequestPasswordResetAsync(ForgotPasswordInput input, CancellationToken ct = default)
+    {
+        ModelValidator.ValidateOrThrow(input);
+        var normalized = Normalize(input.Email);
+        var customer = await db.Set<Customer>().AsNoTracking().Where(c => c.NormalizedEmail == normalized && c.Active)
+            .Select(c => new { c.Id, c.Email }).FirstOrDefaultAsync(ct);
+        if (customer is null) return;
+
+        var o = options.Value;
+        var now = DateTimeOffset.UtcNow;
+        var hourAgo = now.AddHours(-1);
+        if (await db.Set<CustomerToken>().CountAsync(t => t.CustomerId == customer.Id && t.CreatedUtc > hourAgo, ct) >= o.MaxResetEmailsPerHour) return;
+
+        var secret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        var token = new CustomerToken { Id = Guid.NewGuid(), CustomerId = customer.Id, TokenHash = Hash(secret), CreatedUtc = now, ExpiresUtc = now.AddMinutes(o.ResetTokenMinutes) };
+        db.Add(token);
+        await db.SaveChangesAsync(ct);
+
+        var code = $"{token.Id:N}.{secret}";
+        var link = string.IsNullOrWhiteSpace(o.ResetUrlTemplate) ? null
+            : o.ResetUrlTemplate.Replace("{token}", Uri.EscapeDataString(code)).Replace("{email}", Uri.EscapeDataString(customer.Email));
+        var body = new StringBuilder("Someone asked to set a password for this email address.\n\n");
+        body.Append(link is null ? $"Your code is:\n{code}\n" : $"Choose a password here:\n{link}\n");
+        body.Append($"\nThis works once and expires in {o.ResetTokenMinutes} minutes. If it was not you, ignore this email: nothing changes.\n");
+        try { await email.SendAsync(new EmailMessage(customer.Email, "Set your password", body.ToString()), ct); }
+        catch (Exception ex) { logger.LogWarning(ex, "Password reset email could not be sent."); } // same answer to the caller whether or not it went
+    }
+
+    public async Task<bool> ResetPasswordAsync(ResetPasswordInput input, CancellationToken ct = default)
+    {
+        ModelValidator.ValidateOrThrow(input);
+        var parts = input.Token.Split('.', 2);
+        if (parts.Length != 2 || !Guid.TryParseExact(parts[0], "N", out var tokenId)) return false;
+
+        var normalized = Normalize(input.Email);
+        var customer = await db.Set<Customer>().AsNoTracking().Where(c => c.NormalizedEmail == normalized && c.Active)
+            .Select(c => new { c.Id, c.Email }).FirstOrDefaultAsync(ct);
+        var row = await db.Set<CustomerToken>().AsNoTracking().Where(t => t.Id == tokenId)
+            .Select(t => new { t.CustomerId, t.TokenHash, t.UsedUtc, t.ExpiresUtc }).FirstOrDefaultAsync(ct);
+        var now = DateTimeOffset.UtcNow;
+        if (customer is null || row is null || row.CustomerId != customer.Id || row.UsedUtc is not null || row.ExpiresUtc <= now) return false;
+        if (!CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(row.TokenHash), Encoding.ASCII.GetBytes(Hash(parts[1])))) return false;
+
+        // A weak password is refused BEFORE the link is spent, so the shopper can try again with the same link.
+        CheckPasswordRules(input.NewPassword, customer.Email, nameof(ResetPasswordInput.NewPassword));
+
+        // Spend the link: one atomic statement, so two simultaneous uses cannot both win.
+        var spent = await db.Set<CustomerToken>().Where(t => t.Id == tokenId && t.UsedUtc == null && t.ExpiresUtc > now)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.UsedUtc, (DateTimeOffset?)now), ct);
+        if (spent == 0) return false;
+        await db.Set<CustomerToken>().Where(t => t.CustomerId == customer.Id && t.UsedUtc == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.UsedUtc, (DateTimeOffset?)now), ct); // any other outstanding links die with it
+
+        var hash = Hasher.HashPassword(Dummy, input.NewPassword);
+        var updated = await db.Set<CustomerLogin>().Where(l => l.CustomerId == customer.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(l => l.PasswordHash, hash).SetProperty(l => l.PasswordChangedUtc, now)
+                .SetProperty(l => l.AccessFailedCount, 0).SetProperty(l => l.LockoutEnd, (DateTimeOffset?)null), ct);
+        if (updated == 0)
+        {
+            // No sign-in yet: this is how a customer made by staff or a guest order gets one, having proved the address.
+            db.Add(new CustomerLogin { CustomerId = customer.Id, PasswordHash = hash, CreatedUtc = now, PasswordChangedUtc = now });
+            try { await db.SaveChangesAsync(ct); }
+            catch (DbUpdateException)
+            {
+                db.ChangeTracker.Clear(); // another reset created it a moment ago: ours replaces its password
+                await db.Set<CustomerLogin>().Where(l => l.CustomerId == customer.Id)
+                    .ExecuteUpdateAsync(s => s.SetProperty(l => l.PasswordHash, hash).SetProperty(l => l.PasswordChangedUtc, now), ct);
+            }
+        }
+        return true;
+    }
+
+    private static string Hash(string secret) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(secret)));
+
     private void CheckPasswordRules(string password, string email, string field)
     {
         var min = options.Value.MinPasswordLength;
@@ -205,7 +330,7 @@ internal sealed class CustomerAccountService(PiranhaDbContext db, IOptions<Custo
     }
 
     private static PiranhaValidationException Taken()
-        => new(nameof(RegisterInput.Email), "An account cannot be created with that email address.");
+        => new(nameof(RegisterInput.Email), "An account cannot be created with that email address. If you have an account or have ordered before, use forgot password to set a password.");
 
     private static string Normalize(string email) => email.Trim().ToUpperInvariant();
     private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();

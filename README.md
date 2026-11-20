@@ -225,11 +225,31 @@ How it is kept apart from the staff API:
 - The customer is always the one in the token. Checkout ignores any `customerId` in the request, and another shopper's basket or
   order answers `404`, the same as one that does not exist.
 - **Registration is refused for any email that already has a customer record** (made by staff or by an earlier order). Letting a
-  stranger attach a password to it would hand them that customer's order history. Linking such a customer to a sign-in needs proof
-  of email ownership, which needs email sending (not built).
+  stranger attach a password to it would hand them that customer's order history. Such a customer gets a sign-in the safe way:
+  `POST /auth/forgot-password` emails a single-use link, and `POST /auth/reset-password` with it sets the password (creating the
+  sign-in if there is none). Receiving the email is the proof of ownership. It also rescues someone whose address was registered
+  by a stranger, and clears a lockout.
+- Reset links work once, expire (default 60 minutes), die when another is used, are stored only as a hash, and are limited to 5
+  emails an hour per customer. Asking never reveals whether an address is a customer. Set `Piranha:Customers:ResetUrlTemplate`
+  (for example `https://shop.example.com/reset?email={email}&token={token}`) so the email carries a link to your storefront page;
+  without it the email carries the code.
 - A deactivated customer is cut off at once, even with an unexpired token. Tokens last `Piranha:Jwt:LifetimeMinutes` (60); changing a
   password does not end tokens already issued.
 - An open basket with no owner can be claimed once with its id (`/claim`); two shoppers claiming at once leaves one owner.
+
+## Email
+
+The platform sends email only through `IEmailSender` (`PiranhaCommerce.Core.Email`): one method, `SendAsync(EmailMessage)`. Nothing
+in the core knows about SMTP or any provider. Until you register a sender, mail is **not sent** and a warning is logged (without
+the content, which may hold a reset link). To send real mail, add a plugin or your own class:
+
+```csharp
+builder.Services.AddSingleton<IEmailSender, MySmtpSender>();   // after AddPiranhaCore(): the last registration wins
+```
+
+Today it sends password-reset links and, for every order placed, a plain-text order confirmation (`Piranha:Ecommerce:SendOrderConfirmations`,
+default on). A failing mail server never fails the request that triggered it: the order is still placed, and the failure is logged.
+The email is sent before the checkout response returns, so a slow provider slows checkout; queue inside your sender if that matters.
 
 ## Baskets and orders
 

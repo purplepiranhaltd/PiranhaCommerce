@@ -176,4 +176,7 @@ public sealed class EcommerceOptions
 
     /// <summary>When true an order can only move to Processing once it is fully paid. Off by default (invoice and pay-on-collection shops).</summary>
     public bool RequirePaymentBeforeProcessing { get; set; }
+
+    /// <summary>Email the buyer a confirmation when an order is placed. Only does anything once an email plugin is registered.</summary>
+    public bool SendOrderConfirmations { get; set; } = true;
 }

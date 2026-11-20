@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using PiranhaCommerce.Core.Email;
 using PiranhaCommerce.Core.Plugins;
 
 namespace PiranhaCommerce.Core.DependencyInjection;
@@ -11,6 +12,7 @@ public static class PiranhaCoreServiceCollectionExtensions
         var builder = new PiranhaBuilder(services);
         services.TryAddSingleton(builder);
         services.TryAddSingleton<IPluginCatalog, PluginCatalog>();
+        services.AddPiranhaEmailDefaults(); // an email plugin registers its own IEmailSender afterwards and wins
         return builder;
     }
 }

@@ -52,6 +52,15 @@ internal sealed class CustomersModelContributor : IModelContributor
             e.HasOne<Customer>().WithOne().HasForeignKey<CustomerLogin>(l => l.CustomerId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        b.Entity<CustomerToken>(e =>
+        {
+            e.ToTable("CustomerToken", Schema);
+            e.Property(x => x.Purpose).HasMaxLength(32).IsRequired();
+            e.Property(x => x.TokenHash).HasMaxLength(64).IsRequired();
+            e.HasIndex(x => new { x.CustomerId, x.CreatedUtc });
+            e.HasOne<Customer>().WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         b.Entity<CustomerAddress>(e =>
         {
             e.ToTable("CustomerAddress", Schema);

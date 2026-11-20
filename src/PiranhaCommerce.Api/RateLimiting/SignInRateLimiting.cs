@@ -34,6 +34,8 @@ internal static class SignInRateLimiting
         && (http.Request.Path.Value is { } p)
         && (p.EndsWith("/auth/token", StringComparison.OrdinalIgnoreCase)
             || p.EndsWith("/auth/register", StringComparison.OrdinalIgnoreCase)
+            || p.EndsWith("/auth/forgot-password", StringComparison.OrdinalIgnoreCase)
+            || p.EndsWith("/auth/reset-password", StringComparison.OrdinalIgnoreCase)
             || p.EndsWith("/me/password", StringComparison.OrdinalIgnoreCase)
             || p.Equals("/admin/login", StringComparison.OrdinalIgnoreCase));
 

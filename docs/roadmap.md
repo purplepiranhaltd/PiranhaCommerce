@@ -76,9 +76,12 @@ by the shopper, order history, claim an anonymous basket.
 
 Not built:
 
-- **Email**: no verification, no welcome or order emails, **no password reset**. Without email, a customer who already exists
-  (staff-made or from a guest order) cannot get a sign-in: registration refuses them. Needs an email-sending plugin point first, then
-  an invite or verify-by-link flow that proves the address before linking.
+- **Email**: the plugin point (`IEmailSender`), password reset / first sign-in by emailed link, and order confirmations are built.
+  Not built: a real sender (SMTP, SendGrid, Azure Communication Services - a plugin each), HTML and editable templates, a queue with
+  retries (mail is sent inline and a failure is only logged), welcome and order-status emails (shipped, cancelled, refunded),
+  staff-triggered "send invite" from the admin, and requiring a verified email before sign-in (an unverified address can register a
+  new account today; the real owner recovers it with forgot-password).
+- Staff admin for shopper accounts: nothing in the admin shows which customers have a sign-in, or lets staff disable one.
 - Ending tokens early: changing a password or signing out does not revoke tokens already issued (they expire in an hour). Refresh
   tokens and a revocation stamp would fix this.
 - Merging two baskets (claim only takes an unowned basket whole); guest checkout through the storefront API.

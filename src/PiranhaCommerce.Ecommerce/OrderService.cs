@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PiranhaCommerce.Catalog;
+using PiranhaCommerce.Core.Email;
 using PiranhaCommerce.Core.Paging;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Customers;
@@ -38,7 +40,9 @@ public interface IOrderService
     Task<OrderDto?> ChangeStageAsync(Guid id, OrderStage to, string? actor = null, CancellationToken ct = default);
 }
 
-internal sealed class OrderService(PiranhaDbContext db, IStockService stock, ICustomerService customers, IOptions<EcommerceOptions> options) : IOrderService
+internal sealed class OrderService(
+    PiranhaDbContext db, IStockService stock, ICustomerService customers, IOptions<EcommerceOptions> options,
+    IEmailSender email, ILogger<OrderService> logger) : IOrderService
 {
     public async Task<PagedResult<OrderSummaryDto>> ListAsync(int? page, int? pageSize, OrderStage? stage, string? search, CancellationToken ct = default)
     {
@@ -215,7 +219,14 @@ internal sealed class OrderService(PiranhaDbContext db, IStockService stock, ICu
             throw new PiranhaConflictException("The order could not be placed because something in the basket changed. Please try again.");
         }
 
-        return await GetAsync(orderId, ct);
+        var placed = await GetAsync(orderId, ct);
+        if (placed is not null && options.Value.SendOrderConfirmations)
+        {
+            // After the commit, and never able to fail the order: the order exists whether or not the email goes.
+            try { await email.SendAsync(OrderEmails.Confirmation(placed), ct); }
+            catch (Exception ex) { logger.LogWarning(ex, "Order confirmation for {Reference} could not be sent.", placed.Reference); }
+        }
+        return placed;
     }
 
     public async Task<OrderDto?> ChangeStageAsync(Guid id, OrderStage to, string? actor = null, CancellationToken ct = default)
