@@ -100,6 +100,9 @@ Not built yet:
 - Promotions: promo codes are built (percent or fixed amount off the goods, one code per basket). Not built: free-shipping codes,
   discounts on selected products or categories, buy-one-get-one, automatic discounts with no code, per-customer use limits, stacking
   several codes, and refunds that adjust a discount after a partial return.
+- Gift vouchers are built (issue, pay at checkout, return on cancel, ledger). Not built: selling a voucher as a product (an order line
+  that issues one on payment), partial returns crediting a voucher, voucher use from the shopper side ("check my balance"), expiry
+  reminders, and a per-code attempt limit beyond the shared request limiter.
 - Payment gateways. Payments are recorded (`manual` provider: cash, bank transfer, terminal) and a gateway plugin can register an
   `IPaymentProvider` and record payments when its gateway confirms; there is no hosted checkout, card capture or webhook handling yet.
 - Shipping: flat price per method (optionally free above a spend). No weight/zone rates, carriers or live rates.

@@ -1,0 +1,158 @@
+@page "/admin/orders/vouchers"
+@inject AdminScopeRunner Scope
+
+<PageTitle>Gift vouchers - Piranha Commerce</PageTitle>
+<h1>Gift vouchers</h1>
+<p class="pc-muted">
+    A voucher is a way of paying: it covers part or all of an order's total after tax, and never changes the price or the tax.
+    The full code is shown once, when you issue it. Afterwards only the last four characters are kept in the list.
+</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+@if (_issuedCode is not null)
+{
+    <div class="pc-card" role="status">
+        <strong>Voucher issued. Copy this code now; it cannot be shown again:</strong>
+        <p style="font-size:1.4em;font-family:monospace">@_issuedCode</p>
+        <button type="button" class="secondary" @onclick="() => _issuedCode = null">I have copied it</button>
+    </div>
+}
+
+<div class="pc-card">
+    <EditForm Model="_input" OnValidSubmit="IssueAsync" FormName="voucher-issue">
+        <DataAnnotationsValidator />
+        <h2 style="margin-top:0">Issue a voucher</h2>
+        <label>Value <InputNumber @bind-Value="_input.Value" /></label>
+        <ValidationMessage For="() => _input.Value" />
+        <label>Expires (optional) <InputDate TValue="DateTimeOffset?" @bind-Value="_input.ExpiresUtc" /></label>
+        <label>Note (optional) <InputText @bind-Value="_input.Note" /></label>
+        <button type="submit" disabled="@_busy">Issue voucher</button>
+    </EditForm>
+</div>
+
+@if (_vouchers is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_vouchers.Items.Count == 0)
+{
+    <p class="pc-muted">No vouchers yet.</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>Ends in</th><th>Balance</th><th>Issued</th><th>Expires</th><th>Active</th><th>Note</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var v in _vouchers.Items)
+        {
+            <tr>
+                <td>@v.CodeLast4</td>
+                <td>@v.Balance.ToString("N2") @v.Currency</td>
+                <td>@v.InitialValue.ToString("N2")</td>
+                <td>@(v.ExpiresUtc?.ToString("dd MMM yyyy") ?? "never")</td>
+                <td>@(v.Active ? "Yes" : "No")</td>
+                <td>@v.Note</td>
+                <td class="actions">
+                    <button class="secondary" @onclick="() => ToggleAsync(v)">@(v.Active ? "Switch off" : "Switch on")</button>
+                    <button class="secondary" @onclick="() => ShowAsync(v.Id)">History</button>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@if (_detail is not null)
+{
+    <div class="pc-card">
+        <h2 style="margin-top:0">History of voucher ending @_detail.Voucher.CodeLast4</h2>
+        <table class="pc-table">
+            <thead><tr><th>When</th><th>What</th><th>Amount</th><th>Reference</th></tr></thead>
+            <tbody>
+            @foreach (var e in _detail.Entries)
+            {
+                <tr><td>@e.CreatedUtc.ToString("dd MMM yyyy HH:mm")</td><td>@e.Kind</td><td>@e.Amount.ToString("N2")</td><td>@e.Reference</td></tr>
+            }
+            </tbody>
+        </table>
+        <EditForm Model="_adjust" OnValidSubmit="AdjustAsync" FormName="voucher-adjust">
+            <DataAnnotationsValidator />
+            <label>Add or remove value (negative removes) <InputNumber @bind-Value="_adjust.Amount" /></label>
+            <label>Reason <InputText @bind-Value="_adjust.Reason" /></label>
+            <ValidationMessage For="() => _adjust.Reason" />
+            <button type="submit" disabled="@_busy">Adjust</button>
+            <button type="button" class="secondary" @onclick="() => _detail = null">Close</button>
+        </EditForm>
+    </div>
+}
+
+@code {
+    private PiranhaCommerce.Core.Paging.PagedResult<VoucherDto>? _vouchers;
+    private VoucherDetailDto? _detail;
+    private VoucherIssueInput _input = new();
+    private VoucherAdjustInput _adjust = new();
+    private string? _issuedCode;
+    private string? _error;
+    private bool _busy;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try { _vouchers = await Scope.RunAsync<IVoucherService, PiranhaCommerce.Core.Paging.PagedResult<VoucherDto>>(s => s.ListAsync(1, 50, null)); }
+        catch (Exception ex) { _error = "Could not load vouchers: " + ex.Message; }
+    }
+
+    private async Task IssueAsync()
+    {
+        _busy = true; _error = null;
+        try
+        {
+            var input = _input;
+            var issued = await Scope.RunAsync<IVoucherService, VoucherIssuedDto>(s => s.IssueAsync(input));
+            _issuedCode = issued.Code;
+            _input = new();
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _error = "Could not issue: " + ex.Message; }
+        finally { _busy = false; }
+        await LoadAsync();
+    }
+
+    private async Task ToggleAsync(VoucherDto v)
+    {
+        _error = null;
+        try { await Scope.RunAsync<IVoucherService, VoucherDto?>(s => s.UpdateAsync(v.Id, new VoucherUpdateInput { Active = !v.Active, ExpiresUtc = v.ExpiresUtc, Note = v.Note })); }
+        catch (Exception ex) { _error = "Could not change: " + ex.Message; }
+        await LoadAsync();
+    }
+
+    private async Task ShowAsync(Guid id)
+    {
+        _error = null;
+        _adjust = new();
+        _detail = await Scope.RunAsync<IVoucherService, VoucherDetailDto?>(s => s.GetAsync(id));
+    }
+
+    private async Task AdjustAsync()
+    {
+        if (_detail is null) return;
+        _busy = true; _error = null;
+        var id = _detail.Voucher.Id;
+        try
+        {
+            var input = _adjust;
+            await Scope.RunAsync<IVoucherService, VoucherDto?>(s => s.AdjustAsync(id, input));
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (Exception ex) { _error = "Could not adjust: " + ex.Message; }
+        finally { _busy = false; }
+        await LoadAsync();
+        await ShowAsync(id);
+    }
+}

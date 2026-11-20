@@ -17,6 +17,8 @@ public class Basket : AuditableEntity
     public Guid? OrderId { get; set; }
     /// <summary>The promo code the shopper entered (upper-case), or null. Checked again, and used up, at checkout.</summary>
     public string? PromotionCode { get; set; }
+    /// <summary>The gift voucher the shopper will pay with (a reference, not the code: only a hash of the code is ever stored).</summary>
+    public Guid? VoucherId { get; set; }
     public List<BasketLine> Lines { get; set; } = [];
 }
 
@@ -60,6 +62,9 @@ public class Order : AuditableEntity
     public Guid? PromotionId { get; set; }
     public string? PromotionCode { get; set; }
     public decimal DiscountTotal { get; set; }
+    /// <summary>The gift voucher paid with, and how much of the total it paid (also recorded as a payment). Given back if the order is cancelled.</summary>
+    public Guid? VoucherId { get; set; }
+    public decimal VoucherPaid { get; set; }
     /// <summary>Summary of the tax: the rate name when every taxed line shares one, "Tax" when mixed. Each line carries its own.</summary>
     public string? TaxName { get; set; }
     public decimal TaxRate { get; set; }
@@ -139,7 +144,7 @@ public sealed record BasketLineDto(Guid ProductId, string Name, string? Sku, dec
 
 public sealed record BasketDto(
     Guid Id, BasketStatus Status, Guid? CustomerId, Guid? OrderId, string Currency, decimal Subtotal, IReadOnlyList<BasketLineDto> Lines,
-    string? PromotionCode = null);
+    string? PromotionCode = null, string? VoucherLast4 = null);
 
 public sealed class CheckoutInput
 {

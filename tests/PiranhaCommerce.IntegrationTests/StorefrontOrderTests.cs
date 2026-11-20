@@ -113,6 +113,8 @@ public class StorefrontOrderTests(PiranhaFactory factory) : IClassFixture<Piranh
         Assert.Equal(HttpStatusCode.NotFound, (await bob.PostAsync($"/api/v1/storefront/baskets/{aliceOpen.Id}/claim", null)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await bob.PostAsJsonAsync($"/api/v1/storefront/baskets/{aliceOpen.Id}/promo", new CodeInput { Code = "ANYTHING" })).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await bob.DeleteAsync($"/api/v1/storefront/baskets/{aliceOpen.Id}/promo")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await bob.PostAsJsonAsync($"/api/v1/storefront/baskets/{aliceOpen.Id}/voucher", new CodeInput { Code = "ANYTHING" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await bob.DeleteAsync($"/api/v1/storefront/baskets/{aliceOpen.Id}/voucher")).StatusCode);
 
         // Alice's basket is untouched and her stock was not taken by Bob's attempts.
         Assert.Equal(1, (await Read<BasketDto>(await alice.GetAsync($"/api/v1/storefront/baskets/{aliceOpen.Id}"))).Lines.Single().Quantity);

@@ -52,6 +52,14 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
                 await svc.SetPromotionAsync(id, null, ct) is { } b ? Results.Ok(b) : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 
+        baskets.MapPost("/{id:guid}/voucher", async (Guid id, CodeInput input, IBasketService svc, CancellationToken ct) =>
+                await svc.SetVoucherAsync(id, input.Code, ct) is { } b ? Results.Ok(b) : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
+        baskets.MapDelete("/{id:guid}/voucher", async (Guid id, IBasketService svc, CancellationToken ct) =>
+                await svc.SetVoucherAsync(id, null, ct) is { } b ? Results.Ok(b) : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
         baskets.MapPost("/{id:guid}/quote", async (Guid id, QuoteInput input, IBasketService svc, CancellationToken ct) =>
             await svc.QuoteAsync(id, input, ct) is { } q ? Results.Ok(q) : Results.NotFound());
 
@@ -73,6 +81,32 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
 
         shipping.MapDelete("/{id:guid}", async (Guid id, IShippingService svc, CancellationToken ct) =>
                 await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
+        var vouchers = api.MapGroup("/vouchers").WithTags("Gift vouchers");
+
+        vouchers.MapGet("/", async (int? page, int? pageSize, string? search, IVoucherService svc, CancellationToken ct) =>
+            Results.Ok(await svc.ListAsync(page, pageSize, search, ct)));
+
+        vouchers.MapGet("/{id:guid}", async (Guid id, IVoucherService svc, CancellationToken ct) =>
+            await svc.GetAsync(id, ct) is { } v ? Results.Ok(v) : Results.NotFound());
+
+        vouchers.MapPost("/lookup", async (CodeInput input, IVoucherService svc, CancellationToken ct) =>
+            await svc.FindByCodeAsync(input.Code, ct) is { } v ? Results.Ok(v) : Results.NotFound());
+
+        vouchers.MapPost("/", async (VoucherIssueInput input, IVoucherService svc, HttpContext http, CancellationToken ct) =>
+            {
+                var issued = await svc.IssueAsync(input, http.User.FindFirst("email")?.Value, ct);
+                return Results.Created($"/api/v1/vouchers/{issued.Voucher.Id}", issued);
+            })
+            .RequireAuthorization(ApiPolicies.Write);
+
+        vouchers.MapPut("/{id:guid}", async (Guid id, VoucherUpdateInput input, IVoucherService svc, CancellationToken ct) =>
+                await svc.UpdateAsync(id, input, ct) is { } v ? Results.Ok(v) : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
+        vouchers.MapPost("/{id:guid}/adjustments", async (Guid id, VoucherAdjustInput input, IVoucherService svc, HttpContext http, CancellationToken ct) =>
+                await svc.AdjustAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } v ? Results.Ok(v) : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 
         var promotions = api.MapGroup("/promotions").WithTags("Promotions");

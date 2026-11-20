@@ -96,10 +96,12 @@ public sealed class QuoteInput
 /// <param name="TaxName">The rate name when everything taxed shares one, "Tax" when rates are mixed, null when nothing is taxed.</param>
 /// <param name="TaxRate">The shared rate, or 0 when rates are mixed or nothing is taxed. See <paramref name="Taxes"/> for the detail.</param>
 /// <param name="DiscountTotal">What the promo code takes off the goods (0 when none applies). Total = Subtotal - DiscountTotal + ShippingTotal + TaxTotal.</param>
+/// <param name="VoucherApplied">How much of the total a gift voucher on the basket would pay (a way of paying: it never changes the price or the tax). AmountDue is what is left.</param>
 /// <param name="PromotionProblem">Set when the basket holds a code that cannot be used right now. The quote then ignores it, and checkout would refuse.</param>
 public sealed record QuoteDto(
     string Currency, decimal Subtotal, decimal ShippingTotal, string? TaxName, decimal TaxRate, decimal TaxTotal, decimal Total,
-    IReadOnlyList<TaxLineDto> Taxes, decimal DiscountTotal = 0m, string? PromotionCode = null, string? PromotionProblem = null);
+    IReadOnlyList<TaxLineDto> Taxes, decimal DiscountTotal = 0m, string? PromotionCode = null, string? PromotionProblem = null,
+    decimal VoucherApplied = 0m, decimal AmountDue = 0m, string? VoucherLast4 = null, string? VoucherProblem = null);
 
 /// <summary>The one place totals are worked out, used by the quote and by checkout so they can never disagree.</summary>
 public static class OrderPricing

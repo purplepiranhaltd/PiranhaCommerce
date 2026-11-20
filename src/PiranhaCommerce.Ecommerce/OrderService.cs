@@ -164,7 +164,8 @@ internal sealed class OrderService(
                     // rather than quietly charging full price.
                     Promotion? promo = null;
                     var discount = 0m;
-                    var promoCode = await db.Set<Basket>().AsNoTracking().Where(b => b.Id == basketId).Select(b => b.PromotionCode).FirstAsync(token);
+                    var held = await db.Set<Basket>().AsNoTracking().Where(b => b.Id == basketId).Select(b => new { b.PromotionCode, b.VoucherId }).FirstAsync(token);
+                    var promoCode = held.PromotionCode;
                     if (promoCode is not null)
                     {
                         promo = await db.Set<Promotion>().AsNoTracking().FirstOrDefaultAsync(p => p.Code == promoCode, token);
@@ -228,6 +229,35 @@ internal sealed class OrderService(
                         lines.Select(l => new StockChange(l.Id, -l.Quantity, "Order placed", reference, $"\"{l.Name}\"")).ToList(),
                         locationId, allowNegative: false, actor, token);
 
+                    // 5. Pay with the gift voucher, if the basket holds one. It is a way of paying: it comes AFTER the total (and the
+                    // tax) is known and changes neither. One conditional update takes the money, so a voucher spent by two orders at
+                    // once pays only one of them in full and never goes below zero. The voucher's ledger and the order's payment
+                    // record are written in this same transaction.
+                    if (held.VoucherId is { } voucherId)
+                    {
+                        var voucher = await db.Set<GiftVoucher>().AsNoTracking().FirstOrDefaultAsync(v => v.Id == voucherId, token);
+                        var at = DateTimeOffset.UtcNow;
+                        if (VoucherRules.Problem(voucher, currency, at) is not null)
+                            throw new PiranhaConflictException("The gift voucher on this basket cannot be used. Remove it to continue.");
+                        var pays = Math.Min(voucher!.Balance, calc.Total);
+                        if (pays > 0)
+                        {
+                            var spent = await db.Set<GiftVoucher>()
+                                .Where(v => v.Id == voucherId && v.Active && v.Balance >= pays && v.Currency == currency && (v.ExpiresUtc == null || v.ExpiresUtc > at))
+                                .ExecuteUpdateAsync(s => s.SetProperty(v => v.Balance, v => v.Balance - pays), token);
+                            if (spent == 0) throw new PiranhaConflictException("The gift voucher balance changed. Check the basket and try again.");
+                            db.Add(new VoucherEntry { VoucherId = voucherId, Amount = -pays, Kind = VoucherEntryKinds.Redeemed, OrderId = orderId, Reference = reference, Actor = actor, CreatedUtc = at });
+                            db.Add(new Payment
+                            {
+                                OrderId = orderId, Kind = PaymentKind.Payment, Provider = "voucher", Amount = pays, Currency = currency,
+                                Reference = $"VCH-{voucher.CodeLast4}-{reference}", // unique per use: the same voucher can pay many orders
+                                Note = $"Gift voucher ending {voucher.CodeLast4}", Actor = actor, CreatedUtc = at,
+                            });
+                            order.VoucherId = voucherId;
+                            order.VoucherPaid = pays;
+                        }
+                    }
+
                     await db.SaveChangesAsync(token);
                     return true;
                 },
@@ -260,7 +290,7 @@ internal sealed class OrderService(
 
     public async Task<OrderDto?> ChangeStageAsync(Guid id, OrderStage to, string? actor = null, CancellationToken ct = default)
     {
-        var current = await db.Set<Order>().AsNoTracking().Where(o => o.Id == id).Select(o => new { o.Stage, o.Number, o.PromotionId }).FirstOrDefaultAsync(ct);
+        var current = await db.Set<Order>().AsNoTracking().Where(o => o.Id == id).Select(o => new { o.Stage, o.Number, o.PromotionId, o.VoucherId, o.VoucherPaid }).FirstOrDefaultAsync(ct);
         if (current is null) return null;
         if (!OrderStages.Next(current.Stage).Contains(to))
             throw new PiranhaConflictException($"An order that is {current.Stage} cannot be moved to {to}.");
@@ -299,6 +329,30 @@ internal sealed class OrderService(
                     if (to == OrderStage.Cancelled && current.PromotionId is { } promoId)
                         await db.Set<Promotion>().Where(p => p.Id == promoId && p.Redeemed > 0)
                             .ExecuteUpdateAsync(s => s.SetProperty(p => p.Redeemed, p => p.Redeemed - 1), token);
+
+                    // Money paid with a gift voucher goes back onto the voucher: only what the order still holds (a manual refund already
+                    // given is not given twice), in the voucher's ledger and as a refund on the order, in this same transaction.
+                    if (to == OrderStage.Cancelled && current.VoucherId is { } voucherId && current.VoucherPaid > 0)
+                    {
+                        var (paidSoFar, refundedSoFar) = await PaymentSumsAsync(id, token);
+                        var credit = Math.Min(current.VoucherPaid, paidSoFar - refundedSoFar);
+                        if (credit > 0)
+                        {
+                            var reference = OrderNumbers.Format(current.Number);
+                            var last4 = await db.Set<GiftVoucher>().AsNoTracking().Where(v => v.Id == voucherId).Select(v => v.CodeLast4).FirstAsync(token);
+                            var at = DateTimeOffset.UtcNow;
+                            await db.Set<GiftVoucher>().Where(v => v.Id == voucherId)
+                                .ExecuteUpdateAsync(s => s.SetProperty(v => v.Balance, v => v.Balance + credit), token);
+                            db.Add(new VoucherEntry { VoucherId = voucherId, Amount = credit, Kind = VoucherEntryKinds.Returned, OrderId = id, Reference = reference, Actor = actor, CreatedUtc = at });
+                            db.Add(new Payment
+                            {
+                                OrderId = id, Kind = PaymentKind.Refund, Provider = "voucher", Amount = credit,
+                                Currency = await db.Set<Order>().AsNoTracking().Where(o => o.Id == id).Select(o => o.Currency).FirstAsync(token),
+                                Reference = $"VCH-{last4}-{reference}-RETURN", Note = $"Returned to gift voucher ending {last4}", Actor = actor, CreatedUtc = at,
+                            });
+                            await db.SaveChangesAsync(token);
+                        }
+                    }
 
                     if (returning.Count > 0)
                     {

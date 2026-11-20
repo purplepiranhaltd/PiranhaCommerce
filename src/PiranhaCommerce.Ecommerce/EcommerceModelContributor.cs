@@ -25,6 +25,7 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.ToTable("Basket", Schema);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.PromotionCode).HasMaxLength(40);
+            // VoucherId is a plain reference too: checkout re-checks the voucher, and vouchers are never deleted.
             // CustomerId is a plain reference (no foreign key): deleting or erasing a customer must not touch baskets or orders.
             e.HasMany(x => x.Lines).WithOne().HasForeignKey(l => l.BasketId).OnDelete(DeleteBehavior.Cascade);
         });
@@ -53,6 +54,7 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.Property(o => o.ShippingTotal).HasPrecision(18, 4);
             e.Property(o => o.PromotionCode).HasMaxLength(40);
             e.Property(o => o.DiscountTotal).HasPrecision(18, 4);
+            e.Property(o => o.VoucherPaid).HasPrecision(18, 4);
             e.Property(o => o.TaxName).HasMaxLength(50);
             e.Property(o => o.TaxRate).HasPrecision(9, 4);
             e.Property(o => o.TaxTotal).HasPrecision(18, 4);
@@ -113,6 +115,30 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.Property(p => p.Kind).HasConversion<string>().HasMaxLength(10);
             e.Property(p => p.Value).HasPrecision(18, 4);
             e.Property(p => p.MinSubtotal).HasPrecision(18, 4);
+        });
+
+        b.Entity<GiftVoucher>(e =>
+        {
+            e.ToTable("GiftVoucher", Schema);
+            e.Property(v => v.CodeHash).HasMaxLength(64);
+            e.HasIndex(v => v.CodeHash).IsUnique();
+            e.Property(v => v.CodeLast4).HasMaxLength(4);
+            e.Property(v => v.InitialValue).HasPrecision(18, 4);
+            e.Property(v => v.Balance).HasPrecision(18, 4);
+            e.Property(v => v.Currency).HasMaxLength(3);
+            e.Property(v => v.Note).HasMaxLength(200);
+        });
+
+        b.Entity<VoucherEntry>(e =>
+        {
+            e.ToTable("VoucherEntry", Schema);
+            e.Property(x => x.Amount).HasPrecision(18, 4);
+            e.Property(x => x.Kind).HasMaxLength(20);
+            e.Property(x => x.Reference).HasMaxLength(200);
+            e.Property(x => x.Actor).HasMaxLength(256);
+            e.HasIndex(x => new { x.VoucherId, x.CreatedUtc });
+            // Restrict: a voucher with history is never deleted (there is no delete; switch it off instead).
+            e.HasOne<GiftVoucher>().WithMany().HasForeignKey(x => x.VoucherId).OnDelete(DeleteBehavior.Restrict);
         });
 
         b.Entity<TaxClass>(e =>

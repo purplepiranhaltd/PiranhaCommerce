@@ -20,6 +20,12 @@ public interface IBasketService
     /// </summary>
     Task<BasketDto?> SetPromotionAsync(Guid basketId, string? code, CancellationToken ct = default);
 
+    /// <summary>
+    /// Puts a gift voucher on an open basket, to pay with at checkout (null or blank removes it). Every failure (no such code, off,
+    /// expired, empty, wrong currency) is the same validation error. Null when the basket does not exist; conflict once checked out.
+    /// </summary>
+    Task<BasketDto?> SetVoucherAsync(Guid basketId, string? code, CancellationToken ct = default);
+
     /// <summary>True only when the basket exists and belongs to that customer.</summary>
     Task<bool> IsOwnedByAsync(Guid basketId, Guid customerId, CancellationToken ct = default);
 
@@ -66,7 +72,7 @@ internal sealed class BasketService(PiranhaDbContext db, ICustomerService custom
     public async Task<BasketDto?> GetAsync(Guid basketId, CancellationToken ct = default)
     {
         var basket = await db.Set<Basket>().AsNoTracking().Where(b => b.Id == basketId)
-            .Select(b => new { b.Id, b.Status, b.CustomerId, b.OrderId, b.PromotionCode }).FirstOrDefaultAsync(ct);
+            .Select(b => new { b.Id, b.Status, b.CustomerId, b.OrderId, b.PromotionCode, b.VoucherId }).FirstOrDefaultAsync(ct);
         if (basket is null) return null;
 
         var lines = await db.Set<BasketLine>().AsNoTracking().Where(l => l.BasketId == basketId)
@@ -79,7 +85,30 @@ internal sealed class BasketService(PiranhaDbContext db, ICustomerService custom
 
         var dtos = lines.Select(x => new BasketLineDto(x.Id, x.Name, x.Sku, x.Price, x.Quantity, x.Price * x.Quantity, published.Contains(x.Id))).ToList();
         return new BasketDto(basket.Id, basket.Status, basket.CustomerId, basket.OrderId, options.Value.Currency.ToUpperInvariant(),
-            dtos.Sum(d => d.LineTotal), dtos, basket.PromotionCode);
+            dtos.Sum(d => d.LineTotal), dtos, basket.PromotionCode,
+            basket.VoucherId is { } vid ? await db.Set<GiftVoucher>().AsNoTracking().Where(v => v.Id == vid).Select(v => v.CodeLast4).FirstOrDefaultAsync(ct) : null);
+    }
+
+    public async Task<BasketDto?> SetVoucherAsync(Guid basketId, string? code, CancellationToken ct = default)
+    {
+        Guid? voucherId = null;
+        if (!string.IsNullOrWhiteSpace(code))
+        {
+            var hash = VoucherRules.Hash(code);
+            var voucher = await db.Set<GiftVoucher>().AsNoTracking().FirstOrDefaultAsync(v => v.CodeHash == hash, ct);
+            if (VoucherRules.Problem(voucher, options.Value.Currency, DateTimeOffset.UtcNow) is { } problem)
+                throw new PiranhaValidationException(nameof(CodeInput.Code), problem);
+            voucherId = voucher!.Id;
+        }
+
+        var changed = await db.Set<Basket>().Where(b => b.Id == basketId && b.Status == BasketStatus.Open)
+            .ExecuteUpdateAsync(s => s.SetProperty(b => b.VoucherId, voucherId), ct);
+        if (changed == 0)
+        {
+            if (!await db.Set<Basket>().AnyAsync(b => b.Id == basketId, ct)) return null;
+            throw new PiranhaConflictException("This basket has been checked out and can no longer be changed.");
+        }
+        return await GetAsync(basketId, ct);
     }
 
     public async Task<BasketDto?> SetPromotionAsync(Guid basketId, string? code, CancellationToken ct = default)
@@ -173,8 +202,20 @@ internal sealed class BasketService(PiranhaDbContext db, ICustomerService custom
         var calc = OrderPricing.Calculate(
             basket.Lines.Select(l => (l.LineTotal, classes.GetValueOrDefault(l.ProductId))).ToList(),
             discount, method, rules, defaultClass, input.CountryCode.ToUpperInvariant());
+
+        // A gift voucher pays part of the total; it never changes the price or the tax.
+        var applied = 0m;
+        string? voucherProblem = null;
+        var voucherId = await db.Set<Basket>().AsNoTracking().Where(b => b.Id == basketId).Select(b => b.VoucherId).FirstOrDefaultAsync(ct);
+        if (voucherId is { } vid)
+        {
+            var voucher = await db.Set<GiftVoucher>().AsNoTracking().FirstOrDefaultAsync(v => v.Id == vid, ct);
+            voucherProblem = VoucherRules.Problem(voucher, basket.Currency, DateTimeOffset.UtcNow);
+            if (voucherProblem is null) applied = Math.Min(voucher!.Balance, calc.Total);
+        }
+
         return new QuoteDto(basket.Currency, basket.Subtotal, calc.ShippingTotal, calc.SummaryName, calc.SummaryRate, calc.Tax, calc.Total,
-            calc.Breakdown, calc.Discount, basket.PromotionCode, problem);
+            calc.Breakdown, calc.Discount, basket.PromotionCode, problem, applied, calc.Total - applied, basket.VoucherLast4, voucherProblem);
     }
 
     private Task<int> SetQuantityAsync(Guid basketId, Guid productId, int quantity, CancellationToken ct)

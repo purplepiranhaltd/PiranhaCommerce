@@ -25,7 +25,13 @@ internal static class OrderEmails
                 text.AppendLine($"{t.Name} ({t.Rate.ToString("0.####", inv)}%): {t.Amount.ToString("N2", inv)} {o.Currency}");
         }
         else if (o.TaxTotal > 0) text.AppendLine($"Tax: {o.TaxTotal.ToString("N2", inv)} {o.Currency}");
-        text.AppendLine($"Total: {o.Total.ToString("N2", inv)} {o.Currency}").AppendLine();
+        text.AppendLine($"Total: {o.Total.ToString("N2", inv)} {o.Currency}");
+        if (o.AmountPaid > 0)
+        {
+            text.AppendLine($"Paid: {o.AmountPaid.ToString("N2", inv)} {o.Currency}");
+            text.AppendLine($"Still to pay: {Math.Max(0m, o.Total - o.AmountPaid + o.AmountRefunded).ToString("N2", inv)} {o.Currency}");
+        }
+        text.AppendLine();
         if (o.ShippingAddress is { } a)
         {
             text.AppendLine("Delivering to:");

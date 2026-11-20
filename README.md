@@ -287,6 +287,12 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   409 instead of quietly charging full price. A limited code is used up with one conditional update, so simultaneous orders cannot
   exceed the limit, and cancelling an order gives its use back (once). A code cannot be renamed once created. Every order satisfies
   Total = Subtotal - DiscountTotal + ShippingTotal + TaxTotal.
+- **Gift vouchers** (`/vouchers`, `POST|DELETE /baskets/{id}/voucher`): a way of PAYING, applied after tax. A voucher never changes the
+  price or the tax; it pays part or all of the total and the order records a `voucher` payment. The code (80 bits of randomness) is
+  shown once at issue and only its hash is stored, plus the last four characters; every failure (unknown, off, expired, empty) gets the
+  same answer. The balance moves with one conditional update and every change is a ledger row (balance = sum of the ledger), so
+  simultaneous orders cannot overspend it. Cancelling an order returns what it paid onto the voucher. Staff cannot record a `voucher`
+  payment or refund by hand. Vouchers are never deleted; switch them off.
 - `POST /baskets/{id}/quote` returns exactly what checkout will charge (the same calculator), with a `taxes` list (name, rate, amount).
   Orders keep copies of the method name and, on every line, the tax name, rate and amount, so editing settings later never changes an
   order; the order's `taxes` summary is built from those copies. Orders placed before tax classes show their single flat tax row.
