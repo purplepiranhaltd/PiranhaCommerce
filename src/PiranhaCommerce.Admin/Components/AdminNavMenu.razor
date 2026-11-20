@@ -1,0 +1,18 @@
+@using PiranhaCommerce.Admin.Services
+<nav class="pc-admin-nav">
+    @foreach (var top in Menu.Where(i => i.ParentKey is null))
+    {
+        <div class="pc-nav-group">
+            <span>@top.Title</span>
+            @foreach (var child in Menu.Where(i => i.ParentKey == top.Key))
+            {
+                <NavLink href="@child.Href">@child.Title</NavLink>
+            }
+        </div>
+    }
+</nav>
+
+@code {
+    [Inject] private AdminMenuService Service { get; set; } = default!;
+    private IReadOnlyList<AdminMenuItem> Menu => Service.GetMenu();
+}

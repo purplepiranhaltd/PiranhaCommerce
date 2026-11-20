@@ -1,0 +1,11 @@
+@* Renders every component plugins registered for the named zone. *@
+@foreach (var w in Widgets.Where(w => w.Zone == Zone).OrderBy(w => w.Order))
+{
+    <DynamicComponent Type="w.ComponentType" />
+}
+
+@code {
+    [Parameter, EditorRequired] public string Zone { get; set; } = default!;
+    [Inject] private IEnumerable<IAdminWidgetContributor> Contributors { get; set; } = default!;
+    private IEnumerable<AdminWidget> Widgets => Contributors.SelectMany(c => c.GetWidgets());
+}

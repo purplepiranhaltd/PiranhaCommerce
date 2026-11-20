@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PiranhaCommerce.Core\PiranhaCommerce.Core.csproj" />
+    <ProjectReference Include="..\..\src\PiranhaCommerce.Data.SqlServer\PiranhaCommerce.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\src\PiranhaCommerce.Data.PostgreSql\PiranhaCommerce.Data.PostgreSql.csproj" />
+    <ProjectReference Include="..\..\src\PiranhaCommerce.Api\PiranhaCommerce.Api.csproj" />
+    <ProjectReference Include="..\..\src\PiranhaCommerce.Admin\PiranhaCommerce.Admin.csproj" />
+    <ProjectReference Include="..\..\src\PiranhaCommerce.Ecommerce\PiranhaCommerce.Ecommerce.csproj" />
+  </ItemGroup>
+</Project>

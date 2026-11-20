@@ -1,1 +1,37 @@
-# piranha-commerce
+# Piranha Commerce
+
+A commerce engine for .NET, delivered as NuGet packages. Closed source for now; designed so it can be opened later.
+
+## Packages
+
+| Package | Purpose |
+|---|---|
+| `PiranhaCommerce.Core` | Domain base types, plugin model, admin extension contracts. No ecommerce concepts, so an EPOS can reuse it. |
+| `PiranhaCommerce.Data` | EF Core `PiranhaDbContext`; packages contribute entities via `IModelContributor`. |
+| `PiranhaCommerce.Data.SqlServer` | SQL Server + Azure SQL (priority target). |
+| `PiranhaCommerce.Data.PostgreSql` | PostgreSQL. |
+| `PiranhaCommerce.Api` | REST API host plumbing and `IApiEndpointContributor` (OpenAPI included). |
+| `PiranhaCommerce.Admin` | Blazor admin (Razor class library): menu + widget zones fed by plugins. |
+| `PiranhaCommerce.Ecommerce` | Catalog/orders etc. Itself a plugin on Core. A future `PiranhaCommerce.Epos` is a sibling. |
+
+## Plugin model
+
+Plugins are NuGet packages referenced at build time and registered in `Program.cs`:
+
+```csharp
+builder.Services.AddPiranhaCore()
+    .AddPiranhaSqlServer(connectionString)
+    .AddPiranhaApi()
+    .AddPiranhaAdmin()
+    .AddPlugin<EcommercePlugin>();
+```
+
+There is no runtime upload or assembly scanning: only code built by the dev team runs. A plugin registers
+`IModelContributor`, `IApiEndpointContributor`, `IAdminMenuContributor` and `IAdminWidgetContributor` services.
+
+## Build
+
+```
+dotnet build
+dotnet test
+```

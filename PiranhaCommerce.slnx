@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/PiranhaCommerce.Web/PiranhaCommerce.Web.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/PiranhaCommerce.Admin/PiranhaCommerce.Admin.csproj" />
+    <Project Path="src/PiranhaCommerce.Api/PiranhaCommerce.Api.csproj" />
+    <Project Path="src/PiranhaCommerce.Core/PiranhaCommerce.Core.csproj" />
+    <Project Path="src/PiranhaCommerce.Data.PostgreSql/PiranhaCommerce.Data.PostgreSql.csproj" />
+    <Project Path="src/PiranhaCommerce.Data.SqlServer/PiranhaCommerce.Data.SqlServer.csproj" />
+    <Project Path="src/PiranhaCommerce.Data/PiranhaCommerce.Data.csproj" />
+    <Project Path="src/PiranhaCommerce.Ecommerce/PiranhaCommerce.Ecommerce.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PiranhaCommerce.Core.Tests/PiranhaCommerce.Core.Tests.csproj" />
+  </Folder>
+</Solution>
