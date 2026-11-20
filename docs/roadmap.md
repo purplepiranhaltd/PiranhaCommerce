@@ -48,6 +48,25 @@ history.
 - Rate limiting on `POST /api/v1/auth/token` and the admin sign-in POST. Lockout (5 failures) caps guessing per account, but a burst of
   guesses already in flight when the lock lands is still evaluated, and lockout does nothing against one guess each at many accounts.
 
+## Tax rules: rates per product, not just per country
+
+Today a tax rule is one rate per destination country (plus a `*` fallback), charged on goods plus shipping. That is not enough for
+most real shops. The UK alone has a 20% standard rate, a 5% reduced rate and a 0% rate, and which one applies depends on the
+product, not the destination.
+
+Needed:
+
+- **Tax classes** on products (for example standard, reduced, zero), so several rates can exist for one country.
+- Rules keyed on class and country, with an optional region for places that tax by state or province.
+- Tax worked out per order line and stored on the line (name, rate, amount), so history never changes. Order tax is the sum of the
+  line taxes plus tax on shipping. This changes the order-line snapshot and needs a migration for both providers.
+- Which rate shipping is taxed at (often the rate of the goods, or the standard rate). This varies by country and must be a rule.
+- Tax-inclusive pricing (prices entered with tax included), since many shops show prices that way.
+- Several taxes on one order (for example federal plus provincial) and exemptions (tax-exempt customers or goods).
+
+Open question: whether to model a product's tax class in Catalog (shared with the EPOS) or in Ecommerce. The EPOS will need the
+same rates, so Catalog or a small shared tax module is more likely.
+
 ## Baskets and orders: decisions and what is left
 
 Decided: baskets and orders sit behind the existing API authorisation (read policy to read, write policy to change). There is no
@@ -64,7 +83,7 @@ Not built yet:
   `IPaymentProvider` and record payments when its gateway confirms; there is no hosted checkout, card capture or webhook handling yet.
 - Shipping: flat price per method (optionally free above a spend). No weight/zone rates, carriers or live rates.
 - Tax: one rule per destination country, charged on goods plus shipping, prices entered tax-exclusive. No per-product tax classes,
-  tax-inclusive pricing, exemptions, or regional (state) rates.
+  tax-inclusive pricing, exemptions, or regional (state) rates. See "Tax rules: rates per product" above.
 - Fulfilment: parcels and tracking, partial shipment, refunds and returns (restock decisions), partially cancelled orders.
 - Clean-up of old open baskets; reserving stock while a shopper is in checkout (today stock is taken only when the order is placed).
 - Per-order stock location (every online order currently draws from `Piranha:Ecommerce:StockLocationId`, or the default location).
