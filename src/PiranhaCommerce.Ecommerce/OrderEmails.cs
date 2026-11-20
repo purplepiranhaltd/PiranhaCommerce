@@ -16,6 +16,7 @@ internal static class OrderEmails
             text.AppendLine($"{l.Quantity} x {l.Name} ({l.Sku})  {l.LineTotal.ToString("N2", inv)} {o.Currency}");
         text.AppendLine();
         text.AppendLine($"Subtotal: {o.Subtotal.ToString("N2", inv)} {o.Currency}");
+        if (o.DiscountTotal > 0) text.AppendLine($"Discount{(string.IsNullOrEmpty(o.PromotionCode) ? "" : $" ({o.PromotionCode})")}: -{o.DiscountTotal.ToString("N2", inv)} {o.Currency}");
         if (o.ShippingTotal > 0 || !string.IsNullOrEmpty(o.ShippingMethodName))
             text.AppendLine($"Shipping{(string.IsNullOrEmpty(o.ShippingMethodName) ? "" : $" ({o.ShippingMethodName})")}: {o.ShippingTotal.ToString("N2", inv)} {o.Currency}");
         if (o.Taxes is { Count: > 0 })

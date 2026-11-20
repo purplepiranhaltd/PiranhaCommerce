@@ -88,6 +88,10 @@ else
             </tbody>
             <tfoot>
                 <tr><td colspan="4" style="text-align:right">Subtotal</td><td style="text-align:right">@_order.Subtotal.ToString("N2")</td></tr>
+                @if (_order.DiscountTotal > 0)
+                {
+                    <tr><td colspan="4" style="text-align:right">Discount@(string.IsNullOrEmpty(_order.PromotionCode) ? "" : " (" + _order.PromotionCode + ")")</td><td style="text-align:right">-@_order.DiscountTotal.ToString("N2")</td></tr>
+                }
                 <tr><td colspan="4" style="text-align:right">Shipping@(string.IsNullOrEmpty(_order.ShippingMethodName) ? "" : " (" + _order.ShippingMethodName + ")")</td><td style="text-align:right">@_order.ShippingTotal.ToString("N2")</td></tr>
                 @if (_order.Taxes is { Count: > 0 })
                 {

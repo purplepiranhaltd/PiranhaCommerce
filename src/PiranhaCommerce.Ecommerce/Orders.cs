@@ -15,6 +15,8 @@ public class Basket : AuditableEntity
     public BasketStatus Status { get; set; }
     public Guid? CustomerId { get; set; }
     public Guid? OrderId { get; set; }
+    /// <summary>The promo code the shopper entered (upper-case), or null. Checked again, and used up, at checkout.</summary>
+    public string? PromotionCode { get; set; }
     public List<BasketLine> Lines { get; set; } = [];
 }
 
@@ -54,6 +56,10 @@ public class Order : AuditableEntity
     /// <summary>Copies of the chosen method's name and the price charged; later edits to the method never change the order.</summary>
     public string? ShippingMethodName { get; set; }
     public decimal ShippingTotal { get; set; }
+    /// <summary>The promo code used and what it took off the goods (copies; the code is also kept as an id for giving the use back on cancel).</summary>
+    public Guid? PromotionId { get; set; }
+    public string? PromotionCode { get; set; }
+    public decimal DiscountTotal { get; set; }
     /// <summary>Summary of the tax: the rate name when every taxed line shares one, "Tax" when mixed. Each line carries its own.</summary>
     public string? TaxName { get; set; }
     public decimal TaxRate { get; set; }
@@ -92,6 +98,8 @@ public class OrderLine : Entity
     public decimal UnitPrice { get; set; }
     public int Quantity { get; set; }
     public decimal LineTotal { get; set; }
+    /// <summary>This line's share of the order discount. Tax was charged on LineTotal minus this.</summary>
+    public decimal DiscountAmount { get; set; }
     /// <summary>Copy of the rate that applied to this line when it was sold (null when untaxed).</summary>
     public string? TaxName { get; set; }
     public decimal TaxRate { get; set; }
@@ -130,7 +138,8 @@ public sealed class BasketLineInput
 public sealed record BasketLineDto(Guid ProductId, string Name, string? Sku, decimal UnitPrice, int Quantity, decimal LineTotal, bool Available);
 
 public sealed record BasketDto(
-    Guid Id, BasketStatus Status, Guid? CustomerId, Guid? OrderId, string Currency, decimal Subtotal, IReadOnlyList<BasketLineDto> Lines);
+    Guid Id, BasketStatus Status, Guid? CustomerId, Guid? OrderId, string Currency, decimal Subtotal, IReadOnlyList<BasketLineDto> Lines,
+    string? PromotionCode = null);
 
 public sealed class CheckoutInput
 {
@@ -161,7 +170,7 @@ public sealed class OrderStageInput
 public sealed record OrderAddressDto(string? Recipient, string Line1, string? Line2, string City, string? Region, string? PostalCode, string CountryCode);
 
 public sealed record OrderLineDto(
-    Guid ProductId, string Name, string? Sku, decimal UnitPrice, int Quantity, decimal LineTotal, string? TaxName = null, decimal TaxRate = 0m, decimal TaxAmount = 0m);
+    Guid ProductId, string Name, string? Sku, decimal UnitPrice, int Quantity, decimal LineTotal, string? TaxName = null, decimal TaxRate = 0m, decimal TaxAmount = 0m, decimal DiscountAmount = 0m);
 
 public sealed record OrderSummaryDto(
     Guid Id, long Number, string Reference, OrderStage Stage, PaymentStatus PaymentStatus, string Email, string Currency, decimal Total, DateTimeOffset CreatedUtc);
@@ -172,7 +181,7 @@ public sealed record OrderDto(
     PaymentStatus PaymentStatus, decimal AmountPaid, decimal AmountRefunded,
     string? Notes, OrderAddressDto? ShippingAddress, OrderAddressDto? BillingAddress, IReadOnlyList<OrderLineDto> Lines,
     IReadOnlyList<OrderStage> NextStages, DateTimeOffset CreatedUtc, DateTimeOffset? UpdatedUtc,
-    decimal ShippingTax = 0m, IReadOnlyList<TaxLineDto>? Taxes = null);
+    decimal ShippingTax = 0m, IReadOnlyList<TaxLineDto>? Taxes = null, decimal DiscountTotal = 0m, string? PromotionCode = null);
 
 public sealed class EcommerceOptions
 {

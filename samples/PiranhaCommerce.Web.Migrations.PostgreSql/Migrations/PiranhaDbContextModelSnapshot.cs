@@ -622,6 +622,10 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.Property<Guid?>("OrderId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("PromotionCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -677,6 +681,10 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.Property<Guid?>("CustomerId")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal>("DiscountTotal")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(256)
@@ -688,6 +696,13 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
 
                     b.Property<long>("Number")
                         .HasColumnType("bigint");
+
+                    b.Property<string>("PromotionCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<Guid?>("PromotionId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ShippingMethodName")
                         .HasMaxLength(100)
@@ -774,6 +789,10 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
 
                     b.Property<decimal>("LineTotal")
                         .HasPrecision(18, 4)
@@ -895,6 +914,63 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.HasIndex("TaxClassId");
 
                     b.ToTable("ProductListing", "ecom");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.Promotion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("EndsUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<int?>("MaxRedemptions")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("MinSubtotal")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("Redeemed")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("StartsUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("UpdatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("Value")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("Promotion", "ecom");
                 });
 
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.ShippingMethod", b =>

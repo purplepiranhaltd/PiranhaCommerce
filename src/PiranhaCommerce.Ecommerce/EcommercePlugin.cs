@@ -18,6 +18,7 @@ public sealed class EcommercePlugin : IPiranhaPlugin
     public void ConfigureServices(IServiceCollection services)
     {
         services.AddSingleton<IModelContributor, EcommerceModelContributor>();
+        services.AddScoped<IPromotionService, PromotionService>();
         services.AddSingleton<IApiEndpointContributor, EcommerceApiEndpoints>();
         services.AddSingleton<IStorefrontEndpointContributor, EcommerceStorefrontEndpoints>();
         services.AddOptions<EcommerceOptions>().BindConfiguration(EcommerceOptions.SectionName);

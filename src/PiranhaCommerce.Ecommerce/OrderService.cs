@@ -158,12 +158,30 @@ internal sealed class OrderService(
                     // 2b. Shipping and tax, from the current rules, by the same calculator the quote uses.
                     var subtotal = lines.Sum(l => l.Price * l.Quantity);
                     var method = await ChooseShippingAsync(input.ShippingMethodId, token);
-                    var shipping = OrderPricing.ShippingFor(method, subtotal);
+
+                    // 2a. The promo code, if the basket holds one: checked again NOW, and one use spent with a single conditional
+                    // update, so a limited code cannot be over-used by simultaneous orders. A code that fails stops the order (409)
+                    // rather than quietly charging full price.
+                    Promotion? promo = null;
+                    var discount = 0m;
+                    var promoCode = await db.Set<Basket>().AsNoTracking().Where(b => b.Id == basketId).Select(b => b.PromotionCode).FirstAsync(token);
+                    if (promoCode is not null)
+                    {
+                        promo = await db.Set<Promotion>().AsNoTracking().FirstOrDefaultAsync(p => p.Code == promoCode, token);
+                        if (PromotionRules.Problem(promo, subtotal, DateTimeOffset.UtcNow) is { } problem)
+                            throw new PiranhaConflictException($"The promotion code on this basket cannot be used: {problem} Remove it to continue.");
+                        var used = await db.Set<Promotion>()
+                            .Where(p => p.Id == promo!.Id && p.Active && (p.MaxRedemptions == null || p.Redeemed < p.MaxRedemptions))
+                            .ExecuteUpdateAsync(s => s.SetProperty(p => p.Redeemed, p => p.Redeemed + 1), token);
+                        if (used == 0) throw new PiranhaConflictException("That promotion code has been used up. Remove it to continue.");
+                        discount = PromotionRules.Discount(promo!, subtotal);
+                    }
+
                     var country = input.ShippingAddress!.CountryCode.Trim().ToUpperInvariant();
                     var (rules, defaultClass) = await TaxLookup.LoadAsync(db, token);
                     var classes = await TaxLookup.ClassesAsync(db, productIdsInBasket, token);
                     var calc = OrderPricing.Calculate(
-                        lines.Select(l => (l.Price * l.Quantity, classes.GetValueOrDefault(l.Id))).ToList(), shipping, rules, defaultClass, country);
+                        lines.Select(l => (l.Price * l.Quantity, classes.GetValueOrDefault(l.Id))).ToList(), discount, method, rules, defaultClass, country);
 
                     // 3. Next order number. The UPDATE takes the counter row's lock, which is held to commit, so numbers are never shared.
                     await db.Set<OrderCounter>().Where(c => c.Id == 1)
@@ -185,12 +203,16 @@ internal sealed class OrderService(
                         {
                             Position = i + 1, ProductId = l.Id, Name = l.Name, Sku = l.Sku,
                             UnitPrice = l.Price, Quantity = l.Quantity, LineTotal = l.Price * l.Quantity,
+                            DiscountAmount = calc.LineDiscounts[i],
                             TaxName = calc.Lines[i].Name, TaxRate = calc.Lines[i].Rate, TaxAmount = calc.Lines[i].Amount,
                         }).ToList(),
                     };
                     order.Subtotal = subtotal;
                     order.ShippingMethodName = method?.Name;
-                    order.ShippingTotal = shipping;
+                    order.ShippingTotal = calc.ShippingTotal;
+                    order.PromotionId = promo?.Id;
+                    order.PromotionCode = promo?.Code;
+                    order.DiscountTotal = calc.Discount;
                     order.TaxName = calc.SummaryName;
                     order.TaxRate = calc.SummaryRate;
                     order.TaxTotal = calc.Tax;
@@ -238,7 +260,7 @@ internal sealed class OrderService(
 
     public async Task<OrderDto?> ChangeStageAsync(Guid id, OrderStage to, string? actor = null, CancellationToken ct = default)
     {
-        var current = await db.Set<Order>().AsNoTracking().Where(o => o.Id == id).Select(o => new { o.Stage, o.Number }).FirstOrDefaultAsync(ct);
+        var current = await db.Set<Order>().AsNoTracking().Where(o => o.Id == id).Select(o => new { o.Stage, o.Number, o.PromotionId }).FirstOrDefaultAsync(ct);
         if (current is null) return null;
         if (!OrderStages.Next(current.Stage).Contains(to))
             throw new PiranhaConflictException($"An order that is {current.Stage} cannot be moved to {to}.");
@@ -272,6 +294,11 @@ internal sealed class OrderService(
                     var moved = await db.Set<Order>().Where(o => o.Id == id && o.Stage == from)
                         .ExecuteUpdateAsync(s => s.SetProperty(o => o.Stage, to).SetProperty(o => o.UpdatedUtc, (DateTimeOffset?)now), token);
                     if (moved == 0) throw new PiranhaConflictException("The order was changed by someone else. Reload it and try again.");
+
+                    // A cancelled order gives its promo code use back (once: only the caller that moved the stage gets here).
+                    if (to == OrderStage.Cancelled && current.PromotionId is { } promoId)
+                        await db.Set<Promotion>().Where(p => p.Id == promoId && p.Redeemed > 0)
+                            .ExecuteUpdateAsync(s => s.SetProperty(p => p.Redeemed, p => p.Redeemed - 1), token);
 
                     if (returning.Count > 0)
                     {
@@ -322,8 +349,8 @@ internal sealed class OrderService(
         o.Id, o.Number, OrderNumbers.Format(o.Number), o.Stage, o.CustomerId, o.Email, o.Currency, o.Subtotal,
         o.ShippingMethodName, o.ShippingTotal, o.TaxName, o.TaxRate, o.TaxTotal, o.Total, status, paid, refunded, o.Notes,
         ToDto(o.ShippingAddress), ToDto(o.BillingAddress),
-        o.Lines.OrderBy(l => l.Position).Select(l => new OrderLineDto(l.ProductId, l.Name, l.Sku, l.UnitPrice, l.Quantity, l.LineTotal, l.TaxName, l.TaxRate, l.TaxAmount)).ToList(),
-        OrderStages.Next(o.Stage), o.CreatedUtc, o.UpdatedUtc, o.ShippingTax, TaxBreakdown(o));
+        o.Lines.OrderBy(l => l.Position).Select(l => new OrderLineDto(l.ProductId, l.Name, l.Sku, l.UnitPrice, l.Quantity, l.LineTotal, l.TaxName, l.TaxRate, l.TaxAmount, l.DiscountAmount)).ToList(),
+        OrderStages.Next(o.Stage), o.CreatedUtc, o.UpdatedUtc, o.ShippingTax, TaxBreakdown(o), o.DiscountTotal, o.PromotionCode);
 
     /// <summary>The tax summary for display: one row per named rate, from the order's own copies. Orders placed before per-line tax have one flat row.</summary>
     private static IReadOnlyList<TaxLineDto> TaxBreakdown(Order o)

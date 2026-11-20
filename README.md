@@ -280,6 +280,13 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
     summed. Postage is taxed at the default class's rate. A class with no rate for the destination (and no `*` rate) is not taxed there.
   - The default class cannot be deleted or switched off (make another the default instead), and a class that rules or products still
     use cannot be deleted. Rules are unique per class and country.
+- **Promo codes** (`/promotions`, `POST|DELETE /baskets/{id}/promo`): a percentage or fixed amount off the **goods**, never off postage.
+  Optional minimum spend, start/end dates and a limit on uses. The discount comes off before shipping and tax: it is shared across
+  the lines in proportion to price (to the penny, exactly), postage "free over X" is judged on the goods after the discount, and tax is
+  charged on what each line costs after its share. A code is checked again at checkout; if it has stopped working, checkout answers
+  409 instead of quietly charging full price. A limited code is used up with one conditional update, so simultaneous orders cannot
+  exceed the limit, and cancelling an order gives its use back (once). A code cannot be renamed once created. Every order satisfies
+  Total = Subtotal - DiscountTotal + ShippingTotal + TaxTotal.
 - `POST /baskets/{id}/quote` returns exactly what checkout will charge (the same calculator), with a `taxes` list (name, rate, amount).
   Orders keep copies of the method name and, on every line, the tax name, rate and amount, so editing settings later never changes an
   order; the order's `taxes` summary is built from those copies. Orders placed before tax classes show their single flat tax row.

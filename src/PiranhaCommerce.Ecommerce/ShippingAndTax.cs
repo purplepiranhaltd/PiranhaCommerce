@@ -95,9 +95,11 @@ public sealed class QuoteInput
 
 /// <param name="TaxName">The rate name when everything taxed shares one, "Tax" when rates are mixed, null when nothing is taxed.</param>
 /// <param name="TaxRate">The shared rate, or 0 when rates are mixed or nothing is taxed. See <paramref name="Taxes"/> for the detail.</param>
+/// <param name="DiscountTotal">What the promo code takes off the goods (0 when none applies). Total = Subtotal - DiscountTotal + ShippingTotal + TaxTotal.</param>
+/// <param name="PromotionProblem">Set when the basket holds a code that cannot be used right now. The quote then ignores it, and checkout would refuse.</param>
 public sealed record QuoteDto(
     string Currency, decimal Subtotal, decimal ShippingTotal, string? TaxName, decimal TaxRate, decimal TaxTotal, decimal Total,
-    IReadOnlyList<TaxLineDto> Taxes);
+    IReadOnlyList<TaxLineDto> Taxes, decimal DiscountTotal = 0m, string? PromotionCode = null, string? PromotionProblem = null);
 
 /// <summary>The one place totals are worked out, used by the quote and by checkout so they can never disagree.</summary>
 public static class OrderPricing
@@ -106,12 +108,16 @@ public static class OrderPricing
         => method is null ? 0m : method.FreeOver is { } free && subtotal >= free ? 0m : method.Price;
 
     /// <summary>
-    /// Tax for each line by ITS class, and for shipping by the default class, each rounded to the penny on its own (the way an
-    /// invoice adds up), then summed. Used by the quote and by checkout so they can never disagree.
+    /// Every money figure of an order, worked out in one place so the quote and checkout can never disagree:
+    /// the discount is shared across the lines, shipping is priced on the goods AFTER the discount (so "free over 50" means what the
+    /// shopper actually pays for goods), then tax is charged per line on its discounted price, and on shipping, each rounded to the
+    /// penny on its own (the way an invoice adds up). The discount never reduces shipping or tax directly.
     /// </summary>
     /// <param name="lines">Each line's total and its product's tax class (null means the default class).</param>
+    /// <param name="discount">What the promo code takes off the goods; limited here to the goods total.</param>
     public static TaxCalculation Calculate(
-        IReadOnlyList<(decimal LineTotal, Guid? TaxClassId)> lines, decimal shipping, IReadOnlyList<TaxRule> rules, Guid defaultClassId, string countryCode)
+        IReadOnlyList<(decimal LineTotal, Guid? TaxClassId)> lines, decimal discount, ShippingMethod? method,
+        IReadOnlyList<TaxRule> rules, Guid defaultClassId, string countryCode)
     {
         static decimal Round(decimal v) => Math.Round(v, 2, MidpointRounding.AwayFromZero);
         TaxedAmount Apply(decimal net, Guid classId)
@@ -120,9 +126,12 @@ public static class OrderPricing
             return rule is null ? new TaxedAmount(0m, null, 0m) : new TaxedAmount(Round(net * rule.Rate / 100m), rule.Name, rule.Rate);
         }
 
-        var perLine = lines.Select(l => Apply(l.LineTotal, l.TaxClassId ?? defaultClassId)).ToList();
+        var shares = PromotionRules.Allocate(lines.Select(l => l.LineTotal).ToList(), discount);
+        var goodsAfterDiscount = lines.Sum(l => l.LineTotal) - shares.Sum();
+        var shipping = ShippingFor(method, goodsAfterDiscount);
+
+        var perLine = lines.Select((l, i) => Apply(l.LineTotal - shares[i], l.TaxClassId ?? defaultClassId)).ToList();
         var forShipping = Apply(shipping, defaultClassId);
-        var subtotal = lines.Sum(l => l.LineTotal);
         var tax = perLine.Sum(l => l.Amount) + forShipping.Amount;
 
         var breakdown = perLine.Append(forShipping).Where(t => t.Name is not null)
@@ -130,7 +139,7 @@ public static class OrderPricing
             .Select(g => new TaxLineDto(g.Key.Name, g.Key.Rate, g.Sum(t => t.Amount)))
             .OrderByDescending(t => t.Rate).ThenBy(t => t.Name).ToList();
         var (name, rate) = breakdown.Count switch { 0 => ((string?)null, 0m), 1 => (breakdown[0].Name, breakdown[0].Rate), _ => ("Tax", 0m) };
-        return new TaxCalculation(perLine, forShipping, tax, subtotal + shipping + tax, name, rate, breakdown);
+        return new TaxCalculation(perLine, forShipping, tax, goodsAfterDiscount + shipping + tax, name, rate, breakdown, shipping, shares.Sum(), shares);
     }
 
     /// <summary>The class's rule for the country, else its fallback rule, else none (not taxed).</summary>
@@ -147,7 +156,7 @@ public sealed record TaxedAmount(decimal Amount, string? Name, decimal Rate);
 /// <param name="Lines">Tax per line, in the order the lines were given.</param>
 public sealed record TaxCalculation(
     IReadOnlyList<TaxedAmount> Lines, TaxedAmount Shipping, decimal Tax, decimal Total, string? SummaryName, decimal SummaryRate,
-    IReadOnlyList<TaxLineDto> Breakdown);
+    IReadOnlyList<TaxLineDto> Breakdown, decimal ShippingTotal, decimal Discount, IReadOnlyList<decimal> LineDiscounts);
 
 internal static class TaxLookup
 {

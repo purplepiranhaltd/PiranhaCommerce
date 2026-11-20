@@ -1,0 +1,134 @@
+@page "/admin/orders/promotions"
+@inject AdminScopeRunner Scope
+
+<PageTitle>Promotions - Piranha Commerce</PageTitle>
+<h1>Promotions</h1>
+<p class="pc-muted">
+    A promo code takes money off the goods in a basket before shipping and tax are worked out. A code cannot be renamed once created.
+    Cancelling an order gives its use of the code back.
+</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+<div class="pc-card">
+    <EditForm Model="_input" OnValidSubmit="SaveAsync" FormName="promotion-edit">
+        <DataAnnotationsValidator />
+        <h2 style="margin-top:0">@(_editing is null ? "Add a promotion" : "Edit promotion")</h2>
+        <label>Code <InputText @bind-Value="_input.Code" disabled="@(_editing is not null)" /></label>
+        <ValidationMessage For="() => _input.Code" />
+        <label>Name (for you, optional) <InputText @bind-Value="_input.Name" /></label>
+        <label>Type
+            <InputSelect @bind-Value="_input.Kind">
+                <option value="@PromotionKind.Percent">Percent off the goods</option>
+                <option value="@PromotionKind.Amount">Fixed amount off the goods</option>
+            </InputSelect>
+        </label>
+        <label>@(_input.Kind == PromotionKind.Percent ? "Percent" : "Amount") <InputNumber @bind-Value="_input.Value" /></label>
+        <ValidationMessage For="() => _input.Value" />
+        <label>Minimum spend on goods (optional) <InputNumber @bind-Value="_input.MinSubtotal" /></label>
+        <label>Most orders that may use it (optional) <InputNumber @bind-Value="_input.MaxRedemptions" /></label>
+        <label>Starts (optional) <InputDate TValue="DateTimeOffset?" @bind-Value="_input.StartsUtc" /></label>
+        <label>Ends (optional) <InputDate TValue="DateTimeOffset?" @bind-Value="_input.EndsUtc" /></label>
+        <label><InputCheckbox @bind-Value="_input.Active" /> Active</label>
+        <button type="submit" disabled="@_busy">Save</button>
+        @if (_editing is not null)
+        {
+            <button type="button" class="secondary" @onclick="Reset">Cancel</button>
+        }
+    </EditForm>
+</div>
+
+@if (_promotions is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_promotions.Count == 0)
+{
+    <p class="pc-muted">No promotions yet.</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>Code</th><th>Discount</th><th>Used</th><th>Window</th><th>Active</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var p in _promotions)
+        {
+            <tr>
+                <td>@p.Code @(string.IsNullOrWhiteSpace(p.Name) ? "" : "- " + p.Name)</td>
+                <td>@(p.Kind == PromotionKind.Percent ? p.Value.ToString("0.##") + "%" : p.Value.ToString("N2")) @(p.MinSubtotal is { } min ? $"over {min:N2}" : "")</td>
+                <td>@p.Redeemed@(p.MaxRedemptions is { } max ? " of " + max : "")</td>
+                <td>@(p.StartsUtc?.ToString("dd MMM yyyy") ?? "any time") to @(p.EndsUtc?.ToString("dd MMM yyyy") ?? "no end")</td>
+                <td>@(p.Active ? "Yes" : "No")</td>
+                <td class="actions">
+                    <button class="secondary" @onclick="() => Edit(p)">Edit</button>
+                    @if (_confirmDelete == p.Id)
+                    {
+                        <button class="danger" @onclick="() => DeleteAsync(p.Id)">Confirm delete</button>
+                        <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
+                    }
+                    else
+                    {
+                        <button class="secondary" @onclick="() => _confirmDelete = p.Id">Delete</button>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IReadOnlyList<PromotionDto>? _promotions;
+    private PromotionInput _input = new();
+    private Guid? _editing;
+    private Guid? _confirmDelete;
+    private string? _error;
+    private bool _busy;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try { _promotions = await Scope.RunAsync<IPromotionService, IReadOnlyList<PromotionDto>>(s => s.ListAsync()); }
+        catch (Exception ex) { _error = "Could not load promotions: " + ex.Message; }
+    }
+
+    private void Edit(PromotionDto p)
+    {
+        _editing = p.Id;
+        _input = new PromotionInput
+        {
+            Code = p.Code, Name = p.Name, Kind = p.Kind, Value = p.Value, MinSubtotal = p.MinSubtotal,
+            StartsUtc = p.StartsUtc, EndsUtc = p.EndsUtc, MaxRedemptions = p.MaxRedemptions, Active = p.Active,
+        };
+    }
+
+    private void Reset() { _editing = null; _input = new(); }
+
+    private async Task SaveAsync()
+    {
+        _busy = true; _error = null;
+        try
+        {
+            var input = _input;
+            if (_editing is { } id) await Scope.RunAsync<IPromotionService, PromotionDto?>(s => s.UpdateAsync(id, input));
+            else await Scope.RunAsync<IPromotionService, PromotionDto>(s => s.CreateAsync(input));
+            Reset();
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _error = "Could not save: " + ex.Message; }
+        finally { _busy = false; }
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        _confirmDelete = null; _error = null;
+        try { await Scope.RunAsync<IPromotionService, bool>(s => s.DeleteAsync(id)); }
+        catch (Exception ex) { _error = "Could not delete: " + ex.Message; }
+        await LoadAsync();
+    }
+}

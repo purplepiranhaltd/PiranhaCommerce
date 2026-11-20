@@ -24,6 +24,7 @@ internal sealed class EcommerceModelContributor : IModelContributor
         {
             e.ToTable("Basket", Schema);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.PromotionCode).HasMaxLength(40);
             // CustomerId is a plain reference (no foreign key): deleting or erasing a customer must not touch baskets or orders.
             e.HasMany(x => x.Lines).WithOne().HasForeignKey(l => l.BasketId).OnDelete(DeleteBehavior.Cascade);
         });
@@ -50,6 +51,8 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.Property(o => o.Total).HasPrecision(18, 4);
             e.Property(o => o.ShippingMethodName).HasMaxLength(100);
             e.Property(o => o.ShippingTotal).HasPrecision(18, 4);
+            e.Property(o => o.PromotionCode).HasMaxLength(40);
+            e.Property(o => o.DiscountTotal).HasPrecision(18, 4);
             e.Property(o => o.TaxName).HasMaxLength(50);
             e.Property(o => o.TaxRate).HasPrecision(9, 4);
             e.Property(o => o.TaxTotal).HasPrecision(18, 4);
@@ -69,6 +72,7 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.Property(l => l.Sku).HasMaxLength(100);
             e.Property(l => l.UnitPrice).HasPrecision(18, 4);
             e.Property(l => l.LineTotal).HasPrecision(18, 4);
+            e.Property(l => l.DiscountAmount).HasPrecision(18, 4);
             e.Property(l => l.TaxName).HasMaxLength(50);
             e.Property(l => l.TaxRate).HasPrecision(9, 4);
             e.Property(l => l.TaxAmount).HasPrecision(18, 4);
@@ -98,6 +102,17 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.Property(m => m.Name).HasMaxLength(100);
             e.Property(m => m.Price).HasPrecision(18, 4);
             e.Property(m => m.FreeOver).HasPrecision(18, 4);
+        });
+
+        b.Entity<Promotion>(e =>
+        {
+            e.ToTable("Promotion", Schema);
+            e.Property(p => p.Code).HasMaxLength(40);
+            e.HasIndex(p => p.Code).IsUnique();
+            e.Property(p => p.Name).HasMaxLength(100);
+            e.Property(p => p.Kind).HasConversion<string>().HasMaxLength(10);
+            e.Property(p => p.Value).HasPrecision(18, 4);
+            e.Property(p => p.MinSubtotal).HasPrecision(18, 4);
         });
 
         b.Entity<TaxClass>(e =>

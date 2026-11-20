@@ -97,7 +97,9 @@ stock taken from the shelf); order stages Placed, Processing, Completed, Cancell
 
 Not built yet:
 
-- Discounts/promo codes and gift vouchers (they will adjust the total before shipping and tax).
+- Promotions: promo codes are built (percent or fixed amount off the goods, one code per basket). Not built: free-shipping codes,
+  discounts on selected products or categories, buy-one-get-one, automatic discounts with no code, per-customer use limits, stacking
+  several codes, and refunds that adjust a discount after a partial return.
 - Payment gateways. Payments are recorded (`manual` provider: cash, bank transfer, terminal) and a gateway plugin can register an
   `IPaymentProvider` and record payments when its gateway confirms; there is no hosted checkout, card capture or webhook handling yet.
 - Shipping: flat price per method (optionally free above a spend). No weight/zone rates, carriers or live rates.

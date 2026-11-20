@@ -44,6 +44,14 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
                 await svc.CheckoutAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } o ? Results.Ok(o) : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 
+        baskets.MapPost("/{id:guid}/promo", async (Guid id, CodeInput input, IBasketService svc, CancellationToken ct) =>
+                await svc.SetPromotionAsync(id, input.Code, ct) is { } b ? Results.Ok(b) : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
+        baskets.MapDelete("/{id:guid}/promo", async (Guid id, IBasketService svc, CancellationToken ct) =>
+                await svc.SetPromotionAsync(id, null, ct) is { } b ? Results.Ok(b) : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
         baskets.MapPost("/{id:guid}/quote", async (Guid id, QuoteInput input, IBasketService svc, CancellationToken ct) =>
             await svc.QuoteAsync(id, input, ct) is { } q ? Results.Ok(q) : Results.NotFound());
 
@@ -64,6 +72,28 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
             .RequireAuthorization(ApiPolicies.Write);
 
         shipping.MapDelete("/{id:guid}", async (Guid id, IShippingService svc, CancellationToken ct) =>
+                await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
+        var promotions = api.MapGroup("/promotions").WithTags("Promotions");
+
+        promotions.MapGet("/", async (IPromotionService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(ct)));
+
+        promotions.MapGet("/{id:guid}", async (Guid id, IPromotionService svc, CancellationToken ct) =>
+            await svc.GetAsync(id, ct) is { } p ? Results.Ok(p) : Results.NotFound());
+
+        promotions.MapPost("/", async (PromotionInput input, IPromotionService svc, CancellationToken ct) =>
+            {
+                var p = await svc.CreateAsync(input, ct);
+                return Results.Created($"/api/v1/promotions/{p.Id}", p);
+            })
+            .RequireAuthorization(ApiPolicies.Write);
+
+        promotions.MapPut("/{id:guid}", async (Guid id, PromotionInput input, IPromotionService svc, CancellationToken ct) =>
+                await svc.UpdateAsync(id, input, ct) is { } p ? Results.Ok(p) : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
+        promotions.MapDelete("/{id:guid}", async (Guid id, IPromotionService svc, CancellationToken ct) =>
                 await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 

@@ -70,11 +70,13 @@ public class StorefrontOrderTests(PiranhaFactory factory) : IClassFixture<Piranh
         // The caller tries to name someone else as the customer and gives no email: the token wins, the account email fills in.
         var input = Checkout();
         input.CustomerId = Guid.NewGuid();
+        input.Email = "elsewhere@example.com"; // and tries to send the order email somewhere else
         var placed = await shopper.PostAsJsonAsync($"/api/v1/storefront/baskets/{basket.Id}/checkout", input);
         Assert.Equal(HttpStatusCode.OK, placed.StatusCode);
         var order = await Read<OrderDto>(placed);
         Assert.Equal(id, order.CustomerId);
         Assert.Equal(email, order.Email);
+        Assert.Empty(factory.Email.To("elsewhere@example.com"));
         Assert.Equal(20m, order.Subtotal);
         Assert.Equal(3m, await Stock(staff, product.Id));
 
@@ -109,6 +111,8 @@ public class StorefrontOrderTests(PiranhaFactory factory) : IClassFixture<Piranh
         Assert.Equal(HttpStatusCode.NotFound, (await bob.PostAsJsonAsync($"/api/v1/storefront/baskets/{aliceOpen.Id}/quote", new QuoteInput { CountryCode = "GB" })).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await bob.PostAsJsonAsync($"/api/v1/storefront/baskets/{aliceOpen.Id}/checkout", Checkout())).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await bob.PostAsync($"/api/v1/storefront/baskets/{aliceOpen.Id}/claim", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await bob.PostAsJsonAsync($"/api/v1/storefront/baskets/{aliceOpen.Id}/promo", new CodeInput { Code = "ANYTHING" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await bob.DeleteAsync($"/api/v1/storefront/baskets/{aliceOpen.Id}/promo")).StatusCode);
 
         // Alice's basket is untouched and her stock was not taken by Bob's attempts.
         Assert.Equal(1, (await Read<BasketDto>(await alice.GetAsync($"/api/v1/storefront/baskets/{aliceOpen.Id}"))).Lines.Single().Quantity);

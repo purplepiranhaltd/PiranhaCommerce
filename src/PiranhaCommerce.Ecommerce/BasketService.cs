@@ -13,6 +13,13 @@ public interface IBasketService
 
     Task<BasketDto?> GetAsync(Guid basketId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Puts a promo code on an open basket (null or blank removes it). A code that does not exist, is off, outside its dates or used up
+    /// is a validation error with one answer; the minimum spend is judged at quote and checkout, as the basket may still grow.
+    /// Null when the basket does not exist; conflict once it has been checked out.
+    /// </summary>
+    Task<BasketDto?> SetPromotionAsync(Guid basketId, string? code, CancellationToken ct = default);
+
     /// <summary>True only when the basket exists and belongs to that customer.</summary>
     Task<bool> IsOwnedByAsync(Guid basketId, Guid customerId, CancellationToken ct = default);
 
@@ -59,7 +66,7 @@ internal sealed class BasketService(PiranhaDbContext db, ICustomerService custom
     public async Task<BasketDto?> GetAsync(Guid basketId, CancellationToken ct = default)
     {
         var basket = await db.Set<Basket>().AsNoTracking().Where(b => b.Id == basketId)
-            .Select(b => new { b.Id, b.Status, b.CustomerId, b.OrderId }).FirstOrDefaultAsync(ct);
+            .Select(b => new { b.Id, b.Status, b.CustomerId, b.OrderId, b.PromotionCode }).FirstOrDefaultAsync(ct);
         if (basket is null) return null;
 
         var lines = await db.Set<BasketLine>().AsNoTracking().Where(l => l.BasketId == basketId)
@@ -72,7 +79,29 @@ internal sealed class BasketService(PiranhaDbContext db, ICustomerService custom
 
         var dtos = lines.Select(x => new BasketLineDto(x.Id, x.Name, x.Sku, x.Price, x.Quantity, x.Price * x.Quantity, published.Contains(x.Id))).ToList();
         return new BasketDto(basket.Id, basket.Status, basket.CustomerId, basket.OrderId, options.Value.Currency.ToUpperInvariant(),
-            dtos.Sum(d => d.LineTotal), dtos);
+            dtos.Sum(d => d.LineTotal), dtos, basket.PromotionCode);
+    }
+
+    public async Task<BasketDto?> SetPromotionAsync(Guid basketId, string? code, CancellationToken ct = default)
+    {
+        string? normalized = null;
+        if (!string.IsNullOrWhiteSpace(code))
+        {
+            normalized = PromotionRules.Normalize(code);
+            var promo = await db.Set<Promotion>().AsNoTracking().FirstOrDefaultAsync(p => p.Code == normalized, ct);
+            if (PromotionRules.Problem(promo, decimal.MaxValue, DateTimeOffset.UtcNow) is { } problem)
+                throw new PiranhaValidationException(nameof(CodeInput.Code), problem);
+        }
+
+        // Only an open basket can change: once checked out it is read-only, and the update says so atomically.
+        var changed = await db.Set<Basket>().Where(b => b.Id == basketId && b.Status == BasketStatus.Open)
+            .ExecuteUpdateAsync(s => s.SetProperty(b => b.PromotionCode, normalized), ct);
+        if (changed == 0)
+        {
+            if (!await db.Set<Basket>().AnyAsync(b => b.Id == basketId, ct)) return null;
+            throw new PiranhaConflictException("This basket has been checked out and can no longer be changed.");
+        }
+        return await GetAsync(basketId, ct);
     }
 
     public async Task<BasketDto?> SetLineAsync(Guid basketId, Guid productId, BasketLineInput input, CancellationToken ct = default)
@@ -129,13 +158,23 @@ internal sealed class BasketService(PiranhaDbContext db, ICustomerService custom
             method = methods.FirstOrDefault(m => m.Id == input.ShippingMethodId)
                      ?? throw new PiranhaValidationException(nameof(QuoteInput.ShippingMethodId), "Choose an available shipping method.");
 
-        var shipping = OrderPricing.ShippingFor(method, basket.Subtotal);
+        // A code that cannot be used right now is reported and left out of the price; checkout would refuse it.
+        var discount = 0m;
+        string? problem = null;
+        if (basket.PromotionCode is { } code)
+        {
+            var promo = await db.Set<Promotion>().AsNoTracking().FirstOrDefaultAsync(p => p.Code == code, ct);
+            problem = PromotionRules.Problem(promo, basket.Subtotal, DateTimeOffset.UtcNow);
+            if (problem is null) discount = PromotionRules.Discount(promo!, basket.Subtotal);
+        }
+
         var (rules, defaultClass) = await TaxLookup.LoadAsync(db, ct);
         var classes = await TaxLookup.ClassesAsync(db, basket.Lines.Select(l => l.ProductId).ToList(), ct);
         var calc = OrderPricing.Calculate(
             basket.Lines.Select(l => (l.LineTotal, classes.GetValueOrDefault(l.ProductId))).ToList(),
-            shipping, rules, defaultClass, input.CountryCode.ToUpperInvariant());
-        return new QuoteDto(basket.Currency, basket.Subtotal, shipping, calc.SummaryName, calc.SummaryRate, calc.Tax, calc.Total, calc.Breakdown);
+            discount, method, rules, defaultClass, input.CountryCode.ToUpperInvariant());
+        return new QuoteDto(basket.Currency, basket.Subtotal, calc.ShippingTotal, calc.SummaryName, calc.SummaryRate, calc.Tax, calc.Total,
+            calc.Breakdown, calc.Discount, basket.PromotionCode, problem);
     }
 
     private Task<int> SetQuantityAsync(Guid basketId, Guid productId, int quantity, CancellationToken ct)
