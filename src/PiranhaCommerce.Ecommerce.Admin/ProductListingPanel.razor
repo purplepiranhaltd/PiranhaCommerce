@@ -1,0 +1,56 @@
+@* Widget for AdminWidgetZones.ProductEditTabs; the zone supplies ProductId. Saves independently of the product form. *@
+<div class="pc-card" style="margin-top:1rem">
+    <h2 style="margin-top:0">Online store</h2>
+    @if (_loading)
+    {
+        <p class="pc-muted">Loading...</p>
+    }
+    else if (_listing is null)
+    {
+        <p class="pc-error">Could not load the online listing for this product.</p>
+    }
+    else
+    {
+        <label>
+            <InputCheckbox @bind-Value="_published" /> Published on the online store
+        </label>
+        <button type="button" @onclick="SaveAsync" disabled="@_saving">Save online settings</button>
+        @if (_message is not null)
+        {
+            <span class="pc-muted" role="status"> @_message</span>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Guid ProductId { get; set; }
+    [Inject] private AdminScopeRunner Scope { get; set; } = default!;
+
+    private ProductListingDto? _listing;
+    private bool _published, _loading = true, _saving;
+    private string? _message;
+    private Guid _loadedFor;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedFor == ProductId) return;
+        _loadedFor = ProductId;
+        _loading = true;
+        _message = null;
+        _listing = await Scope.RunAsync<IProductListingService, ProductListingDto?>(s => s.GetAsync(ProductId));
+        _published = _listing?.Published ?? false;
+        _loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            _listing = await Scope.RunAsync<IProductListingService, ProductListingDto?>(
+                s => s.SetAsync(ProductId, new ProductListingInput { Published = _published }));
+            _message = _listing is null ? "Product no longer exists." : "Saved.";
+        }
+        finally { _saving = false; }
+    }
+}

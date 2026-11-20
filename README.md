@@ -12,7 +12,10 @@ A commerce engine for .NET, delivered as NuGet packages. Closed source for now; 
 | `PiranhaCommerce.Data.PostgreSql` | PostgreSQL. |
 | `PiranhaCommerce.Api` | REST API host plumbing and `IApiEndpointContributor` (OpenAPI included). |
 | `PiranhaCommerce.Admin` | Blazor admin (Razor class library): menu + widget zones fed by plugins. |
-| `PiranhaCommerce.Ecommerce` | Catalog/orders etc. Itself a plugin on Core. A future `PiranhaCommerce.Epos` is a sibling. |
+| `PiranhaCommerce.Catalog` | Products shared by every sales channel (name, SKU, price), with API. Channels never add columns to it. |
+| `PiranhaCommerce.Catalog.Admin` | Product list/edit pages. |
+| `PiranhaCommerce.Ecommerce` | Online-store data layered on the catalogue (e.g. `ecom.ProductListing`: published online). A future `PiranhaCommerce.Epos` is a sibling with its own tables. |
+| `PiranhaCommerce.Ecommerce.Admin` | Adds an "Online store" panel to the product edit page through the `ProductEditTabs` widget zone. |
 
 ## Plugin model
 
@@ -23,8 +26,15 @@ builder.Services.AddPiranhaCore()
     .AddPiranhaSqlServer(connectionString)
     .AddPiranhaApi()
     .AddPiranhaAdmin()
-    .AddPlugin<EcommercePlugin>();
+    .AddPlugin<CatalogPlugin>()
+    .AddPlugin<CatalogAdminPlugin>()
+    .AddPlugin<EcommercePlugin>()
+    .AddPlugin<EcommerceAdminPlugin>();
 ```
+
+A plugin declares `DependsOn` in its descriptor; registering it before its dependencies throws a clear error.
+Channel-specific product data goes in the channel's own table keyed by `ProductId` (cascade delete), and its admin UI
+joins the product page through a widget zone.
 
 There is no runtime upload or assembly scanning: only code built by the dev team runs. A plugin registers
 `IModelContributor`, `IApiEndpointContributor`, `IAdminMenuContributor` and `IAdminWidgetContributor` services.

@@ -125,6 +125,43 @@ namespace PiranhaCommerce.Web.Migrations
                     b.ToTable("UserToken", "core");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Catalog.Product", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Sku")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset?>("UpdatedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Sku")
+                        .IsUnique()
+                        .HasFilter("[Sku] IS NOT NULL");
+
+                    b.ToTable("Product", "catalog");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Core.Identity.PiranhaRole", b =>
                 {
                     b.Property<Guid>("Id")
@@ -228,44 +265,17 @@ namespace PiranhaCommerce.Web.Migrations
                     b.ToTable("User", "core");
                 });
 
-            modelBuilder.Entity("PiranhaCommerce.Ecommerce.Catalog.Product", b =>
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.ProductListing", b =>
                 {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
+                    b.Property<Guid>("ProductId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset>("CreatedUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(400)
-                        .HasColumnType("nvarchar(400)");
-
-                    b.Property<decimal>("Price")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("decimal(18,4)");
 
                     b.Property<bool>("Published")
                         .HasColumnType("bit");
 
-                    b.Property<string>("Sku")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                    b.HasKey("ProductId");
 
-                    b.Property<DateTimeOffset?>("UpdatedUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Sku")
-                        .IsUnique()
-                        .HasFilter("[Sku] IS NOT NULL");
-
-                    b.ToTable("Product", "ecom");
+                    b.ToTable("ProductListing", "ecom");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
@@ -315,6 +325,15 @@ namespace PiranhaCommerce.Web.Migrations
                     b.HasOne("PiranhaCommerce.Core.Identity.PiranhaUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.ProductListing", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Catalog.Product", null)
+                        .WithOne()
+                        .HasForeignKey("PiranhaCommerce.Ecommerce.ProductListing", "ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

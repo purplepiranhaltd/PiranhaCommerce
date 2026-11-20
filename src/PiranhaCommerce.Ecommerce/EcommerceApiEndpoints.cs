@@ -2,8 +2,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using PiranhaCommerce.Api;
-using PiranhaCommerce.Core.Validation;
-using PiranhaCommerce.Ecommerce.Catalog;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -11,34 +9,13 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
-        var products = api.MapGroup("/products").WithTags("Products");
+        var listing = api.MapGroup("/products/{productId:guid}/listing").WithTags("Product listings");
 
-        products.MapGet("/", async (IProductService svc, int? page, int? pageSize, string? search, CancellationToken ct) =>
-            Results.Ok(await svc.ListAsync(page, pageSize, search, ct)));
+        listing.MapGet("/", async (Guid productId, IProductListingService svc, CancellationToken ct) =>
+            await svc.GetAsync(productId, ct) is { } l ? Results.Ok(l) : Results.NotFound());
 
-        products.MapGet("/{id:guid}", async (Guid id, IProductService svc, CancellationToken ct) =>
-            await svc.GetAsync(id, ct) is { } p ? Results.Ok(p) : Results.NotFound());
-
-        products.MapPost("/", async (ProductInput input, IProductService svc, CancellationToken ct) =>
-            {
-                try
-                {
-                    var created = await svc.CreateAsync(input, ct);
-                    return Results.Created($"/api/v1/products/{created.Id}", created);
-                }
-                catch (PiranhaValidationException ex) { return Results.ValidationProblem(ex.Errors.ToDictionary(k => k.Key, k => k.Value)); }
-            })
-            .RequireAuthorization(ApiPolicies.Write);
-
-        products.MapPut("/{id:guid}", async (Guid id, ProductInput input, IProductService svc, CancellationToken ct) =>
-            {
-                try { return await svc.UpdateAsync(id, input, ct) is { } p ? Results.Ok(p) : Results.NotFound(); }
-                catch (PiranhaValidationException ex) { return Results.ValidationProblem(ex.Errors.ToDictionary(k => k.Key, k => k.Value)); }
-            })
-            .RequireAuthorization(ApiPolicies.Write);
-
-        products.MapDelete("/{id:guid}", async (Guid id, IProductService svc, CancellationToken ct) =>
-                await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound())
+        listing.MapPut("/", async (Guid productId, ProductListingInput input, IProductListingService svc, CancellationToken ct) =>
+                await svc.SetAsync(productId, input, ct) is { } l ? Results.Ok(l) : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
     }
 }

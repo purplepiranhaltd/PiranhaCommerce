@@ -4,25 +4,19 @@ using PiranhaCommerce.Core.Plugins;
 
 namespace PiranhaCommerce.Ecommerce.Admin;
 
-/// <summary>Admin UI for the ecommerce package. Doubles as the reference example of a plugin contributing admin pages.</summary>
+/// <summary>Adds the "Online store" panel to the shared product edit page via a widget zone.</summary>
 public sealed class EcommerceAdminPlugin : IPiranhaPlugin
 {
-    public PluginDescriptor Descriptor { get; } =
-        new("PiranhaCommerce.Ecommerce.Admin", "Ecommerce Admin", "0.1.0", "Admin pages for the catalog.");
+    public PluginDescriptor Descriptor { get; } = new(
+        "PiranhaCommerce.Ecommerce.Admin", "Ecommerce Admin", "0.1.0", "Online-store settings in the admin.",
+        DependsOn: [EcommercePlugin.SystemName, "PiranhaCommerce.Catalog.Admin"]);
 
     public void ConfigureServices(IServiceCollection services)
-    {
-        // Lets the admin router and endpoint mapping find this assembly's @page components.
-        services.AddSingleton(new AdminPageAssembly(typeof(EcommerceAdminPlugin).Assembly));
-        services.AddSingleton<IAdminMenuContributor, EcommerceAdminMenu>();
-    }
+        => services.AddSingleton<IAdminWidgetContributor, EcommerceWidgets>();
 }
 
-internal sealed class EcommerceAdminMenu : IAdminMenuContributor
+internal sealed class EcommerceWidgets : IAdminWidgetContributor
 {
-    public IEnumerable<AdminMenuItem> GetMenuItems() =>
-    [
-        new("catalog", "Catalog", Order: 10),
-        new("catalog.products", "Products", "/admin/catalog/products", Order: 11, ParentKey: "catalog"),
-    ];
+    public IEnumerable<AdminWidget> GetWidgets() =>
+        [new(AdminWidgetZones.ProductEditTabs, typeof(ProductListingPanel), Order: 10)];
 }

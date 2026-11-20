@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace PiranhaCommerce.Ecommerce.Catalog;
+namespace PiranhaCommerce.Catalog;
 
 /// <summary>Create/update payload.</summary>
 public sealed class ProductInput
@@ -16,10 +16,8 @@ public sealed class ProductInput
 
     [Range(typeof(decimal), "0", "999999999")]
     public decimal Price { get; set; }
-
-    public bool Published { get; set; }
 }
 
 public sealed record ProductDto(
-    Guid Id, string Name, string? Sku, string? Description, decimal Price, bool Published,
+    Guid Id, string Name, string? Sku, string? Description, decimal Price,
     DateTimeOffset CreatedUtc, DateTimeOffset? UpdatedUtc);

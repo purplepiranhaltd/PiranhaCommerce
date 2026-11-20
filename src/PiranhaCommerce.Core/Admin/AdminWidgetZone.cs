@@ -5,6 +5,7 @@ public static class AdminWidgetZones
 {
     public const string DashboardTop = "admin.dashboard.top";
     public const string DashboardBottom = "admin.dashboard.bottom";
+    /// <summary>Shown on the product edit page of an existing product. Supplies parameter <c>Guid ProductId</c>.</summary>
     public const string ProductEditTabs = "admin.product.edit.tabs";
 }
 

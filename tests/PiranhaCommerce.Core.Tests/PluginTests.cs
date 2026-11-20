@@ -21,6 +21,27 @@ public class PluginTests
         Assert.Single(sp.GetRequiredService<IPluginCatalog>().Plugins);
     }
 
+    private sealed class DependentPlugin : IPiranhaPlugin
+    {
+        public PluginDescriptor Descriptor { get; } = new("Dependent", "Dependent", "1.0", DependsOn: ["Fake"]);
+        public void ConfigureServices(IServiceCollection services) { }
+    }
+
+    [Fact]
+    public void Plugin_with_missing_dependency_is_rejected_with_a_clear_message()
+    {
+        var builder = new ServiceCollection().AddPiranhaCore();
+        var ex = Assert.Throws<InvalidOperationException>(() => builder.AddPlugin<DependentPlugin>());
+        Assert.Contains("requires plugin 'Fake'", ex.Message);
+    }
+
+    [Fact]
+    public void Plugin_is_accepted_once_its_dependency_is_registered()
+    {
+        var builder = new ServiceCollection().AddPiranhaCore().AddPlugin<FakePlugin>().AddPlugin<DependentPlugin>();
+        Assert.Equal(2, builder.Plugins.Count);
+    }
+
     [Fact]
     public void Duplicate_plugin_is_rejected()
     {

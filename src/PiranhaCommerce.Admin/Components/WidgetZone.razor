@@ -1,11 +1,18 @@
 @* Renders every component plugins registered for the named zone. *@
 @foreach (var w in Widgets.Where(w => w.Zone == Zone).OrderBy(w => w.Order))
 {
-    <DynamicComponent Type="w.ComponentType" />
+    <DynamicComponent Type="w.ComponentType" Parameters="Parameters" />
 }
 
 @code {
     [Parameter, EditorRequired] public string Zone { get; set; } = default!;
+
+    /// <summary>
+    /// Context for widgets in this zone (e.g. <c>ProductId</c> on the product edit page). Each widget component
+    /// declares [Parameter]s with matching names; see <see cref="AdminWidgetZones"/> for what each zone supplies.
+    /// </summary>
+    [Parameter] public IDictionary<string, object?>? Parameters { get; set; }
+
     [Inject] private IEnumerable<IAdminWidgetContributor> Contributors { get; set; } = default!;
     private IEnumerable<AdminWidget> Widgets => Contributors.SelectMany(c => c.GetWidgets());
 }

@@ -2,14 +2,14 @@ using System.Net;
 using System.Net.Http.Json;
 using PiranhaCommerce.Api.Auth;
 using PiranhaCommerce.Core.Paging;
-using PiranhaCommerce.Ecommerce.Catalog;
+using PiranhaCommerce.Catalog;
 
 namespace PiranhaCommerce.IntegrationTests;
 
 public class ProductApiTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
 {
     private static ProductInput Input(string name, string? sku = null, decimal price = 10m) =>
-        new() { Name = name, Sku = sku, Price = price, Published = true };
+        new() { Name = name, Sku = sku, Price = price };
 
     [Fact]
     public async Task Unauthenticated_request_gets_401_not_a_login_redirect()

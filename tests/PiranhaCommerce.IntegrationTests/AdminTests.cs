@@ -1,9 +1,10 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using PiranhaCommerce.Core.Admin;
-using PiranhaCommerce.Ecommerce.Admin;
+using PiranhaCommerce.Catalog.Admin;
 
 namespace PiranhaCommerce.IntegrationTests;
 
@@ -39,7 +40,7 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
     public async Task Plugin_page_assembly_is_registered_with_the_admin()
     {
         var assemblies = factory.Services.GetServices<AdminPageAssembly>().Select(a => a.Assembly).ToList();
-        Assert.Contains(typeof(EcommerceAdminPlugin).Assembly, assemblies);
+        Assert.Contains(typeof(CatalogAdminPlugin).Assembly, assemblies);
 
         // ...and its @page routes are actually mapped as endpoints, not just its menu entry.
         var routes = factory.Services.GetServices<EndpointDataSource>()
@@ -94,6 +95,25 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
         var dashboard = await (await browser.GetAsync("/admin")).Content.ReadAsStringAsync();
         Assert.Contains("Ecommerce Admin", dashboard);          // plugin listed
         Assert.Contains("/admin/catalog/products", dashboard);  // plugin menu entry rendered
+    }
+
+    [Fact]
+    public async Task Product_edit_page_shows_the_ecommerce_panel_only_for_saved_products()
+    {
+        var api = await factory.CreateAuthenticatedApiClientAsync();
+        var created = await api.PostAsJsonAsync("/api/v1/products", new PiranhaCommerce.Catalog.ProductInput { Name = "Panel test", Price = 1m });
+        var product = (await created.Content.ReadFromJsonAsync<PiranhaCommerce.Catalog.ProductDto>())!;
+
+        var browser = NewBrowser();
+        await PostLoginAsync(browser, PiranhaFactory.AdminEmail, PiranhaFactory.AdminPassword);
+
+        var existing = await (await browser.GetAsync($"/admin/catalog/products/{product.Id}")).Content.ReadAsStringAsync();
+        Assert.Contains("Online store", existing);           // Ecommerce widget rendered inside the Catalog page
+        Assert.Contains("Published on the online store", existing);
+
+        var isNew = await (await browser.GetAsync("/admin/catalog/products/new")).Content.ReadAsStringAsync();
+        Assert.DoesNotContain("Published on the online store", isNew);
+        Assert.Contains("Save the product to configure", isNew);
     }
 
     [Fact]

@@ -6,6 +6,8 @@
     <ProjectReference Include="..\..\src\PiranhaCommerce.Api\PiranhaCommerce.Api.csproj" />
     <ProjectReference Include="..\..\src\PiranhaCommerce.Admin\PiranhaCommerce.Admin.csproj" />
     <ProjectReference Include="..\..\src\PiranhaCommerce.Ecommerce\PiranhaCommerce.Ecommerce.csproj" />
+    <ProjectReference Include="..\..\src\PiranhaCommerce.Catalog\PiranhaCommerce.Catalog.csproj" />
+    <ProjectReference Include="..\..\src\PiranhaCommerce.Catalog.Admin\PiranhaCommerce.Catalog.Admin.csproj" />
     <ProjectReference Include="..\..\src\PiranhaCommerce.Ecommerce.Admin\PiranhaCommerce.Ecommerce.Admin.csproj" />
   </ItemGroup>
   <ItemGroup>

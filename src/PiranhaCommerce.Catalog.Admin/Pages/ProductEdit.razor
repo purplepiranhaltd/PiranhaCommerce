@@ -38,14 +38,20 @@ else
                 <InputNumber @bind-Value="_input.Price" step="0.01" />
             </label>
             <ValidationMessage For="() => _input.Price" />
-            <label><InputCheckbox @bind-Value="_input.Published" /> Published</label>
 
             <button type="submit" disabled="@_saving">Save</button>
             <a class="pc-button secondary" href="/admin/catalog/products">Cancel</a>
         </EditForm>
     </div>
 
-    <WidgetZone Zone="@AdminWidgetZones.ProductEditTabs" />
+    @if (Id is { } productId)
+    {
+        <WidgetZone Zone="@AdminWidgetZones.ProductEditTabs" Parameters="@(new Dictionary<string, object?> { ["ProductId"] = productId })" />
+    }
+    else
+    {
+        <p class="pc-muted">Save the product to configure channel-specific settings.</p>
+    }
 }
 
 @code {
@@ -65,7 +71,7 @@ else
 
         var p = await Scope.RunAsync<IProductService, ProductDto?>(s => s.GetAsync(Id!.Value));
         if (p is null) { _notFound = true; return; }
-        _input = new ProductInput { Name = p.Name, Sku = p.Sku, Description = p.Description, Price = p.Price, Published = p.Published };
+        _input = new ProductInput { Name = p.Name, Sku = p.Sku, Description = p.Description, Price = p.Price };
     }
 
     private async Task SaveAsync()

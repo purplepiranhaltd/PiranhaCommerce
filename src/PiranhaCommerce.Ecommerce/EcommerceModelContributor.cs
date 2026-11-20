@@ -1,20 +1,20 @@
 using Microsoft.EntityFrameworkCore;
+using PiranhaCommerce.Catalog;
 using PiranhaCommerce.Data;
-using PiranhaCommerce.Ecommerce.Catalog;
 
 namespace PiranhaCommerce.Ecommerce;
 
 internal sealed class EcommerceModelContributor : IModelContributor
 {
+    public const string Schema = "ecom";
+
     public void OnModelCreating(ModelBuilder b)
     {
-        b.Entity<Product>(e =>
+        b.Entity<ProductListing>(e =>
         {
-            e.ToTable("Product", "ecom");
-            e.Property(p => p.Name).HasMaxLength(400).IsRequired();
-            e.Property(p => p.Sku).HasMaxLength(100);
-            e.Property(p => p.Price).HasPrecision(18, 4);
-            e.HasIndex(p => p.Sku).IsUnique(); // the guarantee; the service pre-check only gives a friendlier 400
+            e.ToTable("ProductListing", Schema);
+            e.HasKey(l => l.ProductId);
+            e.HasOne<Product>().WithOne().HasForeignKey<ProductListing>(l => l.ProductId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

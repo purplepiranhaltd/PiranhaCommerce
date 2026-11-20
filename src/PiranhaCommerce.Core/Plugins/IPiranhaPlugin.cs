@@ -15,4 +15,5 @@ public interface IPiranhaPlugin
     void ConfigureServices(IServiceCollection services);
 }
 
-public sealed record PluginDescriptor(string SystemName, string DisplayName, string Version, string? Description = null);
+/// <param name="DependsOn">System names of plugins that must be registered <b>before</b> this one.</param>
+public sealed record PluginDescriptor(string SystemName, string DisplayName, string Version, string? Description = null, IReadOnlyList<string>? DependsOn = null);

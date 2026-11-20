@@ -3,7 +3,7 @@ using PiranhaCommerce.Core.Paging;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
 
-namespace PiranhaCommerce.Ecommerce.Catalog;
+namespace PiranhaCommerce.Catalog;
 
 /// <summary>Single place for product rules, shared by the API and the admin UI.</summary>
 public interface IProductService
@@ -30,14 +30,14 @@ internal sealed class ProductService(PiranhaDbContext db) : IProductService
         var total = await query.CountAsync(ct);
         var items = await query.OrderBy(x => x.Name).ThenBy(x => x.Id) // stable order for paging
             .Skip((p - 1) * size).Take(size)
-            .Select(x => new ProductDto(x.Id, x.Name, x.Sku, x.Description, x.Price, x.Published, x.CreatedUtc, x.UpdatedUtc))
+            .Select(x => new ProductDto(x.Id, x.Name, x.Sku, x.Description, x.Price, x.CreatedUtc, x.UpdatedUtc))
             .ToListAsync(ct);
         return new PagedResult<ProductDto>(items, p, size, total);
     }
 
     public async Task<ProductDto?> GetAsync(Guid id, CancellationToken ct = default)
         => await db.Set<Product>().AsNoTracking().Where(x => x.Id == id)
-            .Select(x => new ProductDto(x.Id, x.Name, x.Sku, x.Description, x.Price, x.Published, x.CreatedUtc, x.UpdatedUtc))
+            .Select(x => new ProductDto(x.Id, x.Name, x.Sku, x.Description, x.Price, x.CreatedUtc, x.UpdatedUtc))
             .FirstOrDefaultAsync(ct);
 
     public async Task<ProductDto> CreateAsync(ProductInput input, CancellationToken ct = default)
@@ -80,9 +80,8 @@ internal sealed class ProductService(PiranhaDbContext db) : IProductService
         e.Sku = string.IsNullOrWhiteSpace(i.Sku) ? null : i.Sku.Trim();
         e.Description = i.Description;
         e.Price = i.Price;
-        e.Published = i.Published;
     }
 
     private static ProductDto ToDto(Product x) =>
-        new(x.Id, x.Name, x.Sku, x.Description, x.Price, x.Published, x.CreatedUtc, x.UpdatedUtc);
+        new(x.Id, x.Name, x.Sku, x.Description, x.Price, x.CreatedUtc, x.UpdatedUtc);
 }

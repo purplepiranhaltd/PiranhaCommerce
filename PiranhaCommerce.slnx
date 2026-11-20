@@ -5,6 +5,8 @@
   <Folder Name="/src/">
     <Project Path="src/PiranhaCommerce.Admin/PiranhaCommerce.Admin.csproj" />
     <Project Path="src/PiranhaCommerce.Api/PiranhaCommerce.Api.csproj" />
+    <Project Path="src/PiranhaCommerce.Catalog.Admin/PiranhaCommerce.Catalog.Admin.csproj" />
+    <Project Path="src/PiranhaCommerce.Catalog/PiranhaCommerce.Catalog.csproj" />
     <Project Path="src/PiranhaCommerce.Core/PiranhaCommerce.Core.csproj" />
     <Project Path="src/PiranhaCommerce.Data.PostgreSql/PiranhaCommerce.Data.PostgreSql.csproj" />
     <Project Path="src/PiranhaCommerce.Data.SqlServer/PiranhaCommerce.Data.SqlServer.csproj" />

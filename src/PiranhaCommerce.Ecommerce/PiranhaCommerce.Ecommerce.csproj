@@ -2,6 +2,6 @@
   <ItemGroup>
     <ProjectReference Include="..\PiranhaCommerce.Core\PiranhaCommerce.Core.csproj" />
     <ProjectReference Include="..\PiranhaCommerce.Data\PiranhaCommerce.Data.csproj" />
-    <ProjectReference Include="..\PiranhaCommerce.Api\PiranhaCommerce.Api.csproj" />
+    <ProjectReference Include="..\PiranhaCommerce.Catalog\PiranhaCommerce.Catalog.csproj" />
   </ItemGroup>
 </Project>
