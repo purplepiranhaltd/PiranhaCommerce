@@ -17,7 +17,7 @@ namespace PiranhaCommerce.IntegrationTests;
 /// applies migrations and seeds the admin user, so this also proves the migrations apply from scratch.
 /// Requires SQL Server LocalDB.
 /// </summary>
-public sealed class PiranhaFactory : WebApplicationFactory<Program>, IAsyncLifetime
+public class PiranhaFactory: WebApplicationFactory<Program>, IAsyncLifetime
 {
     public const string AdminEmail = "admin@piranha.local";
     public const string AdminPassword = "Dev-Passw0rd!";
@@ -54,7 +54,11 @@ public sealed class PiranhaFactory : WebApplicationFactory<Program>, IAsyncLifet
     {
         builder.UseSetting("Piranha:Provider", Provider);
         builder.UseSetting("ConnectionStrings:Piranha", ConnectionString);
+        builder.UseSetting("Piranha:RateLimit:SignInAttempts", SignInAttempts.ToString());
     }
+
+    /// <summary>Sign-in attempts allowed per minute. High by default so the many sign-ins in the suite never trip it.</summary>
+    protected virtual int SignInAttempts => 100_000;
 
     public Task InitializeAsync() => Task.CompletedTask;
 

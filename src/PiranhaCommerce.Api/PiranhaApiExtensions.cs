@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using PiranhaCommerce.Api.Auth;
+using PiranhaCommerce.Api.RateLimiting;
 using PiranhaCommerce.Core.Identity;
 using PiranhaCommerce.Core.Plugins;
 
@@ -32,6 +33,7 @@ public static class PiranhaApiExtensions
         services.AddOpenApi();
         services.AddOptions<PiranhaJwtOptions>().BindConfiguration(PiranhaJwtOptions.SectionName);
         services.AddScoped<JwtTokenService>();
+        services.AddSignInRateLimiting();
 
         // Enums travel as their names ("Placed"), not numbers, so clients and stored documents stay readable and stable.
         services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));

@@ -45,8 +45,10 @@ history.
 
 ## Security hardening
 
-- Rate limiting on `POST /api/v1/auth/token` and the admin sign-in POST. Lockout (5 failures) caps guessing per account, but a burst of
-  guesses already in flight when the lock lands is still evaluated, and lockout does nothing against one guess each at many accounts.
+- Built: rate limiting on `POST /api/v1/auth/token` and the admin sign-in POST (10 a minute per client address, IPv6 by /64).
+  Still open: limits are per host process, so several instances each allow their own count (a shared store such as Redis would fix
+  that); a slow attack spread over many addresses is not stopped by either lockout or this; and the limit is only as accurate as
+  the host's forwarded-headers setup.
 
 ## Tax rules: rates per product, not just per country
 
