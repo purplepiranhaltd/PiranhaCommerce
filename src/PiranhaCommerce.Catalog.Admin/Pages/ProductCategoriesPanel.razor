@@ -1,0 +1,67 @@
+@* Panel for AdminSlots.ProductEditPanels. Saves independently of the product form. *@
+@inject AdminScopeRunner Scope
+
+<div class="pc-card" style="margin-top:1rem">
+    <h2 style="margin-top:0">Categories</h2>
+    @if (_loading)
+    {
+        <p class="pc-muted">Loading...</p>
+    }
+    else if (_tree.Count == 0)
+    {
+        <p class="pc-muted">No categories exist yet. <a href="/admin/catalog/categories">Create some</a>.</p>
+    }
+    else
+    {
+        @foreach (var (c, depth) in _tree)
+        {
+            <div style="padding-left:@(depth * 1.5)rem">
+                <label><input type="checkbox" checked="@_selected.Contains(c.Id)" @onchange="e => Toggle(c.Id, (bool)e.Value!)" /> @c.Name</label>
+            </div>
+        }
+        <button type="button" @onclick="SaveAsync" disabled="@_saving">Save categories</button>
+        @if (_message is not null)
+        {
+            <span class="pc-muted" role="status"> @_message</span>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Guid ProductId { get; set; }
+
+    private List<(CategoryDto Category, int Depth)> _tree = [];
+    private HashSet<Guid> _selected = [];
+    private bool _loading = true, _saving;
+    private string? _message;
+    private Guid _loadedFor;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedFor == ProductId) return;
+        _loadedFor = ProductId;
+        _loading = true;
+        _message = null;
+        var all = await Scope.RunAsync<ICategoryService, IReadOnlyList<CategoryDto>>(s => s.ListAsync());
+        _tree = CategoryTree.Flatten(all);
+        var current = await Scope.RunAsync<ICategoryService, ProductCategoriesDto?>(s => s.GetProductCategoriesAsync(ProductId));
+        _selected = current?.CategoryIds.ToHashSet() ?? [];
+        _loading = false;
+    }
+
+    private void Toggle(Guid id, bool on) { if (on) _selected.Add(id); else _selected.Remove(id); }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            var ids = _selected.ToList();
+            var r = await Scope.RunAsync<ICategoryService, ProductCategoriesDto?>(s => s.SetProductCategoriesAsync(ProductId, ids));
+            _message = r is null ? "Product no longer exists." : "Saved.";
+        }
+        catch (PiranhaValidationException ex) { _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _message = "Could not save: " + ex.Message; }
+        finally { _saving = false; }
+    }
+}

@@ -17,5 +17,24 @@ internal sealed class CatalogModelContributor : IModelContributor
             e.Property(p => p.Price).HasPrecision(18, 4);
             e.HasIndex(p => p.Sku).IsUnique(); // the guarantee; the service pre-check only gives a friendlier 400
         });
+
+        b.Entity<Category>(e =>
+        {
+            e.ToTable("Category", Schema);
+            e.Property(c => c.Name).HasMaxLength(200).IsRequired();
+            e.Property(c => c.Description).HasMaxLength(4000);
+            // Optional self-reference: the database keeps NO ACTION (SQL Server forbids cascading self-references);
+            // the service refuses to delete a category that still has children.
+            e.HasOne<Category>().WithMany().HasForeignKey(c => c.ParentId);
+        });
+
+        b.Entity<ProductCategory>(e =>
+        {
+            e.ToTable("ProductCategory", Schema);
+            e.HasKey(l => new { l.ProductId, l.CategoryId });
+            e.HasOne<Product>().WithMany().HasForeignKey(l => l.ProductId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Category>().WithMany().HasForeignKey(l => l.CategoryId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(l => l.CategoryId);
+        });
     }
 }

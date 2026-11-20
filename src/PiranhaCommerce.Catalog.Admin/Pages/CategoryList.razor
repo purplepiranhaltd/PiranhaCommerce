@@ -1,0 +1,136 @@
+@page "/admin/catalog/categories"
+@inject AdminScopeRunner Scope
+
+<PageTitle>Categories - Piranha Commerce</PageTitle>
+<h1>Categories</h1>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+<div class="pc-card">
+    <h2 style="margin-top:0">@(_editingId is null ? "New category" : "Edit category")</h2>
+    <div class="pc-toolbar">
+        <input aria-label="Category name" placeholder="Name" @bind="_input.Name" />
+        <select aria-label="Parent category" @bind="_input.ParentId">
+            <option value="">(top level)</option>
+            @foreach (var (c, depth) in _tree.Where(t => _editingId is null || !_blocked.Contains(t.Category.Id)))
+            {
+                <option value="@c.Id">@(new string('-', depth * 2) + (depth > 0 ? " " : "") + c.Name)</option>
+            }
+        </select>
+        <input type="number" aria-label="Display order" style="width:6rem" @bind="_input.DisplayOrder" />
+        <label><input type="checkbox" @bind="_input.Active" /> Active</label>
+        <button @onclick="SaveAsync" disabled="@_saving">@(_editingId is null ? "Add" : "Save")</button>
+        @if (_editingId is not null)
+        {
+            <button class="secondary" @onclick="ResetForm">Cancel</button>
+        }
+    </div>
+</div>
+
+@if (_loading)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_tree.Count == 0)
+{
+    <p class="pc-muted">No categories yet.</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>Name</th><th class="num">Order</th><th>Active</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var (c, depth) in _tree)
+        {
+            <tr>
+                <td style="padding-left:@(0.75 + depth * 1.5)rem">@c.Name</td>
+                <td class="num">@c.DisplayOrder</td>
+                <td>@(c.Active ? "Yes" : "No")</td>
+                <td class="actions">
+                    <button class="secondary" @onclick="() => Edit(c)">Edit</button>
+                    @if (_confirmDelete == c.Id)
+                    {
+                        <button class="danger" @onclick="() => DeleteAsync(c.Id)">Confirm delete</button>
+                        <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
+                    }
+                    else
+                    {
+                        <button class="secondary" @onclick="() => _confirmDelete = c.Id">Delete</button>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<(CategoryDto Category, int Depth)> _tree = [];
+    private CategoryInput _input = new();
+    private Guid? _editingId, _confirmDelete;
+    private HashSet<Guid> _blocked = [];
+    private bool _loading = true, _saving;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var all = await Scope.RunAsync<ICategoryService, IReadOnlyList<CategoryDto>>(s => s.ListAsync());
+            _tree = CategoryTree.Flatten(all);
+        }
+        catch (Exception ex) { _error = "Could not load categories: " + ex.Message; }
+        _loading = false;
+    }
+
+    private void Edit(CategoryDto c)
+    {
+        _editingId = c.Id;
+        _blocked = CategoryTree.SelfAndDescendants(_tree.Select(t => t.Category), c.Id); // cannot move under itself
+        _input = new CategoryInput { Name = c.Name, Description = c.Description, ParentId = c.ParentId, DisplayOrder = c.DisplayOrder, Active = c.Active };
+    }
+
+    private void ResetForm() { _editingId = null; _blocked = []; _input = new(); }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            if (_editingId is { } id)
+            {
+                var updated = await Scope.RunAsync<ICategoryService, CategoryDto?>(s => s.UpdateAsync(id, _input));
+                if (updated is null) _error = "That category no longer exists.";
+            }
+            else
+            {
+                await Scope.RunAsync<ICategoryService, CategoryDto>(s => s.CreateAsync(_input));
+            }
+            if (_error is null) ResetForm();
+            await LoadAsync();
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _error = "Could not save: " + ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        _confirmDelete = null;
+        _error = null;
+        try
+        {
+            await Scope.RunAsync<ICategoryService, bool>(s => s.DeleteAsync(id));
+            if (_editingId == id) ResetForm();
+            await LoadAsync();
+        }
+        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (Exception ex) { _error = "Could not delete: " + ex.Message; }
+    }
+}
