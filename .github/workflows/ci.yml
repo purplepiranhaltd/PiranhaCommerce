@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  # Throwaway credentials for containers that only exist for the duration of the job.
+  DB_PASSWORD: Ci_Passw0rd_for_tests
+
+jobs:
+  test:
+    name: Build, test, migrations (${{ matrix.provider }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: [SqlServer, PostgreSql]
+    env:
+      PIRANHA_TEST_PROVIDER: ${{ matrix.provider }}
+      PIRANHA_TEST_SQLSERVER: Server=localhost,1433;User Id=sa;Password=Ci_Passw0rd_for_tests;TrustServerCertificate=True
+      PIRANHA_TEST_PG_SERVER: Host=localhost;Port=5432;Username=postgres;Password=Ci_Passw0rd_for_tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Start SQL Server
+        if: matrix.provider == 'SqlServer'
+        run: |
+          docker run -d --name db -e ACCEPT_EULA=Y -e "MSSQL_SA_PASSWORD=$DB_PASSWORD" -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest
+          for i in $(seq 1 40); do
+            docker exec db /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$DB_PASSWORD" -Q "SELECT 1" >/dev/null 2>&1 && exit 0
+            sleep 3
+          done
+          docker logs db; exit 1
+
+      - name: Start PostgreSQL
+        if: matrix.provider == 'PostgreSql'
+        run: |
+          docker run -d --name db -e "POSTGRES_PASSWORD=$DB_PASSWORD" -p 5432:5432 postgres:17-alpine
+          for i in $(seq 1 30); do
+            docker exec db pg_isready -U postgres >/dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          docker logs db; exit 1
+
+      - name: Build
+        run: dotnet build -c Release
+
+      - name: Test
+        run: dotnet test -c Release --no-build --logger "trx;LogFileName=test-results.trx"
+
+      - name: Install dotnet-ef
+        run: dotnet tool install --global dotnet-ef --version 10.0.15
+
+      # Fails when the model changed but a migration was not added for this provider.
+      - name: Migrations are up to date (SQL Server)
+        if: matrix.provider == 'SqlServer'
+        run: dotnet ef migrations has-pending-model-changes --project samples/PiranhaCommerce.Web --configuration Release --no-build
+
+      - name: Migrations are up to date (PostgreSQL)
+        if: matrix.provider == 'PostgreSql'
+        env:
+          Piranha__Provider: PostgreSql
+          ConnectionStrings__Piranha: Host=localhost;Port=5432;Database=drift_check;Username=postgres;Password=Ci_Passw0rd_for_tests
+        run: >
+          dotnet ef migrations has-pending-model-changes
+          --project samples/PiranhaCommerce.Web.Migrations.PostgreSql
+          --startup-project samples/PiranhaCommerce.Web --configuration Release --no-build
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.provider }}
+          path: "**/test-results.trx"
+
+  packages:
+    name: Pack and verify packages from a consumer app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Start SQL Server
+        run: |
+          docker run -d --name db -e ACCEPT_EULA=Y -e "MSSQL_SA_PASSWORD=$DB_PASSWORD" -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest
+          for i in $(seq 1 40); do
+            docker exec db /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$DB_PASSWORD" -Q "SELECT 1" >/dev/null 2>&1 && exit 0
+            sleep 3
+          done
+          docker logs db; exit 1
+
+      - name: Pack, then build/publish/run an app that references only the packages
+        shell: pwsh
+        run: ./build/verify-packages.ps1 -ConnectionString "Server=localhost,1433;User Id=sa;Password=$env:DB_PASSWORD;TrustServerCertificate=True;Database=PiranhaPkgVerify_ci"
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: artifacts/packages/*.nupkg

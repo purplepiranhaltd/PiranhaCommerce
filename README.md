@@ -126,3 +126,13 @@ pwsh build/verify-packages.ps1
 Packs every library, builds a fresh app outside the repo that references **only** the `.nupkg` files (isolated NuGet
 cache), publishes it, runs the published output and smoke-tests the API, sign-in, plugin panels and static assets.
 `-OmitWebAssetsProperty` runs the negative check. No license is chosen yet (closed source); set one before publishing.
+
+## CI
+
+`.github/workflows/ci.yml` (GitHub Actions) runs on every push to `main` and every pull request:
+
+- **test** (matrix: SQL Server, PostgreSQL): builds, runs all tests against a real database container, and fails if the
+  model has changed without a migration for that provider.
+- **packages**: runs `build/verify-packages.ps1` against a SQL Server container and uploads the `.nupkg` files.
+
+The workflow itself has not been run on GitHub yet; its steps were exercised locally in Docker.

@@ -23,7 +23,7 @@ public sealed class PiranhaFactory : WebApplicationFactory<Program>, IAsyncLifet
     public const string AdminPassword = "Dev-Passw0rd!";
 
     // PIRANHA_TEST_PROVIDER=PostgreSql + PIRANHA_TEST_PG_SERVER="Host=...;Port=...;Username=...;Password=..." runs the whole suite
-    // against PostgreSQL (a uniquely named database is created per fixture). Default: SQL Server LocalDB.
+    // against PostgreSQL (a uniquely named database is created per fixture). Default: SQL Server LocalDB, or PIRANHA_TEST_SQLSERVER.
     private static readonly string Provider = Environment.GetEnvironmentVariable("PIRANHA_TEST_PROVIDER") ?? "SqlServer";
     private readonly string _database = $"PiranhaTests_{Guid.NewGuid():N}";
 
@@ -37,6 +37,10 @@ public sealed class PiranhaFactory : WebApplicationFactory<Program>, IAsyncLifet
                     ?? throw new InvalidOperationException("Set PIRANHA_TEST_PG_SERVER for PostgreSQL runs.");
                 return $"{server};Database={_database.ToLowerInvariant()}";
             }
+            // PIRANHA_TEST_SQLSERVER="Server=host,port;User Id=sa;Password=...;TrustServerCertificate=True" targets a real SQL Server
+            // (CI on Linux); otherwise LocalDB.
+            if (Environment.GetEnvironmentVariable("PIRANHA_TEST_SQLSERVER") is { Length: > 0 } sql)
+                return $"{sql};Database={_database}";
             return $@"Server=(localdb)\MSSQLLocalDB;Database={_database};Trusted_Connection=True;TrustServerCertificate=True";
         }
     }

@@ -56,9 +56,44 @@ Run dotnet @('new', 'web', '-n', 'ConsumerApp', '-o', $app, '-f', 'net10.0', '--
 </configuration>
 "@ | Set-Content (Join-Path $app 'nuget.config') -Encoding utf8
 
-# Same Program.cs/config/migrations the sample host uses (the host owns its migrations).
+# What a real consumer writes: its own Program.cs (SQL Server here) using only the packages. Config + migrations come
+# from the sample host (the host owns its migrations).
 $sample = Join-Path $repo 'samples/PiranhaCommerce.Web'
-Copy-Item (Join-Path $sample 'Program.cs') $app -Force
+@'
+using Microsoft.EntityFrameworkCore;
+using PiranhaCommerce.Admin;
+using PiranhaCommerce.Api;
+using PiranhaCommerce.Core.DependencyInjection;
+using PiranhaCommerce.Data;
+using PiranhaCommerce.Data.SqlServer;
+using PiranhaCommerce.Ecommerce;
+using PiranhaCommerce.Ecommerce.Admin;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddPiranhaCore()
+    .AddPiranhaSqlServer(builder.Configuration.GetConnectionString("Piranha")!, typeof(Program).Assembly)
+    .AddPiranhaApi()
+    .AddPiranhaAdmin()
+    .AddPlugin<EcommercePlugin>()
+    .AddPlugin<EcommerceAdminPlugin>();
+
+var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+    await scope.ServiceProvider.GetRequiredService<PiranhaDbContext>().Database.MigrateAsync();
+var seed = app.Configuration.GetSection("Piranha:SeedAdmin");
+await app.Services.EnsureAdministratorAsync(seed["Email"]!, seed["Password"]!);
+
+app.UseStaticFiles();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseAntiforgery();
+app.MapStaticAssets();
+app.MapPiranhaApi();
+app.MapPiranhaAdmin();
+app.Run();
+'@ | Set-Content (Join-Path $app 'Program.cs') -Encoding utf8
 Copy-Item (Join-Path $sample 'appsettings.json') $app -Force
 Copy-Item (Join-Path $sample 'appsettings.Development.json') $app -Force
 Copy-Item (Join-Path $sample 'Migrations') (Join-Path $app 'Migrations') -Recurse -Force
@@ -84,7 +119,7 @@ $env:ASPNETCORE_ENVIRONMENT = 'Development'          # applies migrations + seed
 $env:ConnectionStrings__Piranha = $ConnectionString
 $log = Join-Path $WorkDir 'app.log'
 $proc = Start-Process dotnet -ArgumentList @((Join-Path $publish 'ConsumerApp.dll'), '--urls', $base) `
-    -WorkingDirectory $publish -PassThru -WindowStyle Hidden -RedirectStandardOutput $log -RedirectStandardError "$log.err"
+    -WorkingDirectory $publish -PassThru -NoNewWindow -RedirectStandardOutput $log -RedirectStandardError "$log.err"
 $failures = @()
 try {
     $ready = $false
