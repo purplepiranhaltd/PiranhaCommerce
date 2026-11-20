@@ -14,7 +14,7 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.Property(p => p.Name).HasMaxLength(400).IsRequired();
             e.Property(p => p.Sku).HasMaxLength(100);
             e.Property(p => p.Price).HasPrecision(18, 4);
-            e.HasIndex(p => p.Sku);
+            e.HasIndex(p => p.Sku).IsUnique(); // the guarantee; the service pre-check only gives a friendlier 400
         });
     }
 }

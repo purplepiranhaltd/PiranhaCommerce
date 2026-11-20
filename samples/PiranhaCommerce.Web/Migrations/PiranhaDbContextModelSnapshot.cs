@@ -261,7 +261,9 @@ namespace PiranhaCommerce.Web.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Sku");
+                    b.HasIndex("Sku")
+                        .IsUnique()
+                        .HasFilter("[Sku] IS NOT NULL");
 
                     b.ToTable("Product", "ecom");
                 });

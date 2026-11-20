@@ -43,3 +43,6 @@ label input[type=checkbox] { width: auto; margin-right: .4rem; }
   .pc-shell { grid-template-columns: 1fr; }
   .pc-main { padding: 1rem; }
 }
+#blazor-error-ui { background: var(--danger); color: #fff; position: fixed; left: 0; right: 0; bottom: 0; padding: .6rem 1.25rem; z-index: 1000; }
+#blazor-error-ui[hidden] { display: none; }
+#blazor-error-ui a { color: #fff; margin-left: .75rem; cursor: pointer; }
