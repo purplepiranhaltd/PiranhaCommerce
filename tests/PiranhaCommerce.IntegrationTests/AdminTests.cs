@@ -264,7 +264,7 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
         Assert.Contains("Shipping", html);
         Assert.Contains("Tax", html);
         Assert.Contains("<h1>Shipping methods</h1>", await (await browser.GetAsync("/admin/orders/shipping")).Content.ReadAsStringAsync());
-        Assert.Contains("<h1>Tax rules</h1>", await (await browser.GetAsync("/admin/orders/tax")).Content.ReadAsStringAsync());
+        Assert.Contains("<h1>Tax</h1>", await (await browser.GetAsync("/admin/orders/tax")).Content.ReadAsStringAsync());
 
         var missing = await (await browser.GetAsync($"/admin/orders/{Guid.NewGuid()}")).Content.ReadAsStringAsync();
         Assert.Contains("That order no longer exists.", missing);

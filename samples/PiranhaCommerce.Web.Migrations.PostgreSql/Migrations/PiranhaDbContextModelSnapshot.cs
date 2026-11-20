@@ -693,6 +693,18 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<decimal>("ShippingTax")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<string>("ShippingTaxName")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<decimal>("ShippingTaxRate")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("numeric(9,4)");
+
                     b.Property<decimal>("ShippingTotal")
                         .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)");
@@ -788,6 +800,18 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<decimal>("TaxAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<string>("TaxName")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<decimal>("TaxRate")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("numeric(9,4)");
+
                     b.Property<decimal>("UnitPrice")
                         .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)");
@@ -863,7 +887,12 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.Property<bool>("Published")
                         .HasColumnType("boolean");
 
+                    b.Property<Guid?>("TaxClassId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("ProductId");
+
+                    b.HasIndex("TaxClassId");
 
                     b.ToTable("ProductListing", "ecom");
                 });
@@ -904,6 +933,43 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.ToTable("ShippingMethod", "ecom");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.TaxClass", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset?>("UpdatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("TaxClass", "ecom");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("00000000-0000-0000-0000-0000000000a1"),
+                            CreatedUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsDefault = true,
+                            Name = "Standard"
+                        });
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.TaxRule", b =>
                 {
                     b.Property<Guid>("Id")
@@ -927,12 +993,15 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                         .HasPrecision(9, 4)
                         .HasColumnType("numeric(9,4)");
 
+                    b.Property<Guid>("TaxClassId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset?>("UpdatedUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CountryCode")
+                    b.HasIndex("TaxClassId", "CountryCode")
                         .IsUnique();
 
                     b.ToTable("TaxRule", "ecom");
@@ -1248,6 +1317,20 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                         .WithOne()
                         .HasForeignKey("PiranhaCommerce.Ecommerce.ProductListing", "ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PiranhaCommerce.Ecommerce.TaxClass", null)
+                        .WithMany()
+                        .HasForeignKey("TaxClassId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.TaxRule", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Ecommerce.TaxClass", null)
+                        .WithMany()
+                        .HasForeignKey("TaxClassId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

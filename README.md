@@ -272,10 +272,18 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
 
 - **Shipping methods** (`/shipping-methods`): a name and flat price, optionally free once the basket reaches a spend. Once any method is
   active, checkout must choose one; with none, shipping is free.
-- **Tax rules** (`/tax-rules`): one rate per destination country (`*` for all others), applied to goods plus shipping, rounded to the
-  penny. Prices are entered tax-exclusive. No rule means no tax.
-- `POST /baskets/{id}/quote` returns exactly what checkout will charge (the same calculator). Orders keep copies of the method name,
-  tax name and rate, so editing settings later never changes an order. Total = goods + shipping + tax.
+- **Tax classes and rules** (`/tax-classes`, `/tax-rules`): every store starts with a default class, "Standard". Add classes such as
+  Reduced and Zero, set a product's class on its online listing (`taxClassId`, none = the default class), and give each class a rate
+  per destination country (`*` for all others). So the UK can charge 20% on most goods, 5% on some and 0% on others in one basket.
+  Prices are entered tax-exclusive.
+  - Tax is worked out **per line**, by that product's class, each line rounded to the penny on its own (as an invoice adds up), then
+    summed. Postage is taxed at the default class's rate. A class with no rate for the destination (and no `*` rate) is not taxed there.
+  - The default class cannot be deleted or switched off (make another the default instead), and a class that rules or products still
+    use cannot be deleted. Rules are unique per class and country.
+- `POST /baskets/{id}/quote` returns exactly what checkout will charge (the same calculator), with a `taxes` list (name, rate, amount).
+  Orders keep copies of the method name and, on every line, the tax name, rate and amount, so editing settings later never changes an
+  order; the order's `taxes` summary is built from those copies. Orders placed before tax classes show their single flat tax row.
+  Total = goods + shipping + tax.
 - **Payments**: `POST /orders/{id}/payments` and `/refunds` record money in and out (append-only; mistakes are corrected with a refund).
   A payment can never take an order past its total, a refund can never exceed what was received, and simultaneous requests are checked
   one after another. A provider `reference` is unique per provider, so a retried webhook or double click is refused (409) instead of

@@ -148,7 +148,8 @@ internal sealed class OrderService(
                         .OrderBy(x => x.Name).ThenBy(x => x.Id)
                         .ToListAsync(token);
                     if (lines.Count == 0) throw new PiranhaConflictException("The basket is empty.");
-                    var published = (await db.Set<ProductListing>().AsNoTracking().Where(l => l.Published && lines.Select(x => x.Id).Contains(l.ProductId))
+                    var productIdsInBasket = lines.Select(x => x.Id).ToList();
+                    var published = (await db.Set<ProductListing>().AsNoTracking().Where(l => l.Published && productIdsInBasket.Contains(l.ProductId))
                         .Select(l => l.ProductId).ToListAsync(token)).ToHashSet();
                     var unavailable = lines.FirstOrDefault(l => !published.Contains(l.Id));
                     if (unavailable is not null)
@@ -159,8 +160,10 @@ internal sealed class OrderService(
                     var method = await ChooseShippingAsync(input.ShippingMethodId, token);
                     var shipping = OrderPricing.ShippingFor(method, subtotal);
                     var country = input.ShippingAddress!.CountryCode.Trim().ToUpperInvariant();
-                    var rule = OrderPricing.RuleFor(await db.Set<TaxRule>().AsNoTracking().ToListAsync(token), country);
-                    var (tax, total) = OrderPricing.Totals(subtotal, shipping, rule);
+                    var (rules, defaultClass) = await TaxLookup.LoadAsync(db, token);
+                    var classes = await TaxLookup.ClassesAsync(db, productIdsInBasket, token);
+                    var calc = OrderPricing.Calculate(
+                        lines.Select(l => (l.Price * l.Quantity, classes.GetValueOrDefault(l.Id))).ToList(), shipping, rules, defaultClass, country);
 
                     // 3. Next order number. The UPDATE takes the counter row's lock, which is held to commit, so numbers are never shared.
                     await db.Set<OrderCounter>().Where(c => c.Id == 1)
@@ -182,15 +185,19 @@ internal sealed class OrderService(
                         {
                             Position = i + 1, ProductId = l.Id, Name = l.Name, Sku = l.Sku,
                             UnitPrice = l.Price, Quantity = l.Quantity, LineTotal = l.Price * l.Quantity,
+                            TaxName = calc.Lines[i].Name, TaxRate = calc.Lines[i].Rate, TaxAmount = calc.Lines[i].Amount,
                         }).ToList(),
                     };
                     order.Subtotal = subtotal;
                     order.ShippingMethodName = method?.Name;
                     order.ShippingTotal = shipping;
-                    order.TaxName = rule?.Name;
-                    order.TaxRate = rule?.Rate ?? 0m;
-                    order.TaxTotal = tax;
-                    order.Total = total;
+                    order.TaxName = calc.SummaryName;
+                    order.TaxRate = calc.SummaryRate;
+                    order.TaxTotal = calc.Tax;
+                    order.ShippingTax = calc.Shipping.Amount;
+                    order.ShippingTaxName = calc.Shipping.Name;
+                    order.ShippingTaxRate = calc.Shipping.Rate;
+                    order.Total = calc.Total;
                     db.Add(order);
 
                     // 4. Take the stock, in the same transaction. Short stock throws and rolls everything back, claim included.
@@ -315,8 +322,20 @@ internal sealed class OrderService(
         o.Id, o.Number, OrderNumbers.Format(o.Number), o.Stage, o.CustomerId, o.Email, o.Currency, o.Subtotal,
         o.ShippingMethodName, o.ShippingTotal, o.TaxName, o.TaxRate, o.TaxTotal, o.Total, status, paid, refunded, o.Notes,
         ToDto(o.ShippingAddress), ToDto(o.BillingAddress),
-        o.Lines.OrderBy(l => l.Position).Select(l => new OrderLineDto(l.ProductId, l.Name, l.Sku, l.UnitPrice, l.Quantity, l.LineTotal)).ToList(),
-        OrderStages.Next(o.Stage), o.CreatedUtc, o.UpdatedUtc);
+        o.Lines.OrderBy(l => l.Position).Select(l => new OrderLineDto(l.ProductId, l.Name, l.Sku, l.UnitPrice, l.Quantity, l.LineTotal, l.TaxName, l.TaxRate, l.TaxAmount)).ToList(),
+        OrderStages.Next(o.Stage), o.CreatedUtc, o.UpdatedUtc, o.ShippingTax, TaxBreakdown(o));
+
+    /// <summary>The tax summary for display: one row per named rate, from the order's own copies. Orders placed before per-line tax have one flat row.</summary>
+    private static IReadOnlyList<TaxLineDto> TaxBreakdown(Order o)
+    {
+        var rows = o.Lines.Where(l => l.TaxName is not null).Select(l => (Name: l.TaxName!, l.TaxRate, Amount: l.TaxAmount))
+            .Concat(o.ShippingTaxName is null ? [] : [(Name: o.ShippingTaxName, TaxRate: o.ShippingTaxRate, Amount: o.ShippingTax)])
+            .GroupBy(r => (r.Name, r.TaxRate))
+            .Select(g => new TaxLineDto(g.Key.Name, g.Key.TaxRate, g.Sum(r => r.Amount)))
+            .OrderByDescending(t => t.Rate).ThenBy(t => t.Name).ToList();
+        if (rows.Count == 0 && o.TaxTotal > 0 && o.TaxName is not null) rows.Add(new TaxLineDto(o.TaxName, o.TaxRate, o.TaxTotal));
+        return rows;
+    }
 
     private static OrderAddressDto? ToDto(OrderAddress? a) =>
         a is null ? null : new OrderAddressDto(a.Recipient, a.Line1, a.Line2, a.City, a.Region, a.PostalCode, a.CountryCode);

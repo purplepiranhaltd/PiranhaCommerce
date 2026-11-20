@@ -67,6 +67,25 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
                 await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 
+        var classes = api.MapGroup("/tax-classes").WithTags("Tax");
+
+        classes.MapGet("/", async (ITaxService svc, CancellationToken ct) => Results.Ok(await svc.ListClassesAsync(ct)));
+
+        classes.MapPost("/", async (TaxClassInput input, ITaxService svc, CancellationToken ct) =>
+            {
+                var c = await svc.CreateClassAsync(input, ct);
+                return Results.Created($"/api/v1/tax-classes/{c.Id}", c);
+            })
+            .RequireAuthorization(ApiPolicies.Write);
+
+        classes.MapPut("/{id:guid}", async (Guid id, TaxClassInput input, ITaxService svc, CancellationToken ct) =>
+                await svc.UpdateClassAsync(id, input, ct) is { } c ? Results.Ok(c) : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
+        classes.MapDelete("/{id:guid}", async (Guid id, ITaxService svc, CancellationToken ct) =>
+                await svc.DeleteClassAsync(id, ct) ? Results.NoContent() : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
         var tax = api.MapGroup("/tax-rules").WithTags("Tax");
 
         tax.MapGet("/", async (ITaxService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(ct)));

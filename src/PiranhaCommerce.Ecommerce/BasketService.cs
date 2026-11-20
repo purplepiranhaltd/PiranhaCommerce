@@ -129,10 +129,13 @@ internal sealed class BasketService(PiranhaDbContext db, ICustomerService custom
             method = methods.FirstOrDefault(m => m.Id == input.ShippingMethodId)
                      ?? throw new PiranhaValidationException(nameof(QuoteInput.ShippingMethodId), "Choose an available shipping method.");
 
-        var rule = OrderPricing.RuleFor(await db.Set<TaxRule>().AsNoTracking().ToListAsync(ct), input.CountryCode.ToUpperInvariant());
         var shipping = OrderPricing.ShippingFor(method, basket.Subtotal);
-        var (tax, total) = OrderPricing.Totals(basket.Subtotal, shipping, rule);
-        return new QuoteDto(basket.Currency, basket.Subtotal, shipping, rule?.Name, rule?.Rate ?? 0m, tax, total);
+        var (rules, defaultClass) = await TaxLookup.LoadAsync(db, ct);
+        var classes = await TaxLookup.ClassesAsync(db, basket.Lines.Select(l => l.ProductId).ToList(), ct);
+        var calc = OrderPricing.Calculate(
+            basket.Lines.Select(l => (l.LineTotal, classes.GetValueOrDefault(l.ProductId))).ToList(),
+            shipping, rules, defaultClass, input.CountryCode.ToUpperInvariant());
+        return new QuoteDto(basket.Currency, basket.Subtotal, shipping, calc.SummaryName, calc.SummaryRate, calc.Tax, calc.Total, calc.Breakdown);
     }
 
     private Task<int> SetQuantityAsync(Guid basketId, Guid productId, int quantity, CancellationToken ct)

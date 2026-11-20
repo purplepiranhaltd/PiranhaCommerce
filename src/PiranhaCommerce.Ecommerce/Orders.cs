@@ -54,9 +54,14 @@ public class Order : AuditableEntity
     /// <summary>Copies of the chosen method's name and the price charged; later edits to the method never change the order.</summary>
     public string? ShippingMethodName { get; set; }
     public decimal ShippingTotal { get; set; }
+    /// <summary>Summary of the tax: the rate name when every taxed line shares one, "Tax" when mixed. Each line carries its own.</summary>
     public string? TaxName { get; set; }
     public decimal TaxRate { get; set; }
+    /// <summary>All tax: the lines' tax plus <see cref="ShippingTax"/>.</summary>
     public decimal TaxTotal { get; set; }
+    public decimal ShippingTax { get; set; }
+    public string? ShippingTaxName { get; set; }
+    public decimal ShippingTaxRate { get; set; }
     public decimal Total { get; set; }
     public string? Notes { get; set; }
     public OrderAddress? ShippingAddress { get; set; }
@@ -87,6 +92,10 @@ public class OrderLine : Entity
     public decimal UnitPrice { get; set; }
     public int Quantity { get; set; }
     public decimal LineTotal { get; set; }
+    /// <summary>Copy of the rate that applied to this line when it was sold (null when untaxed).</summary>
+    public string? TaxName { get; set; }
+    public decimal TaxRate { get; set; }
+    public decimal TaxAmount { get; set; }
 }
 
 /// <summary>Single-row counter behind order numbers; incremented inside the checkout transaction, whose row lock serialises checkouts.</summary>
@@ -151,7 +160,8 @@ public sealed class OrderStageInput
 
 public sealed record OrderAddressDto(string? Recipient, string Line1, string? Line2, string City, string? Region, string? PostalCode, string CountryCode);
 
-public sealed record OrderLineDto(Guid ProductId, string Name, string? Sku, decimal UnitPrice, int Quantity, decimal LineTotal);
+public sealed record OrderLineDto(
+    Guid ProductId, string Name, string? Sku, decimal UnitPrice, int Quantity, decimal LineTotal, string? TaxName = null, decimal TaxRate = 0m, decimal TaxAmount = 0m);
 
 public sealed record OrderSummaryDto(
     Guid Id, long Number, string Reference, OrderStage Stage, PaymentStatus PaymentStatus, string Email, string Currency, decimal Total, DateTimeOffset CreatedUtc);
@@ -161,7 +171,8 @@ public sealed record OrderDto(
     string? ShippingMethodName, decimal ShippingTotal, string? TaxName, decimal TaxRate, decimal TaxTotal, decimal Total,
     PaymentStatus PaymentStatus, decimal AmountPaid, decimal AmountRefunded,
     string? Notes, OrderAddressDto? ShippingAddress, OrderAddressDto? BillingAddress, IReadOnlyList<OrderLineDto> Lines,
-    IReadOnlyList<OrderStage> NextStages, DateTimeOffset CreatedUtc, DateTimeOffset? UpdatedUtc);
+    IReadOnlyList<OrderStage> NextStages, DateTimeOffset CreatedUtc, DateTimeOffset? UpdatedUtc,
+    decimal ShippingTax = 0m, IReadOnlyList<TaxLineDto>? Taxes = null);
 
 public sealed class EcommerceOptions
 {

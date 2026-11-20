@@ -16,6 +16,8 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.ToTable("ProductListing", Schema);
             e.HasKey(l => l.ProductId);
             e.HasOne<Product>().WithOne().HasForeignKey<ProductListing>(l => l.ProductId).OnDelete(DeleteBehavior.Cascade);
+            // Restrict: a class that products still use cannot be deleted (the service says so first).
+            e.HasOne<TaxClass>().WithMany().HasForeignKey(l => l.TaxClassId).OnDelete(DeleteBehavior.Restrict);
         });
 
         b.Entity<Basket>(e =>
@@ -51,6 +53,9 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.Property(o => o.TaxName).HasMaxLength(50);
             e.Property(o => o.TaxRate).HasPrecision(9, 4);
             e.Property(o => o.TaxTotal).HasPrecision(18, 4);
+            e.Property(o => o.ShippingTax).HasPrecision(18, 4);
+            e.Property(o => o.ShippingTaxName).HasMaxLength(50);
+            e.Property(o => o.ShippingTaxRate).HasPrecision(9, 4);
             e.OwnsOne(o => o.ShippingAddress, a => ConfigureAddress(a, "Shipping"));
             e.OwnsOne(o => o.BillingAddress, a => ConfigureAddress(a, "Billing"));
             e.HasMany(o => o.Lines).WithOne().HasForeignKey(l => l.OrderId).OnDelete(DeleteBehavior.Cascade);
@@ -64,6 +69,9 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.Property(l => l.Sku).HasMaxLength(100);
             e.Property(l => l.UnitPrice).HasPrecision(18, 4);
             e.Property(l => l.LineTotal).HasPrecision(18, 4);
+            e.Property(l => l.TaxName).HasMaxLength(50);
+            e.Property(l => l.TaxRate).HasPrecision(9, 4);
+            e.Property(l => l.TaxAmount).HasPrecision(18, 4);
             // Restrict: a product that has been sold can never be deleted out from under its orders.
             e.HasOne<Product>().WithMany().HasForeignKey(l => l.ProductId).OnDelete(DeleteBehavior.Restrict);
         });
@@ -92,10 +100,23 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.Property(m => m.FreeOver).HasPrecision(18, 4);
         });
 
+        b.Entity<TaxClass>(e =>
+        {
+            e.ToTable("TaxClass", Schema);
+            e.Property(c => c.Name).HasMaxLength(50);
+            e.HasIndex(c => c.Name).IsUnique();
+            e.HasData(new TaxClass
+            {
+                Id = TaxClasses.StandardId, Name = "Standard", IsDefault = true,
+                CreatedUtc = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            });
+        });
+
         b.Entity<TaxRule>(e =>
         {
             e.ToTable("TaxRule", Schema);
-            e.HasIndex(r => r.CountryCode).IsUnique();
+            e.HasIndex(r => new { r.TaxClassId, r.CountryCode }).IsUnique(); // one rule per class per country
+            e.HasOne<TaxClass>().WithMany().HasForeignKey(r => r.TaxClassId).OnDelete(DeleteBehavior.Restrict);
             e.Property(r => r.CountryCode).HasMaxLength(2);
             e.Property(r => r.Name).HasMaxLength(50);
             e.Property(r => r.Rate).HasPrecision(9, 4);

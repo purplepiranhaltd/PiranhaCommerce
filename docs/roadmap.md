@@ -50,24 +50,22 @@ history.
   that); a slow attack spread over many addresses is not stopped by either lockout or this; and the limit is only as accurate as
   the host's forwarded-headers setup.
 
-## Tax rules: rates per product, not just per country
+## Tax: what is left
 
-Today a tax rule is one rate per destination country (plus a `*` fallback), charged on goods plus shipping. That is not enough for
-most real shops. The UK alone has a 20% standard rate, a 5% reduced rate and a 0% rate, and which one applies depends on the
-product, not the destination.
+Built: tax classes (a default "Standard", plus any you add), a rate per class per destination country, tax per order line copied onto
+the line, shipping taxed at the default class's rate, a per-rate summary on quotes and orders.
 
-Needed:
+Not built:
 
-- **Tax classes** on products (for example standard, reduced, zero), so several rates can exist for one country.
-- Rules keyed on class and country, with an optional region for places that tax by state or province.
-- Tax worked out per order line and stored on the line (name, rate, amount), so history never changes. Order tax is the sum of the
-  line taxes plus tax on shipping. This changes the order-line snapshot and needs a migration for both providers.
-- Which rate shipping is taxed at (often the rate of the goods, or the standard rate). This varies by country and must be a rule.
+- A region (state or province) within a country, for places that tax by region.
+- Choosing the rate postage is taxed at: it is always the default class's. Some countries tax postage at the goods' rate, or at the
+  highest rate in the basket.
 - Tax-inclusive pricing (prices entered with tax included), since many shops show prices that way.
-- Several taxes on one order (for example federal plus provincial) and exemptions (tax-exempt customers or goods).
-
-Open question: whether to model a product's tax class in Catalog (shared with the EPOS) or in Ecommerce. The EPOS will need the
-same rates, so Catalog or a small shared tax module is more likely.
+- Several taxes stacked on one line (for example federal plus provincial) and exemptions (tax-exempt customers or goods).
+- Rate changes on a date (for example a VAT change at midnight): today a rule's rate is simply edited.
+- A product's tax class lives on its **online listing** (Ecommerce), so a till would not see it. When the EPOS arrives, the class
+  and rules probably move to Catalog or a small shared tax module.
+- The default-class switch is one transaction, but two simultaneous switches could leave two defaults; the lowest id wins until fixed.
 
 ## Shopper accounts: what is left
 
@@ -103,8 +101,7 @@ Not built yet:
 - Payment gateways. Payments are recorded (`manual` provider: cash, bank transfer, terminal) and a gateway plugin can register an
   `IPaymentProvider` and record payments when its gateway confirms; there is no hosted checkout, card capture or webhook handling yet.
 - Shipping: flat price per method (optionally free above a spend). No weight/zone rates, carriers or live rates.
-- Tax: one rule per destination country, charged on goods plus shipping, prices entered tax-exclusive. No per-product tax classes,
-  tax-inclusive pricing, exemptions, or regional (state) rates. See "Tax rules: rates per product" above.
+- Tax: classes and per-country rates are built, prices are entered tax-exclusive; see "Tax: what is left" above.
 - Fulfilment: parcels and tracking, partial shipment, refunds and returns (restock decisions), partially cancelled orders.
 - Clean-up of old open baskets; reserving stock while a shopper is in checkout (today stock is taken only when the order is placed).
 - Per-order stock location (every online order currently draws from `Piranha:Ecommerce:StockLocationId`, or the default location).

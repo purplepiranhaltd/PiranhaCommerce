@@ -18,7 +18,12 @@ internal static class OrderEmails
         text.AppendLine($"Subtotal: {o.Subtotal.ToString("N2", inv)} {o.Currency}");
         if (o.ShippingTotal > 0 || !string.IsNullOrEmpty(o.ShippingMethodName))
             text.AppendLine($"Shipping{(string.IsNullOrEmpty(o.ShippingMethodName) ? "" : $" ({o.ShippingMethodName})")}: {o.ShippingTotal.ToString("N2", inv)} {o.Currency}");
-        if (o.TaxTotal > 0) text.AppendLine($"{(string.IsNullOrEmpty(o.TaxName) ? "Tax" : o.TaxName)}: {o.TaxTotal.ToString("N2", inv)} {o.Currency}");
+        if (o.Taxes is { Count: > 0 })
+        {
+            foreach (var t in o.Taxes.Where(t => t.Amount > 0))
+                text.AppendLine($"{t.Name} ({t.Rate.ToString("0.####", inv)}%): {t.Amount.ToString("N2", inv)} {o.Currency}");
+        }
+        else if (o.TaxTotal > 0) text.AppendLine($"Tax: {o.TaxTotal.ToString("N2", inv)} {o.Currency}");
         text.AppendLine($"Total: {o.Total.ToString("N2", inv)} {o.Currency}").AppendLine();
         if (o.ShippingAddress is { } a)
         {

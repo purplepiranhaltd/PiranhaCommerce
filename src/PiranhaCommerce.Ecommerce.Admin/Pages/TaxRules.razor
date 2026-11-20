@@ -1,9 +1,13 @@
 @page "/admin/orders/tax"
 @inject AdminScopeRunner Scope
 
-<PageTitle>Tax rules - Piranha Commerce</PageTitle>
-<h1>Tax rules</h1>
-<p class="pc-muted">Prices are entered without tax. Tax is charged on goods plus shipping by the country the order ships to; use * for every other country. No rule means no tax.</p>
+<PageTitle>Tax - Piranha Commerce</PageTitle>
+<h1>Tax</h1>
+<p class="pc-muted">
+    Prices are entered without tax. Each product has a tax class (Standard unless you choose another on the product's page); each
+    class has a rate per destination country, with * for every other country. A class with no rate for a country is not taxed there.
+    Postage is taxed at the default class's rate.
+</p>
 
 @if (_error is not null)
 {
@@ -11,9 +15,56 @@
 }
 
 <div class="pc-card">
+    <h2 style="margin-top:0">Tax classes</h2>
+    @if (_classes is not null)
+    {
+        <table class="pc-table">
+            <thead><tr><th>Class</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var c in _classes)
+            {
+                <tr>
+                    <td>@c.Name @(c.IsDefault ? "(default)" : "")</td>
+                    <td class="actions">
+                        @if (!c.IsDefault)
+                        {
+                            <button class="secondary" @onclick="() => MakeDefaultAsync(c)">Make default</button>
+                            @if (_confirmDeleteClass == c.Id)
+                            {
+                                <button class="danger" @onclick="() => DeleteClassAsync(c.Id)">Confirm delete</button>
+                                <button class="secondary" @onclick="() => _confirmDeleteClass = null">Cancel</button>
+                            }
+                            else
+                            {
+                                <button class="secondary" @onclick="() => _confirmDeleteClass = c.Id">Delete</button>
+                            }
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+    <EditForm Model="_classInput" OnValidSubmit="AddClassAsync" FormName="tax-class-add">
+        <DataAnnotationsValidator />
+        <label>New class (for example Reduced or Zero) <InputText @bind-Value="_classInput.Name" /></label>
+        <ValidationMessage For="() => _classInput.Name" />
+        <button type="submit" disabled="@_busy">Add class</button>
+    </EditForm>
+</div>
+
+<div class="pc-card">
     <EditForm Model="_input" OnValidSubmit="SaveAsync" FormName="tax-edit">
         <DataAnnotationsValidator />
-        <h2 style="margin-top:0">@(_editing is null ? "Add a rule" : "Edit rule")</h2>
+        <h2 style="margin-top:0">@(_editing is null ? "Add a rate" : "Edit rate")</h2>
+        <label>Tax class
+            <InputSelect @bind-Value="_input.TaxClassId">
+                @foreach (var c in _classes ?? [])
+                {
+                    <option value="@c.Id">@c.Name</option>
+                }
+            </InputSelect>
+        </label>
         <label>Country code (GB, or * for all others) <InputText @bind-Value="_input.CountryCode" /></label>
         <ValidationMessage For="() => _input.CountryCode" />
         <label>Name (shown on orders, e.g. VAT) <InputText @bind-Value="_input.Name" /></label>
@@ -34,16 +85,17 @@
 }
 else if (_rules.Count == 0)
 {
-    <p class="pc-muted">No tax rules: no tax is charged.</p>
+    <p class="pc-muted">No tax rates: no tax is charged.</p>
 }
 else
 {
     <table class="pc-table">
-        <thead><tr><th>Country</th><th>Name</th><th style="text-align:right">Rate</th><th></th></tr></thead>
+        <thead><tr><th>Class</th><th>Country</th><th>Name</th><th style="text-align:right">Rate</th><th></th></tr></thead>
         <tbody>
         @foreach (var r in _rules)
         {
             <tr>
+                <td>@r.TaxClassName</td>
                 <td>@r.CountryCode</td>
                 <td>@r.Name</td>
                 <td style="text-align:right">@r.Rate.ToString("0.####")%</td>
@@ -67,9 +119,12 @@ else
 
 @code {
     private IReadOnlyList<TaxRuleDto>? _rules;
+    private IReadOnlyList<TaxClassDto>? _classes;
     private TaxRuleInput _input = new();
+    private TaxClassInput _classInput = new();
     private Guid? _editing;
     private Guid? _confirmDelete;
+    private Guid? _confirmDeleteClass;
     private string? _error;
     private bool _busy;
 
@@ -77,17 +132,22 @@ else
 
     private async Task LoadAsync()
     {
-        try { _rules = await Scope.RunAsync<ITaxService, IReadOnlyList<TaxRuleDto>>(s => s.ListAsync()); }
-        catch (Exception ex) { _error = "Could not load tax rules: " + ex.Message; }
+        try
+        {
+            _classes = await Scope.RunAsync<ITaxService, IReadOnlyList<TaxClassDto>>(s => s.ListClassesAsync());
+            _rules = await Scope.RunAsync<ITaxService, IReadOnlyList<TaxRuleDto>>(s => s.ListAsync());
+            if (_input.TaxClassId is null) _input.TaxClassId = _classes.FirstOrDefault(c => c.IsDefault)?.Id;
+        }
+        catch (Exception ex) { _error = "Could not load tax settings: " + ex.Message; }
     }
 
     private void Edit(TaxRuleDto r)
     {
         _editing = r.Id;
-        _input = new TaxRuleInput { CountryCode = r.CountryCode, Name = r.Name, Rate = r.Rate };
+        _input = new TaxRuleInput { TaxClassId = r.TaxClassId, CountryCode = r.CountryCode, Name = r.Name, Rate = r.Rate };
     }
 
-    private void Reset() { _editing = null; _input = new(); }
+    private void Reset() { _editing = null; _input = new() { TaxClassId = _classes?.FirstOrDefault(c => c.IsDefault)?.Id }; }
 
     private async Task SaveAsync()
     {
@@ -108,6 +168,38 @@ else
     {
         _confirmDelete = null; _error = null;
         try { await Scope.RunAsync<ITaxService, bool>(s => s.DeleteAsync(id)); }
+        catch (Exception ex) { _error = "Could not delete: " + ex.Message; }
+        await LoadAsync();
+    }
+
+    private async Task AddClassAsync()
+    {
+        _busy = true; _error = null;
+        try
+        {
+            var input = _classInput;
+            await Scope.RunAsync<ITaxService, TaxClassDto>(s => s.CreateClassAsync(input));
+            _classInput = new();
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _error = "Could not add the class: " + ex.Message; }
+        finally { _busy = false; }
+        await LoadAsync();
+    }
+
+    private async Task MakeDefaultAsync(TaxClassDto c)
+    {
+        _error = null;
+        try { await Scope.RunAsync<ITaxService, TaxClassDto?>(s => s.UpdateClassAsync(c.Id, new TaxClassInput { Name = c.Name, IsDefault = true })); }
+        catch (Exception ex) { _error = "Could not change the default: " + ex.Message; }
+        await LoadAsync();
+    }
+
+    private async Task DeleteClassAsync(Guid id)
+    {
+        _confirmDeleteClass = null; _error = null;
+        try { await Scope.RunAsync<ITaxService, bool>(s => s.DeleteClassAsync(id)); }
+        catch (PiranhaConflictException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = "Could not delete: " + ex.Message; }
         await LoadAsync();
     }
