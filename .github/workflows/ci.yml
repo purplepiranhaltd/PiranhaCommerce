@@ -59,8 +59,9 @@ jobs:
       - name: Test
         run: dotnet test -c Release --no-build --logger "trx;LogFileName=test-results.trx"
 
-      - name: Install dotnet-ef
-        run: dotnet tool install --global dotnet-ef --version 10.0.15
+      # dotnet-ef comes from .config/dotnet-tools.json (a repo-local tool shadows any global install).
+      - name: Restore dotnet-ef
+        run: dotnet tool restore
 
       # Fails when the model changed but a migration was not added for this provider.
       - name: Migrations are up to date (SQL Server)
