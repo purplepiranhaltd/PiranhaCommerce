@@ -548,6 +548,33 @@ namespace PiranhaCommerce.Web.Migrations
                     b.ToTable("CustomerAddress", "customer");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Customers.CustomerLogin", b =>
+                {
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AccessFailedCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("LockoutEnd")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("PasswordChangedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.HasKey("CustomerId");
+
+                    b.ToTable("CustomerLogin", "customer");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.Basket", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1014,6 +1041,15 @@ namespace PiranhaCommerce.Web.Migrations
                     b.HasOne("PiranhaCommerce.Customers.Customer", null)
                         .WithMany()
                         .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Customers.CustomerLogin", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Customers.Customer", null)
+                        .WithOne()
+                        .HasForeignKey("PiranhaCommerce.Customers.CustomerLogin", "CustomerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

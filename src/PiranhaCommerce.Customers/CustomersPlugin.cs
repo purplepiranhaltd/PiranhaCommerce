@@ -19,6 +19,10 @@ public sealed class CustomersPlugin : IPiranhaPlugin
         services.AddSingleton<IModelContributor, CustomersModelContributor>();
         services.AddSingleton<IApiEndpointContributor, CustomerApiEndpoints>();
         services.AddScoped<ICustomerService, CustomerService>();
+
+        services.AddOptions<CustomerAccountOptions>().BindConfiguration(CustomerAccountOptions.SectionName);
+        services.AddScoped<ICustomerAccountService, CustomerAccountService>();
+        services.AddSingleton<IStorefrontEndpointContributor, CustomerStorefrontEndpoints>();
     }
 }
 
@@ -38,6 +42,14 @@ internal sealed class CustomersModelContributor : IModelContributor
             e.Property(c => c.Phone).HasMaxLength(40);
             e.Property(c => c.Notes).HasMaxLength(2000);
             e.HasIndex(c => c.NormalizedEmail).IsUnique(); // one customer per email, whatever the letter case, on every provider
+        });
+
+        b.Entity<CustomerLogin>(e =>
+        {
+            e.ToTable("CustomerLogin", Schema);
+            e.HasKey(l => l.CustomerId);
+            e.Property(l => l.PasswordHash).HasMaxLength(512).IsRequired();
+            e.HasOne<Customer>().WithOne().HasForeignKey<CustomerLogin>(l => l.CustomerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         b.Entity<CustomerAddress>(e =>

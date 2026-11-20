@@ -33,6 +33,8 @@ internal static class SignInRateLimiting
         HttpMethods.IsPost(http.Request.Method)
         && (http.Request.Path.Value is { } p)
         && (p.EndsWith("/auth/token", StringComparison.OrdinalIgnoreCase)
+            || p.EndsWith("/auth/register", StringComparison.OrdinalIgnoreCase)
+            || p.EndsWith("/me/password", StringComparison.OrdinalIgnoreCase)
             || p.Equals("/admin/login", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>

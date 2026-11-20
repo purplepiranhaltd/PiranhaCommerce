@@ -21,11 +21,15 @@ public static class ApiPolicies
 
     /// <summary>Administrators only: use for create/update/delete.</summary>
     public const string Write = "Piranha.Api.Write";
+
+    /// <summary>A signed-in shopper (storefront API only). A staff token does not satisfy it.</summary>
+    public const string Customer = "Piranha.Api.Customer";
 }
 
 public static class PiranhaApiExtensions
 {
     public const string JwtScheme = "PiranhaJwt";
+    public const string CustomerJwtScheme = "PiranhaCustomerJwt";
 
     public static PiranhaBuilder AddPiranhaApi(this PiranhaBuilder builder)
     {
@@ -55,7 +59,24 @@ public static class PiranhaApiExtensions
             };
         });
 
+        // Shoppers: own scheme, own audience and own key, so a shopper token cannot open the staff API (or the reverse).
+        services.AddSingleton<ICustomerTokenIssuer, CustomerTokenIssuer>();
+        services.AddAuthentication().AddJwtBearer(CustomerJwtScheme, _ => { });
+        services.AddOptions<JwtBearerOptions>(CustomerJwtScheme).Configure<IOptions<PiranhaJwtOptions>>((o, jwt) =>
+        {
+            o.MapInboundClaims = false;
+            o.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidIssuer = jwt.Value.Issuer,
+                ValidAudience = jwt.Value.CustomerAudience,
+                IssuerSigningKey = CustomerTokenIssuer.GetKey(jwt.Value),
+                NameClaimType = "sub",
+                ClockSkew = TimeSpan.FromMinutes(1),
+            };
+        });
+
         services.AddAuthorizationBuilder()
+            .AddPolicy(ApiPolicies.Customer, p => p.AddAuthenticationSchemes(CustomerJwtScheme).RequireAuthenticatedUser())
             .AddPolicy(ApiPolicies.Read, p => p.AddAuthenticationSchemes(JwtScheme).RequireAuthenticatedUser())
             .AddPolicy(ApiPolicies.Write, p => p.AddAuthenticationSchemes(JwtScheme).RequireRole(PiranhaRoles.Administrator));
         return builder;
@@ -76,6 +97,11 @@ public static class PiranhaApiExtensions
         var api = root.MapGroup("").RequireAuthorization(ApiPolicies.Read).AddEndpointFilter<PiranhaExceptionFilter>();
         foreach (var c in app.ServiceProvider.GetServices<IApiEndpointContributor>())
             c.MapEndpoints(api);
+
+        // Shopper endpoints: closed unless a shopper token is presented; anonymous ones (register, sign in) opt out one by one.
+        var storefront = root.MapGroup("/storefront").RequireAuthorization(ApiPolicies.Customer).AddEndpointFilter<PiranhaExceptionFilter>();
+        foreach (var c in app.ServiceProvider.GetServices<IStorefrontEndpointContributor>())
+            c.MapEndpoints(storefront);
 
         app.MapOpenApi().AllowAnonymous();
         return app;
