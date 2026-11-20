@@ -56,9 +56,17 @@ dotnet tool restore            # or install dotnet-ef 10.x
 dotnet ef migrations add <Name> --project <host project> --output-dir Migrations
 ```
 
-Each database provider needs its own migration set, so a host targeting both SQL Server/Azure SQL and PostgreSQL
-keeps one migrations project per provider (the sample host only targets SQL Server). Plugin authors cannot ship
-schema changes themselves; they document required model changes in release notes.
+Each database provider needs its own migration set, in an assembly the host owns. The sample host keeps SQL Server /
+Azure SQL migrations in the host project and PostgreSQL migrations in `samples/PiranhaCommerce.Web.Migrations.PostgreSql`,
+selected with `Piranha:Provider` (`SqlServer` or `PostgreSql`). After a model change, add a migration for **each** provider:
+
+```
+dotnet ef migrations add <Name> --project samples/PiranhaCommerce.Web --output-dir Migrations
+Piranha__Provider=PostgreSql ConnectionStrings__Piranha="Host=...;Database=...;Username=...;Password=..."   dotnet ef migrations add <Name> --project samples/PiranhaCommerce.Web.Migrations.PostgreSql   --startup-project samples/PiranhaCommerce.Web --output-dir Migrations
+```
+
+`dotnet ef migrations has-pending-model-changes` (same arguments) reports drift; run it for both providers in CI.
+Plugin authors cannot ship schema changes themselves; they document required model changes in release notes.
 
 ## Running the sample
 
@@ -84,7 +92,18 @@ In `Development` the host applies migrations on startup and seeds an administrat
 dotnet test
 ```
 
-Integration tests run the real host against a throwaway LocalDB database per test class (created, migrated, dropped).
+Integration tests run the real host against a throwaway database per test class (created, migrated, dropped). The default is
+SQL Server LocalDB. To run the same suite on PostgreSQL:
+
+```
+docker run -d --name piranha-pg -e POSTGRES_PASSWORD=<pw> -p 15432:5432 postgres:17-alpine
+PIRANHA_TEST_PROVIDER=PostgreSql PIRANHA_TEST_PG_SERVER="Host=localhost;Port=15432;Username=postgres;Password=<pw>"   dotnet test tests/PiranhaCommerce.IntegrationTests
+```
+
+(Windows reserves some port ranges; if Docker reports a port is forbidden, pick another.)
+
+Behaviour that differs between providers (e.g. case-sensitive text comparison) is normalised in the services and covered by tests
+that run on both.
 
 ## Host requirements
 

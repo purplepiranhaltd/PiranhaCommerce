@@ -22,12 +22,31 @@ public sealed class PiranhaFactory : WebApplicationFactory<Program>, IAsyncLifet
     public const string AdminEmail = "admin@piranha.local";
     public const string AdminPassword = "Dev-Passw0rd!";
 
-    private readonly string _connectionString =
-        $"Server=(localdb)\\MSSQLLocalDB;Database=PiranhaTests_{Guid.NewGuid():N};Trusted_Connection=True;TrustServerCertificate=True";
+    // PIRANHA_TEST_PROVIDER=PostgreSql + PIRANHA_TEST_PG_SERVER="Host=...;Port=...;Username=...;Password=..." runs the whole suite
+    // against PostgreSQL (a uniquely named database is created per fixture). Default: SQL Server LocalDB.
+    private static readonly string Provider = Environment.GetEnvironmentVariable("PIRANHA_TEST_PROVIDER") ?? "SqlServer";
+    private readonly string _database = $"PiranhaTests_{Guid.NewGuid():N}";
+
+    private string ConnectionString
+    {
+        get
+        {
+            if (Provider == "PostgreSql")
+            {
+                var server = Environment.GetEnvironmentVariable("PIRANHA_TEST_PG_SERVER")
+                    ?? throw new InvalidOperationException("Set PIRANHA_TEST_PG_SERVER for PostgreSQL runs.");
+                return $"{server};Database={_database.ToLowerInvariant()}";
+            }
+            return $@"Server=(localdb)\MSSQLLocalDB;Database={_database};Trusted_Connection=True;TrustServerCertificate=True";
+        }
+    }
 
     // Per-factory setting (not an environment variable: fixtures run in parallel and would overwrite each other).
-    protected override void ConfigureWebHost(IWebHostBuilder builder) =>
-        builder.UseSetting("ConnectionStrings:Piranha", _connectionString);
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.UseSetting("Piranha:Provider", Provider);
+        builder.UseSetting("ConnectionStrings:Piranha", ConnectionString);
+    }
 
     public Task InitializeAsync() => Task.CompletedTask;
 
@@ -41,6 +60,7 @@ public sealed class PiranhaFactory : WebApplicationFactory<Program>, IAsyncLifet
         finally
         {
             SqlConnection.ClearAllPools();
+            Npgsql.NpgsqlConnection.ClearAllPools();
             await base.DisposeAsync();
         }
     }

@@ -23,8 +23,9 @@ internal sealed class ProductService(PiranhaDbContext db) : IProductService
         var query = db.Set<Product>().AsNoTracking();
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var s = search.Trim();
-            query = query.Where(x => x.Name.Contains(s) || (x.Sku != null && x.Sku.Contains(s)));
+            // ToLower on both sides: case-insensitive on every provider (SQL Server's default collation already is; PostgreSQL's is not).
+            var s = search.Trim().ToLower();
+            query = query.Where(x => x.Name.ToLower().Contains(s) || (x.Sku != null && x.Sku.ToLower().Contains(s)));
         }
 
         var total = await query.CountAsync(ct);
@@ -68,8 +69,8 @@ internal sealed class ProductService(PiranhaDbContext db) : IProductService
         ModelValidator.ValidateOrThrow(input);
         if (!string.IsNullOrWhiteSpace(input.Sku))
         {
-            var sku = input.Sku.Trim();
-            if (await db.Set<Product>().AnyAsync(x => x.Sku == sku && x.Id != existingId, ct))
+            var sku = input.Sku.Trim().ToLower();   // SKUs are case-insensitive on every provider
+            if (await db.Set<Product>().AnyAsync(x => x.Sku != null && x.Sku.ToLower() == sku && x.Id != existingId, ct))
                 throw new PiranhaValidationException(nameof(ProductInput.Sku), "A product with this SKU already exists.");
         }
     }

@@ -2,6 +2,7 @@ using PiranhaCommerce.Admin;
 using PiranhaCommerce.Api;
 using PiranhaCommerce.Core.DependencyInjection;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Data.PostgreSql;
 using PiranhaCommerce.Data.SqlServer;
 using PiranhaCommerce.Ecommerce;
 using PiranhaCommerce.Ecommerce.Admin;
@@ -9,10 +10,25 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddPiranhaCore()
-    .AddPiranhaSqlServer(builder.Configuration.GetConnectionString("Piranha")
-        ?? throw new InvalidOperationException("ConnectionStrings:Piranha is not configured."),
-        typeof(Program).Assembly)   // the host owns migrations (it knows which plugins are installed)
+var connectionString = builder.Configuration.GetConnectionString("Piranha")
+    ?? throw new InvalidOperationException("ConnectionStrings:Piranha is not configured.");
+
+var piranha = builder.Services.AddPiranhaCore();
+
+// One migration set per database provider, each in an assembly the host owns (it knows which plugins are installed).
+switch (builder.Configuration["Piranha:Provider"] ?? "SqlServer")
+{
+    case "SqlServer":   // also Azure SQL
+        piranha.AddPiranhaSqlServer(connectionString, typeof(Program).Assembly);
+        break;
+    case "PostgreSql":
+        piranha.AddPiranhaPostgreSql(connectionString, typeof(PiranhaCommerce.Web.Migrations.PostgreSql.MigrationsAssemblyMarker).Assembly);
+        break;
+    default:
+        throw new InvalidOperationException("Piranha:Provider must be SqlServer or PostgreSql.");
+}
+
+piranha
     .AddPiranhaApi()
     .AddPiranhaAdmin()
     // Plugins are compiled in via NuGet, never uploaded. Each plugin registers the plugins it requires

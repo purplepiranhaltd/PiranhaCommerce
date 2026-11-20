@@ -116,6 +116,29 @@ public class ProductApiTests(PiranhaFactory factory) : IClassFixture<PiranhaFact
     }
 
     [Fact]
+    public async Task Search_ignores_case_on_every_database_provider()
+    {
+        var client = await factory.CreateAuthenticatedApiClientAsync();
+        var tag = Guid.NewGuid().ToString("N")[..8];
+        await client.PostAsJsonAsync("/api/v1/products", Input($"Blue Widget {tag}", $"BW-{tag}"));
+
+        foreach (var term in new[] { $"BLUE WIDGET {tag}", $"blue widget {tag}", $"bw-{tag}".ToUpperInvariant() })
+        {
+            var result = (await client.GetFromJsonAsync<PagedResult<ProductDto>>($"/api/v1/products?search={Uri.EscapeDataString(term)}"))!;
+            Assert.Equal(1, result.TotalCount);
+        }
+    }
+
+    [Fact]
+    public async Task Sku_uniqueness_ignores_case_on_every_database_provider()
+    {
+        var client = await factory.CreateAuthenticatedApiClientAsync();
+        var tag = Guid.NewGuid().ToString("N")[..8];
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/api/v1/products", Input("Lower", $"sku-{tag}"))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync("/api/v1/products", Input("Upper", $"SKU-{tag}"))).StatusCode);
+    }
+
+    [Fact]
     public async Task Oversized_page_size_is_clamped()
     {
         var client = await factory.CreateAuthenticatedApiClientAsync();

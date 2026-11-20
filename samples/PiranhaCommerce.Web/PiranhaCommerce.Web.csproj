@@ -16,6 +16,7 @@
     <ProjectReference Include="..\..\src\PiranhaCommerce.Catalog\PiranhaCommerce.Catalog.csproj" />
     <ProjectReference Include="..\..\src\PiranhaCommerce.Catalog.Admin\PiranhaCommerce.Catalog.Admin.csproj" />
     <ProjectReference Include="..\..\src\PiranhaCommerce.Ecommerce.Admin\PiranhaCommerce.Ecommerce.Admin.csproj" />
+    <ProjectReference Include="..\PiranhaCommerce.Web.Migrations.PostgreSql\PiranhaCommerce.Web.Migrations.PostgreSql.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.15">
