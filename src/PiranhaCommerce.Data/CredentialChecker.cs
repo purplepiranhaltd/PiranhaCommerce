@@ -20,29 +20,25 @@ internal sealed class CredentialChecker(
             return new(CredentialStatus.Invalid, null);
         }
 
-        var lockout = options.Value.Lockout;
-        if (lockout.AllowedForNewUsers && user.LockoutEnabled && user.LockoutEnd is { } until && until > DateTimeOffset.UtcNow)
+        if (user.LockoutEnabled && user.LockoutEnd is { } until && until > DateTimeOffset.UtcNow)
             return new(CredentialStatus.LockedOut, null);
 
         if (!await users.CheckPasswordAsync(user, password ?? ""))
-        {
             return new(await RecordFailureAsync(user.Id, ct) ? CredentialStatus.LockedOut : CredentialStatus.Invalid, null);
-        }
 
-        // Atomic and conflict-free (it does not touch the concurrency stamp), and only when there is something to clear.
-        if (user.AccessFailedCount != 0)
-            await db.Users.Where(u => u.Id == user.Id && u.AccessFailedCount != 0)
-                .ExecuteUpdateAsync(s => s.SetProperty(u => u.AccessFailedCount, 0), ct);
-
-        return new(CredentialStatus.Valid, user);
+        // Success is only granted if the account is STILL unlocked at this instant (one atomic statement). A burst of guesses that
+        // all passed the check above before the lock landed cannot sign in once it has: the right password is refused after that.
+        // Conflict-free as well: it does not touch the concurrency stamp, so simultaneous correct sign-ins cannot refuse each other.
+        var now = DateTimeOffset.UtcNow;
+        var granted = await db.Users.Where(u => u.Id == user.Id && (!u.LockoutEnabled || u.LockoutEnd == null || u.LockoutEnd <= now))
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.AccessFailedCount, 0), ct);
+        return granted > 0 ? new(CredentialStatus.Valid, user) : new(CredentialStatus.LockedOut, null);
     }
 
     /// <summary>Counts one failed attempt with a single atomic increment; returns true when it locked the account.</summary>
     private async Task<bool> RecordFailureAsync(Guid userId, CancellationToken ct)
     {
         var lockout = options.Value.Lockout;
-        if (!lockout.AllowedForNewUsers) return false;
-
         await db.Users.Where(u => u.Id == userId && u.LockoutEnabled)
             .ExecuteUpdateAsync(s => s.SetProperty(u => u.AccessFailedCount, u => u.AccessFailedCount + 1), ct);
 
