@@ -157,3 +157,17 @@ The shared `PiranhaCommerce.Catalog` package (used by every sales channel) provi
   A product with stock history cannot be deleted (409), because the ledger is an audit trail.
 
 All three have admin panels on the product edit page and API endpoints; API errors map to 400 (validation) and 409 (conflict).
+
+## Writing a plugin
+
+`samples/PiranhaCommerce.Example.Warranty` is a complete third-party plugin in one project, touching nothing in core. It adds a
+product warranty: an entity in its own schema (`IModelContributor`), API endpoints (`IApiEndpointContributor`) and an admin panel
+on the product edit page (`IAdminSlotContributor` into `AdminSlots.ProductEditPanels`). Steps for your own:
+
+1. Implement `IPiranhaPlugin`; list plugins you depend on in `Requires` (they are registered first, once).
+2. Reference the plugin's package from the host and call `.AddPlugin<YourPlugin>()`.
+3. **Add a migration in the host** (`dotnet ef migrations add AddYourPlugin`, once per provider). The host owns the schema, so a new
+   plugin shows up as a pending model change until you do, and CI's drift check will tell you.
+4. Give Razor components an explicit `@namespace` so they do not depend on the project they are compiled into.
+
+Removing a plugin is also a host migration: remove the registration, then add a migration that drops its tables.

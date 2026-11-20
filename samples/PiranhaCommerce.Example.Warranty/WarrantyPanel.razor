@@ -1,0 +1,60 @@
+@using Microsoft.AspNetCore.Components
+@namespace PiranhaCommerce.Example.Warranty
+@using Microsoft.AspNetCore.Components.Web
+@using PiranhaCommerce.Core.Validation
+@using PiranhaCommerce.Admin.Services
+@inject AdminScopeRunner Scope
+
+<div class="pc-card" style="margin-top:1rem">
+    <h2 style="margin-top:0">Warranty</h2>
+    @if (_loading)
+    {
+        <p class="pc-muted">Loading...</p>
+    }
+    else
+    {
+        <div class="pc-toolbar">
+            <label>Months <input type="number" min="0" max="600" style="width:6rem" @bind="_months" /></label>
+            <input aria-label="Warranty terms" placeholder="Terms (optional)" style="flex:1" @bind="_terms" />
+            <button type="button" @onclick="SaveAsync" disabled="@_saving">Save warranty</button>
+        </div>
+        @if (_message is not null)
+        {
+            <span class="@(_failed ? "pc-error" : "pc-muted")" role="status">@_message</span>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Guid ProductId { get; set; }
+
+    private int _months;
+    private string? _terms, _message;
+    private bool _loading = true, _saving, _failed;
+    private Guid _loadedFor;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedFor == ProductId) return;
+        _loadedFor = ProductId;
+        var w = await Scope.RunAsync<IWarrantyService, WarrantyDto?>(s => s.GetAsync(ProductId));
+        _months = w?.Months ?? 0;
+        _terms = w?.Terms;
+        _loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true; _failed = false;
+        try
+        {
+            var input = new WarrantyInput { Months = _months, Terms = _terms };
+            var w = await Scope.RunAsync<IWarrantyService, WarrantyDto?>(s => s.SetAsync(ProductId, input));
+            _failed = w is null;
+            _message = w is null ? "Product no longer exists." : "Saved.";
+        }
+        catch (PiranhaValidationException ex) { _failed = true; _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _failed = true; _message = "Could not save: " + ex.Message; }
+        finally { _saving = false; }
+    }
+}

@@ -406,6 +406,23 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.ToTable("ProductListing", "ecom");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Example.Warranty.ProductWarranty", b =>
+                {
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Months")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Terms")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.HasKey("ProductId");
+
+                    b.ToTable("ProductWarranty", "warranty");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
                     b.HasOne("PiranhaCommerce.Core.Identity.PiranhaRole", null)
@@ -511,6 +528,15 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.HasOne("PiranhaCommerce.Catalog.Product", null)
                         .WithOne()
                         .HasForeignKey("PiranhaCommerce.Ecommerce.ProductListing", "ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Example.Warranty.ProductWarranty", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Catalog.Product", null)
+                        .WithOne()
+                        .HasForeignKey("PiranhaCommerce.Example.Warranty.ProductWarranty", "ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

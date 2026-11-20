@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/samples/">
     <Project Path="samples/PiranhaCommerce.Web.Migrations.PostgreSql/PiranhaCommerce.Web.Migrations.PostgreSql.csproj" />
+    <Project Path="samples/PiranhaCommerce.Example.Warranty/PiranhaCommerce.Example.Warranty.csproj" />
     <Project Path="samples/PiranhaCommerce.Web/PiranhaCommerce.Web.csproj" />
   </Folder>
   <Folder Name="/src/">

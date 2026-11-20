@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <!-- Example of a third-party plugin: one package adding data, an API endpoint and an admin panel, touching nothing in core. -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\..\src\PiranhaCommerce.Admin\PiranhaCommerce.Admin.csproj" />
+    <ProjectReference Include="..\..\src\PiranhaCommerce.Catalog\PiranhaCommerce.Catalog.csproj" />
+    <ProjectReference Include="..\..\src\PiranhaCommerce.Catalog.Admin\PiranhaCommerce.Catalog.Admin.csproj" />
+  </ItemGroup>
+</Project>

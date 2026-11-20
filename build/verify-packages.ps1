@@ -68,6 +68,7 @@ using PiranhaCommerce.Data;
 using PiranhaCommerce.Data.SqlServer;
 using PiranhaCommerce.Ecommerce;
 using PiranhaCommerce.Ecommerce.Admin;
+using PiranhaCommerce.Example.Warranty;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -76,7 +77,8 @@ builder.Services.AddPiranhaCore()
     .AddPiranhaApi()
     .AddPiranhaAdmin()
     .AddPlugin<EcommercePlugin>()
-    .AddPlugin<EcommerceAdminPlugin>();
+    .AddPlugin<EcommerceAdminPlugin>()
+    .AddPlugin<WarrantyPlugin>();
 
 var app = builder.Build();
 
@@ -97,6 +99,9 @@ app.Run();
 Copy-Item (Join-Path $sample 'appsettings.json') $app -Force
 Copy-Item (Join-Path $sample 'appsettings.Development.json') $app -Force
 Copy-Item (Join-Path $sample 'Migrations') (Join-Path $app 'Migrations') -Recurse -Force
+# The third-party example plugin is compiled into the consumer from source, against the packages only (it is not itself a package).
+$warranty = Join-Path $repo 'samples/PiranhaCommerce.Example.Warranty'
+Get-ChildItem $warranty -Include *.cs,*.razor -Recurse | Where-Object { $_.FullName -notmatch '[\\/](obj|bin)[\\/]' } | ForEach-Object { Copy-Item $_.FullName $app -Force }
 
 # (RequiresAspNetWebAssets is a documented host requirement, see README.)
 # Reference ONLY the two top-level plugin packages + the provider; everything else must arrive transitively.
@@ -164,6 +169,9 @@ try {
     }
     Check 'ecommerce listing endpoint works (ecommerce package + cross-package FK)' {
         (Invoke-RestMethod "$base/api/v1/products/$script:productId/listing" -Method Put -Headers $h -ContentType 'application/json' -Body '{"published":true}').published
+    }
+    Check 'third-party plugin compiled against the packages works (own schema, host migration)' {
+        (Invoke-RestMethod "$base/api/v1/products/$script:productId/warranty" -Method Put -Headers $h -ContentType 'application/json' -Body '{"months":24,"terms":"x"}').months -eq 24
     }
     Check 'admin sign-in works and shows both plugin packages (incl. cross-package panel)' {
         $handler = [Net.Http.HttpClientHandler]::new(); $handler.UseCookies = $true; $handler.AllowAutoRedirect = $false

@@ -6,6 +6,7 @@ using PiranhaCommerce.Data.PostgreSql;
 using PiranhaCommerce.Data.SqlServer;
 using PiranhaCommerce.Ecommerce;
 using PiranhaCommerce.Ecommerce.Admin;
+using PiranhaCommerce.Example.Warranty;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -34,7 +35,8 @@ piranha
     // Plugins are compiled in via NuGet, never uploaded. Each plugin registers the plugins it requires
     // (here: Catalog and Catalog.Admin), so only the ones you want are listed.
     .AddPlugin<EcommercePlugin>()
-    .AddPlugin<EcommerceAdminPlugin>();
+    .AddPlugin<EcommerceAdminPlugin>()
+    .AddPlugin<WarrantyPlugin>();
 
 var app = builder.Build();
 
