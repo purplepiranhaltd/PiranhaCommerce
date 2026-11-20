@@ -85,3 +85,25 @@ dotnet test
 ```
 
 Integration tests run the real host against a throwaway LocalDB database per test class (created, migrated, dropped).
+
+## Host requirements
+
+A host application that uses `PiranhaCommerce.Admin` must set this in its `.csproj`:
+
+```xml
+<RequiresAspNetWebAssets>true</RequiresAspNetWebAssets>
+```
+
+The admin uses Blazor Interactive Server. Without the property the host does not receive `_framework/blazor.web.js`,
+so pages render but never become interactive. A package cannot set it for you (it is decided at restore time, before
+package build files exist). The admin logs a warning at startup if the script is missing.
+
+## Packages
+
+```
+pwsh build/verify-packages.ps1
+```
+
+Packs every library, builds a fresh app outside the repo that references **only** the `.nupkg` files (isolated NuGet
+cache), publishes it, runs the published output and smoke-tests the API, sign-in, plugin panels and static assets.
+`-OmitWebAssetsProperty` runs the negative check. No license is chosen yet (closed source); set one before publishing.

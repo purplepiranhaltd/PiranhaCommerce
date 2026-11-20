@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using PiranhaCommerce.Admin.Services;
 using PiranhaCommerce.Core.Admin;
 using PiranhaCommerce.Core.Identity;
@@ -46,6 +48,8 @@ public static class PiranhaAdminExtensions
     /// </summary>
     public static IEndpointRouteBuilder MapPiranhaAdmin(this IEndpointRouteBuilder app)
     {
+        WarnIfBlazorScriptMissing(app.ServiceProvider);
+
         var pluginAssemblies = app.ServiceProvider.GetServices<AdminPageAssembly>().Select(a => a.Assembly).ToArray();
         app.MapRazorComponents<AdminApp>()
             .AddInteractiveServerRenderMode()
@@ -59,5 +63,17 @@ public static class PiranhaAdminExtensions
             return Results.Redirect("/admin/login");
         }).DisableAntiforgery();
         return app;
+    }
+
+    // The host project must set <RequiresAspNetWebAssets>true</RequiresAspNetWebAssets>; a package cannot do it for
+    // the host (decided at restore time). Without it the pages render but never become interactive, so say so loudly.
+    private static void WarnIfBlazorScriptMissing(IServiceProvider services)
+    {
+        var env = services.GetRequiredService<IWebHostEnvironment>();
+        if (env.WebRootFileProvider.GetFileInfo("_framework/blazor.web.js").Exists) return;
+
+        services.GetRequiredService<ILoggerFactory>().CreateLogger("PiranhaCommerce.Admin").LogWarning(
+            "_framework/blazor.web.js was not found, so the admin UI will not be interactive. Add " +
+            "<RequiresAspNetWebAssets>true</RequiresAspNetWebAssets> to the host project's .csproj.");
     }
 }

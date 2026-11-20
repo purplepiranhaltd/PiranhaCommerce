@@ -52,6 +52,14 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
     }
 
     [Fact]
+    public async Task Blazor_script_is_served_so_the_admin_can_become_interactive()
+    {
+        var response = await NewBrowser().GetAsync("/_framework/blazor.web.js");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("javascript", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
     public async Task Admin_pages_redirect_anonymous_users_to_login()
     {
         var response = await NewBrowser().GetAsync("/admin/catalog/products");

@@ -1,4 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>PostgreSQL provider for Piranha Commerce.</Description>
+  </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <ProjectReference Include="..\PiranhaCommerce.Data\PiranhaCommerce.Data.csproj" />

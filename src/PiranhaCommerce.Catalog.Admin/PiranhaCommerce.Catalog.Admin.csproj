@@ -1,4 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <Description>Admin pages for the Piranha Commerce product catalogue.</Description>
+  </PropertyGroup>
   <ItemGroup>
     <SupportedPlatform Include="browser" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
