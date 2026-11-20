@@ -40,7 +40,7 @@ history.
 
 - Translations for the admin UI and storefront (user-facing text is kept out of the data model so this needs no migrations).
 - Customer groups (named in the vocabulary; for segmentation and pricing).
-- Customer storefront login (a customer is separate from an admin user).
+- Shopper accounts are built; what is left (email, password reset, token revocation) is under "Shopper accounts: what is left".
 - Alerts and recount tasks for negative stock (the report and per-movement balances exist).
 
 ## Security hardening
@@ -69,11 +69,27 @@ Needed:
 Open question: whether to model a product's tax class in Catalog (shared with the EPOS) or in Ecommerce. The EPOS will need the
 same rates, so Catalog or a small shared tax module is more likely.
 
+## Shopper accounts: what is left
+
+Built: register, sign in (own table, own token audience and key), profile, address book, password change, baskets and checkout owned
+by the shopper, order history, claim an anonymous basket.
+
+Not built:
+
+- **Email**: no verification, no welcome or order emails, **no password reset**. Without email, a customer who already exists
+  (staff-made or from a guest order) cannot get a sign-in: registration refuses them. Needs an email-sending plugin point first, then
+  an invite or verify-by-link flow that proves the address before linking.
+- Ending tokens early: changing a password or signing out does not revoke tokens already issued (they expire in an hour). Refresh
+  tokens and a revocation stamp would fix this.
+- Merging two baskets (claim only takes an unowned basket whole); guest checkout through the storefront API.
+- Customer groups, customer data export/erasure (above), social sign-in, two-factor.
+- Shopper sign-in is rate limited by client address (with the staff limits) but there is no CAPTCHA or breached-password check.
+
 ## Baskets and orders: decisions and what is left
 
 Decided: baskets and orders sit behind the existing API authorisation (read policy to read, write policy to change). There is no
-storefront identity yet, so a storefront backend calls with its own token and keeps the unguessable basket id for the shopper. When
-customer storefront login arrives, baskets can be owned by a customer and anonymous baskets merged on sign-in.
+shopper identity in this API, so a storefront backend calls with its own token and keeps the unguessable basket id for the shopper.
+Signed-in shoppers also have their own `/storefront` endpoints (below), where baskets are owned by the customer.
 
 Built: basket (lines, live prices, published products only); checkout in one transaction (order, numbered copy of names/prices/addresses,
 stock taken from the shelf); order stages Placed, Processing, Completed, Cancelled (cancelling returns stock once); admin order pages.
@@ -91,4 +107,4 @@ Not built yet:
 - Per-order stock location (every online order currently draws from `Piranha:Ecommerce:StockLocationId`, or the default location).
 - One currency per store (`Piranha:Ecommerce:Currency`, default GBP).
 - Quantities are whole numbers in baskets; stock itself supports fractions for channels that need them.
-- Order emails and notifications; guest checkout versus customer account rules; order history for the shopper.
+- Order emails and notifications; guest checkout rules for the storefront API.

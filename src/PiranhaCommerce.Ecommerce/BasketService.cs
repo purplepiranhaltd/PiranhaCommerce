@@ -13,6 +13,15 @@ public interface IBasketService
 
     Task<BasketDto?> GetAsync(Guid basketId, CancellationToken ct = default);
 
+    /// <summary>True only when the basket exists and belongs to that customer.</summary>
+    Task<bool> IsOwnedByAsync(Guid basketId, Guid customerId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gives an open basket that has no owner to a customer (for a shopper who started shopping before signing in). Knowing the
+    /// basket id is the proof, as it is for every basket call. Already theirs: true. Owned by someone else, checked out or missing: false.
+    /// </summary>
+    Task<bool> ClaimAsync(Guid basketId, Guid customerId, CancellationToken ct = default);
+
     /// <summary>
     /// Sets the quantity of a product (0 removes it). Null when the basket does not exist. Only published products can be added;
     /// a basket that has been checked out is read-only (conflict).
@@ -34,6 +43,17 @@ internal sealed class BasketService(PiranhaDbContext db, ICustomerService custom
         db.Add(basket);
         await db.SaveChangesAsync(ct);
         return await GetAsync(basket.Id, ct) ?? throw new InvalidOperationException("Basket vanished after creation.");
+    }
+
+    public async Task<bool> IsOwnedByAsync(Guid basketId, Guid customerId, CancellationToken ct = default)
+        => await db.Set<Basket>().AsNoTracking().AnyAsync(b => b.Id == basketId && b.CustomerId == customerId, ct);
+
+    public async Task<bool> ClaimAsync(Guid basketId, Guid customerId, CancellationToken ct = default)
+    {
+        // One atomic statement: of two customers claiming the same basket at once, exactly one wins.
+        var claimed = await db.Set<Basket>().Where(b => b.Id == basketId && b.CustomerId == null && b.Status == BasketStatus.Open)
+            .ExecuteUpdateAsync(s => s.SetProperty(b => b.CustomerId, (Guid?)customerId), ct);
+        return claimed > 0 || await IsOwnedByAsync(basketId, customerId, ct);
     }
 
     public async Task<BasketDto?> GetAsync(Guid basketId, CancellationToken ct = default)

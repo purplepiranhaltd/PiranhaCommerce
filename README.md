@@ -203,9 +203,33 @@ whatever the letter case, enforced by a database index), optional name, phone an
 50 addresses (country as an ISO two-letter code). Orders will copy the address they use, so editing an address never changes
 history. API: `/api/v1/customers` and `/api/v1/customers/{id}/addresses` (reads need the read policy, changes the write policy).
 
-A customer is deliberately not an admin user. Signing in to a storefront will be a separate, optional link added later.
+A customer is deliberately not an admin user (see "Shopper accounts" below).
 
 Open design notes (stock transfers, signing in at a location, erasing customer data) are in `docs/roadmap.md`.
+
+## Shopper accounts (storefront API)
+
+Shoppers sign in separately from staff. Under `/api/v1/storefront`:
+
+- `POST /auth/register`, `POST /auth/token` (anonymous). Registration returns a token; a wrong password, unknown email, locked or
+  deactivated account all answer the same `401`. 5 wrong passwords lock the account for 15 minutes (`Piranha:Customers`).
+- `GET|PUT /me`, `POST /me/password`, `GET|POST|PUT|DELETE /me/addresses` - the signed-in shopper's own record only. Staff notes are never shown.
+- `POST /baskets`, `GET /baskets/{id}`, `PUT|DELETE /baskets/{id}/lines/{productId}`, `POST /baskets/{id}/quote`,
+  `POST /baskets/{id}/checkout`, `POST /baskets/{id}/claim`, `GET /orders`, `GET /orders/{id}`.
+
+How it is kept apart from the staff API:
+
+- A shopper's sign-in lives in its own table, not among the admin users, so a customer can never open the admin or hold a role.
+- Shopper tokens have their own audience, signing key (derived from `Piranha:Jwt:SigningKey`) and scheme. The staff API refuses them
+  and the storefront refuses staff tokens. Every storefront endpoint requires a shopper token unless it says otherwise.
+- The customer is always the one in the token. Checkout ignores any `customerId` in the request, and another shopper's basket or
+  order answers `404`, the same as one that does not exist.
+- **Registration is refused for any email that already has a customer record** (made by staff or by an earlier order). Letting a
+  stranger attach a password to it would hand them that customer's order history. Linking such a customer to a sign-in needs proof
+  of email ownership, which needs email sending (not built).
+- A deactivated customer is cut off at once, even with an unexpired token. Tokens last `Piranha:Jwt:LifetimeMinutes` (60); changing a
+  password does not end tokens already issued.
+- An open basket with no owner can be claimed once with its id (`/claim`); two shoppers claiming at once leaves one owner.
 
 ## Baskets and orders
 

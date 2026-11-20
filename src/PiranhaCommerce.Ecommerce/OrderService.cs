@@ -15,6 +15,12 @@ public interface IOrderService
 
     Task<OrderDto?> GetAsync(Guid id, CancellationToken ct = default);
 
+    /// <summary>One customer's own orders, newest first.</summary>
+    Task<PagedResult<OrderSummaryDto>> ListForCustomerAsync(Guid customerId, int? page, int? pageSize, CancellationToken ct = default);
+
+    /// <summary>Null when the order does not exist OR belongs to someone else (the two look the same on purpose).</summary>
+    Task<OrderDto?> GetForCustomerAsync(Guid customerId, Guid id, CancellationToken ct = default);
+
     Task<OrderDto?> GetByNumberAsync(long number, CancellationToken ct = default);
 
     /// <summary>
@@ -49,6 +55,21 @@ internal sealed class OrderService(PiranhaDbContext db, IStockService stock, ICu
                 query = query.Where(o => o.Email.Contains(term));
         }
 
+        return await PageAsync(query, p, size, ct);
+    }
+
+    public async Task<PagedResult<OrderSummaryDto>> ListForCustomerAsync(Guid customerId, int? page, int? pageSize, CancellationToken ct = default)
+    {
+        var (p, size) = Paging.Normalize(page, pageSize);
+        return await PageAsync(db.Set<Order>().AsNoTracking().Where(o => o.CustomerId == customerId), p, size, ct);
+    }
+
+    public async Task<OrderDto?> GetForCustomerAsync(Guid customerId, Guid id, CancellationToken ct = default)
+        => await WithPaymentsAsync(await db.Set<Order>().AsNoTracking().Include(o => o.Lines).AsSplitQuery()
+            .FirstOrDefaultAsync(o => o.Id == id && o.CustomerId == customerId, ct), ct);
+
+    private async Task<PagedResult<OrderSummaryDto>> PageAsync(IQueryable<Order> query, int p, int size, CancellationToken ct)
+    {
         var total = await query.CountAsync(ct);
         var items = await query.OrderByDescending(o => o.Number).Skip((p - 1) * size).Take(size)
             .Select(o => new { o.Id, o.Number, o.Stage, o.Email, o.Currency, o.Total, o.CreatedUtc })
