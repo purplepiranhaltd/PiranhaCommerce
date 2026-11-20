@@ -28,3 +28,6 @@ public static class ModelValidator
         throw new PiranhaValidationException(errors);
     }
 }
+
+/// <summary>Thrown when a request is valid but conflicts with current state (e.g. deleting something still in use). Maps to HTTP 409.</summary>
+public sealed class PiranhaConflictException(string message) : Exception(message);

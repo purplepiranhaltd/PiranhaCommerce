@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using PiranhaCommerce.Api;
-using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Catalog;
 
 namespace PiranhaCommerce.Catalog;
@@ -21,20 +20,13 @@ internal sealed class CatalogApiEndpoints : IApiEndpointContributor
 
         products.MapPost("/", async (ProductInput input, IProductService svc, CancellationToken ct) =>
             {
-                try
-                {
-                    var created = await svc.CreateAsync(input, ct);
-                    return Results.Created($"/api/v1/products/{created.Id}", created);
-                }
-                catch (PiranhaValidationException ex) { return Results.ValidationProblem(ex.Errors.ToDictionary(k => k.Key, k => k.Value)); }
+                var created = await svc.CreateAsync(input, ct);
+                return Results.Created($"/api/v1/products/{created.Id}", created);
             })
             .RequireAuthorization(ApiPolicies.Write);
 
         products.MapPut("/{id:guid}", async (Guid id, ProductInput input, IProductService svc, CancellationToken ct) =>
-            {
-                try { return await svc.UpdateAsync(id, input, ct) is { } p ? Results.Ok(p) : Results.NotFound(); }
-                catch (PiranhaValidationException ex) { return Results.ValidationProblem(ex.Errors.ToDictionary(k => k.Key, k => k.Value)); }
-            })
+                await svc.UpdateAsync(id, input, ct) is { } p ? Results.Ok(p) : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 
         products.MapDelete("/{id:guid}", async (Guid id, IProductService svc, CancellationToken ct) =>
