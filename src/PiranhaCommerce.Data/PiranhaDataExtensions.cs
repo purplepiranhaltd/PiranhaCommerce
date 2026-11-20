@@ -26,8 +26,29 @@ public static class PiranhaDataExtensions
         return builder;
     }
 
-    /// <summary>Creates the Administrator role and an admin user if missing. Intended for development/first-run only.</summary>
+    /// <summary>
+    /// Creates the Administrator role and an admin user if missing. Intended for development/first-run only.
+    /// Safe to call concurrently from several starting instances: every step is idempotent and a lost race is retried.
+    /// </summary>
     public static async Task EnsureAdministratorAsync(this IServiceProvider services, string email, string password)
+    {
+        const int attempts = 5;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                await EnsureAdministratorOnceAsync(services, email, password);
+                return;
+            }
+            catch (Exception) when (attempt < attempts)
+            {
+                // Another instance created the role/user between our check and our insert; look again.
+                await Task.Delay(TimeSpan.FromMilliseconds(150 * attempt));
+            }
+        }
+    }
+
+    private static async Task EnsureAdministratorOnceAsync(IServiceProvider services, string email, string password)
     {
         using var scope = services.CreateScope();
         var roles = scope.ServiceProvider.GetRequiredService<RoleManager<PiranhaRole>>();

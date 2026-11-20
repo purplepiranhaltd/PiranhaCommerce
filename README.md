@@ -102,6 +102,11 @@ PIRANHA_TEST_PROVIDER=PostgreSql PIRANHA_TEST_PG_SERVER="Host=localhost;Port=154
 
 (Windows reserves some port ranges; if Docker reports a port is forbidden, pick another.)
 
+To run on a real SQL Server or **Azure SQL**, set `PIRANHA_TEST_SQLSERVER` to a connection string without a database name.
+By default each test class creates and drops its own database. Where the login cannot create databases (Azure SQL),
+also set `PIRANHA_TEST_SQLSERVER_DATABASE=<existing db>`: the suite then uses that database and never drops it, but leaves
+its test rows behind, so point it at a disposable dev database. Keep credentials in environment variables, never in files.
+
 Behaviour that differs between providers (e.g. case-sensitive text comparison) is normalised in the services and covered by tests
 that run on both.
 

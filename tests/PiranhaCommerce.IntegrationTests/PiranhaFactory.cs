@@ -25,7 +25,10 @@ public sealed class PiranhaFactory : WebApplicationFactory<Program>, IAsyncLifet
     // PIRANHA_TEST_PROVIDER=PostgreSql + PIRANHA_TEST_PG_SERVER="Host=...;Port=...;Username=...;Password=..." runs the whole suite
     // against PostgreSQL (a uniquely named database is created per fixture). Default: SQL Server LocalDB, or PIRANHA_TEST_SQLSERVER.
     private static readonly string Provider = Environment.GetEnvironmentVariable("PIRANHA_TEST_PROVIDER") ?? "SqlServer";
-    private readonly string _database = $"PiranhaTests_{Guid.NewGuid():N}";
+    // PIRANHA_TEST_SQLSERVER_DATABASE=<name> runs against that EXISTING database and never drops it (for servers where the test
+    // login cannot create databases, e.g. Azure SQL). The tests then leave their rows behind: use a disposable dev database.
+    private static readonly string? ExistingDatabase = Environment.GetEnvironmentVariable("PIRANHA_TEST_SQLSERVER_DATABASE");
+    private readonly string _database = ExistingDatabase is { Length: > 0 } ? ExistingDatabase : $"PiranhaTests_{Guid.NewGuid():N}";
 
     private string ConnectionString
     {
@@ -58,8 +61,11 @@ public sealed class PiranhaFactory : WebApplicationFactory<Program>, IAsyncLifet
     {
         try
         {
-            using var scope = Services.CreateScope();
-            await scope.ServiceProvider.GetRequiredService<PiranhaDbContext>().Database.EnsureDeletedAsync();
+            if (ExistingDatabase is not { Length: > 0 })
+            {
+                using var scope = Services.CreateScope();
+                await scope.ServiceProvider.GetRequiredService<PiranhaDbContext>().Database.EnsureDeletedAsync();
+            }
         }
         finally
         {
