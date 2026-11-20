@@ -11,7 +11,7 @@ A commerce engine for .NET, delivered as NuGet packages. Closed source for now; 
 | `PiranhaCommerce.Data.SqlServer` | SQL Server + Azure SQL (priority target). |
 | `PiranhaCommerce.Data.PostgreSql` | PostgreSQL. |
 | `PiranhaCommerce.Api` | REST API host plumbing and `IApiEndpointContributor` (OpenAPI included). |
-| `PiranhaCommerce.Admin` | Blazor admin (Razor class library): menu + widget zones fed by plugins. |
+| `PiranhaCommerce.Admin` | Blazor admin (Razor class library): menu + slots that plugins contribute to. |
 | `PiranhaCommerce.Catalog` | Products shared by every sales channel (name, SKU, price), with API. Channels never add columns to it. |
 | `PiranhaCommerce.Catalog.Admin` | Product list/edit pages. |
 | `PiranhaCommerce.Ecommerce` | Online-store data layered on the catalogue (e.g. `ecom.ProductListing`: published online). A future `PiranhaCommerce.Epos` is a sibling with its own tables. |
