@@ -28,6 +28,8 @@ internal sealed class EcommerceAdminMenu : IAdminMenuContributor
     [
         new("orders", "Orders", Order: 15),
         new("orders.list", "All orders", "/admin/orders", Order: 16, ParentKey: "orders"),
+        new("orders.shipping", "Shipping methods", "/admin/orders/shipping", Order: 17, ParentKey: "orders"),
+        new("orders.tax", "Tax rules", "/admin/orders/tax", Order: 18, ParentKey: "orders"),
     ];
 }
 

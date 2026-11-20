@@ -23,5 +23,7 @@ public sealed class EcommercePlugin : IPiranhaPlugin
         services.AddScoped<IProductListingService, ProductListingService>();
         services.AddScoped<IBasketService, BasketService>();
         services.AddScoped<IOrderService, OrderService>();
+        services.AddScoped<IShippingService, ShippingService>();
+        services.AddScoped<ITaxService, TaxService>();
     }
 }

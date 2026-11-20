@@ -44,6 +44,48 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
                 await svc.CheckoutAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } o ? Results.Ok(o) : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 
+        baskets.MapPost("/{id:guid}/quote", async (Guid id, QuoteInput input, IBasketService svc, CancellationToken ct) =>
+            await svc.QuoteAsync(id, input, ct) is { } q ? Results.Ok(q) : Results.NotFound());
+
+        var shipping = api.MapGroup("/shipping-methods").WithTags("Shipping");
+
+        shipping.MapGet("/", async (bool? activeOnly, IShippingService svc, CancellationToken ct) =>
+            Results.Ok(await svc.ListAsync(activeOnly ?? false, ct)));
+
+        shipping.MapPost("/", async (ShippingMethodInput input, IShippingService svc, CancellationToken ct) =>
+            {
+                var m = await svc.CreateAsync(input, ct);
+                return Results.Created($"/api/v1/shipping-methods/{m.Id}", m);
+            })
+            .RequireAuthorization(ApiPolicies.Write);
+
+        shipping.MapPut("/{id:guid}", async (Guid id, ShippingMethodInput input, IShippingService svc, CancellationToken ct) =>
+                await svc.UpdateAsync(id, input, ct) is { } m ? Results.Ok(m) : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
+        shipping.MapDelete("/{id:guid}", async (Guid id, IShippingService svc, CancellationToken ct) =>
+                await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
+        var tax = api.MapGroup("/tax-rules").WithTags("Tax");
+
+        tax.MapGet("/", async (ITaxService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(ct)));
+
+        tax.MapPost("/", async (TaxRuleInput input, ITaxService svc, CancellationToken ct) =>
+            {
+                var r = await svc.CreateAsync(input, ct);
+                return Results.Created($"/api/v1/tax-rules/{r.Id}", r);
+            })
+            .RequireAuthorization(ApiPolicies.Write);
+
+        tax.MapPut("/{id:guid}", async (Guid id, TaxRuleInput input, ITaxService svc, CancellationToken ct) =>
+                await svc.UpdateAsync(id, input, ct) is { } r ? Results.Ok(r) : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
+        tax.MapDelete("/{id:guid}", async (Guid id, ITaxService svc, CancellationToken ct) =>
+                await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
         var orders = api.MapGroup("/orders").WithTags("Orders");
 
         orders.MapGet("/", async (int? page, int? pageSize, OrderStage? stage, string? search, IOrderService svc, CancellationToken ct) =>

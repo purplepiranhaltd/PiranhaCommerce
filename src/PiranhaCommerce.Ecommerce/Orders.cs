@@ -51,6 +51,12 @@ public class Order : AuditableEntity
     public required string Email { get; set; }
     public required string Currency { get; set; }
     public decimal Subtotal { get; set; }
+    /// <summary>Copies of the chosen method's name and the price charged; later edits to the method never change the order.</summary>
+    public string? ShippingMethodName { get; set; }
+    public decimal ShippingTotal { get; set; }
+    public string? TaxName { get; set; }
+    public decimal TaxRate { get; set; }
+    public decimal TaxTotal { get; set; }
     public decimal Total { get; set; }
     public string? Notes { get; set; }
     public OrderAddress? ShippingAddress { get; set; }
@@ -128,6 +134,9 @@ public sealed class CheckoutInput
     [Required]
     public AddressInput? ShippingAddress { get; set; }
 
+    /// <summary>Required whenever the store has any active shipping method.</summary>
+    public Guid? ShippingMethodId { get; set; }
+
     /// <summary>Defaults to the shipping address.</summary>
     public AddressInput? BillingAddress { get; set; }
 
@@ -148,7 +157,8 @@ public sealed record OrderSummaryDto(
     Guid Id, long Number, string Reference, OrderStage Stage, string Email, string Currency, decimal Total, DateTimeOffset CreatedUtc);
 
 public sealed record OrderDto(
-    Guid Id, long Number, string Reference, OrderStage Stage, Guid? CustomerId, string Email, string Currency, decimal Subtotal, decimal Total,
+    Guid Id, long Number, string Reference, OrderStage Stage, Guid? CustomerId, string Email, string Currency, decimal Subtotal,
+    string? ShippingMethodName, decimal ShippingTotal, string? TaxName, decimal TaxRate, decimal TaxTotal, decimal Total,
     string? Notes, OrderAddressDto? ShippingAddress, OrderAddressDto? BillingAddress, IReadOnlyList<OrderLineDto> Lines,
     IReadOnlyList<OrderStage> NextStages, DateTimeOffset CreatedUtc, DateTimeOffset? UpdatedUtc);
 

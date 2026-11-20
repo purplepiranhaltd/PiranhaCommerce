@@ -1,0 +1,114 @@
+@page "/admin/orders/tax"
+@inject AdminScopeRunner Scope
+
+<PageTitle>Tax rules - Piranha Commerce</PageTitle>
+<h1>Tax rules</h1>
+<p class="pc-muted">Prices are entered without tax. Tax is charged on goods plus shipping by the country the order ships to; use * for every other country. No rule means no tax.</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+<div class="pc-card">
+    <EditForm Model="_input" OnValidSubmit="SaveAsync" FormName="tax-edit">
+        <DataAnnotationsValidator />
+        <h2 style="margin-top:0">@(_editing is null ? "Add a rule" : "Edit rule")</h2>
+        <label>Country code (GB, or * for all others) <InputText @bind-Value="_input.CountryCode" /></label>
+        <ValidationMessage For="() => _input.CountryCode" />
+        <label>Name (shown on orders, e.g. VAT) <InputText @bind-Value="_input.Name" /></label>
+        <ValidationMessage For="() => _input.Name" />
+        <label>Rate (percent) <InputNumber @bind-Value="_input.Rate" /></label>
+        <ValidationMessage For="() => _input.Rate" />
+        <button type="submit" disabled="@_busy">Save</button>
+        @if (_editing is not null)
+        {
+            <button type="button" class="secondary" @onclick="Reset">Cancel</button>
+        }
+    </EditForm>
+</div>
+
+@if (_rules is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_rules.Count == 0)
+{
+    <p class="pc-muted">No tax rules: no tax is charged.</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>Country</th><th>Name</th><th style="text-align:right">Rate</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var r in _rules)
+        {
+            <tr>
+                <td>@r.CountryCode</td>
+                <td>@r.Name</td>
+                <td style="text-align:right">@r.Rate.ToString("0.####")%</td>
+                <td class="actions">
+                    <button class="secondary" @onclick="() => Edit(r)">Edit</button>
+                    @if (_confirmDelete == r.Id)
+                    {
+                        <button class="danger" @onclick="() => DeleteAsync(r.Id)">Confirm delete</button>
+                        <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
+                    }
+                    else
+                    {
+                        <button class="secondary" @onclick="() => _confirmDelete = r.Id">Delete</button>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IReadOnlyList<TaxRuleDto>? _rules;
+    private TaxRuleInput _input = new();
+    private Guid? _editing;
+    private Guid? _confirmDelete;
+    private string? _error;
+    private bool _busy;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try { _rules = await Scope.RunAsync<ITaxService, IReadOnlyList<TaxRuleDto>>(s => s.ListAsync()); }
+        catch (Exception ex) { _error = "Could not load tax rules: " + ex.Message; }
+    }
+
+    private void Edit(TaxRuleDto r)
+    {
+        _editing = r.Id;
+        _input = new TaxRuleInput { CountryCode = r.CountryCode, Name = r.Name, Rate = r.Rate };
+    }
+
+    private void Reset() { _editing = null; _input = new(); }
+
+    private async Task SaveAsync()
+    {
+        _busy = true; _error = null;
+        try
+        {
+            if (_editing is { } id) await Scope.RunAsync<ITaxService, TaxRuleDto?>(s => s.UpdateAsync(id, _input));
+            else await Scope.RunAsync<ITaxService, TaxRuleDto>(s => s.CreateAsync(_input));
+            Reset();
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _error = "Could not save: " + ex.Message; }
+        finally { _busy = false; }
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        _confirmDelete = null; _error = null;
+        try { await Scope.RunAsync<ITaxService, bool>(s => s.DeleteAsync(id)); }
+        catch (Exception ex) { _error = "Could not delete: " + ex.Message; }
+        await LoadAsync();
+    }
+}

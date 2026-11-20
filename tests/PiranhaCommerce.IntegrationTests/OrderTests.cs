@@ -9,6 +9,7 @@ using PiranhaCommerce.Ecommerce;
 
 namespace PiranhaCommerce.IntegrationTests;
 
+[Collection(OrderSettings.Name)]
 public class OrderTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };

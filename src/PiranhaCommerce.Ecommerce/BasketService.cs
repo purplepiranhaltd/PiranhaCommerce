@@ -18,6 +18,9 @@ public interface IBasketService
     /// a basket that has been checked out is read-only (conflict).
     /// </summary>
     Task<BasketDto?> SetLineAsync(Guid basketId, Guid productId, BasketLineInput input, CancellationToken ct = default);
+
+    /// <summary>What checkout would charge right now for a shipping method and destination country. Null when the basket does not exist.</summary>
+    Task<QuoteDto?> QuoteAsync(Guid basketId, QuoteInput input, CancellationToken ct = default);
 }
 
 internal sealed class BasketService(PiranhaDbContext db, ICustomerService customers, IOptions<EcommerceOptions> options) : IBasketService
@@ -92,6 +95,24 @@ internal sealed class BasketService(PiranhaDbContext db, ICustomerService custom
             }
         }
         return await GetAsync(basketId, ct);
+    }
+
+    public async Task<QuoteDto?> QuoteAsync(Guid basketId, QuoteInput input, CancellationToken ct = default)
+    {
+        ModelValidator.ValidateOrThrow(input);
+        var basket = await GetAsync(basketId, ct);
+        if (basket is null) return null;
+
+        var methods = await db.Set<ShippingMethod>().AsNoTracking().Where(m => m.Active).ToListAsync(ct);
+        ShippingMethod? method = null;
+        if (methods.Count > 0)
+            method = methods.FirstOrDefault(m => m.Id == input.ShippingMethodId)
+                     ?? throw new PiranhaValidationException(nameof(QuoteInput.ShippingMethodId), "Choose an available shipping method.");
+
+        var rule = OrderPricing.RuleFor(await db.Set<TaxRule>().AsNoTracking().ToListAsync(ct), input.CountryCode.ToUpperInvariant());
+        var shipping = OrderPricing.ShippingFor(method, basket.Subtotal);
+        var (tax, total) = OrderPricing.Totals(basket.Subtotal, shipping, rule);
+        return new QuoteDto(basket.Currency, basket.Subtotal, shipping, rule?.Name, rule?.Rate ?? 0m, tax, total);
     }
 
     private Task<int> SetQuantityAsync(Guid basketId, Guid productId, int quantity, CancellationToken ct)

@@ -87,6 +87,9 @@ else
             }
             </tbody>
             <tfoot>
+                <tr><td colspan="4" style="text-align:right">Subtotal</td><td style="text-align:right">@_order.Subtotal.ToString("N2")</td></tr>
+                <tr><td colspan="4" style="text-align:right">Shipping@(string.IsNullOrEmpty(_order.ShippingMethodName) ? "" : " (" + _order.ShippingMethodName + ")")</td><td style="text-align:right">@_order.ShippingTotal.ToString("N2")</td></tr>
+                <tr><td colspan="4" style="text-align:right">Tax@(string.IsNullOrEmpty(_order.TaxName) ? "" : $" ({_order.TaxName} {_order.TaxRate:0.####}%)")</td><td style="text-align:right">@_order.TaxTotal.ToString("N2")</td></tr>
                 <tr><th colspan="4" style="text-align:right">Total (@_order.Currency)</th><th style="text-align:right">@_order.Total.ToString("N2")</th></tr>
             </tfoot>
         </table>

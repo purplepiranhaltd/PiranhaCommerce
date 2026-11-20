@@ -1,0 +1,115 @@
+@page "/admin/orders/shipping"
+@inject AdminScopeRunner Scope
+
+<PageTitle>Shipping methods - Piranha Commerce</PageTitle>
+<h1>Shipping methods</h1>
+<p class="pc-muted">Once any method is active, checkout must choose one. With none, shipping is free. Orders keep their own copy of the name and price.</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+<div class="pc-card">
+    <EditForm Model="_input" OnValidSubmit="SaveAsync" FormName="shipping-edit">
+        <DataAnnotationsValidator />
+        <h2 style="margin-top:0">@(_editing is null ? "Add a method" : "Edit method")</h2>
+        <label>Name <InputText @bind-Value="_input.Name" /></label>
+        <ValidationMessage For="() => _input.Name" />
+        <label>Price <InputNumber @bind-Value="_input.Price" /></label>
+        <label>Free when the basket reaches (optional) <InputNumber @bind-Value="_input.FreeOver" /></label>
+        <label>Order in the list <InputNumber @bind-Value="_input.Position" /></label>
+        <label><InputCheckbox @bind-Value="_input.Active" /> Active</label>
+        <button type="submit" disabled="@_busy">Save</button>
+        @if (_editing is not null)
+        {
+            <button type="button" class="secondary" @onclick="Reset">Cancel</button>
+        }
+    </EditForm>
+</div>
+
+@if (_methods is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_methods.Count == 0)
+{
+    <p class="pc-muted">No shipping methods: shipping is free.</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>Name</th><th style="text-align:right">Price</th><th style="text-align:right">Free over</th><th>Active</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var m in _methods)
+        {
+            <tr>
+                <td>@m.Name</td>
+                <td style="text-align:right">@m.Price.ToString("N2")</td>
+                <td style="text-align:right">@(m.FreeOver?.ToString("N2") ?? "-")</td>
+                <td>@(m.Active ? "Yes" : "No")</td>
+                <td class="actions">
+                    <button class="secondary" @onclick="() => Edit(m)">Edit</button>
+                    @if (_confirmDelete == m.Id)
+                    {
+                        <button class="danger" @onclick="() => DeleteAsync(m.Id)">Confirm delete</button>
+                        <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
+                    }
+                    else
+                    {
+                        <button class="secondary" @onclick="() => _confirmDelete = m.Id">Delete</button>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IReadOnlyList<ShippingMethodDto>? _methods;
+    private ShippingMethodInput _input = new();
+    private Guid? _editing;
+    private Guid? _confirmDelete;
+    private string? _error;
+    private bool _busy;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try { _methods = await Scope.RunAsync<IShippingService, IReadOnlyList<ShippingMethodDto>>(s => s.ListAsync(false)); }
+        catch (Exception ex) { _error = "Could not load shipping methods: " + ex.Message; }
+    }
+
+    private void Edit(ShippingMethodDto m)
+    {
+        _editing = m.Id;
+        _input = new ShippingMethodInput { Name = m.Name, Price = m.Price, FreeOver = m.FreeOver, Active = m.Active, Position = m.Position };
+    }
+
+    private void Reset() { _editing = null; _input = new(); }
+
+    private async Task SaveAsync()
+    {
+        _busy = true; _error = null;
+        try
+        {
+            if (_editing is { } id) await Scope.RunAsync<IShippingService, ShippingMethodDto?>(s => s.UpdateAsync(id, _input));
+            else await Scope.RunAsync<IShippingService, ShippingMethodDto>(s => s.CreateAsync(_input));
+            Reset();
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _error = "Could not save: " + ex.Message; }
+        finally { _busy = false; }
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        _confirmDelete = null; _error = null;
+        try { await Scope.RunAsync<IShippingService, bool>(s => s.DeleteAsync(id)); }
+        catch (Exception ex) { _error = "Could not delete: " + ex.Message; }
+        await LoadAsync();
+    }
+}

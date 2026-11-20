@@ -46,6 +46,11 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.Property(o => o.Notes).HasMaxLength(2000);
             e.Property(o => o.Subtotal).HasPrecision(18, 4);
             e.Property(o => o.Total).HasPrecision(18, 4);
+            e.Property(o => o.ShippingMethodName).HasMaxLength(100);
+            e.Property(o => o.ShippingTotal).HasPrecision(18, 4);
+            e.Property(o => o.TaxName).HasMaxLength(50);
+            e.Property(o => o.TaxRate).HasPrecision(9, 4);
+            e.Property(o => o.TaxTotal).HasPrecision(18, 4);
             e.OwnsOne(o => o.ShippingAddress, a => ConfigureAddress(a, "Shipping"));
             e.OwnsOne(o => o.BillingAddress, a => ConfigureAddress(a, "Billing"));
             e.HasMany(o => o.Lines).WithOne().HasForeignKey(l => l.OrderId).OnDelete(DeleteBehavior.Cascade);
@@ -61,6 +66,23 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.Property(l => l.LineTotal).HasPrecision(18, 4);
             // Restrict: a product that has been sold can never be deleted out from under its orders.
             e.HasOne<Product>().WithMany().HasForeignKey(l => l.ProductId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<ShippingMethod>(e =>
+        {
+            e.ToTable("ShippingMethod", Schema);
+            e.Property(m => m.Name).HasMaxLength(100);
+            e.Property(m => m.Price).HasPrecision(18, 4);
+            e.Property(m => m.FreeOver).HasPrecision(18, 4);
+        });
+
+        b.Entity<TaxRule>(e =>
+        {
+            e.ToTable("TaxRule", Schema);
+            e.HasIndex(r => r.CountryCode).IsUnique();
+            e.Property(r => r.CountryCode).HasMaxLength(2);
+            e.Property(r => r.Name).HasMaxLength(50);
+            e.Property(r => r.Rate).HasPrecision(9, 4);
         });
 
         b.Entity<OrderCounter>(e =>

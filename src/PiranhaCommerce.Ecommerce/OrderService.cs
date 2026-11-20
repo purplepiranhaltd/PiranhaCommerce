@@ -109,6 +109,14 @@ internal sealed class OrderService(PiranhaDbContext db, IStockService stock, ICu
                     if (unavailable is not null)
                         throw new PiranhaConflictException($"\"{unavailable.Name}\" is no longer available. Remove it from the basket to continue.");
 
+                    // 2b. Shipping and tax, from the current rules, by the same calculator the quote uses.
+                    var subtotal = lines.Sum(l => l.Price * l.Quantity);
+                    var method = await ChooseShippingAsync(input.ShippingMethodId, token);
+                    var shipping = OrderPricing.ShippingFor(method, subtotal);
+                    var country = input.ShippingAddress!.CountryCode.Trim().ToUpperInvariant();
+                    var rule = OrderPricing.RuleFor(await db.Set<TaxRule>().AsNoTracking().ToListAsync(token), country);
+                    var (tax, total) = OrderPricing.Totals(subtotal, shipping, rule);
+
                     // 3. Next order number. The UPDATE takes the counter row's lock, which is held to commit, so numbers are never shared.
                     await db.Set<OrderCounter>().Where(c => c.Id == 1)
                         .ExecuteUpdateAsync(s => s.SetProperty(c => c.LastNumber, c => c.LastNumber + 1), token);
@@ -131,8 +139,13 @@ internal sealed class OrderService(PiranhaDbContext db, IStockService stock, ICu
                             UnitPrice = l.Price, Quantity = l.Quantity, LineTotal = l.Price * l.Quantity,
                         }).ToList(),
                     };
-                    order.Subtotal = order.Lines.Sum(l => l.LineTotal);
-                    order.Total = order.Subtotal; // shipping and tax arrive with their own features
+                    order.Subtotal = subtotal;
+                    order.ShippingMethodName = method?.Name;
+                    order.ShippingTotal = shipping;
+                    order.TaxName = rule?.Name;
+                    order.TaxRate = rule?.Rate ?? 0m;
+                    order.TaxTotal = tax;
+                    order.Total = total;
                     db.Add(order);
 
                     // 4. Take the stock, in the same transaction. Short stock throws and rolls everything back, claim included.
@@ -211,6 +224,16 @@ internal sealed class OrderService(PiranhaDbContext db, IStockService stock, ICu
         return await GetAsync(id, ct);
     }
 
+    /// <summary>The chosen active method; required when the store has any active method, ignored (free) when it has none.</summary>
+    private async Task<ShippingMethod?> ChooseShippingAsync(Guid? id, CancellationToken ct)
+    {
+        var active = await db.Set<ShippingMethod>().AsNoTracking().Where(m => m.Active).ToListAsync(ct);
+        if (active.Count == 0) return null;
+        if (id is null) throw new PiranhaValidationException(nameof(CheckoutInput.ShippingMethodId), "Choose a shipping method.");
+        return active.FirstOrDefault(m => m.Id == id)
+               ?? throw new PiranhaValidationException(nameof(CheckoutInput.ShippingMethodId), "That shipping method is not available.");
+    }
+
     private static void ValidateAddress(AddressInput address, string field)
     {
         try { ModelValidator.ValidateOrThrow(address); }
@@ -229,7 +252,8 @@ internal sealed class OrderService(PiranhaDbContext db, IStockService stock, ICu
     private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
     private static OrderDto? ToDto(Order? o) => o is null ? null : new OrderDto(
-        o.Id, o.Number, OrderNumbers.Format(o.Number), o.Stage, o.CustomerId, o.Email, o.Currency, o.Subtotal, o.Total, o.Notes,
+        o.Id, o.Number, OrderNumbers.Format(o.Number), o.Stage, o.CustomerId, o.Email, o.Currency, o.Subtotal,
+        o.ShippingMethodName, o.ShippingTotal, o.TaxName, o.TaxRate, o.TaxTotal, o.Total, o.Notes,
         ToDto(o.ShippingAddress), ToDto(o.BillingAddress),
         o.Lines.OrderBy(l => l.Position).Select(l => new OrderLineDto(l.ProductId, l.Name, l.Sku, l.UnitPrice, l.Quantity, l.LineTotal)).ToList(),
         OrderStages.Next(o.Stage), o.CreatedUtc, o.UpdatedUtc);
