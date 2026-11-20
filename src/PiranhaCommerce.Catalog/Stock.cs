@@ -102,3 +102,6 @@ public sealed record StockAdjustmentResult(StockMovementDto Movement, decimal Qu
 /// <summary>A product that currently has less than nothing at a location: a recount is needed.</summary>
 public sealed record NegativeStockDto(
     Guid ProductId, string ProductName, string? Sku, Guid LocationId, string LocationCode, string LocationName, decimal Quantity);
+
+/// <summary>One line of a batch stock change made inside a caller's transaction (see <see cref="IStockService.ApplyInTransactionAsync"/>).</summary>
+public sealed record StockChange(Guid ProductId, decimal Delta, string Reason, string? Reference, string? Label = null);

@@ -5,17 +5,30 @@ using PiranhaCommerce.Core.Plugins;
 
 namespace PiranhaCommerce.Ecommerce.Admin;
 
-/// <summary>Adds the "Online store" panel to the shared product edit page through an admin slot.</summary>
+/// <summary>Adds the "Online store" panel to the shared product edit page through an admin slot, and the order pages.</summary>
 public sealed class EcommerceAdminPlugin : IPiranhaPlugin
 {
     public PluginInfo Info { get; } = new(
-        "PiranhaCommerce.Ecommerce.Admin", "Ecommerce Admin", "0.1.0", "Online-store settings in the admin.");
+        "PiranhaCommerce.Ecommerce.Admin", "Ecommerce Admin", "0.1.0", "Online-store settings and orders in the admin.");
 
     // The panel lives on a Catalog.Admin page, so that page's plugin is a real requirement.
     public IReadOnlyList<IPiranhaPlugin> Requires { get; } = [new EcommercePlugin(), new CatalogAdminPlugin()];
 
     public void ConfigureServices(IServiceCollection services)
-        => services.AddSingleton<IAdminSlotContributor, EcommerceSlotItems>();
+    {
+        services.AddSingleton(new AdminPageAssembly(typeof(EcommerceAdminPlugin).Assembly));
+        services.AddSingleton<IAdminMenuContributor, EcommerceAdminMenu>();
+        services.AddSingleton<IAdminSlotContributor, EcommerceSlotItems>();
+    }
+}
+
+internal sealed class EcommerceAdminMenu : IAdminMenuContributor
+{
+    public IEnumerable<AdminMenuItem> GetMenuItems() =>
+    [
+        new("orders", "Orders", Order: 15),
+        new("orders.list", "All orders", "/admin/orders", Order: 16, ParentKey: "orders"),
+    ];
 }
 
 internal sealed class EcommerceSlotItems : IAdminSlotContributor

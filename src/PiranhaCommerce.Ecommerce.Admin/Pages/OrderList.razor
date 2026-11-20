@@ -1,0 +1,88 @@
+@page "/admin/orders"
+@inject AdminScopeRunner Scope
+
+<PageTitle>Orders - Piranha Commerce</PageTitle>
+<h1>Orders</h1>
+
+<div class="pc-toolbar">
+    <input type="search" placeholder="Search order number or email" @bind="_search" @bind:event="oninput"
+           @onkeydown="OnSearchKey" aria-label="Search orders" />
+    <select @bind="_stage" @bind:after="SearchAsync" aria-label="Filter by stage">
+        <option value="">All stages</option>
+        @foreach (var s in Enum.GetValues<OrderStage>())
+        {
+            <option value="@s">@s</option>
+        }
+    </select>
+    <button class="secondary" @onclick="SearchAsync">Search</button>
+</div>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+@if (_result is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_result.Items.Count == 0)
+{
+    <p class="pc-muted">No orders found.</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead>
+            <tr><th>Order</th><th>Placed</th><th>Customer email</th><th>Stage</th><th style="text-align:right">Total</th></tr>
+        </thead>
+        <tbody>
+        @foreach (var o in _result.Items)
+        {
+            <tr>
+                <td><a href="/admin/orders/@o.Id">@o.Reference</a></td>
+                <td>@o.CreatedUtc.ToString("dd MMM yyyy HH:mm") UTC</td>
+                <td>@o.Email</td>
+                <td>@o.Stage</td>
+                <td style="text-align:right">@o.Total.ToString("N2") @o.Currency</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+
+    <div class="pc-pager">
+        <button class="secondary" disabled="@(_result.Page <= 1)" @onclick="() => GoToAsync(_result.Page - 1)">Previous</button>
+        <span>Page @_result.Page of @Math.Max(_result.TotalPages, 1) (@_result.TotalCount orders)</span>
+        <button class="secondary" disabled="@(_result.Page >= _result.TotalPages)" @onclick="() => GoToAsync(_result.Page + 1)">Next</button>
+    </div>
+}
+
+@code {
+    private PagedResult<OrderSummaryDto>? _result;
+    private string? _search;
+    private string _stage = "";
+    private string? _error;
+    private int _page = 1;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _error = null;
+            OrderStage? stage = Enum.TryParse<OrderStage>(_stage, out var s) ? s : null;
+            _result = await Scope.RunAsync<IOrderService, PagedResult<OrderSummaryDto>>(o => o.ListAsync(_page, null, stage, _search));
+        }
+        catch (Exception ex)
+        {
+            _error = "Could not load orders: " + ex.Message;
+        }
+    }
+
+    private Task SearchAsync() { _page = 1; return LoadAsync(); }
+
+    private Task OnSearchKey(KeyboardEventArgs e) => e.Key == "Enter" ? SearchAsync() : Task.CompletedTask;
+
+    private Task GoToAsync(int page) { _page = page; return LoadAsync(); }
+}

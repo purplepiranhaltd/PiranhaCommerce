@@ -220,6 +220,51 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
         Assert.Contains("Save the customer to manage their addresses.", fresh);
     }
 
+    [Fact]
+    public async Task Order_pages_render_with_a_copy_of_the_sale_and_the_allowed_stage_buttons()
+    {
+        var api = await factory.CreateAuthenticatedApiClientAsync();
+        var product = (await (await api.PostAsJsonAsync("/api/v1/products",
+            new PiranhaCommerce.Catalog.ProductInput { Name = "Admin order " + Guid.NewGuid().ToString("N")[..8], Price = 12.5m })).Content
+            .ReadFromJsonAsync<PiranhaCommerce.Catalog.ProductDto>())!;
+        await api.PutAsJsonAsync($"/api/v1/products/{product.Id}/listing", new PiranhaCommerce.Ecommerce.ProductListingInput { Published = true });
+        await api.PostAsJsonAsync($"/api/v1/products/{product.Id}/stock/adjustments", new PiranhaCommerce.Catalog.StockAdjustmentInput { Delta = 5, Reason = "Delivery" });
+        var basket = (await (await api.PostAsJsonAsync("/api/v1/baskets", new PiranhaCommerce.Ecommerce.BasketCreateInput())).Content
+            .ReadFromJsonAsync<PiranhaCommerce.Ecommerce.BasketDto>(Json))!;
+        await api.PutAsJsonAsync($"/api/v1/baskets/{basket.Id}/lines/{product.Id}", new PiranhaCommerce.Ecommerce.BasketLineInput { Quantity = 2 });
+        var email = $"adminorder-{Guid.NewGuid():N}@example.com";
+        var placed = await api.PostAsJsonAsync($"/api/v1/baskets/{basket.Id}/checkout", new PiranhaCommerce.Ecommerce.CheckoutInput
+        {
+            Email = email,
+            ShippingAddress = new PiranhaCommerce.Customers.AddressInput { Recipient = "Ada", Line1 = "1 High St", City = "Leeds", CountryCode = "GB" },
+        });
+        var order = (await placed.Content.ReadFromJsonAsync<PiranhaCommerce.Ecommerce.OrderDto>(Json))!;
+
+        var browser = NewBrowser();
+        await SignInAsync(browser);
+
+        var list = await (await browser.GetAsync("/admin/orders")).Content.ReadAsStringAsync();
+        Assert.Contains("<h1>Orders</h1>", list);
+        Assert.Contains(order.Reference, list);
+
+        var detail = await browser.GetAsync($"/admin/orders/{order.Id}");
+        Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
+        var html = await detail.Content.ReadAsStringAsync();
+        Assert.Contains($"Order {order.Reference}", html);
+        Assert.Contains(product.Name, html);
+        Assert.Contains("25.00", html);                // 2 x 12.50
+        Assert.Contains("1 High St", html);
+        Assert.Contains("Mark as processing", html);
+        Assert.Contains("Cancel order", html);
+        Assert.DoesNotContain("Mark as completed", html); // cannot skip a stage
+
+        var missing = await (await browser.GetAsync($"/admin/orders/{Guid.NewGuid()}")).Content.ReadAsStringAsync();
+        Assert.Contains("That order no longer exists.", missing);
+    }
+
+    private static readonly System.Text.Json.JsonSerializerOptions Json =
+        new(System.Text.Json.JsonSerializerDefaults.Web) { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
+
     /// <summary>
     /// ASP.NET Identity refuses a CORRECT password when resetting the failed-attempt counter loses a concurrency race against another
     /// simultaneous sign-in (an anti-guessing measure). A real user must not be told their password is wrong because of that.

@@ -33,6 +33,9 @@ public static class PiranhaApiExtensions
         services.AddOptions<PiranhaJwtOptions>().BindConfiguration(PiranhaJwtOptions.SectionName);
         services.AddScoped<JwtTokenService>();
 
+        // Enums travel as their names ("Placed"), not numbers, so clients and stored documents stay readable and stable.
+        services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
+
         // Registered without a default scheme: the admin area owns the cookie default. The key is read
         // lazily (on first token validation) so design-time tooling can run without secrets.
         services.AddAuthentication().AddJwtBearer(JwtScheme, _ => { });

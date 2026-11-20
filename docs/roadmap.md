@@ -42,3 +42,27 @@ history.
 - Customer groups (named in the vocabulary; for segmentation and pricing).
 - Customer storefront login (a customer is separate from an admin user).
 - Alerts and recount tasks for negative stock (the report and per-movement balances exist).
+
+## Security hardening
+
+- Rate limiting on `POST /api/v1/auth/token` and the admin sign-in POST. Lockout (5 failures) caps guessing per account, but a burst of
+  guesses already in flight when the lock lands is still evaluated, and lockout does nothing against one guess each at many accounts.
+
+## Baskets and orders: decisions and what is left
+
+Decided: baskets and orders sit behind the existing API authorisation (read policy to read, write policy to change). There is no
+storefront identity yet, so a storefront backend calls with its own token and keeps the unguessable basket id for the shopper. When
+customer storefront login arrives, baskets can be owned by a customer and anonymous baskets merged on sign-in.
+
+Built: basket (lines, live prices, published products only); checkout in one transaction (order, numbered copy of names/prices/addresses,
+stock taken from the shelf); order stages Placed, Processing, Completed, Cancelled (cancelling returns stock once); admin order pages.
+
+Not built yet:
+
+- Payments (their own records that move the stage), shipping methods and cost, tax, discounts/promo codes, gift vouchers.
+- Fulfilment: parcels and tracking, partial shipment, refunds and returns (restock decisions), partially cancelled orders.
+- Clean-up of old open baskets; reserving stock while a shopper is in checkout (today stock is taken only when the order is placed).
+- Per-order stock location (every online order currently draws from `Piranha:Ecommerce:StockLocationId`, or the default location).
+- One currency per store (`Piranha:Ecommerce:Currency`, default GBP).
+- Quantities are whole numbers in baskets; stock itself supports fractions for channels that need them.
+- Order emails and notifications; guest checkout versus customer account rules; order history for the shopper.

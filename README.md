@@ -16,8 +16,8 @@ A commerce engine for .NET, delivered as NuGet packages. Closed source for now; 
 | `PiranhaCommerce.Catalog.Admin` | Product list/edit pages. |
 | `PiranhaCommerce.Customers` | Customers and their address books, shared by every sales channel, with API. Customers are not admin users. |
 | `PiranhaCommerce.Customers.Admin` | Customer list/edit pages and an address book panel (contributed through the `customer.edit.panels` slot). |
-| `PiranhaCommerce.Ecommerce` | Online-store data layered on the catalogue (e.g. `ecom.ProductListing`: published online). A future `PiranhaCommerce.Epos` is a sibling with its own tables. |
-| `PiranhaCommerce.Ecommerce.Admin` | Adds an "Online store" panel to the product edit page through the `ProductEditPanels` admin slot. |
+| `PiranhaCommerce.Ecommerce` | Online store layered on the catalogue: listings (`ecom.ProductListing`), baskets, checkout and orders. Needs Catalog and Customers. A future `PiranhaCommerce.Epos` is a sibling with its own tables. |
+| `PiranhaCommerce.Ecommerce.Admin` | Order list and detail pages, plus an "Online store" panel on the product edit page through the `ProductEditPanels` admin slot. |
 
 ## Plugin model
 
@@ -190,3 +190,20 @@ history. API: `/api/v1/customers` and `/api/v1/customers/{id}/addresses` (reads 
 A customer is deliberately not an admin user. Signing in to a storefront will be a separate, optional link added later.
 
 Open design notes (stock transfers, signing in at a location, erasing customer data) are in `docs/roadmap.md`.
+
+## Baskets and orders
+
+`PiranhaCommerce.Ecommerce` turns the shared catalogue into an online shop. API (under `/api/v1`):
+
+- `POST /baskets`, `GET /baskets/{id}`, `PUT|DELETE /baskets/{id}/lines/{productId}` - only products published through the product's
+  online listing can be added; prices are always read live from the catalogue.
+- `POST /baskets/{id}/checkout` - email, shipping address (billing defaults to it), optional customer link and note. The order, a copy
+  of every name, price and address, and the stock taken from the shelf are committed in **one transaction**: short stock or an
+  unpublished product refuses the whole checkout (409) and nothing changes. Checking out the same basket again returns the same order.
+- `GET /orders` (stage and search filters), `GET /orders/{id}`, `GET /orders/by-number/{number}`,
+  `POST /orders/{id}/stage` - Placed to Processing or Cancelled, Processing to Completed or Cancelled. Cancelling puts stock back once.
+
+Order numbers are sequential (first `ORD-1001`). Orders never change when a product is edited, and survive deleting a customer; a
+product that has been sold cannot be deleted. Settings: `Piranha:Ecommerce:Currency` (default `GBP`) and
+`Piranha:Ecommerce:StockLocationId` (default: the built-in location). Enums travel as names in the API (`"Placed"`).
+What is not built yet (payments, shipping, tax, promotions) is listed in `docs/roadmap.md`.

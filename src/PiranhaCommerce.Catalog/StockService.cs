@@ -20,6 +20,20 @@ public interface IStockService
     /// </summary>
     Task<StockAdjustmentResult?> AdjustAsync(Guid productId, StockAdjustmentInput input, string? actor = null, CancellationToken ct = default);
 
+    /// <summary>
+    /// For callers that make stock part of a larger all-or-nothing operation (an order). Creates any missing level rows so
+    /// <see cref="ApplyInTransactionAsync"/> can run inside the caller's transaction. Call it BEFORE opening that transaction.
+    /// </summary>
+    Task EnsureLevelsAsync(IEnumerable<Guid> productIds, Guid locationId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Applies the changes at one location as part of a transaction the CALLER has opened on this same scope (it must run inside the
+    /// caller's execution-strategy delegate). Records one movement per change; the caller's <c>SaveChangesAsync</c> saves them and the
+    /// caller's commit makes them permanent. Throws <see cref="PiranhaConflictException"/> when a change would take stock below
+    /// zero (<paramref name="allowNegative"/> false), which should roll the caller's transaction back.
+    /// </summary>
+    Task ApplyInTransactionAsync(IReadOnlyList<StockChange> changes, Guid locationId, bool allowNegative, string? actor, CancellationToken ct = default);
+
     /// <summary>Every product/location currently below zero, most negative first. This is the "recount needed" report.</summary>
     Task<IReadOnlyList<NegativeStockDto>> ListNegativeAsync(CancellationToken ct = default);
 }
@@ -126,6 +140,46 @@ internal sealed class StockService(PiranhaDbContext db) : IStockService
             .OrderBy(n => n.Quantity).ThenBy(n => n.Name).ThenBy(n => n.Id)
             .Select(n => new NegativeStockDto(n.Id, n.Name, n.Sku, n.LocationId, n.Code, n.LocationName, n.Quantity))
             .ToListAsync(ct);
+
+    public async Task EnsureLevelsAsync(IEnumerable<Guid> productIds, Guid locationId, CancellationToken ct = default)
+    {
+        foreach (var id in productIds.Distinct())
+            await EnsureLevelRowAsync(id, locationId, ct);
+    }
+
+    public async Task ApplyInTransactionAsync(
+        IReadOnlyList<StockChange> changes, Guid locationId, bool allowNegative, string? actor, CancellationToken ct = default)
+    {
+        if (db.Database.CurrentTransaction is null)
+            throw new InvalidOperationException("ApplyInTransactionAsync must run inside a transaction opened by the caller.");
+
+        // Fixed order (by product) so two checkouts that share products always lock rows in the same order and cannot deadlock.
+        foreach (var change in changes.OrderBy(c => c.ProductId))
+        {
+            var delta = change.Delta;
+            var changed = allowNegative
+                ? await db.Set<StockLevel>().Where(l => l.ProductId == change.ProductId && l.LocationId == locationId)
+                    .ExecuteUpdateAsync(s => s.SetProperty(l => l.Quantity, l => l.Quantity + delta), ct)
+                : await db.Set<StockLevel>().Where(l => l.ProductId == change.ProductId && l.LocationId == locationId && l.Quantity + delta >= 0)
+                    .ExecuteUpdateAsync(s => s.SetProperty(l => l.Quantity, l => l.Quantity + delta), ct);
+            if (changed == 0)
+                throw new PiranhaConflictException($"Not enough stock for {change.Label ?? "a product"}.");
+
+            var balance = await db.Set<StockLevel>().AsNoTracking()
+                .Where(l => l.ProductId == change.ProductId && l.LocationId == locationId).Select(l => l.Quantity).FirstAsync(ct);
+            db.Add(new StockMovement
+            {
+                ProductId = change.ProductId,
+                LocationId = locationId,
+                Delta = delta,
+                Balance = balance,
+                Reason = change.Reason,
+                Reference = change.Reference,
+                Actor = actor,
+                CreatedUtc = DateTimeOffset.UtcNow,
+            });
+        }
+    }
 
     private async Task EnsureLevelRowAsync(Guid productId, Guid locationId, CancellationToken ct)
     {

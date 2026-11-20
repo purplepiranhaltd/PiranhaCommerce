@@ -177,6 +177,15 @@ try {
         $a = Invoke-RestMethod "$base/api/v1/customers/$($c.id)/addresses" -Method Post -Headers $h -ContentType 'application/json' -Body '{"line1":"1 High St","city":"Leeds","countryCode":"gb"}'
         $a.countryCode -eq 'GB'
     }
+    Check 'basket, checkout and stock work together (ecommerce orders, shared stock ledger, order tables from host migration)' {
+        Invoke-RestMethod "$base/api/v1/products/$script:productId/stock/adjustments" -Method Post -Headers $h -ContentType 'application/json' -Body '{"delta":5,"reason":"Delivery"}' | Out-Null
+        $b = Invoke-RestMethod "$base/api/v1/baskets" -Method Post -Headers $h -ContentType 'application/json' -Body '{}'
+        Invoke-RestMethod "$base/api/v1/baskets/$($b.id)/lines/$script:productId" -Method Put -Headers $h -ContentType 'application/json' -Body '{"quantity":2}' | Out-Null
+        $o = Invoke-RestMethod "$base/api/v1/baskets/$($b.id)/checkout" -Method Post -Headers $h -ContentType 'application/json' `
+            -Body '{"email":"buyer@example.com","shippingAddress":{"line1":"1 High St","city":"Leeds","countryCode":"gb"}}'
+        $stock = Invoke-RestMethod "$base/api/v1/products/$script:productId/stock" -Headers $h
+        ($o.stage -eq 'Placed') -and ($o.total -eq 5) -and ($o.number -ge 1001) -and ($stock.quantity -eq 3)
+    }
     Check 'third-party plugin compiled against the packages works (own schema, host migration)' {
         (Invoke-RestMethod "$base/api/v1/products/$script:productId/warranty" -Method Put -Headers $h -ContentType 'application/json' -Body '{"months":24,"terms":"x"}').months -eq 24
     }

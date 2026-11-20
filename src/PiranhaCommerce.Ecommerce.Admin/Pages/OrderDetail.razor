@@ -1,0 +1,148 @@
+@page "/admin/orders/{Id:guid}"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AdminScopeRunner Scope
+@inject AuthenticationStateProvider Auth
+
+<PageTitle>@(_order?.Reference ?? "Order") - Piranha Commerce</PageTitle>
+
+@if (_notFound)
+{
+    <h1>Order</h1>
+    <p class="pc-error">That order no longer exists. <a href="/admin/orders">Back to orders</a></p>
+}
+else if (_order is null)
+{
+    <h1>Order</h1>
+    <p class="pc-muted">Loading...</p>
+}
+else
+{
+    <h1>Order @_order.Reference</h1>
+
+    @if (_error is not null)
+    {
+        <p class="pc-error" role="alert">@_error</p>
+    }
+
+    <div class="pc-card">
+        <p>
+            <strong>@_order.Stage</strong> &middot; placed @_order.CreatedUtc.ToString("dd MMM yyyy HH:mm") UTC
+            &middot; <a href="mailto:@_order.Email">@_order.Email</a>
+            @if (_order.CustomerId is { } customerId)
+            {
+                <text> &middot; <a href="/admin/customers/@customerId">customer record</a></text>
+            }
+        </p>
+        @if (!string.IsNullOrWhiteSpace(_order.Notes))
+        {
+            <p><em>Note from the buyer:</em> @_order.Notes</p>
+        }
+
+        @if (_order.NextStages.Count > 0)
+        {
+            <div class="pc-toolbar">
+                @foreach (var next in _order.NextStages)
+                {
+                    @if (next == OrderStage.Cancelled)
+                    {
+                        @if (_confirmCancel)
+                        {
+                            <button class="danger" disabled="@_busy" @onclick="() => MoveAsync(next)">Confirm: cancel and return stock</button>
+                            <button class="secondary" @onclick="() => _confirmCancel = false">Keep order</button>
+                        }
+                        else
+                        {
+                            <button class="secondary" disabled="@_busy" @onclick="() => _confirmCancel = true">Cancel order</button>
+                        }
+                    }
+                    else
+                    {
+                        <button disabled="@_busy" @onclick="() => MoveAsync(next)">Mark as @next.ToString().ToLowerInvariant()</button>
+                    }
+                }
+            </div>
+        }
+        else
+        {
+            <p class="pc-muted">This order is @_order.Stage.ToString().ToLowerInvariant() and can no longer change.</p>
+        }
+    </div>
+
+    <div class="pc-card">
+        <h2 style="margin-top:0">Items</h2>
+        <table class="pc-table">
+            <thead>
+                <tr><th>Product</th><th>SKU</th><th style="text-align:right">Price</th><th style="text-align:right">Qty</th><th style="text-align:right">Total</th></tr>
+            </thead>
+            <tbody>
+            @foreach (var l in _order.Lines)
+            {
+                <tr>
+                    <td><a href="/admin/products/@l.ProductId">@l.Name</a></td>
+                    <td>@l.Sku</td>
+                    <td style="text-align:right">@l.UnitPrice.ToString("N2")</td>
+                    <td style="text-align:right">@l.Quantity</td>
+                    <td style="text-align:right">@l.LineTotal.ToString("N2")</td>
+                </tr>
+            }
+            </tbody>
+            <tfoot>
+                <tr><th colspan="4" style="text-align:right">Total (@_order.Currency)</th><th style="text-align:right">@_order.Total.ToString("N2")</th></tr>
+            </tfoot>
+        </table>
+        <p class="pc-muted">Names and prices are copies taken when the order was placed.</p>
+    </div>
+
+    <div class="pc-card">
+        <h2 style="margin-top:0">Addresses</h2>
+        <div style="display:flex; gap:2rem; flex-wrap:wrap">
+            <AddressBlock Title="Ship to" Address="_order.ShippingAddress" />
+            <AddressBlock Title="Billing" Address="_order.BillingAddress" />
+        </div>
+    </div>
+
+    <p><a href="/admin/orders">Back to orders</a></p>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private OrderDto? _order;
+    private bool _notFound;
+    private bool _busy;
+    private bool _confirmCancel;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _order = await Scope.RunAsync<IOrderService, OrderDto?>(s => s.GetAsync(Id));
+        _notFound = _order is null;
+    }
+
+    private async Task MoveAsync(OrderStage to)
+    {
+        _busy = true;
+        _error = null;
+        _confirmCancel = false;
+        try
+        {
+            var state = await Auth.GetAuthenticationStateAsync();
+            var actor = state.User.FindFirst("email")?.Value ?? state.User.Identity?.Name;
+            var updated = await Scope.RunAsync<IOrderService, OrderDto?>(s => s.ChangeStageAsync(Id, to, actor));
+            if (updated is null) _notFound = true; else _order = updated;
+        }
+        catch (PiranhaConflictException ex)
+        {
+            _error = ex.Message;
+            _order = await Scope.RunAsync<IOrderService, OrderDto?>(s => s.GetAsync(Id)) ?? _order; // show what it is now
+        }
+        catch (Exception ex)
+        {
+            _error = "Could not update the order: " + ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

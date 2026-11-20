@@ -1,0 +1,23 @@
+<div>
+    <h3 style="margin:0 0 .25rem">@Title</h3>
+    @if (Address is null)
+    {
+        <span class="pc-muted">None</span>
+    }
+    else
+    {
+        <address style="font-style:normal">
+            @if (!string.IsNullOrWhiteSpace(Address.Recipient)) { @Address.Recipient <br /> }
+            @Address.Line1<br />
+            @if (!string.IsNullOrWhiteSpace(Address.Line2)) { @Address.Line2 <br /> }
+            @Address.City@(string.IsNullOrWhiteSpace(Address.Region) ? "" : ", " + Address.Region)<br />
+            @if (!string.IsNullOrWhiteSpace(Address.PostalCode)) { @Address.PostalCode <br /> }
+            @Address.CountryCode
+        </address>
+    }
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public OrderAddressDto? Address { get; set; }
+}
