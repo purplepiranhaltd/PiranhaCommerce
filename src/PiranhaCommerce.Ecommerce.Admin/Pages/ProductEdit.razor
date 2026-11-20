@@ -1,0 +1,95 @@
+@page "/admin/catalog/products/new"
+@page "/admin/catalog/products/{Id:guid}"
+@inject AdminScopeRunner Scope
+@inject NavigationManager Navigation
+
+<PageTitle>@(IsNew ? "New product" : "Edit product") - Piranha Commerce</PageTitle>
+<h1>@(IsNew ? "New product" : "Edit product")</h1>
+
+@if (_notFound)
+{
+    <p class="pc-error">That product no longer exists. <a href="/admin/catalog/products">Back to products</a></p>
+}
+else if (_input is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else
+{
+    <div class="pc-card">
+        <EditForm Model="_input" OnValidSubmit="SaveAsync" FormName="product-edit">
+            <DataAnnotationsValidator />
+            @foreach (var message in _serverErrors)
+            {
+                <p class="pc-error" role="alert">@message</p>
+            }
+            <label>Name
+                <InputText @bind-Value="_input.Name" />
+            </label>
+            <ValidationMessage For="() => _input.Name" />
+            <label>SKU
+                <InputText @bind-Value="_input.Sku" />
+            </label>
+            <ValidationMessage For="() => _input.Sku" />
+            <label>Description
+                <InputTextArea @bind-Value="_input.Description" rows="4" />
+            </label>
+            <label>Price
+                <InputNumber @bind-Value="_input.Price" step="0.01" />
+            </label>
+            <ValidationMessage For="() => _input.Price" />
+            <label><InputCheckbox @bind-Value="_input.Published" /> Published</label>
+
+            <button type="submit" disabled="@_saving">Save</button>
+            <a class="pc-button secondary" href="/admin/catalog/products">Cancel</a>
+        </EditForm>
+    </div>
+
+    <WidgetZone Zone="@AdminWidgetZones.ProductEditTabs" />
+}
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private ProductInput? _input;
+    private bool _notFound;
+    private bool _saving;
+    private List<string> _serverErrors = [];
+
+    private bool IsNew => Id is null;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _notFound = false;
+        if (IsNew) { _input = new ProductInput(); return; }
+
+        var p = await Scope.RunAsync<IProductService, ProductDto?>(s => s.GetAsync(Id!.Value));
+        if (p is null) { _notFound = true; return; }
+        _input = new ProductInput { Name = p.Name, Sku = p.Sku, Description = p.Description, Price = p.Price, Published = p.Published };
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _serverErrors = [];
+        try
+        {
+            if (IsNew)
+                await Scope.RunAsync<IProductService, ProductDto>(s => s.CreateAsync(_input!));
+            else if (await Scope.RunAsync<IProductService, ProductDto?>(s => s.UpdateAsync(Id!.Value, _input!)) is null)
+            {
+                _notFound = true;
+                return;
+            }
+            Navigation.NavigateTo("/admin/catalog/products");
+        }
+        catch (PiranhaValidationException ex)
+        {
+            _serverErrors = ex.Errors.SelectMany(e => e.Value.Select(m => string.IsNullOrEmpty(e.Key) ? m : $"{e.Key}: {m}")).ToList();
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

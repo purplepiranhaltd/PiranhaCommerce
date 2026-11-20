@@ -1,9 +1,19 @@
 @using PiranhaCommerce.Admin.Services
 <nav class="pc-admin-nav">
+    <div class="pc-nav-group">
+        <NavLink href="/admin" Match="NavLinkMatch.All">Dashboard</NavLink>
+    </div>
     @foreach (var top in Menu.Where(i => i.ParentKey is null))
     {
         <div class="pc-nav-group">
-            <span>@top.Title</span>
+            @if (top.Href is null)
+            {
+                <span>@top.Title</span>
+            }
+            else
+            {
+                <NavLink href="@top.Href">@top.Title</NavLink>
+            }
             @foreach (var child in Menu.Where(i => i.ParentKey == top.Key))
             {
                 <NavLink href="@child.Href">@child.Title</NavLink>

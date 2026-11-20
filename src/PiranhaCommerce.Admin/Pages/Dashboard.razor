@@ -1,0 +1,21 @@
+@page "/admin"
+@using PiranhaCommerce.Core.Plugins
+@inject IPluginCatalog Catalog
+
+<PageTitle>Dashboard - Piranha Commerce</PageTitle>
+<h1>Dashboard</h1>
+
+<WidgetZone Zone="@AdminWidgetZones.DashboardTop" />
+
+<h2>Installed plugins</h2>
+<table class="pc-table">
+    <thead><tr><th>Name</th><th>Version</th><th>Description</th></tr></thead>
+    <tbody>
+    @foreach (var p in Catalog.Plugins)
+    {
+        <tr><td>@p.DisplayName</td><td>@p.Version</td><td>@p.Description</td></tr>
+    }
+    </tbody>
+</table>
+
+<WidgetZone Zone="@AdminWidgetZones.DashboardBottom" />

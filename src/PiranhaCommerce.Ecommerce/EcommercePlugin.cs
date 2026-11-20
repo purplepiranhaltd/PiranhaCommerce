@@ -15,15 +15,6 @@ public sealed class EcommercePlugin : IPiranhaPlugin
     {
         services.AddSingleton<IModelContributor, EcommerceModelContributor>();
         services.AddSingleton<IApiEndpointContributor, EcommerceApiEndpoints>();
-        services.AddSingleton<IAdminMenuContributor, EcommerceAdminMenu>();
+        services.AddScoped<Catalog.IProductService, Catalog.ProductService>();
     }
-}
-
-internal sealed class EcommerceAdminMenu : IAdminMenuContributor
-{
-    public IEnumerable<AdminMenuItem> GetMenuItems() =>
-    [
-        new("catalog", "Catalog", Icon: "tag", Order: 10),
-        new("catalog.products", "Products", "/admin/catalog/products", Order: 11, ParentKey: "catalog"),
-    ];
 }

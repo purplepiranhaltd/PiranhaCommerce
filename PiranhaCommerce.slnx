@@ -9,6 +9,7 @@
     <Project Path="src/PiranhaCommerce.Data.PostgreSql/PiranhaCommerce.Data.PostgreSql.csproj" />
     <Project Path="src/PiranhaCommerce.Data.SqlServer/PiranhaCommerce.Data.SqlServer.csproj" />
     <Project Path="src/PiranhaCommerce.Data/PiranhaCommerce.Data.csproj" />
+    <Project Path="src/PiranhaCommerce.Ecommerce.Admin/PiranhaCommerce.Ecommerce.Admin.csproj" />
     <Project Path="src/PiranhaCommerce.Ecommerce/PiranhaCommerce.Ecommerce.csproj" />
   </Folder>
   <Folder Name="/tests/">

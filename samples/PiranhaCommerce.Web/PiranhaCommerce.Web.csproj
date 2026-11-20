@@ -6,6 +6,7 @@
     <ProjectReference Include="..\..\src\PiranhaCommerce.Api\PiranhaCommerce.Api.csproj" />
     <ProjectReference Include="..\..\src\PiranhaCommerce.Admin\PiranhaCommerce.Admin.csproj" />
     <ProjectReference Include="..\..\src\PiranhaCommerce.Ecommerce\PiranhaCommerce.Ecommerce.csproj" />
+    <ProjectReference Include="..\..\src\PiranhaCommerce.Ecommerce.Admin\PiranhaCommerce.Ecommerce.Admin.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.15">

@@ -1,0 +1,48 @@
+@using System.Reflection
+@using Microsoft.AspNetCore.Authorization
+@using PiranhaCommerce.Core.Identity
+@inject IEnumerable<AdminPageAssembly> PluginPages
+
+<Router AppAssembly="typeof(AdminApp).Assembly" AdditionalAssemblies="_pluginAssemblies">
+    <Found Context="routeData">
+        @if (IsAnonymous(routeData.PageType))
+        {
+            <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.AdminLayout)" />
+        }
+        else
+        {
+            @* Secure by default: plugin pages need no [Authorize]; opt out with [AllowAnonymous]. *@
+            <AuthorizeView Roles="@PiranhaRoles.Administrator">
+                <Authorized>
+                    <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.AdminLayout)" />
+                </Authorized>
+                <NotAuthorized Context="auth">
+                    @if (auth.User.Identity?.IsAuthenticated == true)
+                    {
+                        <p class="pc-error">Your account does not have permission to use the admin area.</p>
+                        <form method="post" action="/admin/logout"><button type="submit">Sign out</button></form>
+                    }
+                    else
+                    {
+                        <RedirectToLogin />
+                    }
+                </NotAuthorized>
+            </AuthorizeView>
+        }
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="typeof(Layout.AdminLayout)">
+            <h1>Not found</h1>
+            <p>There is nothing at this address.</p>
+        </LayoutView>
+    </NotFound>
+</Router>
+
+@code {
+    private Assembly[] _pluginAssemblies = [];
+
+    protected override void OnInitialized() => _pluginAssemblies = PluginPages.Select(p => p.Assembly).ToArray();
+
+    private static bool IsAnonymous(Type pageType) => pageType.GetCustomAttributes<AllowAnonymousAttribute>(true).Any();
+}

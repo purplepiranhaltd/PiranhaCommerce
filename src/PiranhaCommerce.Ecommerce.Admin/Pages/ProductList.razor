@@ -1,0 +1,101 @@
+@page "/admin/catalog/products"
+@using PiranhaCommerce.Core.Paging
+@inject AdminScopeRunner Scope
+
+<PageTitle>Products - Piranha Commerce</PageTitle>
+<h1>Products</h1>
+
+<div class="pc-toolbar">
+    <input type="search" placeholder="Search name or SKU" @bind="_search" @bind:event="oninput"
+           @onkeydown="OnSearchKey" aria-label="Search products" />
+    <button class="secondary" @onclick="SearchAsync">Search</button>
+    <span class="pc-spacer"></span>
+    <a class="pc-button" href="/admin/catalog/products/new">New product</a>
+</div>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+@if (_result is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_result.Items.Count == 0)
+{
+    <p class="pc-muted">No products found.</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead>
+            <tr><th>Name</th><th>SKU</th><th class="num">Price</th><th>Published</th><th></th></tr>
+        </thead>
+        <tbody>
+        @foreach (var p in _result.Items)
+        {
+            <tr>
+                <td><a href="/admin/catalog/products/@p.Id">@p.Name</a></td>
+                <td>@p.Sku</td>
+                <td class="num">@p.Price.ToString("N2")</td>
+                <td>@(p.Published ? "Yes" : "No")</td>
+                <td class="actions">
+                    @if (_confirmDelete == p.Id)
+                    {
+                        <button class="danger" @onclick="() => DeleteAsync(p.Id)">Confirm delete</button>
+                        <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
+                    }
+                    else
+                    {
+                        <button class="secondary" @onclick="() => _confirmDelete = p.Id">Delete</button>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+
+    <div class="pc-pager">
+        <button class="secondary" disabled="@(_result.Page <= 1)" @onclick="() => GoToAsync(_result.Page - 1)">Previous</button>
+        <span>Page @_result.Page of @Math.Max(_result.TotalPages, 1) (@_result.TotalCount products)</span>
+        <button class="secondary" disabled="@(_result.Page >= _result.TotalPages)" @onclick="() => GoToAsync(_result.Page + 1)">Next</button>
+    </div>
+}
+
+@code {
+    private PagedResult<ProductDto>? _result;
+    private string? _search;
+    private string? _error;
+    private Guid? _confirmDelete;
+    private int _page = 1;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _error = null;
+            _result = await Scope.RunAsync<IProductService, PagedResult<ProductDto>>(s => s.ListAsync(_page, null, _search));
+        }
+        catch (Exception ex)
+        {
+            _error = "Could not load products: " + ex.Message;
+        }
+    }
+
+    private Task SearchAsync() { _page = 1; return LoadAsync(); }
+
+    private Task OnSearchKey(KeyboardEventArgs e) => e.Key == "Enter" ? SearchAsync() : Task.CompletedTask;
+
+    private Task GoToAsync(int page) { _page = page; return LoadAsync(); }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        _confirmDelete = null;
+        await Scope.RunAsync<IProductService, bool>(s => s.DeleteAsync(id));
+        if (_result is { Items.Count: 1 } && _page > 1) _page--;
+        await LoadAsync();
+    }
+}

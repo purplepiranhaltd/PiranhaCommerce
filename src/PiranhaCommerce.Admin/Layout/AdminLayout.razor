@@ -1,0 +1,17 @@
+@inherits LayoutComponentBase
+
+<div class="pc-shell">
+    <aside class="pc-sidebar">
+        <a class="pc-brand" href="/admin">Piranha Commerce</a>
+        <AdminNavMenu />
+        <div class="pc-user">
+            <AuthorizeView>
+                <Authorized>
+                    <span>@context.User.Identity?.Name</span>
+                    <form method="post" action="/admin/logout"><button type="submit" class="pc-link">Sign out</button></form>
+                </Authorized>
+            </AuthorizeView>
+        </div>
+    </aside>
+    <main class="pc-main">@Body</main>
+</div>

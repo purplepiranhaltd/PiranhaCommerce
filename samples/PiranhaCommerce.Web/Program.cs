@@ -1,8 +1,11 @@
 using PiranhaCommerce.Admin;
 using PiranhaCommerce.Api;
 using PiranhaCommerce.Core.DependencyInjection;
+using PiranhaCommerce.Data;
 using PiranhaCommerce.Data.SqlServer;
 using PiranhaCommerce.Ecommerce;
+using PiranhaCommerce.Ecommerce.Admin;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,9 +15,33 @@ builder.Services.AddPiranhaCore()
         typeof(Program).Assembly)   // the host owns migrations (it knows which plugins are installed)
     .AddPiranhaApi()
     .AddPiranhaAdmin()
-    .AddPlugin<EcommercePlugin>();   // plugins are compiled in via NuGet, never uploaded
+    .AddPlugin<EcommercePlugin>()   // plugins are compiled in via NuGet, never uploaded
+    .AddPlugin<EcommerceAdminPlugin>();
 
 var app = builder.Build();
+
+if (app.Environment.IsDevelopment() && !EF.IsDesignTime) // EF tooling executes Program.cs too
+{
+    // Development convenience only: production deployments apply migrations as a deployment step.
+    using (var scope = app.Services.CreateScope())
+        await scope.ServiceProvider.GetRequiredService<PiranhaDbContext>().Database.MigrateAsync();
+
+    var seed = app.Configuration.GetSection("Piranha:SeedAdmin");
+    if (seed["Email"] is { Length: > 0 } email && seed["Password"] is { Length: > 0 } password)
+        await app.Services.EnsureAdministratorAsync(email, password);
+}
+
+app.UseStaticFiles();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseAntiforgery();
+
+app.MapStaticAssets();
 app.MapPiranhaApi();
+app.MapPiranhaAdmin();
+app.MapGet("/", () => Results.Redirect("/admin"));
+
 app.Run();
 
+// Exposed for WebApplicationFactory<Program> in integration tests.
+public partial class Program;
