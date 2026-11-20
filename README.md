@@ -35,3 +35,18 @@ There is no runtime upload or assembly scanning: only code built by the dev team
 dotnet build
 dotnet test
 ```
+
+## Migrations (host-owned)
+
+All packages and plugins contribute to one shared `PiranhaDbContext`, so the **host application owns the migrations**:
+it is the only place that knows which plugins are installed. Pass the host assembly when configuring the provider
+(`typeof(Program).Assembly`). Workflow after installing or upgrading a plugin package:
+
+```
+dotnet tool restore            # or install dotnet-ef 10.x
+dotnet ef migrations add <Name> --project <host project> --output-dir Migrations
+```
+
+Each database provider needs its own migration set, so a host targeting both SQL Server/Azure SQL and PostgreSQL
+keeps one migrations project per provider (the sample host only targets SQL Server). Plugin authors cannot ship
+schema changes themselves; they document required model changes in release notes.
