@@ -14,5 +14,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/PiranhaCommerce.Core.Tests/PiranhaCommerce.Core.Tests.csproj" />
+    <Project Path="tests/PiranhaCommerce.IntegrationTests/PiranhaCommerce.IntegrationTests.csproj" />
   </Folder>
 </Solution>

@@ -50,3 +50,29 @@ dotnet ef migrations add <Name> --project <host project> --output-dir Migrations
 Each database provider needs its own migration set, so a host targeting both SQL Server/Azure SQL and PostgreSQL
 keeps one migrations project per provider (the sample host only targets SQL Server). Plugin authors cannot ship
 schema changes themselves; they document required model changes in release notes.
+
+## Running the sample
+
+Requires .NET 10 SDK and SQL Server LocalDB.
+
+```
+dotnet run --project samples/PiranhaCommerce.Web      # http://localhost:5280/admin
+```
+
+In `Development` the host applies migrations on startup and seeds an administrator from `appsettings.Development.json`
+(`admin@piranha.local` / `Dev-Passw0rd!`; **development only**). In any other environment set
+`Piranha:Jwt:SigningKey` (32+ chars, from a secret store) and create users yourself; the API fails closed without a key.
+
+- **API:** `POST /api/v1/auth/token` with `{ "email", "password" }`, then `Authorization: Bearer <token>`.
+  All `/api/v1` endpoints need a token; writes need the `Administrator` role. OpenAPI document at `/openapi/v1.json`.
+  API keys for system-to-system integrations are not implemented yet.
+- **Admin:** cookie auth, Blazor Interactive Server. Pages from plugins appear once the plugin registers an
+  `AdminPageAssembly` (see `EcommerceAdminPlugin`). Pages require the Administrator role unless marked `[AllowAnonymous]`.
+
+## Tests
+
+```
+dotnet test
+```
+
+Integration tests run the real host against a throwaway LocalDB database per test class (created, migrated, dropped).

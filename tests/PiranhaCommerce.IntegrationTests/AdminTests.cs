@@ -1,0 +1,120 @@
+using System.Net;
+using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
+using PiranhaCommerce.Core.Admin;
+using PiranhaCommerce.Ecommerce.Admin;
+
+namespace PiranhaCommerce.IntegrationTests;
+
+public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+{
+    [GeneratedRegex(@"<input[^>]*name=""__RequestVerificationToken""[^>]*value=""([^""]+)""")]
+    private static partial Regex TokenRegex();
+
+    private HttpClient NewBrowser() => factory.CreateClient(new() { AllowAutoRedirect = false, HandleCookies = true });
+
+    private static async Task<string> AntiforgeryTokenAsync(HttpResponseMessage page)
+    {
+        var m = TokenRegex().Match(await page.Content.ReadAsStringAsync());
+        Assert.True(m.Success, "antiforgery token not found in login form");
+        return m.Groups[1].Value;
+    }
+
+    private static async Task<HttpResponseMessage> PostLoginAsync(HttpClient browser, string email, string password, string? returnUrl = null)
+    {
+        var form = await browser.GetAsync("/admin/login");
+        var token = await AntiforgeryTokenAsync(form);
+        return await browser.PostAsync("/admin/login" + (returnUrl is null ? "" : $"?returnUrl={Uri.EscapeDataString(returnUrl)}"),
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["_handler"] = "login",
+                ["Input.Email"] = email,
+                ["Input.Password"] = password,
+            }));
+    }
+
+    [Fact]
+    public async Task Plugin_page_assembly_is_registered_with_the_admin()
+    {
+        var assemblies = factory.Services.GetServices<AdminPageAssembly>().Select(a => a.Assembly).ToList();
+        Assert.Contains(typeof(EcommerceAdminPlugin).Assembly, assemblies);
+
+        // ...and its @page routes are actually mapped as endpoints, not just its menu entry.
+        var routes = factory.Services.GetServices<EndpointDataSource>()
+            .SelectMany(d => d.Endpoints).OfType<RouteEndpoint>()
+            .Select(e => e.RoutePattern.RawText).ToList();
+        Assert.Contains("/admin/catalog/products", routes);
+        Assert.Contains("/admin/catalog/products/new", routes);
+        await Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task Admin_pages_redirect_anonymous_users_to_login()
+    {
+        var response = await NewBrowser().GetAsync("/admin/catalog/products");
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var location = response.Headers.Location!;
+        Assert.Equal("/admin/login", location.IsAbsoluteUri ? location.AbsolutePath : location.OriginalString.Split('?')[0]);
+        Assert.Contains("returnUrl=%2Fadmin%2Fcatalog%2Fproducts", location.ToString());
+    }
+
+    [Fact]
+    public async Task Login_page_renders_for_anonymous_users()
+    {
+        var response = await NewBrowser().GetAsync("/admin/login");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Sign in", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Wrong_password_shows_error_and_does_not_sign_in()
+    {
+        var browser = NewBrowser();
+        var response = await PostLoginAsync(browser, PiranhaFactory.AdminEmail, "wrong");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Invalid email or password", await response.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.Redirect, (await browser.GetAsync("/admin")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Admin_can_sign_in_and_see_plugin_pages_and_menu()
+    {
+        var browser = NewBrowser();
+        var login = await PostLoginAsync(browser, PiranhaFactory.AdminEmail, PiranhaFactory.AdminPassword, "/admin/catalog/products");
+        Assert.Equal(HttpStatusCode.Redirect, login.StatusCode);
+        Assert.Equal("/admin/catalog/products", login.Headers.Location?.ToString().Replace("http://localhost", ""));
+
+        var products = await browser.GetAsync("/admin/catalog/products");
+        Assert.Equal(HttpStatusCode.OK, products.StatusCode);
+        var html = await products.Content.ReadAsStringAsync();
+        Assert.Contains("<h1>Products</h1>", html);
+
+        var dashboard = await (await browser.GetAsync("/admin")).Content.ReadAsStringAsync();
+        Assert.Contains("Ecommerce Admin", dashboard);          // plugin listed
+        Assert.Contains("/admin/catalog/products", dashboard);  // plugin menu entry rendered
+    }
+
+    [Fact]
+    public async Task Non_admin_user_cannot_use_the_admin_area()
+    {
+        var (email, password) = await factory.CreateReadOnlyUserAsync();
+        var browser = NewBrowser();
+        Assert.Equal(HttpStatusCode.Redirect, (await PostLoginAsync(browser, email, password)).StatusCode);
+
+        var page = await browser.GetAsync("/admin/catalog/products");
+        Assert.Contains("does not have permission", await page.Content.ReadAsStringAsync());
+    }
+
+    [Theory]
+    [InlineData("//evil.example/x")]
+    [InlineData("https://evil.example/x")]
+    [InlineData("/\\evil.example")]
+    public async Task Login_ignores_non_local_return_urls(string returnUrl)
+    {
+        var login = await PostLoginAsync(NewBrowser(), PiranhaFactory.AdminEmail, PiranhaFactory.AdminPassword, returnUrl);
+        Assert.Equal(HttpStatusCode.Redirect, login.StatusCode);
+        Assert.DoesNotContain("evil.example", login.Headers.Location?.ToString());
+    }
+}
