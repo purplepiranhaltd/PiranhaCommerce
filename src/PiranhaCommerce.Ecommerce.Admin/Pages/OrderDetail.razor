@@ -97,6 +97,51 @@ else
     </div>
 
     <div class="pc-card">
+        <h2 style="margin-top:0">Payment: @_order.PaymentStatus</h2>
+        <p>Paid @_order.AmountPaid.ToString("N2") @_order.Currency, refunded @_order.AmountRefunded.ToString("N2"), of @_order.Total.ToString("N2").</p>
+        @if (_order.Stage == OrderStage.Cancelled && _order.AmountPaid - _order.AmountRefunded > 0)
+        {
+            <p class="pc-error">This order is cancelled but @((_order.AmountPaid - _order.AmountRefunded).ToString("N2")) has not been refunded.</p>
+        }
+        @if (_payments is { Count: > 0 })
+        {
+            <table class="pc-table">
+                <thead><tr><th>When</th><th>Type</th><th>Provider</th><th>Reference</th><th>By</th><th style="text-align:right">Amount</th></tr></thead>
+                <tbody>
+                @foreach (var p in _payments)
+                {
+                    <tr>
+                        <td>@p.CreatedUtc.ToString("dd MMM yyyy HH:mm") UTC</td>
+                        <td>@p.Kind</td>
+                        <td>@p.Provider</td>
+                        <td>@p.Reference @(string.IsNullOrWhiteSpace(p.Note) ? "" : "(" + p.Note + ")")</td>
+                        <td>@p.Actor</td>
+                        <td style="text-align:right">@(p.Kind == PaymentKind.Refund ? "-" : "")@p.Amount.ToString("N2")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+        <EditForm Model="_payment" OnValidSubmit="() => RecordAsync(false)" FormName="payment">
+            <DataAnnotationsValidator />
+            <label>Amount <InputNumber @bind-Value="_payment.Amount" /></label>
+            <ValidationMessage For="() => _payment.Amount" />
+            <label>Provider
+                <InputSelect @bind-Value="_payment.Provider">
+                    @foreach (var provider in _providers)
+                    {
+                        <option value="@provider.Name">@provider.DisplayName</option>
+                    }
+                </InputSelect>
+            </label>
+            <label>Reference (receipt or bank reference, optional) <InputText @bind-Value="_payment.Reference" /></label>
+            <label>Note (optional) <InputText @bind-Value="_payment.Note" /></label>
+            <button type="submit" disabled="@_busy">Record payment</button>
+            <button type="button" class="secondary" disabled="@_busy" @onclick="() => RecordAsync(true)">Record refund</button>
+        </EditForm>
+    </div>
+
+    <div class="pc-card">
         <h2 style="margin-top:0">Addresses</h2>
         <div style="display:flex; gap:2rem; flex-wrap:wrap">
             <AddressBlock Title="Ship to" Address="_order.ShippingAddress" />
@@ -115,11 +160,43 @@ else
     private bool _busy;
     private bool _confirmCancel;
     private string? _error;
+    private IReadOnlyList<PaymentDto>? _payments;
+    private IReadOnlyList<PaymentProviderDto> _providers = [];
+    private PaymentInput _payment = new() { Provider = "manual" };
 
     protected override async Task OnParametersSetAsync()
     {
         _order = await Scope.RunAsync<IOrderService, OrderDto?>(s => s.GetAsync(Id));
         _notFound = _order is null;
+        if (_order is not null) await LoadPaymentsAsync();
+    }
+
+    private async Task LoadPaymentsAsync()
+    {
+        _payments = await Scope.RunAsync<IPaymentService, IReadOnlyList<PaymentDto>?>(s => s.ListAsync(Id));
+        _providers = await Scope.RunAsync<IPaymentService, IReadOnlyList<PaymentProviderDto>>(s => Task.FromResult(s.Providers()));
+        var owed = _order!.Total - (_order.AmountPaid - _order.AmountRefunded);
+        _payment = new PaymentInput { Provider = _payment.Provider ?? "manual", Amount = owed > 0 && _order.Stage != OrderStage.Cancelled ? owed : 0 };
+    }
+
+    private async Task RecordAsync(bool refund)
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var state = await Auth.GetAuthenticationStateAsync();
+            var actor = state.User.FindFirst("email")?.Value ?? state.User.Identity?.Name;
+            var input = _payment;
+            if (refund) await Scope.RunAsync<IPaymentService, PaymentDto?>(s => s.RecordRefundAsync(Id, input, actor));
+            else await Scope.RunAsync<IPaymentService, PaymentDto?>(s => s.RecordPaymentAsync(Id, input, actor));
+            _order = await Scope.RunAsync<IOrderService, OrderDto?>(s => s.GetAsync(Id)) ?? _order;
+            await LoadPaymentsAsync();
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (Exception ex) { _error = "Could not record that: " + ex.Message; }
+        finally { _busy = false; }
     }
 
     private async Task MoveAsync(OrderStage to)
@@ -132,7 +209,7 @@ else
             var state = await Auth.GetAuthenticationStateAsync();
             var actor = state.User.FindFirst("email")?.Value ?? state.User.Identity?.Name;
             var updated = await Scope.RunAsync<IOrderService, OrderDto?>(s => s.ChangeStageAsync(Id, to, actor));
-            if (updated is null) _notFound = true; else _order = updated;
+            if (updated is null) _notFound = true; else { _order = updated; await LoadPaymentsAsync(); }
         }
         catch (PiranhaConflictException ex)
         {

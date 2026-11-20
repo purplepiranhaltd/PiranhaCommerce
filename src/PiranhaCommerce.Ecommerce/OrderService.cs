@@ -53,16 +53,36 @@ internal sealed class OrderService(PiranhaDbContext db, IStockService stock, ICu
         var items = await query.OrderByDescending(o => o.Number).Skip((p - 1) * size).Take(size)
             .Select(o => new { o.Id, o.Number, o.Stage, o.Email, o.Currency, o.Total, o.CreatedUtc })
             .ToListAsync(ct);
+        var ids = items.Select(o => o.Id).ToList();
+        var sums = await db.Set<Payment>().AsNoTracking().Where(x => ids.Contains(x.OrderId))
+            .GroupBy(x => new { x.OrderId, x.Kind }).Select(g => new { g.Key.OrderId, g.Key.Kind, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct);
+        PaymentStatus StatusFor(Guid id, decimal orderTotal) => PaymentTotals.StatusOf(orderTotal,
+            sums.Where(x => x.OrderId == id && x.Kind == PaymentKind.Payment).Sum(x => x.Sum),
+            sums.Where(x => x.OrderId == id && x.Kind == PaymentKind.Refund).Sum(x => x.Sum));
         return new PagedResult<OrderSummaryDto>(
-            items.Select(o => new OrderSummaryDto(o.Id, o.Number, OrderNumbers.Format(o.Number), o.Stage, o.Email, o.Currency, o.Total, o.CreatedUtc)).ToList(),
+            items.Select(o => new OrderSummaryDto(o.Id, o.Number, OrderNumbers.Format(o.Number), o.Stage, StatusFor(o.Id, o.Total), o.Email, o.Currency, o.Total, o.CreatedUtc)).ToList(),
             p, size, total);
     }
 
     public async Task<OrderDto?> GetAsync(Guid id, CancellationToken ct = default)
-        => ToDto(await db.Set<Order>().AsNoTracking().Include(o => o.Lines).AsSplitQuery().FirstOrDefaultAsync(o => o.Id == id, ct));
+        => await WithPaymentsAsync(await db.Set<Order>().AsNoTracking().Include(o => o.Lines).AsSplitQuery().FirstOrDefaultAsync(o => o.Id == id, ct), ct);
 
     public async Task<OrderDto?> GetByNumberAsync(long number, CancellationToken ct = default)
-        => ToDto(await db.Set<Order>().AsNoTracking().Include(o => o.Lines).AsSplitQuery().FirstOrDefaultAsync(o => o.Number == number, ct));
+        => await WithPaymentsAsync(await db.Set<Order>().AsNoTracking().Include(o => o.Lines).AsSplitQuery().FirstOrDefaultAsync(o => o.Number == number, ct), ct);
+
+    private async Task<(decimal Paid, decimal Refunded)> PaymentSumsAsync(Guid orderId, CancellationToken ct)
+    {
+        var totals = await db.Set<Payment>().AsNoTracking().Where(p => p.OrderId == orderId)
+            .GroupBy(p => p.Kind).Select(g => new { Kind = g.Key, Sum = g.Sum(p => p.Amount) }).ToListAsync(ct);
+        return (totals.Where(t => t.Kind == PaymentKind.Payment).Sum(t => t.Sum), totals.Where(t => t.Kind == PaymentKind.Refund).Sum(t => t.Sum));
+    }
+
+    private async Task<OrderDto?> WithPaymentsAsync(Order? order, CancellationToken ct)
+    {
+        if (order is null) return null;
+        var (paid, refunded) = await PaymentSumsAsync(order.Id, ct);
+        return ToDto(order, PaymentTotals.StatusOf(order.Total, paid, refunded), paid, refunded);
+    }
 
     public async Task<OrderDto?> CheckoutAsync(Guid basketId, CheckoutInput input, string? actor = null, CancellationToken ct = default)
     {
@@ -184,6 +204,14 @@ internal sealed class OrderService(PiranhaDbContext db, IStockService stock, ICu
         if (!OrderStages.Next(current.Stage).Contains(to))
             throw new PiranhaConflictException($"An order that is {current.Stage} cannot be moved to {to}.");
 
+        if (to == OrderStage.Processing && options.Value.RequirePaymentBeforeProcessing)
+        {
+            var total = await db.Set<Order>().AsNoTracking().Where(o => o.Id == id).Select(o => o.Total).FirstAsync(ct);
+            var (paid, refunded) = await PaymentSumsAsync(id, ct);
+            if (PaymentTotals.StatusOf(total, paid, refunded) != PaymentStatus.Paid)
+                throw new PiranhaConflictException("This order must be paid in full before it can be processed.");
+        }
+
         var from = current.Stage;
         var locationId = options.Value.StockLocationId ?? StockLocations.DefaultId;
         var returning = to == OrderStage.Cancelled
@@ -251,9 +279,9 @@ internal sealed class OrderService(PiranhaDbContext db, IStockService stock, ICu
 
     private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
-    private static OrderDto? ToDto(Order? o) => o is null ? null : new OrderDto(
+    private static OrderDto ToDto(Order o, PaymentStatus status, decimal paid, decimal refunded) => new OrderDto(
         o.Id, o.Number, OrderNumbers.Format(o.Number), o.Stage, o.CustomerId, o.Email, o.Currency, o.Subtotal,
-        o.ShippingMethodName, o.ShippingTotal, o.TaxName, o.TaxRate, o.TaxTotal, o.Total, o.Notes,
+        o.ShippingMethodName, o.ShippingTotal, o.TaxName, o.TaxRate, o.TaxTotal, o.Total, status, paid, refunded, o.Notes,
         ToDto(o.ShippingAddress), ToDto(o.BillingAddress),
         o.Lines.OrderBy(l => l.Position).Select(l => new OrderLineDto(l.ProductId, l.Name, l.Sku, l.UnitPrice, l.Quantity, l.LineTotal)).ToList(),
         OrderStages.Next(o.Stage), o.CreatedUtc, o.UpdatedUtc);

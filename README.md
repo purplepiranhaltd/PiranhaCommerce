@@ -207,3 +207,19 @@ Order numbers are sequential (first `ORD-1001`). Orders never change when a prod
 product that has been sold cannot be deleted. Settings: `Piranha:Ecommerce:Currency` (default `GBP`) and
 `Piranha:Ecommerce:StockLocationId` (default: the built-in location). Enums travel as names in the API (`"Placed"`).
 What is not built yet (payments, shipping, tax, promotions) is listed in `docs/roadmap.md`.
+
+### Shipping, tax and payments
+
+- **Shipping methods** (`/shipping-methods`): a name and flat price, optionally free once the basket reaches a spend. Once any method is
+  active, checkout must choose one; with none, shipping is free.
+- **Tax rules** (`/tax-rules`): one rate per destination country (`*` for all others), applied to goods plus shipping, rounded to the
+  penny. Prices are entered tax-exclusive. No rule means no tax.
+- `POST /baskets/{id}/quote` returns exactly what checkout will charge (the same calculator). Orders keep copies of the method name,
+  tax name and rate, so editing settings later never changes an order. Total = goods + shipping + tax.
+- **Payments**: `POST /orders/{id}/payments` and `/refunds` record money in and out (append-only; mistakes are corrected with a refund).
+  A payment can never take an order past its total, a refund can never exceed what was received, and simultaneous requests are checked
+  one after another. A provider `reference` is unique per provider, so a retried webhook or double click is refused (409) instead of
+  recording the money twice. The order shows `paymentStatus`: `Unpaid`, `PartlyPaid`, `Paid`, `Refunded`.
+- Set `Piranha:Ecommerce:RequirePaymentBeforeProcessing` to `true` to stop unpaid orders moving to Processing.
+- A gateway plugin registers an `IPaymentProvider` (`Name`, `DisplayName`) and calls `IPaymentService.RecordPaymentAsync` when its
+  gateway confirms a payment.

@@ -34,7 +34,7 @@ else
 {
     <table class="pc-table">
         <thead>
-            <tr><th>Order</th><th>Placed</th><th>Customer email</th><th>Stage</th><th style="text-align:right">Total</th></tr>
+            <tr><th>Order</th><th>Placed</th><th>Customer email</th><th>Stage</th><th>Payment</th><th style="text-align:right">Total</th></tr>
         </thead>
         <tbody>
         @foreach (var o in _result.Items)
@@ -44,6 +44,7 @@ else
                 <td>@o.CreatedUtc.ToString("dd MMM yyyy HH:mm") UTC</td>
                 <td>@o.Email</td>
                 <td>@o.Stage</td>
+                <td>@o.PaymentStatus</td>
                 <td style="text-align:right">@o.Total.ToString("N2") @o.Currency</td>
             </tr>
         }

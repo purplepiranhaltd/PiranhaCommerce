@@ -154,11 +154,12 @@ public sealed record OrderAddressDto(string? Recipient, string Line1, string? Li
 public sealed record OrderLineDto(Guid ProductId, string Name, string? Sku, decimal UnitPrice, int Quantity, decimal LineTotal);
 
 public sealed record OrderSummaryDto(
-    Guid Id, long Number, string Reference, OrderStage Stage, string Email, string Currency, decimal Total, DateTimeOffset CreatedUtc);
+    Guid Id, long Number, string Reference, OrderStage Stage, PaymentStatus PaymentStatus, string Email, string Currency, decimal Total, DateTimeOffset CreatedUtc);
 
 public sealed record OrderDto(
     Guid Id, long Number, string Reference, OrderStage Stage, Guid? CustomerId, string Email, string Currency, decimal Subtotal,
     string? ShippingMethodName, decimal ShippingTotal, string? TaxName, decimal TaxRate, decimal TaxTotal, decimal Total,
+    PaymentStatus PaymentStatus, decimal AmountPaid, decimal AmountRefunded,
     string? Notes, OrderAddressDto? ShippingAddress, OrderAddressDto? BillingAddress, IReadOnlyList<OrderLineDto> Lines,
     IReadOnlyList<OrderStage> NextStages, DateTimeOffset CreatedUtc, DateTimeOffset? UpdatedUtc);
 
@@ -172,4 +173,7 @@ public sealed class EcommerceOptions
 
     /// <summary>Where online orders take stock from (and cancellations return it to). The default location when empty.</summary>
     public Guid? StockLocationId { get; set; }
+
+    /// <summary>When true an order can only move to Processing once it is fully paid. Off by default (invoice and pay-on-collection shops).</summary>
+    public bool RequirePaymentBeforeProcessing { get; set; }
 }

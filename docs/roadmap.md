@@ -59,7 +59,12 @@ stock taken from the shelf); order stages Placed, Processing, Completed, Cancell
 
 Not built yet:
 
-- Payments (their own records that move the stage), shipping methods and cost, tax, discounts/promo codes, gift vouchers.
+- Discounts/promo codes and gift vouchers (they will adjust the total before shipping and tax).
+- Payment gateways. Payments are recorded (`manual` provider: cash, bank transfer, terminal) and a gateway plugin can register an
+  `IPaymentProvider` and record payments when its gateway confirms; there is no hosted checkout, card capture or webhook handling yet.
+- Shipping: flat price per method (optionally free above a spend). No weight/zone rates, carriers or live rates.
+- Tax: one rule per destination country, charged on goods plus shipping, prices entered tax-exclusive. No per-product tax classes,
+  tax-inclusive pricing, exemptions, or regional (state) rates.
 - Fulfilment: parcels and tracking, partial shipment, refunds and returns (restock decisions), partially cancelled orders.
 - Clean-up of old open baskets; reserving stock while a shopper is in checkout (today stock is taken only when the order is placed).
 - Per-order stock location (every online order currently draws from `Piranha:Ecommerce:StockLocationId`, or the default location).

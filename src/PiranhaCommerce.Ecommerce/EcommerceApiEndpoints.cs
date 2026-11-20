@@ -97,6 +97,21 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
         orders.MapGet("/by-number/{number:long}", async (long number, IOrderService svc, CancellationToken ct) =>
             await svc.GetByNumberAsync(number, ct) is { } o ? Results.Ok(o) : Results.NotFound());
 
+        orders.MapGet("/{id:guid}/payments", async (Guid id, IPaymentService svc, CancellationToken ct) =>
+            await svc.ListAsync(id, ct) is { } list ? Results.Ok(list) : Results.NotFound());
+
+        orders.MapPost("/{id:guid}/payments", async (Guid id, PaymentInput input, IPaymentService svc, HttpContext http, CancellationToken ct) =>
+                await svc.RecordPaymentAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } p
+                    ? Results.Created($"/api/v1/orders/{id}/payments/{p.Id}", p) : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
+        orders.MapPost("/{id:guid}/refunds", async (Guid id, PaymentInput input, IPaymentService svc, HttpContext http, CancellationToken ct) =>
+                await svc.RecordRefundAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } p
+                    ? Results.Created($"/api/v1/orders/{id}/payments/{p.Id}", p) : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
+        api.MapGet("/payment-providers", (IPaymentService svc) => Results.Ok(svc.Providers())).WithTags("Payments");
+
         orders.MapPost("/{id:guid}/stage", async (Guid id, OrderStageInput input, IOrderService svc, HttpContext http, CancellationToken ct) =>
                 await svc.ChangeStageAsync(id, input.Stage, http.User.FindFirst("email")?.Value, ct) is { } o ? Results.Ok(o) : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);

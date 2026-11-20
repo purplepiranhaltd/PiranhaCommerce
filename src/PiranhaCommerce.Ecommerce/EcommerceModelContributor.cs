@@ -68,6 +68,22 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.HasOne<Product>().WithMany().HasForeignKey(l => l.ProductId).OnDelete(DeleteBehavior.Restrict);
         });
 
+        b.Entity<Payment>(e =>
+        {
+            e.ToTable("Payment", Schema);
+            e.HasIndex(p => new { p.OrderId, p.CreatedUtc });
+            e.HasIndex(p => new { p.Provider, p.Reference }).IsUnique();
+            e.Property(p => p.Kind).HasConversion<string>().HasMaxLength(10);
+            e.Property(p => p.Provider).HasMaxLength(50);
+            e.Property(p => p.Amount).HasPrecision(18, 4);
+            e.Property(p => p.Currency).HasMaxLength(3);
+            e.Property(p => p.Reference).HasMaxLength(200);
+            e.Property(p => p.Note).HasMaxLength(500);
+            e.Property(p => p.Actor).HasMaxLength(256);
+            // Restrict: money records are never removed with anything else.
+            e.HasOne<Order>().WithMany().HasForeignKey(p => p.OrderId).OnDelete(DeleteBehavior.Restrict);
+        });
+
         b.Entity<ShippingMethod>(e =>
         {
             e.ToTable("ShippingMethod", Schema);
