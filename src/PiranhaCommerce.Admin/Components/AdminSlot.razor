@@ -1,0 +1,18 @@
+@* Renders every component that plugins contributed to the named slot. *@
+@foreach (var item in Items.Where(i => i.Slot == Name).OrderBy(i => i.Order))
+{
+    <DynamicComponent Type="item.ComponentType" Parameters="Parameters" />
+}
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = default!;
+
+    /// <summary>
+    /// Context passed to each contributed component (e.g. <c>ProductId</c> on the product edit page). Components
+    /// declare [Parameter]s with matching names; <see cref="AdminSlots"/> documents what each slot supplies.
+    /// </summary>
+    [Parameter] public IDictionary<string, object?>? Parameters { get; set; }
+
+    [Inject] private IEnumerable<IAdminSlotContributor> Contributors { get; set; } = default!;
+    private IEnumerable<AdminSlotItem> Items => Contributors.SelectMany(c => c.GetItems());
+}

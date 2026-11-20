@@ -7,9 +7,9 @@ namespace PiranhaCommerce.Catalog.Admin;
 /// <summary>Admin pages for the shared catalogue. Reference example of a plugin contributing admin pages.</summary>
 public sealed class CatalogAdminPlugin : IPiranhaPlugin
 {
-    public PluginDescriptor Descriptor { get; } = new(
-        "PiranhaCommerce.Catalog.Admin", "Catalog Admin", "0.1.0", "Admin pages for products.",
-        DependsOn: [CatalogPlugin.SystemName]);
+    public PluginInfo Info { get; } = new("PiranhaCommerce.Catalog.Admin", "Catalog Admin", "0.1.0", "Admin pages for products.");
+
+    public IReadOnlyList<IPiranhaPlugin> Requires { get; } = [new CatalogPlugin()];
 
     public void ConfigureServices(IServiceCollection services)
     {

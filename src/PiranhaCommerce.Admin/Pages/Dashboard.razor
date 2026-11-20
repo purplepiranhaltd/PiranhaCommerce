@@ -5,7 +5,7 @@
 <PageTitle>Dashboard - Piranha Commerce</PageTitle>
 <h1>Dashboard</h1>
 
-<WidgetZone Zone="@AdminWidgetZones.DashboardTop" />
+<AdminSlot Name="@AdminSlots.DashboardTop" />
 
 <h2>Installed plugins</h2>
 <table class="pc-table">
@@ -13,9 +13,9 @@
     <tbody>
     @foreach (var p in Catalog.Plugins)
     {
-        <tr><td>@p.DisplayName</td><td>@p.Version</td><td>@p.Description</td></tr>
+        <tr><td>@p.Name</td><td>@p.Version</td><td>@p.Description</td></tr>
     }
     </tbody>
 </table>
 
-<WidgetZone Zone="@AdminWidgetZones.DashboardBottom" />
+<AdminSlot Name="@AdminSlots.DashboardBottom" />

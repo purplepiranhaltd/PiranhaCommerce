@@ -6,28 +6,41 @@ namespace PiranhaCommerce.Core.Plugins;
 public sealed class PiranhaBuilder
 {
     private readonly List<IPiranhaPlugin> _plugins = [];
+    private readonly HashSet<string> _registering = new(StringComparer.OrdinalIgnoreCase);
 
     public PiranhaBuilder(IServiceCollection services) => Services = services;
 
     public IServiceCollection Services { get; }
+
+    /// <summary>Registered plugins in registration order (required plugins come before the plugins that need them).</summary>
     public IReadOnlyList<IPiranhaPlugin> Plugins => _plugins;
 
     public PiranhaBuilder AddPlugin<TPlugin>() where TPlugin : IPiranhaPlugin, new() => AddPlugin(new TPlugin());
 
+    /// <summary>
+    /// Registers a plugin after the plugins it <see cref="IPiranhaPlugin.Requires"/>. Registering a plugin that is
+    /// already registered (directly, or because another plugin required it) does nothing.
+    /// </summary>
     public PiranhaBuilder AddPlugin(IPiranhaPlugin plugin)
     {
-        if (_plugins.Any(p => p.Descriptor.SystemName.Equals(plugin.Descriptor.SystemName, StringComparison.OrdinalIgnoreCase)))
-            throw new InvalidOperationException($"Plugin '{plugin.Descriptor.SystemName}' is already registered.");
+        var id = plugin.Info.Id;
+        if (_plugins.Any(p => p.Info.Id.Equals(id, StringComparison.OrdinalIgnoreCase)))
+            return this;
 
-        foreach (var dependency in plugin.Descriptor.DependsOn ?? [])
+        if (!_registering.Add(id))
+            throw new InvalidOperationException($"Plugin '{id}' requires itself through a circular dependency.");
+        try
         {
-            if (!_plugins.Any(p => p.Descriptor.SystemName.Equals(dependency, StringComparison.OrdinalIgnoreCase)))
-                throw new InvalidOperationException(
-                    $"Plugin '{plugin.Descriptor.SystemName}' requires plugin '{dependency}', which must be registered first.");
-        }
+            foreach (var required in plugin.Requires)
+                AddPlugin(required);
 
-        _plugins.Add(plugin);
-        plugin.ConfigureServices(Services);
+            _plugins.Add(plugin);
+            plugin.ConfigureServices(Services);
+        }
+        finally
+        {
+            _registering.Remove(id);
+        }
         return this;
     }
 }

@@ -9,11 +9,10 @@ namespace PiranhaCommerce.Ecommerce;
 /// <summary>Online-store behaviour layered on the shared catalogue. A future PiranhaCommerce.Epos is a sibling.</summary>
 public sealed class EcommercePlugin : IPiranhaPlugin
 {
-    public const string SystemName = "PiranhaCommerce.Ecommerce";
+    public PluginInfo Info { get; } = new(
+        "PiranhaCommerce.Ecommerce", "Ecommerce", "0.1.0", "Online listings, cart, checkout and orders.");
 
-    public PluginDescriptor Descriptor { get; } = new(
-        SystemName, "Ecommerce", "0.1.0", "Online listings, cart, checkout and orders.",
-        DependsOn: [CatalogPlugin.SystemName]);
+    public IReadOnlyList<IPiranhaPlugin> Requires { get; } = [new CatalogPlugin()];
 
     public void ConfigureServices(IServiceCollection services)
     {

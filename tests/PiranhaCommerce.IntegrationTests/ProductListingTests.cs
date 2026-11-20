@@ -68,9 +68,9 @@ public class ProductListingTests(PiranhaFactory factory) : IClassFixture<Piranha
     }
 
     [Fact]
-    public void Ecommerce_panel_is_registered_in_the_product_edit_widget_zone()
+    public void Ecommerce_panel_is_registered_in_the_product_edit_slot()
     {
-        var widgets = factory.Services.GetServices<IAdminWidgetContributor>().SelectMany(c => c.GetWidgets());
-        Assert.Contains(widgets, w => w.Zone == AdminWidgetZones.ProductEditTabs && w.ComponentType.Name == "ProductListingPanel");
+        var items = factory.Services.GetServices<IAdminSlotContributor>().SelectMany(c => c.GetItems());
+        Assert.Contains(items, w => w.Slot == AdminSlots.ProductEditPanels && w.ComponentType.Name == "ProductListingPanel");
     }
 }

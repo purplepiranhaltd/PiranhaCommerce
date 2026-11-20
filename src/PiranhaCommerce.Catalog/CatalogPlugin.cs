@@ -8,9 +8,7 @@ namespace PiranhaCommerce.Catalog;
 /// <summary>Shared product catalogue used by every sales channel (Ecommerce today, EPOS later).</summary>
 public sealed class CatalogPlugin : IPiranhaPlugin
 {
-    public const string SystemName = "PiranhaCommerce.Catalog";
-
-    public PluginDescriptor Descriptor { get; } = new(SystemName, "Catalog", "0.1.0", "Products shared by all sales channels.");
+    public PluginInfo Info { get; } = new("PiranhaCommerce.Catalog", "Catalog", "0.1.0", "Products shared by all sales channels.");
 
     public void ConfigureServices(IServiceCollection services)
     {

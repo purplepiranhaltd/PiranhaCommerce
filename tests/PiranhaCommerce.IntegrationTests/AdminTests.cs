@@ -108,7 +108,7 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
         await PostLoginAsync(browser, PiranhaFactory.AdminEmail, PiranhaFactory.AdminPassword);
 
         var existing = await (await browser.GetAsync($"/admin/catalog/products/{product.Id}")).Content.ReadAsStringAsync();
-        Assert.Contains("Online store", existing);           // Ecommerce widget rendered inside the Catalog page
+        Assert.Contains("Online store", existing);           // Ecommerce panel rendered inside the Catalog page
         Assert.Contains("Published on the online store", existing);
 
         var isNew = await (await browser.GetAsync("/admin/catalog/products/new")).Content.ReadAsStringAsync();

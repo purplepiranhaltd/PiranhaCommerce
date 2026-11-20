@@ -46,7 +46,7 @@ else
 
     @if (Id is { } productId)
     {
-        <WidgetZone Zone="@AdminWidgetZones.ProductEditTabs" Parameters="@(new Dictionary<string, object?> { ["ProductId"] = productId })" />
+        <AdminSlot Name="@AdminSlots.ProductEditPanels" Parameters="@(new Dictionary<string, object?> { ["ProductId"] = productId })" />
     }
     else
     {

@@ -1,7 +1,5 @@
 using PiranhaCommerce.Admin;
 using PiranhaCommerce.Api;
-using PiranhaCommerce.Catalog;
-using PiranhaCommerce.Catalog.Admin;
 using PiranhaCommerce.Core.DependencyInjection;
 using PiranhaCommerce.Data;
 using PiranhaCommerce.Data.SqlServer;
@@ -17,9 +15,8 @@ builder.Services.AddPiranhaCore()
         typeof(Program).Assembly)   // the host owns migrations (it knows which plugins are installed)
     .AddPiranhaApi()
     .AddPiranhaAdmin()
-    // Plugins are compiled in via NuGet, never uploaded. Dependencies must be registered first.
-    .AddPlugin<CatalogPlugin>()
-    .AddPlugin<CatalogAdminPlugin>()
+    // Plugins are compiled in via NuGet, never uploaded. Each plugin registers the plugins it requires
+    // (here: Catalog and Catalog.Admin), so only the ones you want are listed.
     .AddPlugin<EcommercePlugin>()
     .AddPlugin<EcommerceAdminPlugin>();
 

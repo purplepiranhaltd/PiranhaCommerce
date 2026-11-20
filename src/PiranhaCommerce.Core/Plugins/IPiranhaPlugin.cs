@@ -9,11 +9,17 @@ namespace PiranhaCommerce.Core.Plugins;
 /// </summary>
 public interface IPiranhaPlugin
 {
-    PluginDescriptor Descriptor { get; }
+    PluginInfo Info { get; }
+
+    /// <summary>
+    /// Plugins this one needs, as instances of types from packages this package references. They are registered
+    /// automatically (once, and before this plugin), so hosts never have to list or order them.
+    /// </summary>
+    IReadOnlyList<IPiranhaPlugin> Requires => [];
 
     /// <summary>Register services, options, EF model contributors, API/admin contributors.</summary>
     void ConfigureServices(IServiceCollection services);
 }
 
-/// <param name="DependsOn">System names of plugins that must be registered <b>before</b> this one.</param>
-public sealed record PluginDescriptor(string SystemName, string DisplayName, string Version, string? Description = null, IReadOnlyList<string>? DependsOn = null);
+/// <param name="Id">Stable identifier; by convention the NuGet package id.</param>
+public sealed record PluginInfo(string Id, string Name, string Version, string? Description = null);
