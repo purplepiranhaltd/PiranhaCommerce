@@ -15,6 +15,8 @@ public static class EcommerceEmailTemplates
     public const string OrderCancelled = "order.cancelled";
     public const string OrderRefunded = "order.refunded";
     public const string UnreconciledPaymentAlert = "alert.unreconciled-payment";
+    public const string ReturnRequested = "alert.return-requested";
+    public const string ReturnAnswered = "return.answered";
 }
 
 internal sealed class EcommerceEmailContributor : IEmailTemplateContributor
@@ -94,6 +96,27 @@ internal sealed class EcommerceEmailContributor : IEmailTemplateContributor
             new("providerReference", "The provider's id for the payment or refund.", "pi_3Abc123"),
             new("orderReference", "The order reference when the order exists, e.g. ORD-1001. Empty when the provider named an order that is not here.", "ORD-1001"),
             new("reason", "Why it could not be booked.", "The order is cancelled."),
+        ]),
+        new(EcommerceEmailTemplates.ReturnRequested, "Return requested (to the shop)", "Sent to the shop's alert address when a buyer asks to send goods back.",
+        [
+            new("orderReference", "The order reference, e.g. ORD-1001.", "ORD-1001"),
+            new("reason", "The reason the buyer gave.", "Too small"),
+            new("lines", "The items: a list where each has name, sku and quantity.", new List<object?>
+            {
+                new Dictionary<string, object?> { ["name"] = "Blue mug", ["sku"] = "MUG-BLU", ["quantity"] = 1 },
+            }),
+        ]),
+
+        new(EcommerceEmailTemplates.ReturnAnswered, "Return request answered", "Sent to the buyer when staff approve or turn down their request to send goods back.",
+        [
+            new("reference", "The order reference, e.g. ORD-1001.", "ORD-1001"),
+            new("email", "The customer's email address.", "ada@example.com"),
+            new("approved", "True when the request was approved, false when it was turned down.", true),
+            new("note", "What the shop wrote to the buyer. Empty when nothing was added.", "Please send it to the address on the label."),
+            new("lines", "The items asked about: a list where each has name, sku and quantity.", new List<object?>
+            {
+                new Dictionary<string, object?> { ["name"] = "Blue mug", ["sku"] = "MUG-BLU", ["quantity"] = 1 },
+            }),
         ]),
     ];
 }
@@ -214,6 +237,36 @@ internal sealed class OrderMailer(PiranhaDbContext db, IEmailSender email, IOpti
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch (Exception ex) { logger.LogWarning(ex, "The unreconciled payment alert could not be prepared."); }
     }
+
+    /// <summary>Tells the shop a buyer wants to send goods back. Never throws.</summary>
+    public async Task ReturnRequestedAsync(ReturnRequestDto r, CancellationToken ct)
+    {
+        var addresses = (options.Value.AlertEmail ?? "").Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (addresses.Length == 0) return;
+        var variables = new Dictionary<string, object?>
+        {
+            ["orderReference"] = r.OrderReference, ["reason"] = r.Reason,
+            ["lines"] = r.Lines.Select(l => (object?)new Dictionary<string, object?> { ["name"] = l.Name, ["sku"] = l.Sku, ["quantity"] = l.Quantity }).ToList(),
+        };
+        foreach (var to in addresses.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            try { await email.SendAsync(new EmailMessage(to, EcommerceEmailTemplates.ReturnRequested, variables), ct); }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (Exception ex) { logger.LogWarning(ex, "The return request alert could not be sent to one alert address."); }
+        }
+    }
+
+    /// <summary>Tells the buyer the answer to their request.</summary>
+    public Task ReturnAnsweredAsync(ReturnRequestDto r, CancellationToken ct) => TryAsync("return answer", r.OrderId, async () =>
+    {
+        var o = await db.Set<Order>().AsNoTracking().Where(x => x.Id == r.OrderId).Select(x => new { x.Email, x.ErasedUtc }).FirstOrDefaultAsync(ct);
+        if (o is null or { ErasedUtc: not null }) return null;
+        return new EmailMessage(o.Email, EcommerceEmailTemplates.ReturnAnswered, new Dictionary<string, object?>
+        {
+            ["reference"] = r.OrderReference, ["email"] = o.Email, ["approved"] = r.Status == ReturnRequestStatus.Approved, ["note"] = r.ResponseNote,
+            ["lines"] = r.Lines.Select(l => (object?)new Dictionary<string, object?> { ["name"] = l.Name, ["sku"] = l.Sku, ["quantity"] = l.Quantity }).ToList(),
+        });
+    }, ct);
 
     private static string Money(decimal v) => v.ToString("N2", CultureInfo.InvariantCulture);
 

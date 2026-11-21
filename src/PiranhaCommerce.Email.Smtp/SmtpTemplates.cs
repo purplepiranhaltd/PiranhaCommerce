@@ -147,8 +147,36 @@ public static class SmtpTemplateDefaults
         "order.cancelled" => new Content("Your order {{ reference }} has been cancelled", OrderCancelledText),
         "order.refunded" => new Content("Your refund for order {{ reference }}", OrderRefundedText),
         "alert.unreconciled-payment" => new Content("Payment needs attention: {{ amount }} {{ currency }} ({{ provider }})", UnreconciledAlertText),
+        "alert.return-requested" => new Content("Return requested on order {{ orderReference }}", ReturnRequestedText),
+        "return.answered" => new Content("{% if approved %}Your return for order {{ reference }} is approved{% else %}About your return for order {{ reference }}{% endif %}", ReturnAnsweredText),
         _ => null,
     };
+
+    private const string ReturnRequestedText = """
+        A buyer has asked to send goods back from order {{ orderReference }}.
+
+        Reason: {{ reason }}
+
+        {% for line in lines -%}
+        {{ line.quantity }} x {{ line.name }} ({{ line.sku }})
+        {% endfor %}
+        Open the order in the admin to approve or turn it down.
+        """;
+
+    private const string ReturnAnsweredText = """
+        {% if approved -%}
+        We have approved your request to send back items from order {{ reference }}.
+        {%- else -%}
+        We are sorry, we cannot take back the items you asked about on order {{ reference }}.
+        {%- endif %}
+
+        {% for line in lines -%}
+        {{ line.quantity }} x {{ line.name }}
+        {% endfor %}
+        {% if note -%}
+        {{ note }}
+        {% endif -%}
+        """;
 
     private const string OrderConfirmationText = """
         Thank you for your order {{ reference }}.

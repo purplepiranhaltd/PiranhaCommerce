@@ -59,6 +59,7 @@ internal sealed class EcommerceCustomerData(PiranhaDbContext db) : ICustomerData
         var payments = await ChunkedAsync(ids, chunk => db.Set<Payment>().AsNoTracking().Where(p => chunk.Contains(p.OrderId)).ToListAsync(ct));
         var shipments = await ChunkedAsync(ids, chunk => db.Set<Shipment>().AsNoTracking().Where(s => chunk.Contains(s.OrderId)).ToListAsync(ct));
         var returns = await ChunkedAsync(ids, chunk => db.Set<OrderReturn>().AsNoTracking().Where(r => chunk.Contains(r.OrderId)).ToListAsync(ct));
+        var requests = await ChunkedAsync(ids, chunk => db.Set<ReturnRequest>().AsNoTracking().Where(r => chunk.Contains(r.OrderId)).ToListAsync(ct));
         var baskets = await db.Set<Basket>().AsNoTracking().Include(b => b.Lines).AsSplitQuery().Where(b => b.CustomerId == subject.CustomerId).ToListAsync(ct);
 
         object? Address(OrderAddress? a) => a is null ? null : new { a.Recipient, a.Line1, a.Line2, a.City, a.Region, a.PostalCode, a.CountryCode };
@@ -74,6 +75,7 @@ internal sealed class EcommerceCustomerData(PiranhaDbContext db) : ICustomerData
                 Payments = payments.Where(p => p.OrderId == o.Id).OrderBy(p => p.CreatedUtc).Select(p => new { p.Kind, p.Provider, p.Amount, p.Currency, p.Reference, p.Note, p.CreatedUtc }),
                 Shipments = shipments.Where(s => s.OrderId == o.Id).OrderBy(s => s.ShippedUtc).Select(s => new { s.ShippedUtc, s.Carrier, s.TrackingNumber, s.TrackingUrl }),
                 Returns = returns.Where(r => r.OrderId == o.Id).OrderBy(r => r.CreatedUtc).Select(r => new { r.CreatedUtc, r.Reason, r.Note, r.SuggestedRefund }),
+                ReturnRequests = requests.Where(r => r.OrderId == o.Id).OrderBy(r => r.RequestedUtc).Select(r => new { r.RequestedUtc, r.Status, r.Reason, r.Note, r.ResponseNote, r.RespondedUtc }),
             }),
             Baskets = baskets.Select(b => new { b.Id, b.Status, b.CreatedUtc, b.PromotionCode, Lines = b.Lines.Select(l => new { l.ProductId, l.Quantity }) }),
         };
@@ -102,6 +104,11 @@ internal sealed class EcommerceCustomerData(PiranhaDbContext db) : ICustomerData
             // Notes typed by staff may name the person. Notes the system wrote ("Confirmed by Stripe") say nothing about anyone and stay.
             await db.Set<Payment>().Where(p => c.Contains(p.OrderId) && p.Provider == "manual" && p.Note != null).ExecuteUpdateAsync(s => s.SetProperty(p => p.Note, (string?)null), ct);
             await db.Set<OrderReturn>().Where(r => c.Contains(r.OrderId) && r.Note != null).ExecuteUpdateAsync(s => s.SetProperty(r => r.Note, (string?)null), ct);
+            // What the buyer and the shop wrote to each other about a return. An unanswered request has no one left to answer.
+            await db.Set<ReturnRequest>().Where(r => c.Contains(r.OrderId) && (r.Note != null || r.ResponseNote != null))
+                .ExecuteUpdateAsync(s => s.SetProperty(r => r.Note, (string?)null).SetProperty(r => r.ResponseNote, (string?)null), ct);
+            await db.Set<ReturnRequest>().Where(r => c.Contains(r.OrderId) && r.Status == ReturnRequestStatus.Requested)
+                .ExecuteUpdateAsync(s => s.SetProperty(r => r.Status, ReturnRequestStatus.Cancelled).SetProperty(r => r.RespondedUtc, (DateTimeOffset?)now), ct);
         }
 
         // An open basket has nothing worth keeping once its owner is gone; a checked-out one is only the order's history, so just let go of the person.

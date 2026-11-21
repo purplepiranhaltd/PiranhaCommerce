@@ -345,6 +345,14 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   this existed carry no version and count as 0. The password hash and the version are never in any response. Every staff action (unlock, sign out, reset link
   with its outcome, removal, switching off or on) is recorded with who did it and when, shown in the card and at `GET /customers/{id}/sign-in/history`,
   included in the customer's export, and deleted with them on erasure. Customers' own sign-ins and password changes are not logged.
+- **Buyer-requested returns** (storefront `POST|GET /orders/{id}/return-requests`, `DELETE .../{requestId}`; staff `/return-requests`,
+  `/return-requests/{id}/approve|reject`, `GET /orders/{id}/return-requests`; admin: Returns on the order page): a signed-in shopper asks to send
+  back items of their own order. Only goods that were sent and are not already returned or asked for can be requested (open requests hold their
+  quantity back; a cancelled order cannot be asked about). The shop's alert address is emailed (`alert.return-requested`); staff approve or turn
+  down with an optional message and the buyer is emailed (`return.answered`); the buyer can withdraw a request nobody has answered. A request
+  moves no stock and no money: when the goods arrive, record the return as before, naming the approved request (`returnRequestId`) so it is
+  marked Received, then refund as usual. Shoppers never see which staff member answered. Erasing a shopper clears both sides' notes and
+  withdraws unanswered requests.
 - **Shipping by destination and weight** (`/shipping-methods/{id}/rates`, admin: edit a method on Orders > Shipping, and a product's weight in its Online
   store settings): a method with no rates charges its flat price everywhere, as before. Give it rate rows (a country, or `*` for every other country,
   and a weight band in grams: from the first figure up to, but not including, the second; empty for no limit) and it charges by where the parcel goes and

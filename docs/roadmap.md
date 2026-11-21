@@ -109,7 +109,7 @@ Not built yet:
   countries (list each country), rates by basket value or item count, dimensional weight, carriers, live rates and labels, and free-shipping promo codes.
 - Tax: classes and per-country rates are built, prices are entered tax-exclusive; see "Tax: what is left" above.
 - Fulfilment: parcels, tracking, partial shipment, returns (with a restock choice per line) and refunds through the provider are built. Not built:
-  buyer-requested returns (a request and approval step), return labels, exchanges,
+  return labels, exchanges, automatic expiry of unanswered return requests,
   and refund status updates for a provider refund that later fails.
 - Clean-up of old open baskets; reserving stock while a shopper is in checkout (today stock is taken only when the order is placed).
 - Per-order stock location (every online order currently draws from `Piranha:Ecommerce:StockLocationId`, or the default location).

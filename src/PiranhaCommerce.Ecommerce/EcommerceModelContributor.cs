@@ -121,6 +121,27 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.HasIndex(l => l.OrderLineId);
         });
 
+        b.Entity<ReturnRequest>(e =>
+        {
+            e.ToTable("ReturnRequest", Schema);
+            e.HasIndex(r => new { r.OrderId, r.Status });
+            e.HasIndex(r => new { r.Status, r.RequestedUtc });
+            e.Property(r => r.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(r => r.Reason).HasMaxLength(200);
+            e.Property(r => r.Note).HasMaxLength(1000);
+            e.Property(r => r.ResponseNote).HasMaxLength(1000);
+            e.Property(r => r.RespondedBy).HasMaxLength(256);
+            e.HasOne<Order>().WithMany().HasForeignKey(r => r.OrderId).OnDelete(DeleteBehavior.Restrict);
+            e.HasMany(r => r.Lines).WithOne().HasForeignKey(l => l.ReturnRequestId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<ReturnRequestLine>(e =>
+        {
+            e.ToTable("ReturnRequestLine", Schema);
+            e.HasOne<OrderLine>().WithMany().HasForeignKey(l => l.OrderLineId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(l => l.OrderLineId);
+        });
+
         b.Entity<Payment>(e =>
         {
             e.ToTable("Payment", Schema);

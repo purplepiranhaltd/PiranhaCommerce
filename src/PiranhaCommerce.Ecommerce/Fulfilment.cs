@@ -115,6 +115,9 @@ public sealed class ReturnInput : IValidatableObject
 
     public List<ReturnLineInput> Lines { get; set; } = [];
 
+    /// <summary>The approved buyer request these goods answer, if any. It is marked Received. Must belong to this order and be Approved.</summary>
+    public Guid? ReturnRequestId { get; set; }
+
     /// <summary>Include the delivery charge in the suggested refund. Allowed once per order.</summary>
     public bool IncludeShipping { get; set; }
 
@@ -332,6 +335,14 @@ internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock
                         suggested += RefundSuggestion.ForLine(line.LineTotal, line.DiscountAmount, line.TaxAmount, line.Quantity, line.QuantityReturned, item.Quantity);
                         returnLines.Add(new OrderReturnLine { OrderReturnId = returnId, OrderLineId = line.Id, Quantity = item.Quantity, Restocked = item.Restock });
                         if (item.Restock) stockChanges.Add(new StockChange(line.ProductId, item.Quantity, "Returned", reference, "\"" + line.Name + "\""));
+                    }
+
+                    if (input.ReturnRequestId is { } requestId)
+                    {
+                        // Only an approved request of this order, and only once: the conditional update decides between simultaneous recordings.
+                        var marked = await db.Set<ReturnRequest>().Where(r => r.Id == requestId && r.OrderId == orderId && r.Status == ReturnRequestStatus.Approved)
+                            .ExecuteUpdateAsync(s => s.SetProperty(r => r.Status, ReturnRequestStatus.Received).SetProperty(r => r.ReceivedReturnId, (Guid?)returnId), token);
+                        if (marked == 0) throw new PiranhaConflictException("That return request is not an approved one for this order, or has already been received.");
                     }
 
                     if (input.IncludeShipping)

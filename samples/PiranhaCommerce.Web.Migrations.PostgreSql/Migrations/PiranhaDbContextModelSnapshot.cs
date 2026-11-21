@@ -1184,6 +1184,79 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.ToTable("Promotion", "ecom");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.ReturnRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("ReceivedReturnId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("RequestedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RespondedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset?>("RespondedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ResponseNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId", "Status");
+
+                    b.HasIndex("Status", "RequestedUtc");
+
+                    b.ToTable("ReturnRequest", "ecom");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.ReturnRequestLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OrderLineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ReturnRequestId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderLineId");
+
+                    b.HasIndex("ReturnRequestId");
+
+                    b.ToTable("ReturnRequestLine", "ecom");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.Shipment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1866,6 +1939,30 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.ReturnRequest", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Ecommerce.Order", null)
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.ReturnRequestLine", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Ecommerce.OrderLine", null)
+                        .WithMany()
+                        .HasForeignKey("OrderLineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PiranhaCommerce.Ecommerce.ReturnRequest", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("ReturnRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.Shipment", b =>
                 {
                     b.HasOne("PiranhaCommerce.Ecommerce.Order", null)
@@ -1937,6 +2034,11 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                 });
 
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.OrderReturn", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.ReturnRequest", b =>
                 {
                     b.Navigation("Lines");
                 });

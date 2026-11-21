@@ -198,6 +198,18 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
                     ? Results.Created($"/api/v1/orders/{id}/payments/{p.Id}", p) : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 
+        var requests = api.MapGroup("/return-requests").WithTags("Return requests");
+        requests.MapGet("/", async (ReturnRequestStatus? status, int? page, int? pageSize, IReturnRequestService svc, CancellationToken ct) =>
+            Results.Ok(await svc.ListAsync(status, page, pageSize, ct))).RequireAuthorization(ApiPolicies.Read);
+        requests.MapGet("/{id:guid}", async (Guid id, IReturnRequestService svc, CancellationToken ct) =>
+            await svc.GetAsync(id, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequireAuthorization(ApiPolicies.Read);
+        requests.MapPost("/{id:guid}/approve", async (Guid id, ReturnResponseInput input, IReturnRequestService svc, HttpContext http, CancellationToken ct) =>
+            await svc.ApproveAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+        requests.MapPost("/{id:guid}/reject", async (Guid id, ReturnResponseInput input, IReturnRequestService svc, HttpContext http, CancellationToken ct) =>
+            await svc.RejectAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+        orders.MapGet("/{id:guid}/return-requests", async (Guid id, IReturnRequestService svc, CancellationToken ct) =>
+            await svc.ListForOrderAsync(id, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequireAuthorization(ApiPolicies.Read);
+
         orders.MapPost("/{id:guid}/refunds/voucher", async (Guid id, RefundToVoucherInput input, IPaymentService svc, HttpContext http, CancellationToken ct) =>
             {
                 var payment = await svc.RefundToVoucherAsync(id, input, http.User.FindFirst("email")?.Value, ct);

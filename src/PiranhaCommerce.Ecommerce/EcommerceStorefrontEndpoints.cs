@@ -76,6 +76,16 @@ internal sealed class EcommerceStorefrontEndpoints : IStorefrontEndpointContribu
             await orderSvc.GetForCustomerAsync(user.CustomerId()!.Value, id, ct) is not null && await svc.StartAsync(id, input.Provider, ct) is { } s
                 ? Results.Ok(s) : Results.NotFound());
 
+        // Returns: a shopper asks about their own order only (anyone else's is a 404), sees their requests without staff names, and may withdraw an unanswered one.
+        orders.MapGet("/{id:guid}/return-requests", async (Guid id, ClaimsPrincipal user, IOrderService orderSvc, IReturnRequestService svc, CancellationToken ct) =>
+            await orderSvc.GetForCustomerAsync(user.CustomerId()!.Value, id, ct) is not null && await svc.ListForOrderAsync(id, ct) is { } list
+                ? Results.Ok(list.Select(r => r.ForShopper())) : Results.NotFound());
+        orders.MapPost("/{id:guid}/return-requests", async (Guid id, ReturnRequestInput input, ClaimsPrincipal user, IOrderService orderSvc, IReturnRequestService svc, CancellationToken ct) =>
+            await orderSvc.GetForCustomerAsync(user.CustomerId()!.Value, id, ct) is not null && await svc.RequestAsync(id, input, ct) is { } r
+                ? Results.Created($"/api/v1/storefront/orders/{id}/return-requests", r.ForShopper()) : Results.NotFound());
+        orders.MapDelete("/{id:guid}/return-requests/{requestId:guid}", async (Guid id, Guid requestId, ClaimsPrincipal user, IOrderService orderSvc, IReturnRequestService svc, CancellationToken ct) =>
+            await orderSvc.GetForCustomerAsync(user.CustomerId()!.Value, id, ct) is not null && await svc.CancelAsync(id, requestId, ct) ? Results.NoContent() : Results.NotFound());
+
         orders.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, IOrderService svc, CancellationToken ct) =>
             await svc.GetForCustomerAsync(user.CustomerId()!.Value, id, ct) is { } o ? Results.Ok(o) : Results.NotFound());
     }
