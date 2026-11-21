@@ -130,7 +130,7 @@ public interface IGatewayService
 }
 
 internal sealed class GatewayService(
-    PiranhaDbContext db, IEnumerable<IPaymentGateway> gateways, IPaymentService payments, ILogger<GatewayService> logger) : IGatewayService
+    PiranhaDbContext db, IEnumerable<IPaymentGateway> gateways, IPaymentService payments, OrderMailer mailer, ILogger<GatewayService> logger) : IGatewayService
 {
     private IPaymentGateway? Find(string provider) =>
         gateways.FirstOrDefault(g => string.Equals(g.Name, provider?.Trim(), StringComparison.OrdinalIgnoreCase));
@@ -271,12 +271,15 @@ internal sealed class GatewayService(
                 .ExecuteUpdateAsync(s => s.SetProperty(u => u.Reason, UnreconciledPaymentService.Truncate(reason, 500)), ct);
             return;
         }
-        db.Add(new UnreconciledPayment
+        var listed = new UnreconciledPayment
         {
             Provider = provider, Kind = e.Kind, OrderId = e.OrderId, Amount = e.Amount, Currency = UnreconciledPaymentService.Truncate(e.Currency ?? "", 3),
             Reference = UnreconciledPaymentService.Truncate(e.Reference, 200), Reason = UnreconciledPaymentService.Truncate(reason, 500), CreatedUtc = DateTimeOffset.UtcNow,
-        });
+        };
+        db.Add(listed);
         try { await db.SaveChangesAsync(ct); }
-        catch (DbUpdateException) { db.ChangeTracker.Clear(); } // a simultaneous replay listed it first
+        catch (DbUpdateException) { db.ChangeTracker.Clear(); return; } // a simultaneous replay listed it first, and that one tells the shop
+
+        await mailer.UnreconciledAsync(listed, ct); // only when newly listed: a retried webhook for the same money does not email again
     }
 }

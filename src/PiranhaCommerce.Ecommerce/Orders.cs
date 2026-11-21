@@ -215,4 +215,11 @@ public sealed class EcommerceOptions
 
     /// <summary>Email the buyer when a parcel is sent, the order is cancelled, or a refund is recorded. Same rule: only once an email plugin is registered, and never able to fail the change itself.</summary>
     public bool SendOrderUpdates { get; set; } = true;
+
+    /// <summary>
+    /// Who is emailed when money a payment gateway confirmed could not be booked and lands on the unreconciled list (one or more addresses,
+    /// separated by commas). Empty means nobody is emailed: the list and the log are then the only places it shows. Only does anything once
+    /// an email plugin is registered, and can never fail the webhook.
+    /// </summary>
+    public string? AlertEmail { get; set; }
 }

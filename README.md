@@ -371,6 +371,9 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   (cancelled order, over-payment, wrong currency, unknown order) is saved here instead of being lost in a log. Each item can be retried
   (it books if the order can now take it) or resolved with a note of what you did. A replay of the same webhook never lists it twice, and
   a resolved one is not brought back. `GET /unreconciled-payments/open-count` gives the number still open, for a health check.
+  Set `Piranha:Ecommerce:AlertEmail` (one or more addresses, comma-separated) and the shop is emailed (template `alert.unreconciled-payment`, editable
+  like the others) the first time money is listed, with the provider, amount, order reference, reason and the provider's id. A retried webhook for the
+  same money does not email again, and a mail failure never fails the webhook (the item is on the list and in the log either way).
 - **Stripe** (`PiranhaCommerce.Payments.Stripe`, `.AddPlugin<StripePlugin>()`): the first gateway, using Stripe Checkout (a page Stripe hosts, so card
   numbers never touch your server). Settings under `Piranha:Stripe`: `SecretKey`, `WebhookSecret`, `SuccessUrl`, `CancelUrl` (set by you, never by
   a caller). Keep the two secrets in user secrets or your host's secret store, never in source control. Point a Stripe webhook endpoint at

@@ -14,6 +14,7 @@ public static class EcommerceEmailTemplates
     public const string OrderShipped = "order.shipped";
     public const string OrderCancelled = "order.cancelled";
     public const string OrderRefunded = "order.refunded";
+    public const string UnreconciledPaymentAlert = "alert.unreconciled-payment";
 }
 
 internal sealed class EcommerceEmailContributor : IEmailTemplateContributor
@@ -82,6 +83,17 @@ internal sealed class EcommerceEmailContributor : IEmailTemplateContributor
             new("amount", "This refund, formatted.", "10.00"),
             new("totalRefunded", "All refunds on the order so far, formatted.", "10.00"),
             new("orderTotal", "The order total, formatted.", "35.70"),
+        ]),
+
+        new(EcommerceEmailTemplates.UnreconciledPaymentAlert, "Unreconciled payment (to the shop)", "Sent to the shop's alert address when money a payment provider confirmed could not be booked against an order and needs a person.",
+        [
+            new("provider", "The payment provider's name, e.g. stripe.", "stripe"),
+            new("kind", "What it was: PaymentConfirmed or RefundConfirmed.", "PaymentConfirmed"),
+            new("amount", "The amount, formatted.", "35.70"),
+            new("currency", "The currency code, e.g. GBP.", "GBP"),
+            new("providerReference", "The provider's id for the payment or refund.", "pi_3Abc123"),
+            new("orderReference", "The order reference when the order exists, e.g. ORD-1001. Empty when the provider named an order that is not here.", "ORD-1001"),
+            new("reason", "Why it could not be booked.", "The order is cancelled."),
         ]),
     ];
 }
@@ -178,6 +190,32 @@ internal sealed class OrderMailer(PiranhaDbContext db, IEmailSender email, IOpti
         var (_, refunded) = await SumsAsync(orderId, ct);
         return OrderEmails.Refunded(o.Email, o.Number, o.Currency, amount, refunded, o.Total);
     }, ct);
+
+    /// <summary>Tells the shop's alert address(es) about money that needs a person. Never throws: the webhook has already been answered.</summary>
+    public async Task UnreconciledAsync(UnreconciledPayment p, CancellationToken ct)
+    {
+        var addresses = (options.Value.AlertEmail ?? "").Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (addresses.Length == 0) return;
+        try
+        {
+            var number = await db.Set<Order>().AsNoTracking().Where(o => o.Id == p.OrderId).Select(o => (long?)o.Number).FirstOrDefaultAsync(ct);
+            var variables = new Dictionary<string, object?>
+            {
+                ["provider"] = p.Provider, ["kind"] = p.Kind.ToString(), ["amount"] = Money(p.Amount), ["currency"] = p.Currency,
+                ["providerReference"] = p.Reference, ["orderReference"] = number is { } n ? OrderNumbers.Format(n) : null, ["reason"] = p.Reason,
+            };
+            foreach (var to in addresses.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                try { await email.SendAsync(new EmailMessage(to, EcommerceEmailTemplates.UnreconciledPaymentAlert, variables), ct); }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                catch (Exception ex) { logger.LogWarning(ex, "The unreconciled payment alert could not be sent to one alert address."); } // not the address
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex) { logger.LogWarning(ex, "The unreconciled payment alert could not be prepared."); }
+    }
+
+    private static string Money(decimal v) => v.ToString("N2", CultureInfo.InvariantCulture);
 
     private async Task<(decimal Paid, decimal Refunded)> SumsAsync(Guid orderId, CancellationToken ct)
     {

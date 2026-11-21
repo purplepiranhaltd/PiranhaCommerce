@@ -145,6 +145,7 @@ public static class SmtpTemplateDefaults
             "{% if complete %}Your order {{ reference }} is on its way{% else %}Part of your order {{ reference }} is on its way{% endif %}", OrderShippedText),
         "order.cancelled" => new Content("Your order {{ reference }} has been cancelled", OrderCancelledText),
         "order.refunded" => new Content("Your refund for order {{ reference }}", OrderRefundedText),
+        "alert.unreconciled-payment" => new Content("Payment needs attention: {{ amount }} {{ currency }} ({{ provider }})", UnreconciledAlertText),
         _ => null,
     };
 
@@ -228,6 +229,20 @@ public static class SmtpTemplateDefaults
         Refunded so far: {{ totalRefunded }} {{ currency }} of {{ orderTotal }} {{ currency }}.
 
         It can take a few days to appear on your statement.
+        """;
+
+    private const string UnreconciledAlertText = """
+        {{ provider }} confirmed {{ amount }} {{ currency }} ({{ kind }}) that could not be booked against an order.
+
+        {% if orderReference -%}
+        Order: {{ orderReference }}
+        {% else -%}
+        Order: not found
+        {% endif -%}
+        Reason: {{ reason }}
+        {{ provider }} reference: {{ providerReference }}
+
+        Open the admin, Orders > Unreconciled payments, to retry it or mark it dealt with.
         """;
 
     private const string SetPasswordText = """

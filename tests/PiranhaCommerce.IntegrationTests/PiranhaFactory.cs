@@ -58,6 +58,7 @@ public class PiranhaFactory: WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("Piranha:Provider", Provider);
         builder.UseSetting("ConnectionStrings:Piranha", ConnectionString);
         builder.UseSetting("Piranha:RateLimit:SignInAttempts", SignInAttempts.ToString());
+        if (AlertEmail is { } alert) builder.UseSetting("Piranha:Ecommerce:AlertEmail", alert);
         // Mail goes to memory so tests can read the links and codes it would have carried.
         builder.ConfigureTestServices(s => { s.AddSingleton<IEmailSender>(Email); s.AddPaymentGateway<TestGateway>(); });
     }
@@ -66,6 +67,7 @@ public class PiranhaFactory: WebApplicationFactory<Program>, IAsyncLifetime
 
     /// <summary>Sign-in attempts allowed per minute. High by default so the many sign-ins in the suite never trip it.</summary>
     protected virtual int SignInAttempts => 100_000;
+    protected virtual string? AlertEmail => null;
 
     public Task InitializeAsync() => Task.CompletedTask;
 
