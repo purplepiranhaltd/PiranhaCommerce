@@ -345,6 +345,12 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   this existed carry no version and count as 0. The password hash and the version are never in any response. Every staff action (unlock, sign out, reset link
   with its outcome, removal, switching off or on) is recorded with who did it and when, shown in the card and at `GET /customers/{id}/sign-in/history`,
   included in the customer's export, and deleted with them on erasure. Customers' own sign-ins and password changes are not logged.
+- **Shoppers' own privacy** (`GET /storefront/me/export`, `POST /storefront/me/erase`): a signed-in shopper can fetch everything held about
+  them (the same export staff see, including staff-only notes: it is their data, and a formal subject-access request may require it; change that
+  here if your legal advice differs) and erase their own account. Erasing needs the password again (checked and counted towards the lockout like
+  a sign-in, so a stolen token cannot wipe an account) and follows the same rules as staff erasure: orders are anonymised, never deleted, and it is
+  refused with the order references while any order is open or a refund is owed (they are told to contact the shop). The erasure record names the
+  actor "customer (self-service)". Success is 204 and the token stops working. A storefront needs its own confirmation screen.
 - **Customer data export and erasure** (`GET /customers/{id}/export`, `POST /customers/{id}/erase`, admin: the Privacy card on a customer):
   staff can see everything held about a customer (their record including staff notes, address book, whether they can sign in but never the
   password hash, and each package's part: for the store, their orders and open baskets) and erase them. Erasing needs the customer's email typed

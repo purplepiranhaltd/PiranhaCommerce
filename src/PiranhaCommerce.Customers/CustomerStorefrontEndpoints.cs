@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using PiranhaCommerce.Api;
 using PiranhaCommerce.Api.Auth;
+using PiranhaCommerce.Core.Validation;
 
 namespace PiranhaCommerce.Customers;
 
@@ -86,6 +87,23 @@ internal sealed class CustomerStorefrontEndpoints : IStorefrontEndpointContribut
                 ? Results.Ok(tokens.Issue(user.CustomerId()!.Value, changed.Email, changed.SessionVersion))
                 : Results.ValidationProblem(new Dictionary<string, string[]> { [nameof(ChangePasswordInput.CurrentPassword)] = ["The current password is not correct."] }));
 
+        // Their own data: everything held about them, and erasing their account. The id is always the token's. Erasing needs the password again
+        // (checked and counted like a sign-in), so a stolen token alone cannot wipe an account. Orders are anonymised, never deleted.
+        me.MapGet("/export", async (ClaimsPrincipal user, ICustomerErasureService svc, CancellationToken ct) =>
+            await svc.ExportAsync(user.CustomerId()!.Value, ct) is { } export ? Results.Ok(export) : Results.Unauthorized());
+
+        me.MapPost("/erase", async (EraseOwnAccountInput input, ClaimsPrincipal user, ICustomerAccountService accounts, ICustomerErasureService erasure, CancellationToken ct) =>
+        {
+            ModelValidator.ValidateOrThrow(input);
+            var id = user.CustomerId()!.Value;
+            if (await accounts.GetProfileAsync(id, ct) is not { } profile) return Results.Unauthorized();
+            var check = await accounts.CheckAsync(profile.Email, input.Password, ct);
+            if (check.Status != SignInStatus.Valid || check.CustomerId != id)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [nameof(EraseOwnAccountInput.Password)] = ["The password is not correct."] });
+            return await erasure.EraseAsync(id, new EraseCustomerInput { ConfirmEmail = profile.Email }, "customer (self-service)", ct) is not null
+                ? Results.NoContent() : Results.Unauthorized();
+        });
+
         // The address book is the signed-in customer's own: the customer id is always the token's, so another customer's
         // address id simply does not exist for this caller (404).
         var addresses = me.MapGroup("/addresses").WithTags("Storefront account");
@@ -104,6 +122,12 @@ internal sealed class CustomerStorefrontEndpoints : IStorefrontEndpointContribut
         addresses.MapDelete("/{addressId:guid}", async (Guid addressId, ClaimsPrincipal user, ICustomerService svc, CancellationToken ct) =>
             await svc.DeleteAddressAsync(user.CustomerId()!.Value, addressId, ct) ? Results.NoContent() : Results.NotFound());
     }
+}
+
+public sealed class EraseOwnAccountInput
+{
+    [System.ComponentModel.DataAnnotations.Required, System.ComponentModel.DataAnnotations.StringLength(128)]
+    public string Password { get; set; } = "";
 }
 
 public sealed record RegisteredDto(ProfileDto Profile, TokenResponse Token);
