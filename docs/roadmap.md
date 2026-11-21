@@ -74,7 +74,7 @@ by the shopper, order history, claim an anonymous basket.
 
 Not built:
 
-- **Email**: the plugin point (`IEmailSender`), password reset / first sign-in by emailed link, and order confirmations are built.
+- **Email**: the plugin point (`IEmailSender`), password reset / first sign-in by emailed link, and order confirmations and order updates (sent, cancelled, refunded) are built.
   SMTP sender is built, with editable templates in its own admin section. Planned: a Mailjet package using its Transactional Email templates (words live in Mailjet; a message is a key plus variables). Not built: other providers (SendGrid, Azure Communication Services - a plugin each), HTML and editable templates, a queue with
   retries (mail is sent inline and a failure is only logged), welcome and order-status emails (shipped, cancelled, refunded),
   staff-triggered "send invite" from the admin, and requiring a verified email before sign-in (an unverified address can register a
@@ -109,7 +109,7 @@ Not built yet:
 - Shipping: flat price per method (optionally free above a spend). No weight/zone rates, carriers or live rates.
 - Tax: classes and per-country rates are built, prices are entered tax-exclusive; see "Tax: what is left" above.
 - Fulfilment: parcels, tracking, partial shipment, returns (with a restock choice per line) and refunds through the provider are built. Not built:
-  buyer-requested returns (a request and approval step), return labels, exchanges, refunding a gift voucher's share back onto the voucher, shipped/refunded emails,
+  buyer-requested returns (a request and approval step), return labels, exchanges, refunding a gift voucher's share back onto the voucher,
   and refund status updates for a provider refund that later fails.
 - Clean-up of old open baskets; reserving stock while a shopper is in checkout (today stock is taken only when the order is placed).
 - Per-order stock location (every online order currently draws from `Piranha:Ecommerce:StockLocationId`, or the default location).

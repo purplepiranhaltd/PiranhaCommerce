@@ -199,7 +199,7 @@ internal static class ShipmentQueries
     public static ShipmentSummaryDto Summary(this ShipmentDto s) => new(s.Id, s.ShippedUtc, s.Carrier, s.TrackingNumber, s.TrackingUrl, s.Lines);
 }
 
-internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock, IOptions<EcommerceOptions> options) : IFulfilmentService
+internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock, IOptions<EcommerceOptions> options, OrderMailer mailer) : IFulfilmentService
 {
     public async Task<IReadOnlyList<ShipmentDto>?> ListShipmentsAsync(Guid orderId, CancellationToken ct = default)
     {
@@ -265,7 +265,9 @@ internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock
             throw new PiranhaConflictException("The shipment could not be recorded. Please try again.");
         }
 
-        return (await ShipmentQueries.ForOrderAsync(db, orderId, ct)).First(s => s.Id == shipmentId);
+        var recorded = (await ShipmentQueries.ForOrderAsync(db, orderId, ct)).First(s => s.Id == shipmentId);
+        await mailer.ShippedAsync(orderId, recorded, ct); // after the commit; cannot fail the shipment
+        return recorded;
     }
 
     public async Task<IReadOnlyList<ReturnDto>?> ListReturnsAsync(Guid orderId, CancellationToken ct = default)

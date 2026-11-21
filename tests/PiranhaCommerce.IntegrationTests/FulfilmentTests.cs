@@ -106,10 +106,11 @@ public class FulfilmentTests(PiranhaFactory factory) : IClassFixture<PiranhaFact
         var order = await Place(staff, (a, 2), (b, 3));
         await Stage(staff, order, OrderStage.Processing);
         order = await Get(staff, order);
-        await Ship(staff, order, ShipOf(order, 1)); // one of the first line has gone already
+        var twoLine = order.Lines.Single(l => l.Quantity == 2); // lines are listed by product name, which is random here, so find it by quantity
+        await Ship(staff, order, new ShipmentInput { Lines = [new FulfilmentLineInput { OrderLineId = twoLine.Id, Quantity = 1 }] }); // one of it has gone already
 
         var rest = await Read<ShipmentDto>(await Ship(staff, order));
-        Assert.Equal([1, 3], rest.Lines.Select(l => l.Quantity));
+        Assert.Equal([1, 3], rest.Lines.Select(l => l.Quantity).Order());
         Assert.Equal(OrderStage.Completed, (await Get(staff, order)).Stage);
         Assert.Equal(HttpStatusCode.Conflict, (await Ship(staff, order)).StatusCode); // nothing left, and no longer processing
     }

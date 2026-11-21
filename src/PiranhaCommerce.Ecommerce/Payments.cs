@@ -91,7 +91,7 @@ public interface IPaymentService
     Task<PaymentDto?> RecordRefundAsync(Guid orderId, PaymentInput input, string? actor = null, CancellationToken ct = default);
 }
 
-internal sealed class PaymentService(PiranhaDbContext db, IEnumerable<IPaymentProvider> providers, IEnumerable<IPaymentGateway> gateways) : IPaymentService
+internal sealed class PaymentService(PiranhaDbContext db, IEnumerable<IPaymentProvider> providers, IEnumerable<IPaymentGateway> gateways, OrderMailer mailer) : IPaymentService
 {
     public IReadOnlyList<PaymentProviderDto> Providers() => providers.Select(p => new PaymentProviderDto(p.Name, p.DisplayName, gateways.Any(g => g.Name == p.Name), gateways.OfType<IRefundingGateway>().Any(g => g.Name == p.Name))).OrderBy(p => p.Name).ToList();
 
@@ -169,6 +169,10 @@ internal sealed class PaymentService(PiranhaDbContext db, IEnumerable<IPaymentPr
             db.ChangeTracker.Clear();
             throw new PiranhaConflictException("That payment reference has already been recorded for this provider.");
         }
+
+        // Money going back to the buyer is worth telling them about, however it was booked (by hand, started here, or the provider's webhook).
+        // Gift-voucher credit is not: cancelling already tells them, and it is not money back to a card.
+        if (kind == PaymentKind.Refund && payment.Provider != "voucher") await mailer.RefundedAsync(orderId, payment.Amount, ct);
 
         return new PaymentDto(payment.Id, orderId, kind, payment.Provider, payment.Amount, payment.Currency, payment.Reference, payment.Note, payment.Actor, payment.CreatedUtc);
     }

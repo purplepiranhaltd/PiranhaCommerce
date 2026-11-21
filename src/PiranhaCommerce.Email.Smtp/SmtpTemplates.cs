@@ -141,6 +141,10 @@ public static class SmtpTemplateDefaults
     {
         "order.confirmation" => new Content("Your order {{ reference }}", OrderConfirmationText),
         "customer.set-password" => new Content("Set your password", SetPasswordText),
+        "order.shipped" => new Content(
+            "{% if complete %}Your order {{ reference }} is on its way{% else %}Part of your order {{ reference }} is on its way{% endif %}", OrderShippedText),
+        "order.cancelled" => new Content("Your order {{ reference }} has been cancelled", OrderCancelledText),
+        "order.refunded" => new Content("Your refund for order {{ reference }}", OrderRefundedText),
         _ => null,
     };
 
@@ -175,6 +179,55 @@ public static class SmtpTemplateDefaults
         {{ l }}
         {% endfor -%}
         {% endif -%}
+        """;
+
+    private const string OrderShippedText = """
+        {% if complete -%}
+        Your order {{ reference }} has been sent.
+        {% else -%}
+        Part of your order {{ reference }} has been sent.
+        {% endif %}
+        In this parcel:
+        {% for line in lines -%}
+        {{ line.quantity }} x {{ line.name }}{% if line.sku %} ({{ line.sku }}){% endif %}
+        {% endfor %}
+        {% if carrier or trackingNumber -%}
+        {% if carrier %}Carrier: {{ carrier }}
+        {% endif -%}
+        {% if trackingNumber %}Tracking number: {{ trackingNumber }}
+        {% endif -%}
+        {% endif -%}
+        {% if trackingUrl -%}
+        Track it here: {{ trackingUrl }}
+        {% endif -%}
+        {% if stillToSend.size > 0 %}
+        Still to come:
+        {% for line in stillToSend -%}
+        {{ line.quantity }} x {{ line.name }}{% if line.sku %} ({{ line.sku }}){% endif %}
+        {% endfor -%}
+        {% endif -%}
+        {% if shippingAddress.size > 0 %}
+        Delivering to:
+        {% for l in shippingAddress -%}
+        {{ l }}
+        {% endfor -%}
+        {% endif -%}
+        """;
+
+    private const string OrderCancelledText = """
+        Your order {{ reference }} ({{ total }} {{ currency }}) has been cancelled.
+        {% if stillToRefund %}
+        You paid {{ stillToRefund }} {{ currency }} that has not been returned yet. We will refund it to you; it can take a few days to appear.
+        {% endif %}
+        If you did not expect this, please reply to this email.
+        """;
+
+    private const string OrderRefundedText = """
+        We have refunded {{ amount }} {{ currency }} on your order {{ reference }}.
+
+        Refunded so far: {{ totalRefunded }} {{ currency }} of {{ orderTotal }} {{ currency }}.
+
+        It can take a few days to appear on your statement.
         """;
 
     private const string SetPasswordText = """

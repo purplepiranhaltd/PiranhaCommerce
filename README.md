@@ -267,6 +267,12 @@ variables; the words belong to whichever email sender is installed. The variable
 Today it sends password-reset links and, for every order placed, a plain-text order confirmation (`Piranha:Ecommerce:SendOrderConfirmations`,
 default on). A failing mail server never fails the request that triggered it: the order is still placed, and the failure is logged.
 The email is sent before the checkout response returns, so a slow provider slows checkout; queue inside your sender if that matters.
+It also emails the buyer when **a parcel is sent** (`order.shipped`: carrier, tracking, what is in it and what is still to come), when **an order
+is cancelled** (`order.cancelled`, saying what is still to be refunded if they paid) and when **a refund is recorded** (`order.refunded`: the
+amount and the total refunded so far), however the refund was booked (by hand, started from the admin, or the provider's webhook). These
+go out after the change is saved and are controlled by `Piranha:Ecommerce:SendOrderUpdates` (default on). Marking an order completed by hand
+sends no shipped email (there is no parcel or tracking to tell them), and crediting a gift voucher on cancel is not announced as a refund.
+Each is a template in Email > Email templates (SMTP) with its variables listed there; the variable names are the contract for other senders.
 
 ## Baskets and orders
 

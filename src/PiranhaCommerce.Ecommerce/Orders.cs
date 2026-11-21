@@ -210,4 +210,7 @@ public sealed class EcommerceOptions
 
     /// <summary>Email the buyer a confirmation when an order is placed. Only does anything once an email plugin is registered.</summary>
     public bool SendOrderConfirmations { get; set; } = true;
+
+    /// <summary>Email the buyer when a parcel is sent, the order is cancelled, or a refund is recorded. Same rule: only once an email plugin is registered, and never able to fail the change itself.</summary>
+    public bool SendOrderUpdates { get; set; } = true;
 }

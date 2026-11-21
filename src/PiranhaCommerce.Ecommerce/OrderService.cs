@@ -42,7 +42,7 @@ public interface IOrderService
 
 internal sealed class OrderService(
     PiranhaDbContext db, IStockService stock, ICustomerService customers, IOptions<EcommerceOptions> options,
-    IEmailSender email, ILogger<OrderService> logger) : IOrderService
+    IEmailSender email, OrderMailer mailer, ILogger<OrderService> logger) : IOrderService
 {
     public async Task<PagedResult<OrderSummaryDto>> ListAsync(int? page, int? pageSize, OrderStage? stage, string? search, CancellationToken ct = default)
     {
@@ -395,6 +395,7 @@ internal sealed class OrderService(
             db.ChangeTracker.Clear();
             throw new PiranhaConflictException("The order could not be updated. Please try again.");
         }
+        if (to == OrderStage.Cancelled) await mailer.CancelledAsync(id, ct); // only the caller that moved the stage gets here
         return await GetAsync(id, ct);
     }
 
