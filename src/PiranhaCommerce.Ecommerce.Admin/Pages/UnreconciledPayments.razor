@@ -1,5 +1,6 @@
 @page "/admin/orders/unreconciled"
 @inject AdminScopeRunner Scope
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider Auth
 
 <PageTitle>Unreconciled payments - Piranha Commerce</PageTitle>
 <h1>Unreconciled payments</h1>
@@ -101,7 +102,11 @@ else
     private async Task RetryAsync(Guid id)
     {
         _busy = true; _error = null;
-        try { await Scope.RunAsync<IUnreconciledPaymentService, UnreconciledPaymentDto?>(s => s.RetryAsync(id)); }
+        try
+        {
+            var actor = await Auth.GetActorAsync();
+            await Scope.RunAsync<IUnreconciledPaymentService, UnreconciledPaymentDto?>(s => s.RetryAsync(id, actor));
+        }
         catch (PiranhaConflictException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = "Could not retry: " + ex.Message; }
         finally { _busy = false; }
@@ -114,7 +119,8 @@ else
         try
         {
             var note = _note;
-            await Scope.RunAsync<IUnreconciledPaymentService, UnreconciledPaymentDto?>(s => s.ResolveAsync(id, new ResolveUnreconciledInput { Resolution = note }));
+            var actor = await Auth.GetActorAsync();
+            await Scope.RunAsync<IUnreconciledPaymentService, UnreconciledPaymentDto?>(s => s.ResolveAsync(id, new ResolveUnreconciledInput { Resolution = note }, actor));
             _resolving = null;
         }
         catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }

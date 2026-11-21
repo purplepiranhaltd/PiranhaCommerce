@@ -1,5 +1,6 @@
 @page "/admin/email/templates/{Key}"
 @inject AdminScopeRunner Scope
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider Auth
 
 <PageTitle>Edit email template - Piranha Commerce</PageTitle>
 <p><a href="/admin/email/templates">&larr; All email templates</a></p>
@@ -119,7 +120,8 @@ else if (_template is not null)
         try
         {
             var key = Key; var input = _input;
-            _template = await Scope.RunAsync<IEmailTemplateService, EmailTemplateDto?>(s => s.SaveAsync(key, input));
+            var actor = await Auth.GetActorAsync();
+            _template = await Scope.RunAsync<IEmailTemplateService, EmailTemplateDto?>(s => s.SaveAsync(key, input, actor));
             _saved = true;
         }
         catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }

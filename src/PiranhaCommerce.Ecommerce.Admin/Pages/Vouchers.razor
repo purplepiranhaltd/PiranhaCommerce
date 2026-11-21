@@ -1,5 +1,6 @@
 @page "/admin/orders/vouchers"
 @inject AdminScopeRunner Scope
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider Auth
 
 <PageTitle>Gift vouchers - Piranha Commerce</PageTitle>
 <h1>Gift vouchers</h1>
@@ -113,7 +114,8 @@ else
         try
         {
             var input = _input;
-            var issued = await Scope.RunAsync<IVoucherService, VoucherIssuedDto>(s => s.IssueAsync(input));
+            var actor = await Auth.GetActorAsync();
+            var issued = await Scope.RunAsync<IVoucherService, VoucherIssuedDto>(s => s.IssueAsync(input, actor));
             _issuedCode = issued.Code;
             _input = new();
         }
@@ -146,7 +148,8 @@ else
         try
         {
             var input = _adjust;
-            await Scope.RunAsync<IVoucherService, VoucherDto?>(s => s.AdjustAsync(id, input));
+            var actor = await Auth.GetActorAsync();
+            await Scope.RunAsync<IVoucherService, VoucherDto?>(s => s.AdjustAsync(id, input, actor));
         }
         catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
         catch (PiranhaConflictException ex) { _error = ex.Message; }

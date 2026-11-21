@@ -199,8 +199,7 @@ else
         _error = null;
         try
         {
-            var state = await Auth.GetAuthenticationStateAsync();
-            var actor = state.User.FindFirst("email")?.Value ?? state.User.Identity?.Name;
+            var actor = await Auth.GetActorAsync();
             var input = _payment;
             if (refund) await Scope.RunAsync<IPaymentService, PaymentDto?>(s => s.RecordRefundAsync(Id, input, actor));
             else await Scope.RunAsync<IPaymentService, PaymentDto?>(s => s.RecordPaymentAsync(Id, input, actor));
@@ -220,8 +219,7 @@ else
         _confirmCancel = false;
         try
         {
-            var state = await Auth.GetAuthenticationStateAsync();
-            var actor = state.User.FindFirst("email")?.Value ?? state.User.Identity?.Name;
+            var actor = await Auth.GetActorAsync();
             var updated = await Scope.RunAsync<IOrderService, OrderDto?>(s => s.ChangeStageAsync(Id, to, actor));
             if (updated is null) _notFound = true; else { _order = updated; await LoadPaymentsAsync(); }
         }
