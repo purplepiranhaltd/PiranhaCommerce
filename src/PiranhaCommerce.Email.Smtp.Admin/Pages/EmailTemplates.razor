@@ -1,0 +1,64 @@
+@page "/admin/email/templates"
+@inject AdminScopeRunner Scope
+
+<PageTitle>Email templates - Piranha Commerce</PageTitle>
+<h1>Email templates</h1>
+<p class="pc-muted">
+    The wording of the emails this shop sends. Each one starts with the wording the platform ships with; edit it to make it yours, and
+    reset it to go back.
+</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+@if (_templates is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_templates.Count == 0)
+{
+    <p class="pc-muted">No installed package sends email.</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>Email</th><th>What it is</th><th>Wording</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var t in _templates)
+        {
+            <tr>
+                <td>@t.Name<br /><span class="pc-muted">@t.Key</span></td>
+                <td>@t.Description</td>
+                <td>
+                    @switch (t.Status)
+                    {
+                        case EmailTemplateStatus.Customised:
+                            <span>Edited @(t.UpdatedUtc?.ToString("dd MMM yyyy"))</span>
+                            break;
+                        case EmailTemplateStatus.Default:
+                            <span>Platform default</span>
+                            break;
+                        default:
+                            <span class="pc-error">Not set up: this email cannot be sent until you write it</span>
+                            break;
+                    }
+                </td>
+                <td class="actions"><a href="/admin/email/templates/@t.Key">Edit</a></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IReadOnlyList<EmailTemplateSummaryDto>? _templates;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _templates = await Scope.RunAsync<IEmailTemplateService, IReadOnlyList<EmailTemplateSummaryDto>>(s => s.ListAsync()); }
+        catch (Exception ex) { _error = "Could not load: " + ex.Message; }
+    }
+}

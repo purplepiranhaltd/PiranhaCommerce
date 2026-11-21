@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <Description>Admin pages for editing the SMTP sender's email templates in Piranha Commerce.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\PiranhaCommerce.Admin\PiranhaCommerce.Admin.csproj" />
+    <ProjectReference Include="..\PiranhaCommerce.Email.Smtp\PiranhaCommerce.Email.Smtp.csproj" />
+  </ItemGroup>
+</Project>

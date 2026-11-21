@@ -39,7 +39,7 @@ piranha
     .AddPlugin<CustomersAdminPlugin>()
     .AddPlugin<EcommerceAdminPlugin>()
     .AddPlugin<PiranhaCommerce.Payments.Stripe.StripePlugin>() // inert until Piranha:Stripe keys are set
-    .AddPlugin<PiranhaCommerce.Email.Smtp.SmtpEmailPlugin>() // needs Piranha:Email:Smtp settings; mail is only logged as skipped until then
+    .AddPlugin<PiranhaCommerce.Email.Smtp.Admin.SmtpEmailAdminPlugin>() // SMTP sending (needs Piranha:Email:Smtp settings) and its template editor
     .AddPlugin<WarrantyPlugin>();
 
 var app = builder.Build();

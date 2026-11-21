@@ -35,8 +35,9 @@ public partial class PasswordResetTests(PiranhaFactory factory) : IClassFixture<
         var mails = factory.Email.To(email);
         Assert.NotEmpty(mails);
         Assert.Equal("customer.set-password", mails[^1].TemplateKey);
-        Assert.Equal(email, mails[^1].Variables!["email"]);
-        var m = CodeRegex().Match(mails[^1].TextBody);
+        EmailContract.AssertMatchesDescriptor(factory, mails[^1]);
+        Assert.Equal(email, mails[^1].Variables["email"]);
+        var m = CodeRegex().Match((string)mails[^1].Variables["code"]!);
         Assert.True(m.Success, "no code in the email");
         return m.Value;
     }

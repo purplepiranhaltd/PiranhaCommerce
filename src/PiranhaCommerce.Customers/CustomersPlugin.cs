@@ -23,6 +23,7 @@ public sealed class CustomersPlugin : IPiranhaPlugin
         services.AddOptions<CustomerAccountOptions>().BindConfiguration(CustomerAccountOptions.SectionName);
         services.AddScoped<ICustomerAccountService, CustomerAccountService>();
         services.AddSingleton<IStorefrontEndpointContributor, CustomerStorefrontEndpoints>();
+        services.AddSingleton<PiranhaCommerce.Core.Email.IEmailTemplateContributor, CustomerEmailContributor>();
     }
 }
 

@@ -5,50 +5,85 @@ using Microsoft.Extensions.Logging;
 namespace PiranhaCommerce.Core.Email;
 
 /// <summary>
-/// One email. The plain text body is always required and always complete: a sender that just sends mail (SMTP) uses it as is.
-/// <paramref name="TemplateKey"/> and <paramref name="Variables"/> are for a sender that renders its own templates (a provider's
-/// template engine): the key names the message ("order.confirmation") and the variables are its data. Such a sender maps the key to
-/// its own template id and falls back to the text body when it has no template for a key.
+/// One email to send: who it is for, WHICH email it is (<paramref name="TemplateKey"/>), and the data it needs. It deliberately has no
+/// subject or body: the words belong to the email sender. An SMTP sender keeps its own editable templates (and so has an admin section
+/// for them); a provider such as Mailjet maps the key to a template in its own system (and its admin is where it is edited).
 /// </summary>
-/// <param name="TemplateKey">Stable name of the kind of message, e.g. <c>order.confirmation</c>, <c>customer.set-password</c>. Null for an ad hoc message.</param>
-/// <param name="Variables">Plain values (strings, numbers, lists of those, dictionaries) a template can show. Money is already formatted. May hold secrets such as a reset link, so a sender must not log it.</param>
-public sealed record EmailMessage(
-    string To, string Subject, string TextBody, string? HtmlBody = null, string? TemplateKey = null, IReadOnlyDictionary<string, object?>? Variables = null);
+/// <param name="TemplateKey">Names the kind of message, e.g. <c>order.confirmation</c>. Declared by the package that sends it, with <see cref="IEmailTemplateContributor"/>.</param>
+/// <param name="Variables">
+/// The data, named exactly as the template's descriptor lists. Plain values only (strings, numbers, booleans, null, and lists or
+/// dictionaries of those). Money is already formatted. May hold secrets such as a reset link, so a sender must not log it.
+/// </param>
+public sealed record EmailMessage(string To, string TemplateKey, IReadOnlyDictionary<string, object?> Variables);
 
-/// <summary>The keys of the messages the platform itself sends.</summary>
-public static class EmailTemplates
+/// <summary>One piece of data an email template can show. The <paramref name="Sample"/> is used to preview templates and to check they render.</summary>
+public sealed record EmailTemplateVariable(string Name, string Description, object? Sample);
+
+/// <summary>
+/// What one email is and what data it carries. The names in <see cref="Variables"/> are a public contract: templates (in an SMTP
+/// admin, or in a provider such as Mailjet) refer to them, so changing one breaks those templates.
+/// </summary>
+public sealed record EmailTemplateDescriptor(string Key, string Name, string Description, IReadOnlyList<EmailTemplateVariable> Variables)
 {
-    public const string OrderConfirmation = "order.confirmation";
-    public const string SetPassword = "customer.set-password";
+    /// <summary>The sample value of every variable, for previews.</summary>
+    public IReadOnlyDictionary<string, object?> Samples => Variables.ToDictionary(v => v.Name, v => v.Sample);
+}
+
+/// <summary>A package that sends emails declares them here, next to the code that fills in the variables.</summary>
+public interface IEmailTemplateContributor
+{
+    IEnumerable<EmailTemplateDescriptor> GetTemplates();
+}
+
+/// <summary>Every email the installed packages can send. A sender uses this to list, preview and map templates.</summary>
+public interface IEmailTemplateCatalog
+{
+    IReadOnlyList<EmailTemplateDescriptor> All { get; }
+    EmailTemplateDescriptor? Find(string key);
+}
+
+internal sealed class EmailTemplateCatalog(IEnumerable<IEmailTemplateContributor> contributors) : IEmailTemplateCatalog
+{
+    private readonly Lazy<IReadOnlyList<EmailTemplateDescriptor>> _all = new(() =>
+    {
+        var all = contributors.SelectMany(c => c.GetTemplates()).OrderBy(t => t.Key, StringComparer.Ordinal).ToList();
+        var duplicate = all.GroupBy(t => t.Key, StringComparer.Ordinal).FirstOrDefault(g => g.Count() > 1);
+        if (duplicate is not null) throw new InvalidOperationException($"Two packages declare the email template \"{duplicate.Key}\".");
+        return all;
+    });
+
+    public IReadOnlyList<EmailTemplateDescriptor> All => _all.Value;
+    public EmailTemplateDescriptor? Find(string key) => All.FirstOrDefault(t => string.Equals(t.Key, key, StringComparison.Ordinal));
 }
 
 /// <summary>
 /// The one way the platform sends email (password resets, order confirmations, ...). Nothing here knows about SMTP or any
-/// provider: a plugin registers its own implementation (SMTP, SendGrid, Azure Communication Services, ...) and replaces the
-/// default, which only logs that nothing was sent.
+/// provider: a plugin registers its own implementation (SMTP, Mailjet, ...) and replaces the default, which only logs that nothing
+/// was sent.
 /// </summary>
 public interface IEmailSender
 {
-    /// <summary>Throws if the provider refuses the message. Callers decide whether a failure matters (an order never fails because an email did).</summary>
+    /// <summary>Throws if the provider refuses the message or has no template for its key. Callers decide whether a failure matters (an order never fails because an email did).</summary>
     Task SendAsync(EmailMessage message, CancellationToken ct = default);
 }
 
-/// <summary>Registered when no real sender is: it records that an email was skipped, without its content (which may hold a reset link).</summary>
+/// <summary>Registered when no real sender is: it records that an email was skipped, without its data (which may hold a reset link).</summary>
 internal sealed class NoEmailSender(ILogger<NoEmailSender> logger) : IEmailSender
 {
     public Task SendAsync(EmailMessage message, CancellationToken ct = default)
     {
-        logger.LogWarning("Email not sent (no IEmailSender is registered): subject \"{Subject}\". Register an email plugin to send mail.", message.Subject);
+        logger.LogWarning("Email not sent (no IEmailSender is registered): template \"{TemplateKey}\". Register an email plugin to send mail.", message.TemplateKey);
         return Task.CompletedTask;
     }
 }
 
 public static class EmailServiceCollectionExtensions
 {
-    /// <summary>Registers the do-nothing default unless a real sender is already registered. Safe to call more than once.</summary>
+    /// <summary>Registers the do-nothing default unless a real sender is already registered, and the template catalog. Safe to call more than once.</summary>
     public static IServiceCollection AddPiranhaEmailDefaults(this IServiceCollection services)
     {
         services.TryAddSingleton<IEmailSender, NoEmailSender>();
+        services.TryAddSingleton<IEmailTemplateCatalog, EmailTemplateCatalog>();
         return services;
     }
 }

@@ -1,0 +1,156 @@
+@page "/admin/email/templates/{Key}"
+@inject AdminScopeRunner Scope
+
+<PageTitle>Edit email template - Piranha Commerce</PageTitle>
+<p><a href="/admin/email/templates">&larr; All email templates</a></p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+@if (_loaded && _template is null)
+{
+    <p class="pc-muted">No installed package sends an email called "@Key".</p>
+}
+else if (_template is not null)
+{
+    <h1>@_template.Name</h1>
+    <p class="pc-muted">@_template.Description</p>
+    @if (_saved)
+    {
+        <p role="status">Saved.</p>
+    }
+
+    <div class="pc-card">
+        <EditForm Model="_input" OnValidSubmit="SaveAsync" FormName="email-template">
+            <DataAnnotationsValidator />
+            <label>Subject <InputText @bind-Value="_input.Subject" /></label>
+            <ValidationMessage For="() => _input.Subject" />
+            <label>Text version (always sent)
+                <InputTextArea @bind-Value="_input.TextBody" rows="14" style="font-family:monospace;width:100%" />
+            </label>
+            <ValidationMessage For="() => _input.TextBody" />
+            <label>HTML version (optional)
+                <InputTextArea @bind-Value="_input.HtmlBody" rows="14" style="font-family:monospace;width:100%" />
+            </label>
+            <ValidationMessage For="() => _input.HtmlBody" />
+            <button type="submit" disabled="@_busy">Save</button>
+            <button type="button" class="secondary" disabled="@_busy" @onclick="PreviewAsync">Preview</button>
+            @if (_template.Status == EmailTemplateStatus.Customised)
+            {
+                @if (_confirmReset)
+                {
+                    <button type="button" class="danger" disabled="@_busy" @onclick="ResetAsync">Confirm: go back to the platform wording</button>
+                    <button type="button" class="secondary" @onclick="CancelReset">Cancel</button>
+                }
+                else
+                {
+                    <button type="button" class="secondary" @onclick="AskReset">Reset to default</button>
+                }
+            }
+        </EditForm>
+    </div>
+
+    <div class="pc-card">
+        <h2 style="margin-top:0">What you can use</h2>
+        <p class="pc-muted">
+            Put a value in with double braces, such as @Example1. Repeat for each item of a list with @Example2, and show something
+            only sometimes with @Example3. In the HTML version, values are made safe automatically.
+        </p>
+        <table class="pc-table">
+            <thead><tr><th>Name</th><th>What it holds</th></tr></thead>
+            <tbody>
+            @foreach (var v in _template.Variables)
+            {
+                <tr><td><code>@v.Name</code></td><td>@v.Description</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    @if (_preview is not null)
+    {
+        <div class="pc-card">
+            <h2 style="margin-top:0">Preview with example data</h2>
+            <p><strong>Subject:</strong> @_preview.Subject</p>
+            <pre style="white-space:pre-wrap">@_preview.TextBody</pre>
+            @if (_preview.HtmlBody is not null)
+            {
+                <iframe sandbox srcdoc="@_preview.HtmlBody" style="width:100%;height:24em;border:1px solid #ccc;background:#fff" title="HTML preview"></iframe>
+            }
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public string Key { get; set; } = "";
+
+    private const string Example1 = "{{ reference }}";
+    private const string Example2 = "{% for line in lines %} ... {% endfor %}";
+    private const string Example3 = "{% if discount %} ... {% endif %}";
+
+    private EmailTemplateDto? _template;
+    private EmailTemplateInput _input = new();
+    private EmailTemplatePreviewDto? _preview;
+    private bool _loaded, _saved, _busy, _confirmReset;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private void AskReset() => _confirmReset = true;
+    private void CancelReset() => _confirmReset = false;
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var key = Key;
+            _template = await Scope.RunAsync<IEmailTemplateService, EmailTemplateDto?>(s => s.GetAsync(key));
+            if (_template is not null) _input = new EmailTemplateInput { Subject = _template.Subject, TextBody = _template.TextBody, HtmlBody = _template.HtmlBody };
+        }
+        catch (Exception ex) { _error = "Could not load: " + ex.Message; }
+        _loaded = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true; _error = null; _saved = false;
+        try
+        {
+            var key = Key; var input = _input;
+            _template = await Scope.RunAsync<IEmailTemplateService, EmailTemplateDto?>(s => s.SaveAsync(key, input));
+            _saved = true;
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _error = "Could not save: " + ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task PreviewAsync()
+    {
+        _busy = true; _error = null; _preview = null;
+        try
+        {
+            var key = Key; var input = _input;
+            _preview = await Scope.RunAsync<IEmailTemplateService, EmailTemplatePreviewDto?>(s => s.PreviewAsync(key, input));
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _error = "Could not preview: " + ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task ResetAsync()
+    {
+        _busy = true; _error = null; _confirmReset = false;
+        try
+        {
+            var key = Key;
+            await Scope.RunAsync<IEmailTemplateService, EmailTemplateDto?>(s => s.ResetAsync(key));
+            _preview = null; _saved = false;
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = "Could not reset: " + ex.Message; }
+        finally { _busy = false; }
+    }
+}

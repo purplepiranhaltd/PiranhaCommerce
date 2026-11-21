@@ -267,13 +267,11 @@ internal sealed class CustomerAccountService(
         var code = $"{token.Id:N}.{secret}";
         var link = string.IsNullOrWhiteSpace(o.ResetUrlTemplate) ? null
             : o.ResetUrlTemplate.Replace("{token}", Uri.EscapeDataString(code)).Replace("{email}", Uri.EscapeDataString(customer.Email));
-        var body = new StringBuilder("Someone asked to set a password for this email address.\n\n");
-        body.Append(link is null ? $"Your code is:\n{code}\n" : $"Choose a password here:\n{link}\n");
-        body.Append($"\nThis works once and expires in {o.ResetTokenMinutes} minutes. If it was not you, ignore this email: nothing changes.\n");
-        try { await email.SendAsync(new EmailMessage(customer.Email, "Set your password", body.ToString(), TemplateKey: EmailTemplates.SetPassword, Variables: new Dictionary<string, object?>
-            {
-                ["email"] = customer.Email, ["link"] = link, ["code"] = code, ["expiresInMinutes"] = o.ResetTokenMinutes,
-            }), ct); }
+        var message = new EmailMessage(customer.Email, CustomerEmailTemplates.SetPassword, new Dictionary<string, object?>
+        {
+            ["email"] = customer.Email, ["link"] = link, ["code"] = code, ["expiresInMinutes"] = o.ResetTokenMinutes,
+        });
+        try { await email.SendAsync(message, ct); }
         catch (Exception ex) { logger.LogWarning(ex, "Password reset email could not be sent."); } // same answer to the caller whether or not it went
     }
 

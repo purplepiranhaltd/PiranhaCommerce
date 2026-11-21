@@ -1247,6 +1247,36 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.ToTable("VoucherEntry", "ecom");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Email.Smtp.SmtpEmailTemplate", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("HtmlBody")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)");
+
+                    b.Property<string>("TextBody")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset>("UpdatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("SmtpTemplate", "email");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Example.Warranty.ProductWarranty", b =>
                 {
                     b.Property<Guid>("ProductId")

@@ -5,8 +5,11 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\PiranhaCommerce.Core\PiranhaCommerce.Core.csproj" />
+    <ProjectReference Include="..\PiranhaCommerce.Data\PiranhaCommerce.Data.csproj" />
+    <ProjectReference Include="..\PiranhaCommerce.Api\PiranhaCommerce.Api.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Fluid.Core" Version="3.0.0" />
     <PackageReference Include="MailKit" Version="5.0.0" />
   </ItemGroup>
 </Project>

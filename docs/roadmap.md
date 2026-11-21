@@ -75,7 +75,7 @@ by the shopper, order history, claim an anonymous basket.
 Not built:
 
 - **Email**: the plugin point (`IEmailSender`), password reset / first sign-in by emailed link, and order confirmations are built.
-  SMTP sender is built. Planned: a Mailjet package using its Transactional Email templates (messages carry a template key and variables for it). Not built: other providers (SendGrid, Azure Communication Services - a plugin each), HTML and editable templates, a queue with
+  SMTP sender is built, with editable templates in its own admin section. Planned: a Mailjet package using its Transactional Email templates (words live in Mailjet; a message is a key plus variables). Not built: other providers (SendGrid, Azure Communication Services - a plugin each), HTML and editable templates, a queue with
   retries (mail is sent inline and a failure is only logged), welcome and order-status emails (shipped, cancelled, refunded),
   staff-triggered "send invite" from the admin, and requiring a verified email before sign-in (an unverified address can register a
   new account today; the real owner recovers it with forgot-password).

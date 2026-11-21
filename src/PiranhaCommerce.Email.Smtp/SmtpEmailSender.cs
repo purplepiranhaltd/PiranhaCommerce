@@ -4,8 +4,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MimeKit;
+using PiranhaCommerce.Api;
 using PiranhaCommerce.Core.Email;
 using PiranhaCommerce.Core.Plugins;
+using PiranhaCommerce.Data;
 
 namespace PiranhaCommerce.Email.Smtp;
 
@@ -50,8 +52,11 @@ public sealed class SmtpEmailOptions
     public int TimeoutSeconds { get; set; } = 20;
 }
 
-/// <summary>Sends every platform email through an SMTP server. Sends the message's own text (and HTML, when there is one); template keys are ignored.</summary>
-public sealed class SmtpEmailSender(IOptions<SmtpEmailOptions> options, ILogger<SmtpEmailSender> logger) : IEmailSender
+/// <summary>
+/// Sends every platform email through an SMTP server. The words come from this package's own templates (edited in its admin section,
+/// or the shipped defaults) filled in with the message's variables. Scoped, because the templates are read from the database.
+/// </summary>
+public sealed class SmtpEmailSender(IOptions<SmtpEmailOptions> options, ISmtpTemplateStore templates, ILogger<SmtpEmailSender> logger) : IEmailSender
 {
     private SmtpEmailOptions Options => options.Value;
 
@@ -74,8 +79,9 @@ public sealed class SmtpEmailSender(IOptions<SmtpEmailOptions> options, ILogger<
             if (!TryAddress(o.ReplyToAddress, out var reply)) throw new InvalidOperationException("SMTP is not configured: Piranha:Email:Smtp:ReplyToAddress is not a valid address.");
             mime.ReplyTo.Add(reply);
         }
-        mime.Subject = Clean(message.Subject);
-        mime.Body = new BodyBuilder { TextBody = message.TextBody, HtmlBody = message.HtmlBody }.ToMessageBody();
+        var content = await RenderAsync(message, ct);
+        mime.Subject = Clean(content.Subject);
+        mime.Body = new BodyBuilder { TextBody = content.Text, HtmlBody = content.Html }.ToMessageBody();
 
         using var client = new SmtpClient { Timeout = Math.Max(1, o.TimeoutSeconds) * 1000 };
         var secure = o.Security switch
@@ -93,6 +99,23 @@ public sealed class SmtpEmailSender(IOptions<SmtpEmailOptions> options, ILogger<
 
         // The recipient and subject are not logged: they identify a customer and a reset subject says what the mail is for.
         logger.LogInformation("Email sent through {Host}:{Port}.", o.Host, o.Port);
+    }
+
+    private async Task<(string Subject, string Text, string? Html)> RenderAsync(EmailMessage message, CancellationToken ct)
+    {
+        var stored = await templates.FindAsync(message.TemplateKey, ct);
+        var subject = stored?.Subject; var text = stored?.TextBody; var html = stored?.HtmlBody;
+        if (stored is null)
+        {
+            var fallback = SmtpTemplateDefaults.Find(message.TemplateKey)
+                ?? throw new InvalidOperationException($"There is no SMTP template for \"{message.TemplateKey}\". Write one in the admin under Email > Templates.");
+            (subject, text, html) = (fallback.Subject, fallback.TextBody, fallback.HtmlBody);
+        }
+
+        var variables = message.Variables ?? new Dictionary<string, object?>();
+        return (SmtpTemplateRenderer.OneLine(await SmtpTemplateRenderer.RenderAsync(subject!, variables, html: false)),
+            await SmtpTemplateRenderer.RenderAsync(text!, variables, html: false),
+            html is null ? null : await SmtpTemplateRenderer.RenderAsync(html, variables, html: true));
     }
 
     /// <summary>A real address has a name and a domain; "ada" alone parses but would be a local mailbox, so it is refused.</summary>
@@ -118,7 +141,11 @@ public sealed class SmtpEmailPlugin : IPiranhaPlugin
     public void ConfigureServices(IServiceCollection services)
     {
         services.AddOptions<SmtpEmailOptions>().BindConfiguration(SmtpEmailOptions.SectionName);
-        // Registered after the core's do-nothing default, so this one is the sender.
-        services.AddSingleton<IEmailSender, SmtpEmailSender>();
+        // Registered after the core's do-nothing default, so this one is the sender. Scoped: it reads templates from the database.
+        services.AddSingleton<IModelContributor, SmtpModelContributor>();
+        services.AddScoped<ISmtpTemplateStore, EfSmtpTemplateStore>();
+        services.AddScoped<IEmailTemplateService, EmailTemplateService>();
+        services.AddSingleton<IApiEndpointContributor, EmailTemplateApiEndpoints>();
+        services.AddScoped<IEmailSender, SmtpEmailSender>();
     }
 }

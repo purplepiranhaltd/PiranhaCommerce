@@ -247,16 +247,22 @@ the content, which may hold a reset link). To send real mail, add a plugin or yo
 builder.Services.AddSingleton<IEmailSender, MySmtpSender>();   // after AddPiranhaCore(): the last registration wins
 ```
 
-**SMTP** (`PiranhaCommerce.Email.Smtp`, `.AddPlugin<SmtpEmailPlugin>()`): sends every platform email through any SMTP server using
-MailKit. Settings under `Piranha:Email:Smtp`: `Host`, `Port` (587), `Security` (`StartTls` default, `SslOnConnect`, `Auto`, or `None` for a local
-mail catcher only), `Username`, `Password`, `FromAddress`, `FromName`, `ReplyToAddress`, `TimeoutSeconds`. Keep the password in user secrets or
-your host's secret store. Server certificates are always validated. The recipient must be exactly one valid address, a subject cannot
-inject headers, and neither recipient nor subject is logged. For development, run a mail catcher such as smtp4dev or Papercut and set
-`Security` to `None`.
+**An email is a key plus data, never words.** `EmailMessage` is `(To, TemplateKey, Variables)`: there is no subject or body in it. The package
+that sends an email declares it (`IEmailTemplateContributor`: key, name, and each variable with a description and sample value) and fills in the
+variables; the words belong to whichever email sender is installed. The variable names are a public contract, since templates refer to them.
 
-Every platform email also carries a `TemplateKey` (`order.confirmation`, `customer.set-password`) and `Variables` (its data, money already
-formatted) next to its text body. The SMTP sender ignores them and sends the text; a sender that renders its own templates (a provider
-such as Mailjet) maps the key to its template id and uses the variables.
+- **SMTP** (`PiranhaCommerce.Email.Smtp`, with `PiranhaCommerce.Email.Smtp.Admin` for the admin section): sends through any SMTP server using
+  MailKit, and keeps the wording itself. Each email's subject, text and optional HTML are Liquid templates (via Fluid: loops and conditions, no
+  way to run code), edited in **Email > Email templates** or through `/api/v1/email-templates`. Each starts with the shipped wording; "reset"
+  goes back to it. A template that does not parse, or cannot render with the email's sample data, is refused on save. HTML bodies HTML-encode
+  every variable; text bodies and subjects do not, and a subject is forced onto one line. An email with no stored or shipped wording
+  (a third-party package's key you have not written yet) fails to send with a clear message, and the admin lists it as "not set up".
+  Settings under `Piranha:Email:Smtp`: `Host`, `Port` (587), `Security` (`StartTls` default, `SslOnConnect`, `Auto`, or `None` for a local mail catcher
+  only), `Username`, `Password`, `FromAddress`, `FromName`, `ReplyToAddress`, `TimeoutSeconds`. Keep the password in user secrets or your host's secret
+  store. Server certificates are always validated. The recipient must be exactly one valid address, and neither recipient nor subject is logged.
+  Run a mail catcher such as smtp4dev or Papercut and set `Security` to `None` for development.
+- **A provider with its own templates (Mailjet, planned)**: its package maps each key from `IEmailTemplateCatalog` to a template id and sends the
+  variables; the words are edited in the provider's own admin, so with it installed (instead of SMTP) there is no template section here.
 
 Today it sends password-reset links and, for every order placed, a plain-text order confirmation (`Piranha:Ecommerce:SendOrderConfirmations`,
 default on). A failing mail server never fails the request that triggered it: the order is still placed, and the failure is logged.

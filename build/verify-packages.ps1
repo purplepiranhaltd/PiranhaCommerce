@@ -69,6 +69,7 @@ using PiranhaCommerce.Data;
 using PiranhaCommerce.Data.SqlServer;
 using PiranhaCommerce.Ecommerce;
 using PiranhaCommerce.Ecommerce.Admin;
+using PiranhaCommerce.Email.Smtp.Admin;
 using PiranhaCommerce.Example.Warranty;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -80,6 +81,7 @@ builder.Services.AddPiranhaCore()
     .AddPlugin<EcommercePlugin>()
     .AddPlugin<CustomersAdminPlugin>()
     .AddPlugin<EcommerceAdminPlugin>()
+    .AddPlugin<SmtpEmailAdminPlugin>()
     .AddPlugin<WarrantyPlugin>();
 
 var app = builder.Build();
@@ -107,7 +109,7 @@ Get-ChildItem $warranty -Include *.cs,*.razor -Recurse | Where-Object { $_.FullN
 
 # (RequiresAspNetWebAssets is a documented host requirement, see README.)
 # Reference ONLY the two top-level plugin packages + the provider; everything else must arrive transitively.
-foreach ($id in 'PiranhaCommerce.Ecommerce.Admin', 'PiranhaCommerce.Customers.Admin', 'PiranhaCommerce.Data.SqlServer') {
+foreach ($id in 'PiranhaCommerce.Ecommerce.Admin', 'PiranhaCommerce.Customers.Admin', 'PiranhaCommerce.Email.Smtp.Admin', 'PiranhaCommerce.Data.SqlServer') {
     Run dotnet @('add', 'package', $id, '--version', $version, '--no-restore') $app | Out-Null
 }
 Run dotnet @('add', 'package', 'Microsoft.EntityFrameworkCore.Design', '--version', '10.0.15', '--no-restore') $app | Out-Null

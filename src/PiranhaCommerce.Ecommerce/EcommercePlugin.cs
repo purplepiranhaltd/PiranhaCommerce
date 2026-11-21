@@ -18,6 +18,7 @@ public sealed class EcommercePlugin : IPiranhaPlugin
     public void ConfigureServices(IServiceCollection services)
     {
         services.AddSingleton<IModelContributor, EcommerceModelContributor>();
+        services.AddSingleton<PiranhaCommerce.Core.Email.IEmailTemplateContributor, EcommerceEmailContributor>();
         services.AddScoped<IPromotionService, PromotionService>();
         services.AddScoped<IVoucherService, VoucherService>();
         services.AddScoped<IGatewayService, GatewayService>();

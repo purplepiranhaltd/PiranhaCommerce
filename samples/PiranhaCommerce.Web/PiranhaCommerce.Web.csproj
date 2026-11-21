@@ -15,7 +15,7 @@
     <ProjectReference Include="..\..\src\PiranhaCommerce.Admin\PiranhaCommerce.Admin.csproj" />
     <ProjectReference Include="..\..\src\PiranhaCommerce.Ecommerce\PiranhaCommerce.Ecommerce.csproj" />
     <ProjectReference Include="..\..\src\PiranhaCommerce.Payments.Stripe\PiranhaCommerce.Payments.Stripe.csproj" />
-    <ProjectReference Include="..\..\src\PiranhaCommerce.Email.Smtp\PiranhaCommerce.Email.Smtp.csproj" />
+    <ProjectReference Include="..\..\src\PiranhaCommerce.Email.Smtp.Admin\PiranhaCommerce.Email.Smtp.Admin.csproj" />
     <ProjectReference Include="..\..\src\PiranhaCommerce.Catalog\PiranhaCommerce.Catalog.csproj" />
     <ProjectReference Include="..\..\src\PiranhaCommerce.Catalog.Admin\PiranhaCommerce.Catalog.Admin.csproj" />
     <ProjectReference Include="..\..\src\PiranhaCommerce.Ecommerce.Admin\PiranhaCommerce.Ecommerce.Admin.csproj" />

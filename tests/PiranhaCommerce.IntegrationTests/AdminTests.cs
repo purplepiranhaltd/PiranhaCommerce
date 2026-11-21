@@ -268,6 +268,8 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
         Assert.Contains("<h1>Promotions</h1>", await (await browser.GetAsync("/admin/orders/promotions")).Content.ReadAsStringAsync());
         Assert.Contains("<h1>Gift vouchers</h1>", await (await browser.GetAsync("/admin/orders/vouchers")).Content.ReadAsStringAsync());
         Assert.Contains("<h1>Unreconciled payments</h1>", await (await browser.GetAsync("/admin/orders/unreconciled")).Content.ReadAsStringAsync());
+        Assert.Contains("<h1>Email templates</h1>", await (await browser.GetAsync("/admin/email/templates")).Content.ReadAsStringAsync());
+        Assert.Contains("Order confirmation", await (await browser.GetAsync("/admin/email/templates/order.confirmation")).Content.ReadAsStringAsync());
 
         var missing = await (await browser.GetAsync($"/admin/orders/{Guid.NewGuid()}")).Content.ReadAsStringAsync();
         Assert.Contains("That order no longer exists.", missing);
