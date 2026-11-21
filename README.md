@@ -345,6 +345,14 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   this existed carry no version and count as 0. The password hash and the version are never in any response. Every staff action (unlock, sign out, reset link
   with its outcome, removal, switching off or on) is recorded with who did it and when, shown in the card and at `GET /customers/{id}/sign-in/history`,
   included in the customer's export, and deleted with them on erasure. Customers' own sign-ins and password changes are not logged.
+- **Disputes and failed refunds** (Stripe: `charge.dispute.created`, `charge.dispute.closed`, `refund.failed` / a failed `refund.updated`; `GET /disputes`,
+  `GET /orders/{id}/disputes`): a buyer disputing a card payment with their bank is recorded once (by the provider's id, so replays are harmless) and the
+  shop's alert address is emailed (`alert.dispute-opened`) with the reason and the date to answer by: you respond in the provider's own dashboard.
+  Winning moves no money. Losing is booked as a refund on the order (the money has gone back to the card) with no email to the buyer; if it cannot be
+  booked (for example the shop already refunded in full) it still closes and waits on the unreconciled list. A refund that fails at the provider is
+  listed there too, and alerts the shop, because the buyer has not been paid back: deal with it at the provider, then resolve it (retrying cannot book
+  these). Gateways report these through `GatewayEventKind.DisputeOpened | DisputeWon | DisputeLost | RefundFailed`. Not built: submitting
+  dispute evidence from the admin, and the provider's dispute fee.
 - **Buyer-requested returns** (storefront `POST|GET /orders/{id}/return-requests`, `DELETE .../{requestId}`; staff `/return-requests`,
   `/return-requests/{id}/approve|reject`, `GET /orders/{id}/return-requests`; admin: Returns on the order page): a signed-in shopper asks to send
   back items of their own order. Only goods that were sent and are not already returned or asked for can be requested (open requests hold their

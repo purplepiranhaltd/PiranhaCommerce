@@ -27,7 +27,15 @@ public sealed class TestGateway : IRefundingGateway
             throw new GatewayWebhookRejectedException("bad signature");
         var e = JsonSerializer.Deserialize<WireEvent>(request.Body, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
         IReadOnlyList<GatewayEvent> events = e.Type == "ignored" ? [] :
-            [new GatewayEvent(e.Type == "refund" ? GatewayEventKind.RefundConfirmed : GatewayEventKind.PaymentConfirmed, e.OrderId, e.Amount, e.Currency, e.Reference)];
+            [new GatewayEvent(e.Type switch
+            {
+                "refund" => GatewayEventKind.RefundConfirmed,
+                "dispute-opened" => GatewayEventKind.DisputeOpened,
+                "dispute-won" => GatewayEventKind.DisputeWon,
+                "dispute-lost" => GatewayEventKind.DisputeLost,
+                "refund-failed" => GatewayEventKind.RefundFailed,
+                _ => GatewayEventKind.PaymentConfirmed,
+            }, e.OrderId, e.Amount, e.Currency, e.Reference, e.Detail, e.Type == "dispute-opened" ? new DateTimeOffset(2030, 1, 15, 0, 0, 0, TimeSpan.Zero) : null)];
         return Task.FromResult(events);
     }
 
@@ -41,7 +49,7 @@ public sealed class TestGateway : IRefundingGateway
     }
 
     public static string Sign(byte[] body) => Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(Secret), body));
-    public sealed record WireEvent(string Type, Guid OrderId, decimal Amount, string Currency, string Reference);
+    public sealed record WireEvent(string Type, Guid OrderId, decimal Amount, string Currency, string Reference, string? Detail = null);
 }
 
 public class GatewayTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>

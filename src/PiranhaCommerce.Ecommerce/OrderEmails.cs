@@ -17,6 +17,7 @@ public static class EcommerceEmailTemplates
     public const string UnreconciledPaymentAlert = "alert.unreconciled-payment";
     public const string ReturnRequested = "alert.return-requested";
     public const string ReturnAnswered = "return.answered";
+    public const string DisputeOpened = "alert.dispute-opened";
 }
 
 internal sealed class EcommerceEmailContributor : IEmailTemplateContributor
@@ -90,13 +91,24 @@ internal sealed class EcommerceEmailContributor : IEmailTemplateContributor
         new(EcommerceEmailTemplates.UnreconciledPaymentAlert, "Unreconciled payment (to the shop)", "Sent to the shop's alert address when money a payment provider confirmed could not be booked against an order and needs a person.",
         [
             new("provider", "The payment provider's name, e.g. stripe.", "stripe"),
-            new("kind", "What it was: PaymentConfirmed or RefundConfirmed.", "PaymentConfirmed"),
+            new("kind", "What it was: PaymentConfirmed, RefundConfirmed, DisputeLost or RefundFailed.", "PaymentConfirmed"),
             new("amount", "The amount, formatted.", "35.70"),
             new("currency", "The currency code, e.g. GBP.", "GBP"),
             new("providerReference", "The provider's id for the payment or refund.", "pi_3Abc123"),
             new("orderReference", "The order reference when the order exists, e.g. ORD-1001. Empty when the provider named an order that is not here.", "ORD-1001"),
             new("reason", "Why it could not be booked.", "The order is cancelled."),
         ]),
+        new(EcommerceEmailTemplates.DisputeOpened, "Payment disputed (to the shop)", "Sent to the shop's alert address when a buyer disputes a card payment with their bank. There is a deadline to answer.",
+        [
+            new("provider", "The payment provider's name, e.g. stripe.", "stripe"),
+            new("orderReference", "The order reference, e.g. ORD-1001.", "ORD-1001"),
+            new("amount", "The amount disputed, formatted.", "35.70"),
+            new("currency", "The currency code, e.g. GBP.", "GBP"),
+            new("reason", "The reason the bank gave. May be empty.", "product_not_received"),
+            new("respondBy", "The date the shop must answer by, e.g. 2026-12-01. Empty when the provider did not say.", "2026-12-01"),
+            new("providerReference", "The provider's id for the dispute.", "dp_1Abc"),
+        ]),
+
         new(EcommerceEmailTemplates.ReturnRequested, "Return requested (to the shop)", "Sent to the shop's alert address when a buyer asks to send goods back.",
         [
             new("orderReference", "The order reference, e.g. ORD-1001.", "ORD-1001"),
@@ -236,6 +248,30 @@ internal sealed class OrderMailer(PiranhaDbContext db, IEmailSender email, IOpti
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch (Exception ex) { logger.LogWarning(ex, "The unreconciled payment alert could not be prepared."); }
+    }
+
+    /// <summary>Tells the shop a buyer has disputed a payment, because there is a deadline to answer by. Never throws.</summary>
+    public async Task DisputeOpenedAsync(string provider, GatewayEvent e, CancellationToken ct)
+    {
+        var addresses = (options.Value.AlertEmail ?? "").Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (addresses.Length == 0) return;
+        try
+        {
+            var number = await db.Set<Order>().AsNoTracking().Where(o => o.Id == e.OrderId).Select(o => (long?)o.Number).FirstOrDefaultAsync(ct);
+            var variables = new Dictionary<string, object?>
+            {
+                ["provider"] = provider, ["orderReference"] = number is { } n ? OrderNumbers.Format(n) : null, ["amount"] = Money(e.Amount), ["currency"] = e.Currency,
+                ["reason"] = e.Detail, ["respondBy"] = e.RespondBy?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), ["providerReference"] = e.Reference,
+            };
+            foreach (var to in addresses.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                try { await email.SendAsync(new EmailMessage(to, EcommerceEmailTemplates.DisputeOpened, variables), ct); }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                catch (Exception ex) { logger.LogWarning(ex, "The dispute alert could not be sent to one alert address."); }
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex) { logger.LogWarning(ex, "The dispute alert could not be prepared."); }
     }
 
     /// <summary>Tells the shop a buyer wants to send goods back. Never throws.</summary>

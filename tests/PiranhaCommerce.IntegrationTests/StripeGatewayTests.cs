@@ -132,6 +132,32 @@ public class StripeGatewayTests
     }
 
     [Fact]
+    public async Task Disputes_and_failed_refunds_are_read_with_their_order_amount_reason_and_deadline()
+    {
+        var order = Guid.NewGuid();
+        var stripe = new FakeStripe(r => r.RequestUri!.AbsolutePath == "/v1/payment_intents/pi_123"
+            ? (HttpStatusCode.OK, "{\"id\":\"pi_123\",\"metadata\":{\"order_id\":\"" + order + "\"}}")
+            : (HttpStatusCode.NotFound, "{}"));
+        static string Dispute(string type, string status) =>
+            "{\"type\":\"" + type + "\",\"data\":{\"object\":{\"id\":\"dp_1\",\"status\":\"" + status + "\",\"amount\":1250,\"currency\":\"gbp\",\"payment_intent\":\"pi_123\",\"reason\":\"fraudulent\",\"evidence_details\":{\"due_by\":1893456000}}}}";
+
+        var opened = Assert.Single(await Gateway(stripe).ReadWebhookAsync(Signed(Dispute("charge.dispute.created", "needs_response"))));
+        Assert.Equal((GatewayEventKind.DisputeOpened, order, 12.50m, "GBP", "dp_1", "fraudulent"), (opened.Kind, opened.OrderId, opened.Amount, opened.Currency, opened.Reference, opened.Detail));
+        Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(1893456000), opened.RespondBy);
+
+        Assert.Equal(GatewayEventKind.DisputeWon, Assert.Single(await Gateway(stripe).ReadWebhookAsync(Signed(Dispute("charge.dispute.closed", "won")))).Kind);
+        Assert.Equal(GatewayEventKind.DisputeWon, Assert.Single(await Gateway(stripe).ReadWebhookAsync(Signed(Dispute("charge.dispute.closed", "warning_closed")))).Kind);
+        Assert.Equal(GatewayEventKind.DisputeLost, Assert.Single(await Gateway(stripe).ReadWebhookAsync(Signed(Dispute("charge.dispute.closed", "lost")))).Kind);
+        Assert.Empty(await Gateway(stripe).ReadWebhookAsync(Signed(Dispute("charge.dispute.closed", "needs_response")))); // closed in no known way
+
+        static string Refund(string type, string status) =>
+            "{\"type\":\"" + type + "\",\"data\":{\"object\":{\"id\":\"re_9\",\"status\":\"" + status + "\",\"amount\":200,\"currency\":\"gbp\",\"payment_intent\":\"pi_123\"}}}";
+        var failed = Assert.Single(await Gateway(stripe).ReadWebhookAsync(Signed(Refund("refund.failed", "failed"))));
+        Assert.Equal((GatewayEventKind.RefundFailed, order, 2.00m, "re_9"), (failed.Kind, failed.OrderId, failed.Amount, failed.Reference));
+        Assert.Equal(GatewayEventKind.RefundFailed, Assert.Single(await Gateway(stripe).ReadWebhookAsync(Signed(Refund("refund.updated", "failed")))).Kind);
+    }
+
+    [Fact]
     public async Task Forged_stale_missing_and_malformed_signatures_are_all_rejected()
     {
         var json = Completed(Guid.NewGuid());

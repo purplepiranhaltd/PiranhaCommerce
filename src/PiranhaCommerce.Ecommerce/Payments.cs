@@ -39,6 +39,9 @@ public sealed class PaymentInput
 
     [StringLength(200)] public string? Reference { get; set; }
     [StringLength(500)] public string? Note { get; set; }
+
+    /// <summary>Set by the host, never by a caller (an internal member is not read from a request): do not email the buyer about this refund.</summary>
+    internal bool SuppressBuyerEmail { get; set; }
 }
 
 public sealed record PaymentDto(
@@ -244,7 +247,7 @@ internal sealed class PaymentService(PiranhaDbContext db, IEnumerable<IPaymentPr
 
         // Money going back to the buyer is worth telling them about, however it was booked (by hand, started here, or the provider's webhook).
         // Gift-voucher credit is not: cancelling already tells them, and it is not money back to a card.
-        if (kind == PaymentKind.Refund && payment.Provider != "voucher") await mailer.RefundedAsync(orderId, payment.Amount, ct);
+        if (kind == PaymentKind.Refund && payment.Provider != "voucher" && !input.SuppressBuyerEmail) await mailer.RefundedAsync(orderId, payment.Amount, ct);
 
         return new PaymentDto(payment.Id, orderId, kind, payment.Provider, payment.Amount, payment.Currency, payment.Reference, payment.Note, payment.Actor, payment.CreatedUtc);
     }

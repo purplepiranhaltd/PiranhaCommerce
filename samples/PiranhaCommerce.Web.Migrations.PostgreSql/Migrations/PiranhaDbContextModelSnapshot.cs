@@ -1106,6 +1106,64 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.ToTable("Payment", "ecom");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.PaymentDispute", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<DateTimeOffset?>("ClosedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<DateTimeOffset>("OpenedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset?>("RespondByUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId", "OpenedUtc");
+
+                    b.HasIndex("Provider", "Reference")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "OpenedUtc");
+
+                    b.ToTable("PaymentDispute", "ecom");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.ProductListing", b =>
                 {
                     b.Property<Guid>("ProductId")
@@ -1917,6 +1975,15 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                 });
 
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.Payment", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Ecommerce.Order", null)
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.PaymentDispute", b =>
                 {
                     b.HasOne("PiranhaCommerce.Ecommerce.Order", null)
                         .WithMany()

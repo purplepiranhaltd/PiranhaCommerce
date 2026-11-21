@@ -198,6 +198,12 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
                     ? Results.Created($"/api/v1/orders/{id}/payments/{p.Id}", p) : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 
+        var disputes = api.MapGroup("/disputes").WithTags("Payments");
+        disputes.MapGet("/", async (DisputeStatus? status, int? page, int? pageSize, IDisputeService svc, CancellationToken ct) =>
+            Results.Ok(await svc.ListAsync(status, page, pageSize, ct))).RequireAuthorization(ApiPolicies.Read);
+        orders.MapGet("/{id:guid}/disputes", async (Guid id, IDisputeService svc, CancellationToken ct) =>
+            await svc.ListForOrderAsync(id, ct) is { } list ? Results.Ok(list) : Results.NotFound()).RequireAuthorization(ApiPolicies.Read);
+
         var requests = api.MapGroup("/return-requests").WithTags("Return requests");
         requests.MapGet("/", async (ReturnRequestStatus? status, int? page, int? pageSize, IReturnRequestService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListAsync(status, page, pageSize, ct))).RequireAuthorization(ApiPolicies.Read);

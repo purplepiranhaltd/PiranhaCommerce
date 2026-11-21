@@ -298,6 +298,27 @@ else
                 </tbody>
             </table>
         }
+        @if (_disputes is { Count: > 0 })
+        {
+            <h3>Disputes with the buyer's bank</h3>
+            <p class="pc-muted">Answer an open dispute in the payment provider's own dashboard before its deadline. A lost one is recorded above as a refund.</p>
+            <table class="pc-table">
+                <thead><tr><th>Opened</th><th>Provider</th><th style="text-align:right">Amount</th><th>Reason</th><th>Answer by</th><th>Status</th></tr></thead>
+                <tbody>
+                @foreach (var d in _disputes)
+                {
+                    <tr>
+                        <td>@d.OpenedUtc.ToString("dd MMM yyyy") UTC</td>
+                        <td>@d.Provider @d.Reference</td>
+                        <td style="text-align:right">@d.Amount.ToString("N2") @d.Currency</td>
+                        <td>@d.Reason</td>
+                        <td>@(d.RespondByUtc?.ToString("dd MMM yyyy") ?? "-")</td>
+                        <td>@d.Status</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
         @if (VoucherReturnable > 0)
         {
             <h3>Return to the gift voucher</h3>
@@ -405,6 +426,7 @@ else
         _providers = await Scope.RunAsync<IPaymentService, IReadOnlyList<PaymentProviderDto>>(s => Task.FromResult(s.Providers()));
         _shipments = await Scope.RunAsync<IFulfilmentService, IReadOnlyList<ShipmentDto>?>(s => s.ListShipmentsAsync(Id));
         _returns = await Scope.RunAsync<IFulfilmentService, IReadOnlyList<ReturnDto>?>(s => s.ListReturnsAsync(Id));
+        _disputes = (await Scope.RunAsync<IDisputeService, IReadOnlyList<PaymentDisputeDto>?>(s => s.ListForOrderAsync(Id)))?.ToList();
         _requests = (await Scope.RunAsync<IReturnRequestService, IReadOnlyList<ReturnRequestDto>?>(s => s.ListForOrderAsync(Id)))?.ToList();
         var refunders = _providers.Where(x => x.CanRefund).Select(x => x.Name).ToHashSet();
         _refundable = (_payments ?? []).Where(x => x.Kind == PaymentKind.Payment && !string.IsNullOrWhiteSpace(x.Reference) && refunders.Contains(x.Provider)).ToList();
@@ -414,6 +436,7 @@ else
     }
 
     private decimal _voucherAmount;
+    private List<PaymentDisputeDto>? _disputes;
 
     /// <summary>What the order's gift voucher paid and has not had back yet (and what is still refundable).</summary>
     private decimal VoucherReturnable

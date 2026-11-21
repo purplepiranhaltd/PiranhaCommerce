@@ -41,10 +41,16 @@ public sealed record GatewaySession(string? RedirectUrl, string? ProviderReferen
 /// <param name="Body">The exact bytes received. A signature is over these, so do not re-serialise them.</param>
 public sealed record GatewayWebhookRequest(IReadOnlyDictionary<string, string> Headers, byte[] Body);
 
-public enum GatewayEventKind { PaymentConfirmed = 0, RefundConfirmed = 1 }
+/// <summary>
+/// PaymentConfirmed and RefundConfirmed are money that moved. The rest are about trouble after the fact: a buyer disputed a payment with their
+/// bank (opened, then won or lost: a lost one is money taken back, booked as a refund), or a refund the shop started could not be completed.
+/// </summary>
+public enum GatewayEventKind { PaymentConfirmed = 0, RefundConfirmed = 1, DisputeOpened = 2, DisputeWon = 3, DisputeLost = 4, RefundFailed = 5 }
 
-/// <param name="Reference">The gateway's unique id for this payment or refund. Replays of the same webhook carry the same one, which is what makes them harmless.</param>
-public sealed record GatewayEvent(GatewayEventKind Kind, Guid OrderId, decimal Amount, string Currency, string Reference);
+/// <param name="Reference">The gateway's unique id for this payment, refund or dispute. Replays of the same webhook carry the same one, which is what makes them harmless.</param>
+/// <param name="Detail">For a dispute, the reason the bank gave. Optional.</param>
+/// <param name="RespondBy">For a dispute that has just opened, when the shop must answer by. Optional.</param>
+public sealed record GatewayEvent(GatewayEventKind Kind, Guid OrderId, decimal Amount, string Currency, string Reference, string? Detail = null, DateTimeOffset? RespondBy = null);
 
 public sealed class GatewayWebhookRejectedException(string message) : Exception(message);
 
@@ -169,7 +175,13 @@ internal sealed class GatewayService(
 
         foreach (var e in events)
         {
-            switch (await BookEventAsync(gateway, e, $"Confirmed by {gateway.DisplayName}", $"gateway:{gateway.Name}", ct))
+            var outcome = e.Kind switch
+            {
+                GatewayEventKind.DisputeOpened or GatewayEventKind.DisputeWon or GatewayEventKind.DisputeLost => await ApplyDisputeAsync(gateway, e, ct),
+                GatewayEventKind.RefundFailed => await ApplyRefundFailedAsync(gateway, e, ct),
+                _ => await BookEventAsync(gateway, e, $"Confirmed by {gateway.DisplayName}", $"gateway:{gateway.Name}", ct),
+            };
+            switch (outcome)
             {
                 case BookOutcome.Recorded: recorded++; break;
                 case BookOutcome.AlreadyRecorded: already++; break;
@@ -259,6 +271,64 @@ internal sealed class GatewayService(
             new GatewayEvent(GatewayEventKind.RefundConfirmed, orderId, result.Amount, result.Currency, result.Reference),
             $"Refunded through {gateway.DisplayName}", actor ?? $"gateway:{gateway.Name}", ct);
         return new RefundResultDto(gateway.Name, result.Reference, result.Status, result.Amount, result.Currency, outcome.ToString());
+    }
+
+    /// <summary>A bank dispute: recorded once when it opens (and the shop told, because there is a deadline), closed when it ends, and booked as a refund if it is lost.</summary>
+    private async Task<BookOutcome> ApplyDisputeAsync(IPaymentGateway gateway, GatewayEvent e, CancellationToken ct)
+    {
+        var provider = gateway.Name;
+        if (!await db.Set<Order>().AsNoTracking().AnyAsync(o => o.Id == e.OrderId, ct))
+        {
+            logger.LogError("Gateway {Gateway} reported a {Kind} (reference {Reference}) for order {OrderId}, which does not exist.", provider, e.Kind, e.Reference, e.OrderId);
+            await RememberAsync(provider, e, "No such order.", ct);
+            return BookOutcome.Unreconciled;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var existing = await db.Set<PaymentDispute>().AsNoTracking().Where(d => d.Provider == provider && d.Reference == e.Reference).Select(d => new { d.Id, d.Status }).FirstOrDefaultAsync(ct);
+        var newStatus = e.Kind == GatewayEventKind.DisputeOpened ? DisputeStatus.Open : e.Kind == GatewayEventKind.DisputeWon ? DisputeStatus.Won : DisputeStatus.Lost;
+
+        var opened = false;
+        var changed = false;
+        if (existing is null)
+        {
+            var dispute = new PaymentDispute
+            {
+                Provider = provider, Reference = UnreconciledPaymentService.Truncate(e.Reference, 200), OrderId = e.OrderId, Amount = e.Amount,
+                Currency = UnreconciledPaymentService.Truncate(e.Currency ?? "", 3), Status = newStatus,
+                Reason = e.Detail is null ? null : UnreconciledPaymentService.Truncate(e.Detail, 200), OpenedUtc = now, RespondByUtc = e.RespondBy,
+                ClosedUtc = newStatus == DisputeStatus.Open ? null : now,
+            };
+            db.Add(dispute);
+            try { await db.SaveChangesAsync(ct); changed = true; opened = newStatus == DisputeStatus.Open; }
+            catch (DbUpdateException) { db.ChangeTracker.Clear(); } // a simultaneous replay recorded it first
+        }
+        else if (newStatus != DisputeStatus.Open && existing.Status == DisputeStatus.Open)
+        {
+            // One conditional update: only an open dispute can close, and only once.
+            changed = await db.Set<PaymentDispute>().Where(d => d.Id == existing.Id && d.Status == DisputeStatus.Open)
+                .ExecuteUpdateAsync(s => s.SetProperty(d => d.Status, newStatus).SetProperty(d => d.ClosedUtc, (DateTimeOffset?)now), ct) > 0;
+        }
+
+        // The shop must answer a new dispute by a deadline: it is the one thing worth an email.
+        if (opened) await mailer.DisputeOpenedAsync(provider, e, ct);
+
+        // A lost dispute is money gone back to the buyer. Booked like any refund (once, by its reference), and listed for a person if it cannot be.
+        if (e.Kind == GatewayEventKind.DisputeLost)
+        {
+            var booked = await BookEventAsync(gateway, e, $"Lost dispute (chargeback) with {gateway.DisplayName}", $"gateway:{gateway.Name}", ct);
+            return changed && booked == BookOutcome.AlreadyRecorded ? BookOutcome.Recorded : booked;
+        }
+        return changed ? BookOutcome.Recorded : BookOutcome.AlreadyRecorded;
+    }
+
+    /// <summary>A refund the shop started (or the provider began) could not be completed: the buyer has not been paid back. Nothing was booked, so it is listed for a person.</summary>
+    private async Task<BookOutcome> ApplyRefundFailedAsync(IPaymentGateway gateway, GatewayEvent e, CancellationToken ct)
+    {
+        if (await db.Set<UnreconciledPayment>().AsNoTracking().AnyAsync(u => u.Provider == gateway.Name && u.Reference == e.Reference, ct)) return BookOutcome.AlreadyRecorded;
+        logger.LogError("Gateway {Gateway} could not complete refund {Reference} of {Amount} {Currency} on order {OrderId}.", gateway.Name, e.Reference, e.Amount, e.Currency, e.OrderId);
+        await RememberAsync(gateway.Name, e, "The provider could not complete this refund, so the buyer has not been paid back. Nothing was recorded on the order.", ct);
+        return BookOutcome.Unreconciled;
     }
 
     private async Task RememberAsync(string provider, GatewayEvent e, string reason, CancellationToken ct)

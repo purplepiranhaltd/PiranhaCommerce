@@ -201,6 +201,21 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.HasIndex(u => new { u.ResolvedUtc, u.CreatedUtc });
         });
 
+        b.Entity<PaymentDispute>(e =>
+        {
+            e.ToTable("PaymentDispute", Schema);
+            e.Property(d => d.Provider).HasMaxLength(50);
+            e.Property(d => d.Reference).HasMaxLength(200);
+            e.Property(d => d.Amount).HasPrecision(18, 4);
+            e.Property(d => d.Currency).HasMaxLength(3);
+            e.Property(d => d.Status).HasConversion<string>().HasMaxLength(10);
+            e.Property(d => d.Reason).HasMaxLength(200);
+            e.HasIndex(d => new { d.Provider, d.Reference }).IsUnique();
+            e.HasIndex(d => new { d.OrderId, d.OpenedUtc });
+            e.HasIndex(d => new { d.Status, d.OpenedUtc });
+            e.HasOne<Order>().WithMany().HasForeignKey(d => d.OrderId).OnDelete(DeleteBehavior.Restrict);
+        });
+
         b.Entity<GiftVoucher>(e =>
         {
             e.ToTable("GiftVoucher", Schema);

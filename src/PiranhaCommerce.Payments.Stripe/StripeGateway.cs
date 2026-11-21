@@ -129,9 +129,12 @@ public sealed class StripeGateway(IHttpClientFactory http, IOptions<StripeOption
 
             case "refund.created":
             case "refund.updated":
+            case "refund.failed":
             {
-                // A refund may start pending; only a succeeded one is money that has gone back. The update event repeats the same id.
-                if (Str(obj, "status") != "succeeded") return [];
+                // A refund may start pending; only a succeeded one is money that has gone back. A failed one means it will not. The update event repeats the same id.
+                var status = Str(obj, "status");
+                var failed = type == "refund.failed" || status is "failed" or "canceled";
+                if (status != "succeeded" && !failed) return [];
                 var intent = Str(obj, "payment_intent");
                 var reference = Str(obj, "id");
                 var currency = (Str(obj, "currency") ?? "").ToUpperInvariant();
@@ -140,7 +143,29 @@ public sealed class StripeGateway(IHttpClientFactory http, IOptions<StripeOption
                 // A refund carries no order id (a dashboard refund copies no metadata): read it from the payment we tagged.
                 using var pi = await FetchAsync($"/v1/payment_intents/{Uri.EscapeDataString(intent)}", ct);
                 if (!pi.RootElement.TryGetProperty("metadata", out var meta) || !TryOrderId(meta, out var orderId, "order_id")) return [];
-                return [new GatewayEvent(GatewayEventKind.RefundConfirmed, orderId, FromMinorUnits(minor, currency), currency, reference)];
+                return [new GatewayEvent(failed ? GatewayEventKind.RefundFailed : GatewayEventKind.RefundConfirmed, orderId, FromMinorUnits(minor, currency), currency, reference)];
+            }
+
+            case "charge.dispute.created":
+            case "charge.dispute.closed":
+            {
+                var status = Str(obj, "status");
+                GatewayEventKind? kind = type == "charge.dispute.created" ? GatewayEventKind.DisputeOpened
+                    : status is "won" or "warning_closed" ? GatewayEventKind.DisputeWon
+                    : status == "lost" ? GatewayEventKind.DisputeLost : null; // a closed dispute in some other state moves nothing
+                var intent = Str(obj, "payment_intent");
+                var reference = Str(obj, "id");
+                var currency = (Str(obj, "currency") ?? "").ToUpperInvariant();
+                if (kind is null || intent is null || reference is null || !obj.TryGetProperty("amount", out var amount) || !amount.TryGetInt64(out var minor)) return [];
+
+                DateTimeOffset? respondBy = null;
+                if (obj.TryGetProperty("evidence_details", out var evidence) && evidence.ValueKind == JsonValueKind.Object
+                    && evidence.TryGetProperty("due_by", out var due) && due.ValueKind == JsonValueKind.Number && due.TryGetInt64(out var dueSeconds))
+                    respondBy = DateTimeOffset.FromUnixTimeSeconds(dueSeconds);
+
+                using var pi = await FetchAsync($"/v1/payment_intents/{Uri.EscapeDataString(intent)}", ct);
+                if (!pi.RootElement.TryGetProperty("metadata", out var meta) || !TryOrderId(meta, out var orderId, "order_id")) return [];
+                return [new GatewayEvent(kind.Value, orderId, FromMinorUnits(minor, currency), currency, reference, Str(obj, "reason"), respondBy)];
             }
 
             default:

@@ -77,7 +77,11 @@ internal static class GatewayBooking
         if (!string.Equals(orderCurrency, e.Currency, StringComparison.OrdinalIgnoreCase))
             throw new PiranhaConflictException($"Currency {e.Currency} does not match the order's {orderCurrency}.");
 
-        var input = new PaymentInput { Amount = e.Amount, Provider = provider, Reference = e.Reference, Note = note };
+        if (e.Kind is GatewayEventKind.DisputeOpened or GatewayEventKind.DisputeWon or GatewayEventKind.RefundFailed)
+            throw new PiranhaConflictException("This is not money to book: deal with it at the provider, then resolve it here.");
+
+        // A lost dispute is not the shop refunding: the buyer is not emailed as if they had been.
+        var input = new PaymentInput { Amount = e.Amount, Provider = provider, Reference = e.Reference, Note = note, SuppressBuyerEmail = e.Kind == GatewayEventKind.DisputeLost };
         var saved = e.Kind == GatewayEventKind.PaymentConfirmed
             ? await payments.RecordPaymentAsync(e.OrderId, input, actor, ct)
             : await payments.RecordRefundAsync(e.OrderId, input, actor, ct);

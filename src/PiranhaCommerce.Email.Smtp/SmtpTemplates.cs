@@ -147,10 +147,25 @@ public static class SmtpTemplateDefaults
         "order.cancelled" => new Content("Your order {{ reference }} has been cancelled", OrderCancelledText),
         "order.refunded" => new Content("Your refund for order {{ reference }}", OrderRefundedText),
         "alert.unreconciled-payment" => new Content("Payment needs attention: {{ amount }} {{ currency }} ({{ provider }})", UnreconciledAlertText),
+        "alert.dispute-opened" => new Content("Payment disputed: {{ amount }} {{ currency }} on order {{ orderReference }}", DisputeOpenedText),
         "alert.return-requested" => new Content("Return requested on order {{ orderReference }}", ReturnRequestedText),
         "return.answered" => new Content("{% if approved %}Your return for order {{ reference }} is approved{% else %}About your return for order {{ reference }}{% endif %}", ReturnAnsweredText),
         _ => null,
     };
+
+    private const string DisputeOpenedText = """
+        A buyer has disputed a payment with their bank.
+
+        Order: {{ orderReference }}
+        Amount: {{ amount }} {{ currency }}
+        {% if reason -%}
+        Reason given: {{ reason }}
+        {% endif -%}
+        {% if respondBy -%}
+        Answer by: {{ respondBy }}
+        {% endif %}
+        Respond in {{ provider }}'s own dashboard (dispute {{ providerReference }}). If the dispute is lost the amount is taken back and recorded as a refund on the order.
+        """;
 
     private const string ReturnRequestedText = """
         A buyer has asked to send goods back from order {{ orderReference }}.

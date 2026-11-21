@@ -1110,6 +1110,64 @@ namespace PiranhaCommerce.Web.Migrations
                     b.ToTable("Payment", "ecom");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.PaymentDispute", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTimeOffset?>("ClosedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<DateTimeOffset>("OpenedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset?>("RespondByUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId", "OpenedUtc");
+
+                    b.HasIndex("Provider", "Reference")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "OpenedUtc");
+
+                    b.ToTable("PaymentDispute", "ecom");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.ProductListing", b =>
                 {
                     b.Property<Guid>("ProductId")
@@ -1921,6 +1979,15 @@ namespace PiranhaCommerce.Web.Migrations
                 });
 
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.Payment", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Ecommerce.Order", null)
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.PaymentDispute", b =>
                 {
                     b.HasOne("PiranhaCommerce.Ecommerce.Order", null)
                         .WithMany()

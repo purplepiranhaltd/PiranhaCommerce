@@ -104,7 +104,7 @@ Not built yet:
   reminders, and a per-code attempt limit beyond the shared request limiter.
 - Payment gateways: the plugin point is built (start a payment, signed webhooks, idempotent recording; tested with a fake gateway).
   Stripe is built (`PiranhaCommerce.Payments.Stripe`). Unreconciled payments are listed in the admin (retry or resolve with a note).
-  An email alert goes to `AlertEmail` when something lands on that list. Not built: a badge in the admin menu, disputes/chargebacks, a shopper-facing "payment pending" state, and payment on delayed methods that confirm days later.
+  An email alert goes to `AlertEmail` when something lands on that list. Disputes and failed refunds are recorded and alerted (see the README). Not built: a badge in the admin menu, evidence submission, a shopper-facing "payment pending" state, and payment on delayed methods that confirm days later.
 - Shipping: a flat price per method (optionally free above a spend), or rates by destination country and basket weight. Not built: zones that group
   countries (list each country), rates by basket value or item count, dimensional weight, carriers, live rates and labels, and free-shipping promo codes.
 - Tax: classes and per-country rates are built, prices are entered tax-exclusive; see "Tax: what is left" above.
