@@ -597,6 +597,11 @@ namespace PiranhaCommerce.Web.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("nvarchar(512)");
 
+                    b.Property<int>("SessionVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.HasKey("CustomerId");
 
                     b.ToTable("CustomerLogin", "customer");

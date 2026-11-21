@@ -594,6 +594,11 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)");
 
+                    b.Property<int>("SessionVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.HasKey("CustomerId");
 
                     b.ToTable("CustomerLogin", "customer");

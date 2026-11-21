@@ -1,0 +1,118 @@
+@inject AdminScopeRunner Scope
+
+<div class="pc-card">
+    <h2 style="margin-top:0">Sign-in</h2>
+
+    @if (_error is not null)
+    {
+        <p class="pc-error" role="alert">@_error</p>
+    }
+    @if (_notice is not null)
+    {
+        <p role="status">@_notice</p>
+    }
+
+    @if (_status is null)
+    {
+        <p class="pc-muted">Loading...</p>
+    }
+    else
+    {
+        <p>
+            <strong>@Describe(_status.State)</strong>
+            @if (_status.HasSignIn)
+            {
+                <span class="pc-muted"> Password last set @_status.PasswordChangedUtc?.ToString("d MMM yyyy HH:mm") UTC.</span>
+            }
+        </p>
+        <p class="pc-muted">
+            To switch a customer off, untick Active above and save: that also ends their live sessions straight away.
+            Orders and addresses are never affected by anything here.
+        </p>
+
+        <div class="pc-toolbar">
+            @if (_status.State == SignInState.Locked)
+            {
+                <button type="button" class="secondary" disabled="@_busy" @onclick="UnlockAsync">Unlock</button>
+            }
+            <button type="button" class="secondary" disabled="@(_busy || !_status.CustomerActive)" @onclick="SendLinkAsync">
+                @(_status.HasSignIn ? "Send password reset link" : "Send invitation")
+            </button>
+            @if (_status.HasSignIn)
+            {
+                <button type="button" class="secondary" disabled="@_busy" @onclick="SignOutAsync">Sign out everywhere</button>
+                @if (_confirmRemove)
+                {
+                    <button type="button" class="danger" disabled="@_busy" @onclick="RemoveAsync">Confirm: remove sign-in</button>
+                    <button type="button" class="secondary" @onclick="() => _confirmRemove = false">Cancel</button>
+                }
+                else
+                {
+                    <button type="button" class="secondary" disabled="@_busy" @onclick="() => _confirmRemove = true">Remove sign-in</button>
+                }
+            }
+        </div>
+        @if (!_status.HasSignIn)
+        {
+            <p class="pc-muted">This customer has no sign-in. The invitation emails them a link to choose a password, which creates one.</p>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public Guid CustomerId { get; set; }
+
+    private CustomerSignInDto? _status;
+    private string? _error, _notice;
+    private bool _busy, _confirmRemove;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private static string Describe(SignInState state) => state switch
+    {
+        SignInState.None => "No sign-in.",
+        SignInState.Active => "Can sign in.",
+        SignInState.Locked => "Locked after too many wrong passwords.",
+        SignInState.Disabled => "Switched off: cannot sign in.",
+        _ => "",
+    };
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var id = CustomerId;
+            _status = await Scope.RunAsync<ICustomerSignInAdminService, CustomerSignInDto?>(s => s.GetAsync(id));
+            if (_status is null) _error = "That customer no longer exists.";
+        }
+        catch (Exception ex) { _error = "Could not load: " + ex.Message; }
+    }
+
+    private async Task RunAsync(Func<ICustomerSignInAdminService, Task<string>> action)
+    {
+        _busy = true; _error = null; _notice = null; _confirmRemove = false;
+        try { _notice = await Scope.RunAsync<ICustomerSignInAdminService, string>(action); }
+        catch (Exception ex) { _error = "Could not do that: " + ex.Message; }
+        finally { _busy = false; }
+        await LoadAsync();
+    }
+
+    private Task UnlockAsync() { var id = CustomerId; return RunAsync(async s => await s.UnlockAsync(id) ? "Unlocked." : "They have no sign-in."); }
+
+    private Task SignOutAsync() { var id = CustomerId; return RunAsync(async s => await s.SignOutEverywhereAsync(id) ? "Signed out everywhere. They can sign in again." : "They have no sign-in."); }
+
+    private Task RemoveAsync() { var id = CustomerId; return RunAsync(async s => await s.RemoveAsync(id) ? "Sign-in removed." : "They had no sign-in."); }
+
+    private Task SendLinkAsync()
+    {
+        var id = CustomerId;
+        return RunAsync(async s => await s.SendResetLinkAsync(id) switch
+        {
+            ResetLinkOutcome.Sent => "Email sent.",
+            ResetLinkOutcome.Inactive => "Not sent: the customer is switched off.",
+            ResetLinkOutcome.RateLimited => "Not sent: too many links were sent to them in the last hour. Try again later.",
+            ResetLinkOutcome.SendFailed => "Not sent: the email could not be delivered. Check the email settings.",
+            _ => "That customer no longer exists.",
+        });
+    }
+}

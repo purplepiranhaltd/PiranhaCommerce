@@ -334,6 +334,16 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
     The amount is capped by what that provider took and has not returned, a repeated request with the same `idempotencyKey` is the same
     refund, and a refund the provider is still working on is booked when its webhook says it succeeded. A refund made in the provider's
     dashboard is booked automatically; do not also record it by hand. A gift voucher's portion is not refunded to the voucher.
+- **Shopper sign-ins, for staff** (`/customers/{id}/sign-in`, admin: the Sign-in card on a customer and a Sign-in column in the list): see whether a
+  customer has no sign-in, can sign in, is locked out or is switched off; **unlock** a lockout; **sign out everywhere**; **send a reset link** (for a
+  customer who has no sign-in, such as one staff made, this is the invitation: the link creates it, the address being the proof); and **remove the
+  sign-in** (the customer, addresses and orders stay, and any link already emailed is spent). Sending a link tells staff what happened (sent, customer
+  switched off, hourly limit reached, email provider failed). Sessions end at once, not after the token's hour: every shopper token carries the
+  sign-in's session version, which is checked on every storefront call along with the customer being active and the sign-in existing. Signing out
+  everywhere, switching the customer off, removing the sign-in, changing the password and using a reset link each end every token. Changing
+  the password returns a fresh token (the response is 200 with a token, not 204) so the device that changed it stays signed in. Tokens issued before
+  this existed carry no version and count as 0. The password hash and the version are never in any response. Staff actions are not yet recorded
+  anywhere (no audit log).
 - **Customer data export and erasure** (`GET /customers/{id}/export`, `POST /customers/{id}/erase`, admin: the Privacy card on a customer):
   staff can see everything held about a customer (their record including staff notes, address book, whether they can sign in but never the
   password hash, and each package's part: for the store, their orders and open baskets) and erase them. Erasing needs the customer's email typed

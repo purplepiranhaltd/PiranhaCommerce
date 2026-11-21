@@ -30,7 +30,7 @@ else
 {
     <table class="pc-table">
         <thead>
-            <tr><th>Name</th><th>Email</th><th>Phone</th><th>Active</th><th></th></tr>
+            <tr><th>Name</th><th>Email</th><th>Phone</th><th>Active</th><th>Sign-in</th><th></th></tr>
         </thead>
         <tbody>
         @foreach (var c in _result.Items)
@@ -40,6 +40,7 @@ else
                 <td>@c.Email</td>
                 <td>@c.Phone</td>
                 <td>@(c.Active ? "Yes" : "No")</td>
+                <td>@(_states.TryGetValue(c.Id, out var st) ? st.ToString() : "")</td>
                 <td class="actions">
                     @if (_confirmDelete == c.Id)
                     {
@@ -68,6 +69,7 @@ else
     private string? _search;
     private string? _error;
     private Guid? _confirmDelete;
+    private IReadOnlyDictionary<Guid, SignInState> _states = new Dictionary<Guid, SignInState>();
     private int _page = 1;
 
     protected override Task OnInitializedAsync() => LoadAsync();
@@ -78,6 +80,8 @@ else
         {
             _error = null;
             _result = await Scope.RunAsync<ICustomerService, PagedResult<CustomerDto>>(s => s.ListAsync(_page, null, _search));
+            var ids = _result.Items.Select(c => c.Id).ToList();
+            _states = await Scope.RunAsync<ICustomerSignInAdminService, IReadOnlyDictionary<Guid, SignInState>>(s => s.GetStatesAsync(ids));
         }
         catch (Exception ex)
         {

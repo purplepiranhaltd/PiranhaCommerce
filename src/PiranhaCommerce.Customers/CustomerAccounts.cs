@@ -23,6 +23,13 @@ public class CustomerLogin
     public DateTimeOffset? LockoutEnd { get; set; }
     public DateTimeOffset CreatedUtc { get; set; }
     public DateTimeOffset PasswordChangedUtc { get; set; }
+
+    /// <summary>
+    /// Carried in every token this sign-in issues. A token is valid only while it equals this number, and ending sessions adds one,
+    /// so it is a counter rather than a clock: a token issued a moment after a revoke is not caught by it, and one issued a moment before is.
+    /// Never shown to anyone.
+    /// </summary>
+    public int SessionVersion { get; set; }
 }
 
 /// <summary>Bound to <c>Piranha:Customers</c>.</summary>
@@ -99,7 +106,10 @@ public class CustomerToken
 
 public enum SignInStatus { Valid, Invalid, LockedOut }
 
-public sealed record SignInResult(SignInStatus Status, Guid? CustomerId, string? Email);
+public sealed record SignInResult(SignInStatus Status, Guid? CustomerId, string? Email, int SessionVersion = 0);
+
+/// <summary>The result of a successful password change: the version a fresh token for the device that changed it must carry.</summary>
+public sealed record PasswordChangeResult(string Email, int SessionVersion);
 
 public interface ICustomerAccountService
 {
@@ -117,8 +127,11 @@ public interface ICustomerAccountService
     Task<ProfileDto?> GetProfileAsync(Guid customerId, CancellationToken ct = default);
     Task<ProfileDto?> UpdateProfileAsync(Guid customerId, ProfileInput input, CancellationToken ct = default);
 
-    /// <summary>False when the current password is wrong (counted like a failed sign-in) or the customer cannot sign in.</summary>
-    Task<bool> ChangePasswordAsync(Guid customerId, ChangePasswordInput input, CancellationToken ct = default);
+    /// <summary>Null when the current password is wrong (counted like a failed sign-in) or the customer cannot sign in. Success ends every other session: the caller gets a fresh token for this one.</summary>
+    Task<PasswordChangeResult?> ChangePasswordAsync(Guid customerId, ChangePasswordInput input, CancellationToken ct = default);
+
+    /// <summary>True while the token's version is the current one, the customer is active and the sign-in exists. Checked on every storefront call.</summary>
+    Task<bool> IsSessionCurrentAsync(Guid customerId, int sessionVersion, CancellationToken ct = default);
 
     /// <summary>
     /// Emails a single-use link to the address if (and only if) an active customer has it. Says nothing either way, so it cannot be
@@ -131,7 +144,7 @@ public interface ICustomerAccountService
     Task<bool> ResetPasswordAsync(ResetPasswordInput input, CancellationToken ct = default);
 }
 
-internal sealed class CustomerAccountService(
+internal sealed partial class CustomerAccountService(
     PiranhaDbContext db, IOptions<CustomerAccountOptions> options, IEmailSender email, ILogger<CustomerAccountService> logger) : ICustomerAccountService
 {
     private static readonly PasswordHasher<CustomerLogin> Hasher = new();
@@ -178,7 +191,7 @@ internal sealed class CustomerAccountService(
             from l in db.Set<CustomerLogin>()
             join c in db.Set<Customer>() on l.CustomerId equals c.Id
             where c.NormalizedEmail == normalized
-            select new { l.CustomerId, c.Email, c.Active, l.PasswordHash, l.LockoutEnd }).FirstOrDefaultAsync(ct);
+            select new { l.CustomerId, c.Email, c.Active, l.PasswordHash, l.LockoutEnd, l.SessionVersion }).FirstOrDefaultAsync(ct);
 
         if (row is null || !row.Active)
         {
@@ -196,7 +209,7 @@ internal sealed class CustomerAccountService(
         var now = DateTimeOffset.UtcNow;
         var granted = await db.Set<CustomerLogin>().Where(l => l.CustomerId == row.CustomerId && (l.LockoutEnd == null || l.LockoutEnd <= now))
             .ExecuteUpdateAsync(s => s.SetProperty(l => l.AccessFailedCount, 0), ct);
-        return granted > 0 ? new(SignInStatus.Valid, row.CustomerId, row.Email) : new(SignInStatus.LockedOut, null, null);
+        return granted > 0 ? new(SignInStatus.Valid, row.CustomerId, row.Email, row.SessionVersion) : new(SignInStatus.LockedOut, null, null);
     }
 
     private async Task<bool> RecordFailureAsync(Guid customerId, CancellationToken ct)
@@ -228,22 +241,34 @@ internal sealed class CustomerAccountService(
         return ToProfile(customer);
     }
 
-    public async Task<bool> ChangePasswordAsync(Guid customerId, ChangePasswordInput input, CancellationToken ct = default)
+    public async Task<bool> IsSessionCurrentAsync(Guid customerId, int sessionVersion, CancellationToken ct = default)
+        => await (from l in db.Set<CustomerLogin>().AsNoTracking()
+                  join c in db.Set<Customer>().AsNoTracking() on l.CustomerId equals c.Id
+                  where l.CustomerId == customerId && c.Active && l.SessionVersion == sessionVersion
+                  select l.CustomerId).AnyAsync(ct);
+
+    public async Task<PasswordChangeResult?> ChangePasswordAsync(Guid customerId, ChangePasswordInput input, CancellationToken ct = default)
     {
         ModelValidator.ValidateOrThrow(input);
         var email = await db.Set<Customer>().Where(c => c.Id == customerId && c.Active).Select(c => c.Email).FirstOrDefaultAsync(ct);
-        if (email is null) return false;
+        if (email is null) return null;
 
         // The current password is checked (and failures counted, and locked) exactly like a sign-in, so a stolen token cannot
         // be used to guess it, and it must belong to the same customer.
         var check = await CheckAsync(email, input.CurrentPassword, ct);
-        if (check.Status != SignInStatus.Valid || check.CustomerId != customerId) return false;
+        if (check.Status != SignInStatus.Valid || check.CustomerId != customerId) return null;
 
         CheckPasswordRules(input.NewPassword, email, nameof(ChangePasswordInput.NewPassword));
         var now = DateTimeOffset.UtcNow;
         var hash = Hasher.HashPassword(Dummy, input.NewPassword);
-        return await db.Set<CustomerLogin>().Where(l => l.CustomerId == customerId)
-            .ExecuteUpdateAsync(s => s.SetProperty(l => l.PasswordHash, hash).SetProperty(l => l.PasswordChangedUtc, now), ct) > 0;
+        // Every session ends, this one included: the caller is handed a new token. Read after the update, so a revoke that lands in between
+        // only makes that token die too (it fails safe).
+        var changed = await db.Set<CustomerLogin>().Where(l => l.CustomerId == customerId)
+            .ExecuteUpdateAsync(s => s.SetProperty(l => l.PasswordHash, hash).SetProperty(l => l.PasswordChangedUtc, now)
+                .SetProperty(l => l.SessionVersion, l => l.SessionVersion + 1), ct);
+        if (changed == 0) return null;
+        var version = await db.Set<CustomerLogin>().AsNoTracking().Where(l => l.CustomerId == customerId).Select(l => l.SessionVersion).FirstAsync(ct);
+        return new PasswordChangeResult(email, version);
     }
 
     public async Task RequestPasswordResetAsync(ForgotPasswordInput input, CancellationToken ct = default)
@@ -253,11 +278,16 @@ internal sealed class CustomerAccountService(
         var customer = await db.Set<Customer>().AsNoTracking().Where(c => c.NormalizedEmail == normalized && c.Active)
             .Select(c => new { c.Id, c.Email }).FirstOrDefaultAsync(ct);
         if (customer is null) return;
+        await SendResetLinkCoreAsync(customer.Id, customer.Email, ct); // the outcome is deliberately not shown to whoever asked
+    }
 
+    private async Task<ResetLinkOutcome> SendResetLinkCoreAsync(Guid customerId, string customerEmail, CancellationToken ct)
+    {
+        var customer = new { Id = customerId, Email = customerEmail };
         var o = options.Value;
         var now = DateTimeOffset.UtcNow;
         var hourAgo = now.AddHours(-1);
-        if (await db.Set<CustomerToken>().CountAsync(t => t.CustomerId == customer.Id && t.CreatedUtc > hourAgo, ct) >= o.MaxResetEmailsPerHour) return;
+        if (await db.Set<CustomerToken>().CountAsync(t => t.CustomerId == customer.Id && t.CreatedUtc > hourAgo, ct) >= o.MaxResetEmailsPerHour) return ResetLinkOutcome.RateLimited;
 
         var secret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
         var token = new CustomerToken { Id = Guid.NewGuid(), CustomerId = customer.Id, TokenHash = Hash(secret), CreatedUtc = now, ExpiresUtc = now.AddMinutes(o.ResetTokenMinutes) };
@@ -271,8 +301,8 @@ internal sealed class CustomerAccountService(
         {
             ["email"] = customer.Email, ["link"] = link, ["code"] = code, ["expiresInMinutes"] = o.ResetTokenMinutes,
         });
-        try { await email.SendAsync(message, ct); }
-        catch (Exception ex) { logger.LogWarning(ex, "Password reset email could not be sent."); } // same answer to the caller whether or not it went
+        try { await email.SendAsync(message, ct); return ResetLinkOutcome.Sent; }
+        catch (Exception ex) { logger.LogWarning(ex, "Password reset email could not be sent."); return ResetLinkOutcome.SendFailed; }
     }
 
     public async Task<bool> ResetPasswordAsync(ResetPasswordInput input, CancellationToken ct = default)
@@ -303,7 +333,8 @@ internal sealed class CustomerAccountService(
         var hash = Hasher.HashPassword(Dummy, input.NewPassword);
         var updated = await db.Set<CustomerLogin>().Where(l => l.CustomerId == customer.Id)
             .ExecuteUpdateAsync(s => s.SetProperty(l => l.PasswordHash, hash).SetProperty(l => l.PasswordChangedUtc, now)
-                .SetProperty(l => l.AccessFailedCount, 0).SetProperty(l => l.LockoutEnd, (DateTimeOffset?)null), ct);
+                .SetProperty(l => l.AccessFailedCount, 0).SetProperty(l => l.LockoutEnd, (DateTimeOffset?)null)
+                .SetProperty(l => l.SessionVersion, l => l.SessionVersion + 1), ct); // whoever held the old password is signed out
         if (updated == 0)
         {
             // No sign-in yet: this is how a customer made by staff or a guest order gets one, having proved the address.
@@ -313,7 +344,8 @@ internal sealed class CustomerAccountService(
             {
                 db.ChangeTracker.Clear(); // another reset created it a moment ago: ours replaces its password
                 await db.Set<CustomerLogin>().Where(l => l.CustomerId == customer.Id)
-                    .ExecuteUpdateAsync(s => s.SetProperty(l => l.PasswordHash, hash).SetProperty(l => l.PasswordChangedUtc, now), ct);
+                    .ExecuteUpdateAsync(s => s.SetProperty(l => l.PasswordHash, hash).SetProperty(l => l.PasswordChangedUtc, now)
+                        .SetProperty(l => l.SessionVersion, l => l.SessionVersion + 1), ct);
             }
         }
         return true;

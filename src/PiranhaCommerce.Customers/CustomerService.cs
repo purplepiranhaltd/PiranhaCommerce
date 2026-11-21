@@ -79,8 +79,12 @@ internal sealed class CustomerService(PiranhaDbContext db) : ICustomerService
         await EnsureEmailFreeAsync(input.Email, id, ct);
         entity.Email = input.Email.Trim();
         entity.NormalizedEmail = Normalize(input.Email);
+        var switchedOff = entity.Active && !input.Active;
         Apply(entity, input);
         await SaveUniqueAsync(ct);
+        // Switching a customer off ends their sessions for good: without this, switching them back on would bring an old token back to life.
+        if (switchedOff)
+            await db.Set<CustomerLogin>().Where(l => l.CustomerId == id).ExecuteUpdateAsync(s => s.SetProperty(l => l.SessionVersion, l => l.SessionVersion + 1), ct);
         return ToDto(entity);
     }
 

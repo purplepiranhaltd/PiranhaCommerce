@@ -14,7 +14,8 @@ namespace PiranhaCommerce.Api.Auth;
 /// </summary>
 public interface ICustomerTokenIssuer
 {
-    TokenResponse Issue(Guid customerId, string email);
+    /// <summary><paramref name="sessionVersion"/> is the sign-in's current version: the token dies when sessions are ended.</summary>
+    TokenResponse Issue(Guid customerId, string email, int sessionVersion);
 }
 
 internal sealed class CustomerTokenIssuer(IOptions<PiranhaJwtOptions> options) : ICustomerTokenIssuer
@@ -26,7 +27,7 @@ internal sealed class CustomerTokenIssuer(IOptions<PiranhaJwtOptions> options) :
         return new SymmetricSecurityKey(HMACSHA256.HashData(staffKey, Encoding.UTF8.GetBytes("piranha-commerce/customer-tokens")));
     }
 
-    public TokenResponse Issue(Guid customerId, string email)
+    public TokenResponse Issue(Guid customerId, string email, int sessionVersion)
     {
         var o = options.Value;
         var claims = new List<Claim>
@@ -34,6 +35,7 @@ internal sealed class CustomerTokenIssuer(IOptions<PiranhaJwtOptions> options) :
             new(JwtRegisteredClaimNames.Sub, customerId.ToString()),
             new(JwtRegisteredClaimNames.Email, email),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new("sv", sessionVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)),
         };
         var token = new JwtSecurityToken(o.Issuer, o.CustomerAudience, claims,
             expires: DateTime.UtcNow.AddMinutes(o.LifetimeMinutes),

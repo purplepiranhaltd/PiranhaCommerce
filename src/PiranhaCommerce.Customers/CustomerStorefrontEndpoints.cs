@@ -13,6 +13,10 @@ public static class StorefrontUser
     /// <summary>The signed-in customer's id from the token, or null.</summary>
     public static Guid? CustomerId(this ClaimsPrincipal user)
         => Guid.TryParse(user.FindFirstValue("sub"), out var id) ? id : null;
+
+    /// <summary>The session version the token was issued with. A token from before versions existed has none, which counts as 0.</summary>
+    public static int SessionVersion(this ClaimsPrincipal user)
+        => int.TryParse(user.FindFirstValue("sv"), out var v) ? v : 0;
 }
 
 /// <summary>
@@ -26,7 +30,7 @@ public sealed class ActiveCustomerFilter : IEndpointFilter
         var http = context.HttpContext;
         if (http.User.CustomerId() is not { } id) return Results.Unauthorized();
         var accounts = (ICustomerAccountService)http.RequestServices.GetService(typeof(ICustomerAccountService))!;
-        if (await accounts.GetProfileAsync(id, http.RequestAborted) is null) return Results.Unauthorized();
+        if (!await accounts.IsSessionCurrentAsync(id, http.User.SessionVersion(), http.RequestAborted)) return Results.Unauthorized();
         return await next(context);
     }
 }
@@ -41,7 +45,7 @@ internal sealed class CustomerStorefrontEndpoints : IStorefrontEndpointContribut
         auth.MapPost("/register", async (RegisterInput input, ICustomerAccountService accounts, ICustomerTokenIssuer tokens, CancellationToken ct) =>
             {
                 var profile = await accounts.RegisterAsync(input, ct);
-                return Results.Created("/api/v1/storefront/me", new RegisteredDto(profile, tokens.Issue(profile.Id, profile.Email)));
+                return Results.Created("/api/v1/storefront/me", new RegisteredDto(profile, tokens.Issue(profile.Id, profile.Email, 0)));
             })
             .AllowAnonymous();
 
@@ -50,7 +54,7 @@ internal sealed class CustomerStorefrontEndpoints : IStorefrontEndpointContribut
                 var result = await accounts.CheckAsync(input.Email, input.Password, ct);
                 // Wrong password, unknown email, no account, inactive and locked out all look the same.
                 return result is { Status: SignInStatus.Valid, CustomerId: { } id, Email: { } email }
-                    ? Results.Ok(tokens.Issue(id, email))
+                    ? Results.Ok(tokens.Issue(id, email, result.SessionVersion))
                     : Results.Unauthorized();
             })
             .AllowAnonymous();
@@ -76,9 +80,10 @@ internal sealed class CustomerStorefrontEndpoints : IStorefrontEndpointContribut
         me.MapPut("/", async (ProfileInput input, ClaimsPrincipal user, ICustomerAccountService accounts, CancellationToken ct) =>
             await accounts.UpdateProfileAsync(user.CustomerId()!.Value, input, ct) is { } p ? Results.Ok(p) : Results.Unauthorized());
 
-        me.MapPost("/password", async (ChangePasswordInput input, ClaimsPrincipal user, ICustomerAccountService accounts, CancellationToken ct) =>
-            await accounts.ChangePasswordAsync(user.CustomerId()!.Value, input, ct)
-                ? Results.NoContent()
+        // Changing the password ends every session, so the response carries a new token for the device that changed it.
+        me.MapPost("/password", async (ChangePasswordInput input, ClaimsPrincipal user, ICustomerAccountService accounts, ICustomerTokenIssuer tokens, CancellationToken ct) =>
+            await accounts.ChangePasswordAsync(user.CustomerId()!.Value, input, ct) is { } changed
+                ? Results.Ok(tokens.Issue(user.CustomerId()!.Value, changed.Email, changed.SessionVersion))
                 : Results.ValidationProblem(new Dictionary<string, string[]> { [nameof(ChangePasswordInput.CurrentPassword)] = ["The current password is not correct."] }));
 
         // The address book is the signed-in customer's own: the customer id is always the token's, so another customer's

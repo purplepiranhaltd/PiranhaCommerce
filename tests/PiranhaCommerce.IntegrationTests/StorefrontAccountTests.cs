@@ -171,7 +171,7 @@ public class StorefrontAccountTests(PiranhaFactory factory) : IClassFixture<Pira
         Assert.Equal(HttpStatusCode.BadRequest, weak.StatusCode);
 
         var ok = await shopper.PostAsJsonAsync("/api/v1/storefront/me/password", new ChangePasswordInput { CurrentPassword = Password, NewPassword = next });
-        Assert.Equal(HttpStatusCode.NoContent, ok.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, ok.StatusCode); // with a fresh token: the old one ended with the old password
 
         var client = factory.CreateClient();
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync("/api/v1/storefront/auth/token", new SignInInput(email, Password))).StatusCode);

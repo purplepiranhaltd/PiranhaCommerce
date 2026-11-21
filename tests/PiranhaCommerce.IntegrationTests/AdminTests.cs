@@ -211,11 +211,14 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
 
         var list = await browser.GetAsync("/admin/customers");
         Assert.Equal(HttpStatusCode.OK, list.StatusCode);
-        Assert.Contains("<h1>Customers</h1>", await list.Content.ReadAsStringAsync());
+        var listHtml = await list.Content.ReadAsStringAsync();
+        Assert.Contains("<h1>Customers</h1>", listHtml);
+        Assert.Contains("<th>Sign-in</th>", listHtml);
 
         var existing = await (await browser.GetAsync($"/admin/customers/{customer.Id}")).Content.ReadAsStringAsync();
         Assert.Contains("<h2 style=\"margin-top:0\">Addresses</h2>", existing);   // contributed through the customer slot
         Assert.Contains("<h2 style=\"margin-top:0\">Privacy</h2>", existing);
+        Assert.Contains("<h2 style=\"margin-top:0\">Sign-in</h2>", existing);
         Assert.Contains("Erase personal data", existing);
 
         var fresh = await (await browser.GetAsync("/admin/customers/new")).Content.ReadAsStringAsync();

@@ -77,11 +77,10 @@ Not built:
 - **Email**: the plugin point (`IEmailSender`), password reset / first sign-in by emailed link, and order confirmations and order updates (sent, cancelled, refunded) are built.
   SMTP sender is built, with editable templates in its own admin section. Planned: a Mailjet package using its Transactional Email templates (words live in Mailjet; a message is a key plus variables). Not built: other providers (SendGrid, Azure Communication Services - a plugin each), HTML and editable templates, a queue with
   retries (mail is sent inline and a failure is only logged), welcome and order-status emails (shipped, cancelled, refunded),
-  staff-triggered "send invite" from the admin, and requiring a verified email before sign-in (an unverified address can register a
+  and requiring a verified email before sign-in (an unverified address can register a
   new account today; the real owner recovers it with forgot-password).
-- Staff admin for shopper accounts: nothing in the admin shows which customers have a sign-in, or lets staff disable one.
-- Ending tokens early: changing a password or signing out does not revoke tokens already issued (they expire in an hour). Refresh
-  tokens and a revocation stamp would fix this.
+- Staff admin for shopper accounts and ending sessions early are built (a session version on each sign-in, checked on every call; see the README).
+  Not built: an audit log of those staff actions, refresh tokens, and a shopper-facing "sign out everywhere" and list of their sessions.
 - Merging two baskets (claim only takes an unowned basket whole); guest checkout through the storefront API.
 - Customer data export and erasure are built for staff (orders anonymised, never deleted). Not built: the shopper exporting or erasing their own data
   (a storefront export, and erasure with password re-entry), a scheduled retention clean-up, and erasure in the payment provider and email provider.

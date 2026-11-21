@@ -23,6 +23,7 @@ public sealed class CustomersPlugin : IPiranhaPlugin
 
         services.AddOptions<CustomerAccountOptions>().BindConfiguration(CustomerAccountOptions.SectionName);
         services.AddScoped<ICustomerAccountService, CustomerAccountService>();
+        services.AddScoped<ICustomerSignInAdminService>(sp => (CustomerAccountService)sp.GetRequiredService<ICustomerAccountService>());
         services.AddSingleton<IStorefrontEndpointContributor, CustomerStorefrontEndpoints>();
         services.AddSingleton<PiranhaCommerce.Core.Email.IEmailTemplateContributor, CustomerEmailContributor>();
     }
@@ -59,6 +60,7 @@ internal sealed class CustomersModelContributor : IModelContributor
             e.ToTable("CustomerLogin", Schema);
             e.HasKey(l => l.CustomerId);
             e.Property(l => l.PasswordHash).HasMaxLength(512).IsRequired();
+            e.Property(l => l.SessionVersion).HasDefaultValue(0);
             e.HasOne<Customer>().WithOne().HasForeignKey<CustomerLogin>(l => l.CustomerId).OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -113,6 +115,26 @@ internal sealed class CustomerApiEndpoints : IApiEndpointContributor
 
         customers.MapDelete("/{id:guid}", async (Guid id, ICustomerService svc, CancellationToken ct) =>
                 await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
+        // Their sign-in, for staff: see it, unlock it, end its sessions, send a reset link (or first invitation), remove it. Disabling is the Active flag.
+        customers.MapGet("/{id:guid}/sign-in", async (Guid id, ICustomerSignInAdminService svc, CancellationToken ct) =>
+            await svc.GetAsync(id, ct) is { } s ? Results.Ok(s) : Results.NotFound());
+
+        customers.MapPost("/{id:guid}/sign-in/unlock", async (Guid id, ICustomerSignInAdminService svc, CancellationToken ct) =>
+                await svc.UnlockAsync(id, ct) ? Results.NoContent() : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
+        customers.MapPost("/{id:guid}/sign-in/sign-out", async (Guid id, ICustomerSignInAdminService svc, CancellationToken ct) =>
+                await svc.SignOutEverywhereAsync(id, ct) ? Results.NoContent() : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
+        customers.MapPost("/{id:guid}/sign-in/reset-link", async (Guid id, ICustomerSignInAdminService svc, CancellationToken ct) =>
+                await svc.SendResetLinkAsync(id, ct) is { } outcome ? Results.Ok(new ResetLinkResultDto(outcome == ResetLinkOutcome.Sent, outcome)) : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
+        customers.MapDelete("/{id:guid}/sign-in", async (Guid id, ICustomerSignInAdminService svc, CancellationToken ct) =>
+                await svc.RemoveAsync(id, ct) ? Results.NoContent() : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 
         // Privacy: everything held about a customer, and erasing them. Orders are anonymised, never deleted (the shop keeps its accounts).
