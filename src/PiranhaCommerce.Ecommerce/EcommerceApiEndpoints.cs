@@ -197,6 +197,25 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
                 await svc.StartAsync(id, input.Provider, ct) is { } s ? Results.Ok(s) : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 
+        // Refunds through the provider itself (money goes back to the buyer's card), booked as a normal refund.
+        orders.MapPost("/{id:guid}/payments/{paymentId:guid}/refund", async (Guid id, Guid paymentId, RefundStartInput input, IGatewayService svc, HttpContext http, CancellationToken ct) =>
+                await svc.RefundAsync(id, paymentId, input, http.User.FindFirst("email")?.Value, ct) is { } r ? Results.Ok(r) : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
+        orders.MapGet("/{id:guid}/shipments", async (Guid id, IFulfilmentService svc, CancellationToken ct) =>
+            await svc.ListShipmentsAsync(id, ct) is { } list ? Results.Ok(list) : Results.NotFound());
+
+        orders.MapPost("/{id:guid}/shipments", async (Guid id, ShipmentInput input, IFulfilmentService svc, HttpContext http, CancellationToken ct) =>
+                await svc.ShipAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } s ? Results.Created($"/api/v1/orders/{id}/shipments/{s.Id}", s) : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
+        orders.MapGet("/{id:guid}/returns", async (Guid id, IFulfilmentService svc, CancellationToken ct) =>
+            await svc.ListReturnsAsync(id, ct) is { } list ? Results.Ok(list) : Results.NotFound());
+
+        orders.MapPost("/{id:guid}/returns", async (Guid id, ReturnInput input, IFulfilmentService svc, HttpContext http, CancellationToken ct) =>
+                await svc.RecordReturnAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } r ? Results.Created($"/api/v1/orders/{id}/returns/{r.Id}", r) : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
         // Public on purpose: a gateway cannot sign in. The gateway plugin verifies the webhook's signature, and nothing is trusted without it.
         api.MapPost("/payments/webhooks/{provider}", async (string provider, HttpContext http, IGatewayService svc, CancellationToken ct) =>
             {

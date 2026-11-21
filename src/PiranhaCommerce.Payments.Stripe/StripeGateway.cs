@@ -41,7 +41,7 @@ public sealed class StripeOptions
 }
 
 /// <summary>Takes card payments through Stripe Checkout (a page Stripe hosts, so card numbers never touch this application).</summary>
-public sealed class StripeGateway(IHttpClientFactory http, IOptions<StripeOptions> options, ILogger<StripeGateway> logger, TimeProvider? time = null) : IPaymentGateway
+public sealed class StripeGateway(IHttpClientFactory http, IOptions<StripeOptions> options, ILogger<StripeGateway> logger, TimeProvider? time = null) : IRefundingGateway
 {
     public const string HttpClientName = "PiranhaCommerce.Stripe";
 
@@ -82,6 +82,26 @@ public sealed class StripeGateway(IHttpClientFactory http, IOptions<StripeOption
         var id = body.RootElement.TryGetProperty("id", out var i) ? i.GetString() : null;
         if (url is null) throw new GatewayException("Stripe answered without a checkout URL.");
         return new GatewaySession(url, id);
+    }
+
+    public async Task<GatewayRefund> RefundAsync(GatewayRefundRequest request, CancellationToken ct = default)
+    {
+        var form = new List<KeyValuePair<string, string>>
+        {
+            new("payment_intent", request.PaymentReference),
+            new("amount", ToMinorUnits(request.Amount, request.Currency).ToString(CultureInfo.InvariantCulture)),
+            new("metadata[order_id]", request.OrderId.ToString()),
+        };
+        // The same key with the same amount is the same refund: Stripe answers a repeat with the refund it already made.
+        using var response = await SendAsync(HttpMethod.Post, "/v1/refunds", new FormUrlEncodedContent(form), "refund-" + request.IdempotencyKey, ct);
+        using var body = await ReadAsync(response, ct);
+        var root = body.RootElement;
+        var id = Str(root, "id");
+        var status = Str(root, "status") ?? "unknown";
+        var currency = (Str(root, "currency") ?? request.Currency).ToUpperInvariant();
+        if (id is null || !root.TryGetProperty("amount", out var amount) || !amount.TryGetInt64(out var minor))
+            throw new GatewayException("Stripe answered a refund without an id or amount.");
+        return new GatewayRefund(id, status, status == "succeeded", FromMinorUnits(minor, currency), currency);
     }
 
     public async Task<IReadOnlyList<GatewayEvent>> ReadWebhookAsync(GatewayWebhookRequest request, CancellationToken ct = default)

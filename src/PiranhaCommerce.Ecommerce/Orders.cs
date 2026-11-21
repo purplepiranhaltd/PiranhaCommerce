@@ -109,6 +109,10 @@ public class OrderLine : Entity
     public string? TaxName { get; set; }
     public decimal TaxRate { get; set; }
     public decimal TaxAmount { get; set; }
+    /// <summary>How many have been sent, and how many of those came back. Counters that guard the records (shipments, returns) so that
+    /// simultaneous staff cannot send or return more than exists; the shipment and return rows are the history.</summary>
+    public int QuantityShipped { get; set; }
+    public int QuantityReturned { get; set; }
 }
 
 /// <summary>Single-row counter behind order numbers; incremented inside the checkout transaction, whose row lock serialises checkouts.</summary>
@@ -175,7 +179,8 @@ public sealed class OrderStageInput
 public sealed record OrderAddressDto(string? Recipient, string Line1, string? Line2, string City, string? Region, string? PostalCode, string CountryCode);
 
 public sealed record OrderLineDto(
-    Guid ProductId, string Name, string? Sku, decimal UnitPrice, int Quantity, decimal LineTotal, string? TaxName = null, decimal TaxRate = 0m, decimal TaxAmount = 0m, decimal DiscountAmount = 0m);
+    Guid ProductId, string Name, string? Sku, decimal UnitPrice, int Quantity, decimal LineTotal, string? TaxName = null, decimal TaxRate = 0m, decimal TaxAmount = 0m, decimal DiscountAmount = 0m,
+    Guid Id = default, int QuantityShipped = 0, int QuantityReturned = 0);
 
 public sealed record OrderSummaryDto(
     Guid Id, long Number, string Reference, OrderStage Stage, PaymentStatus PaymentStatus, string Email, string Currency, decimal Total, DateTimeOffset CreatedUtc);
@@ -186,7 +191,8 @@ public sealed record OrderDto(
     PaymentStatus PaymentStatus, decimal AmountPaid, decimal AmountRefunded,
     string? Notes, OrderAddressDto? ShippingAddress, OrderAddressDto? BillingAddress, IReadOnlyList<OrderLineDto> Lines,
     IReadOnlyList<OrderStage> NextStages, DateTimeOffset CreatedUtc, DateTimeOffset? UpdatedUtc,
-    decimal ShippingTax = 0m, IReadOnlyList<TaxLineDto>? Taxes = null, decimal DiscountTotal = 0m, string? PromotionCode = null);
+    decimal ShippingTax = 0m, IReadOnlyList<TaxLineDto>? Taxes = null, decimal DiscountTotal = 0m, string? PromotionCode = null,
+    IReadOnlyList<ShipmentSummaryDto>? Shipments = null);
 
 public sealed class EcommerceOptions
 {

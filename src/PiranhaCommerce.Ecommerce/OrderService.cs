@@ -106,7 +106,8 @@ internal sealed class OrderService(
     {
         if (order is null) return null;
         var (paid, refunded) = await PaymentSumsAsync(order.Id, ct);
-        return ToDto(order, PaymentTotals.StatusOf(order.Total, paid, refunded), paid, refunded);
+        var shipments = (await ShipmentQueries.ForOrderAsync(db, order.Id, ct)).Select(s => s.Summary()).ToList();
+        return ToDto(order, PaymentTotals.StatusOf(order.Total, paid, refunded), paid, refunded, shipments);
     }
 
     public async Task<OrderDto?> CheckoutAsync(Guid basketId, CheckoutInput input, string? actor = null, CancellationToken ct = default)
@@ -325,6 +326,31 @@ internal sealed class OrderService(
                         .ExecuteUpdateAsync(s => s.SetProperty(o => o.Stage, to).SetProperty(o => o.UpdatedUtc, (DateTimeOffset?)now), token);
                     if (moved == 0) throw new PiranhaConflictException("The order was changed by someone else. Reload it and try again.");
 
+                    // Read AFTER the order row is held: a parcel being recorded at the same moment has either finished (and is seen)
+                    // or is waiting behind this and will find the order no longer processing.
+                    if (to == OrderStage.Cancelled && await db.Set<OrderLine>().AsNoTracking().AnyAsync(l => l.OrderId == id && l.QuantityShipped > 0, token))
+                        throw new PiranhaConflictException("Part of this order has already been sent, so it cannot be cancelled. Record a return for what comes back.");
+
+                    // Completing by hand says everything has gone: record what was not yet recorded as one shipment, so "completed"
+                    // always means every line is shipped (and returns can then be recorded against it).
+                    if (to == OrderStage.Completed)
+                    {
+                        var unsent = await db.Set<OrderLine>().AsNoTracking().Where(l => l.OrderId == id && l.QuantityShipped < l.Quantity)
+                            .Select(l => new { l.Id, Remaining = l.Quantity - l.QuantityShipped }).ToListAsync(token);
+                        if (unsent.Count > 0)
+                        {
+                            await db.Set<OrderLine>().Where(l => l.OrderId == id && l.QuantityShipped < l.Quantity)
+                                .ExecuteUpdateAsync(s => s.SetProperty(l => l.QuantityShipped, l => l.Quantity), token);
+                            var shipmentId = Guid.NewGuid();
+                            db.Add(new Shipment
+                            {
+                                Id = shipmentId, OrderId = id, ShippedUtc = now, Actor = actor,
+                                Lines = unsent.Select(u => new ShipmentLine { ShipmentId = shipmentId, OrderLineId = u.Id, Quantity = u.Remaining }).ToList(),
+                            });
+                            await db.SaveChangesAsync(token);
+                        }
+                    }
+
                     // A cancelled order gives its promo code use back (once: only the caller that moved the stage gets here).
                     if (to == OrderStage.Cancelled && current.PromotionId is { } promoId)
                         await db.Set<Promotion>().Where(p => p.Id == promoId && p.Redeemed > 0)
@@ -399,12 +425,14 @@ internal sealed class OrderService(
 
     private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
-    private static OrderDto ToDto(Order o, PaymentStatus status, decimal paid, decimal refunded) => new OrderDto(
+    private static OrderDto ToDto(Order o, PaymentStatus status, decimal paid, decimal refunded, IReadOnlyList<ShipmentSummaryDto> shipments) => new OrderDto(
         o.Id, o.Number, OrderNumbers.Format(o.Number), o.Stage, o.CustomerId, o.Email, o.Currency, o.Subtotal,
         o.ShippingMethodName, o.ShippingTotal, o.TaxName, o.TaxRate, o.TaxTotal, o.Total, status, paid, refunded, o.Notes,
         ToDto(o.ShippingAddress), ToDto(o.BillingAddress),
-        o.Lines.OrderBy(l => l.Position).Select(l => new OrderLineDto(l.ProductId, l.Name, l.Sku, l.UnitPrice, l.Quantity, l.LineTotal, l.TaxName, l.TaxRate, l.TaxAmount, l.DiscountAmount)).ToList(),
-        OrderStages.Next(o.Stage), o.CreatedUtc, o.UpdatedUtc, o.ShippingTax, TaxBreakdown(o), o.DiscountTotal, o.PromotionCode);
+        o.Lines.OrderBy(l => l.Position).Select(l => new OrderLineDto(l.ProductId, l.Name, l.Sku, l.UnitPrice, l.Quantity, l.LineTotal, l.TaxName, l.TaxRate, l.TaxAmount, l.DiscountAmount, l.Id, l.QuantityShipped, l.QuantityReturned)).ToList(),
+        // Once anything has left, cancelling is no longer offered: what was sent comes back as a return instead.
+        OrderStages.Next(o.Stage).Where(s => s != OrderStage.Cancelled || o.Lines.All(l => l.QuantityShipped == 0)).ToList(),
+        o.CreatedUtc, o.UpdatedUtc, o.ShippingTax, TaxBreakdown(o), o.DiscountTotal, o.PromotionCode, shipments);
 
     /// <summary>The tax summary for display: one row per named rate, from the order's own copies. Orders placed before per-line tax have one flat row.</summary>
     private static IReadOnlyList<TaxLineDto> TaxBreakdown(Order o)

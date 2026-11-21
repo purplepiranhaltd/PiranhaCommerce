@@ -311,6 +311,23 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   `POST /payments/webhooks/{provider}` records confirmed payments and refunds. Replays are harmless (unique provider reference), a bad
   signature is a bare 400, bodies over 256 KB are refused, and money the gateway confirms that cannot be booked (cancelled order,
   over-payment, wrong currency) is logged as an error and counted as `unreconciled` rather than retried. No gateway ships in the box.
+- **Sending, returns and refunds** (admin: the order page; API under `/orders/{id}`):
+  - **Parcels** (`POST /shipments`): record what left, with an optional carrier, tracking number and https tracking link. Only a Processing
+    order ships. Leave the lines out to send everything left. When the last item goes the order becomes Completed in the same transaction;
+    marking an order completed by hand records anything not yet sent as one shipment, so Completed always means everything has been sent.
+    Sending does not touch stock (it came off the shelf when the order was placed). Once anything has been sent the order can no longer be
+    cancelled (a cancel would put sent goods back on the shelf): record a return instead. Shoppers see their own order's parcels and
+    tracking, without the member of staff. Simultaneous parcels cannot send more than was bought (a conditional update guards each line).
+  - **Returns** (`POST /returns`): record goods when they arrive back, per line, with a reason. Only what was sent and not already returned
+    can come back, on Completed orders too. Each line is put back on the shelf by default; untick for damaged goods (recorded, not
+    restocked). The return suggests a refund (price less its share of discount, plus tax; pieces are worked out from the cumulative share so
+    three returns of one-of-three refund the line exactly, with the delivery charge optional and allowed once). A return moves no money.
+  - **Refunds**: a refund is a payment record, as before (`POST /refunds` for money returned elsewhere). When the payment was taken through a
+    gateway that can refund (`IRefundingGateway`, which Stripe implements), `POST /orders/{id}/payments/{paymentId}/refund` sends the money
+    back through the provider and books it with the provider's refund id, so the provider's own webhook is recognised as the same refund.
+    The amount is capped by what that provider took and has not returned, a repeated request with the same `idempotencyKey` is the same
+    refund, and a refund the provider is still working on is booked when its webhook says it succeeded. A refund made in the provider's
+    dashboard is booked automatically; do not also record it by hand. A gift voucher's portion is not refunded to the voucher.
 - **Unreconciled payments** (`/unreconciled-payments`, admin: Orders > Unreconciled payments): money a gateway confirmed that could not be booked
   (cancelled order, over-payment, wrong currency, unknown order) is saved here instead of being lost in a log. Each item can be retried
   (it books if the order can now take it) or resolved with a note of what you did. A replay of the same webhook never lists it twice, and

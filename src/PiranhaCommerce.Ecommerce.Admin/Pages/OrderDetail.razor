@@ -111,6 +111,137 @@ else
     </div>
 
     <div class="pc-card">
+        <h2 style="margin-top:0">Sending</h2>
+        <table class="pc-table">
+            <thead>
+                <tr><th>Product</th><th style="text-align:right">Bought</th><th style="text-align:right">Sent</th><th style="text-align:right">Returned</th>
+                    @if (_order.Stage == OrderStage.Processing) { <th style="text-align:right">Send now</th> }</tr>
+            </thead>
+            <tbody>
+            @foreach (var l in _order.Lines)
+            {
+                var line = l;
+                <tr>
+                    <td>@l.Name</td>
+                    <td style="text-align:right">@l.Quantity</td>
+                    <td style="text-align:right">@l.QuantityShipped</td>
+                    <td style="text-align:right">@l.QuantityReturned</td>
+                    @if (_order.Stage == OrderStage.Processing)
+                    {
+                        <td style="text-align:right">
+                            @if (l.QuantityShipped < l.Quantity)
+                            {
+                                <input type="number" min="0" max="@(l.Quantity - l.QuantityShipped)" style="width:5em" value="@QtyOf(_sendQty, line.Id)"
+                                       @onchange="e => SetQty(_sendQty, line.Id, e.Value?.ToString())" aria-label="Quantity to send" />
+                            }
+                        </td>
+                    }
+                </tr>
+            }
+            </tbody>
+        </table>
+
+        @if (_order.Stage == OrderStage.Placed)
+        {
+            <p class="pc-muted">Move the order to Processing, then record each parcel here as it leaves.</p>
+        }
+        else if (_order.Stage == OrderStage.Processing)
+        {
+            <label>Carrier (optional) <input type="text" maxlength="100" @bind="_carrier" /></label>
+            <label>Tracking number (optional) <input type="text" maxlength="100" @bind="_trackingNumber" /></label>
+            <label>Tracking link (optional, https://...) <input type="text" maxlength="500" @bind="_trackingUrl" /></label>
+            <button type="button" disabled="@_busy" @onclick="SendChosenAsync">Send the quantities above</button>
+            <button type="button" class="secondary" disabled="@_busy" @onclick="SendAllAsync">Send everything left</button>
+            <p class="pc-muted">Sending does not change stock (it was taken when the order was placed). When the last item has gone the order is completed.</p>
+            @if (_order.Lines.Any(x => x.QuantityShipped > 0))
+            {
+                <p class="pc-muted">Part of this order has been sent, so it can no longer be cancelled: record a return for anything that comes back.</p>
+            }
+        }
+
+        @if (_shipments is { Count: > 0 })
+        {
+            <table class="pc-table">
+                <thead><tr><th>Sent</th><th>What</th><th>Carrier</th><th>Tracking</th><th>By</th></tr></thead>
+                <tbody>
+                @foreach (var sh in _shipments)
+                {
+                    <tr>
+                        <td>@sh.ShippedUtc.ToString("dd MMM yyyy HH:mm") UTC</td>
+                        <td>@string.Join(", ", sh.Lines.Select(x => x.Quantity + " x " + x.Name))</td>
+                        <td>@sh.Carrier</td>
+                        <td>
+                            @if (!string.IsNullOrWhiteSpace(sh.TrackingUrl)) { <a href="@sh.TrackingUrl" target="_blank" rel="noopener noreferrer">@(sh.TrackingNumber ?? "Track")</a> }
+                            else { @sh.TrackingNumber }
+                        </td>
+                        <td>@sh.Actor</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    </div>
+
+    <div class="pc-card">
+        <h2 style="margin-top:0">Returns</h2>
+        @if (_returnNotice is not null)
+        {
+            <p role="status">@_returnNotice</p>
+        }
+        @if (_order.Lines.Any(x => x.QuantityShipped > x.QuantityReturned))
+        {
+            <p class="pc-muted">Record goods when they arrive back. This puts the chosen items back on the shelf; it does not refund anything (do that under Payment).</p>
+            <table class="pc-table">
+                <thead><tr><th>Product</th><th style="text-align:right">Can come back</th><th style="text-align:right">Came back now</th><th>Put back on the shelf</th></tr></thead>
+                <tbody>
+                @foreach (var l in _order.Lines.Where(x => x.QuantityShipped > x.QuantityReturned))
+                {
+                    var line = l;
+                    <tr>
+                        <td>@l.Name</td>
+                        <td style="text-align:right">@(l.QuantityShipped - l.QuantityReturned)</td>
+                        <td style="text-align:right">
+                            <input type="number" min="0" max="@(l.QuantityShipped - l.QuantityReturned)" style="width:5em" value="@QtyOf(_returnQty, line.Id)"
+                                   @onchange="e => SetQty(_returnQty, line.Id, e.Value?.ToString())" aria-label="Quantity returned" />
+                        </td>
+                        <td><input type="checkbox" checked="@(!_noRestock.Contains(line.Id))" @onchange="e => SetRestock(line.Id, e.Value is true)" aria-label="Put back on the shelf" /></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+            <label>Reason <input type="text" maxlength="200" @bind="_returnReason" /></label>
+            <label>Note (optional) <input type="text" maxlength="1000" @bind="_returnNote" /></label>
+            @if (_returns is null || _returns.All(r => !r.ShippingIncluded))
+            {
+                <label><input type="checkbox" @bind="_returnShipping" /> Include the delivery charge in the suggested refund</label>
+            }
+            <button type="button" disabled="@_busy" @onclick="RecordReturnAsync">Record return</button>
+        }
+        else
+        {
+            <p class="pc-muted">Nothing has been sent that could come back.</p>
+        }
+        @if (_returns is { Count: > 0 })
+        {
+            <table class="pc-table">
+                <thead><tr><th>When</th><th>What</th><th>Reason</th><th>By</th><th style="text-align:right">Suggested refund</th></tr></thead>
+                <tbody>
+                @foreach (var r in _returns)
+                {
+                    <tr>
+                        <td>@r.CreatedUtc.ToString("dd MMM yyyy HH:mm") UTC</td>
+                        <td>@string.Join(", ", r.Lines.Select(x => x.Quantity + " x " + x.Name + (x.Restocked ? "" : " (not restocked)")))@(r.ShippingIncluded ? " + delivery" : "")</td>
+                        <td>@r.Reason@(string.IsNullOrWhiteSpace(r.Note) ? "" : " (" + r.Note + ")")</td>
+                        <td>@r.Actor</td>
+                        <td style="text-align:right">@r.SuggestedRefund.ToString("N2")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    </div>
+
+    <div class="pc-card">
         <h2 style="margin-top:0">Payment: @_order.PaymentStatus</h2>
         <p>Paid @_order.AmountPaid.ToString("N2") @_order.Currency, refunded @_order.AmountRefunded.ToString("N2"), of @_order.Total.ToString("N2").</p>
         @if (_order.Stage == OrderStage.Cancelled && _order.AmountPaid - _order.AmountRefunded > 0)
@@ -135,6 +266,30 @@ else
                 }
                 </tbody>
             </table>
+        }
+        @if (_refundable.Count > 0 && _order.AmountPaid - _order.AmountRefunded > 0)
+        {
+            <h3>Refund to the buyer's card</h3>
+            <p class="pc-muted">
+                Sends the money back through the payment provider and records it here. A refund you make in the provider's own dashboard
+                is recorded automatically; do not enter it again below.
+            </p>
+            @if (_refundNotice is not null)
+            {
+                <p role="status">@_refundNotice</p>
+            }
+            <label>Payment
+                <select @onchange="e => _refundPaymentId = Guid.Parse(e.Value!.ToString()!)">
+                    @foreach (var rp in _refundable)
+                    {
+                        <option value="@rp.Id" selected="@(rp.Id == _refundPaymentId)">@rp.Provider @rp.Reference - @rp.Amount.ToString("N2")</option>
+                    }
+                </select>
+            </label>
+            <label>Amount <input type="number" step="0.01" min="0.01" @bind="_refundAmount" /></label>
+            <button type="button" disabled="@_busy" @onclick="RefundViaProviderAsync">Refund through provider</button>
+            <hr />
+            <h3>Record a payment or refund made elsewhere</h3>
         }
         <EditForm Model="_payment" OnValidSubmit="() => RecordAsync(false)" FormName="payment">
             <DataAnnotationsValidator />
@@ -177,6 +332,24 @@ else
     private IReadOnlyList<PaymentDto>? _payments;
     private IReadOnlyList<PaymentProviderDto> _providers = [];
     private PaymentInput _payment = new() { Provider = "manual" };
+    private IReadOnlyList<ShipmentDto>? _shipments;
+    private IReadOnlyList<ReturnDto>? _returns;
+    private readonly Dictionary<Guid, int> _sendQty = new();
+    private readonly Dictionary<Guid, int> _returnQty = new();
+    private readonly HashSet<Guid> _noRestock = new();
+    private string? _carrier, _trackingNumber, _trackingUrl, _returnReason, _returnNote, _returnNotice, _refundNotice;
+    private bool _returnShipping;
+    private List<PaymentDto> _refundable = [];
+    private Guid _refundPaymentId;
+    private decimal _refundAmount;
+    private string _refundKey = Guid.NewGuid().ToString("N");
+
+    private static int QtyOf(Dictionary<Guid, int> map, Guid id) => map.GetValueOrDefault(id);
+
+    private static void SetQty(Dictionary<Guid, int> map, Guid id, string? text) =>
+        map[id] = int.TryParse(text, out var n) && n > 0 ? n : 0;
+
+    private void SetRestock(Guid id, bool on) { if (on) _noRestock.Remove(id); else _noRestock.Add(id); }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -189,6 +362,11 @@ else
     {
         _payments = await Scope.RunAsync<IPaymentService, IReadOnlyList<PaymentDto>?>(s => s.ListAsync(Id));
         _providers = await Scope.RunAsync<IPaymentService, IReadOnlyList<PaymentProviderDto>>(s => Task.FromResult(s.Providers()));
+        _shipments = await Scope.RunAsync<IFulfilmentService, IReadOnlyList<ShipmentDto>?>(s => s.ListShipmentsAsync(Id));
+        _returns = await Scope.RunAsync<IFulfilmentService, IReadOnlyList<ReturnDto>?>(s => s.ListReturnsAsync(Id));
+        var refunders = _providers.Where(x => x.CanRefund).Select(x => x.Name).ToHashSet();
+        _refundable = (_payments ?? []).Where(x => x.Kind == PaymentKind.Payment && !string.IsNullOrWhiteSpace(x.Reference) && refunders.Contains(x.Provider)).ToList();
+        if (_refundable.Count > 0 && !_refundable.Any(x => x.Id == _refundPaymentId)) _refundPaymentId = _refundable[0].Id;
         var owed = _order!.Total - (_order.AmountPaid - _order.AmountRefunded);
         _payment = new PaymentInput { Provider = _payment.Provider ?? "manual", Amount = owed > 0 && _order.Stage != OrderStage.Cancelled ? owed : 0 };
     }
@@ -210,6 +388,93 @@ else
         catch (PiranhaConflictException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = "Could not record that: " + ex.Message; }
         finally { _busy = false; }
+    }
+
+    private async Task ReloadAsync()
+    {
+        _order = await Scope.RunAsync<IOrderService, OrderDto?>(s => s.GetAsync(Id)) ?? _order;
+        await LoadPaymentsAsync();
+    }
+
+    private async Task SendAsync(ShipmentInput input)
+    {
+        _busy = true; _error = null;
+        try
+        {
+            var actor = await Auth.GetActorAsync();
+            await Scope.RunAsync<IFulfilmentService, ShipmentDto?>(s => s.ShipAsync(Id, input, actor));
+            _sendQty.Clear(); _carrier = _trackingNumber = _trackingUrl = null;
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (Exception ex) { _error = "Could not record that: " + ex.Message; }
+        finally { _busy = false; }
+        await ReloadAsync();
+    }
+
+    private Task SendAllAsync() => SendAsync(new ShipmentInput { Carrier = _carrier, TrackingNumber = _trackingNumber, TrackingUrl = _trackingUrl });
+
+    private Task SendChosenAsync()
+    {
+        var lines = _sendQty.Where(kv => kv.Value > 0).Select(kv => new FulfilmentLineInput { OrderLineId = kv.Key, Quantity = kv.Value }).ToList();
+        if (lines.Count == 0) { _error = "Enter how many of each item are in this parcel, or send everything left."; return Task.CompletedTask; }
+        return SendAsync(new ShipmentInput { Lines = lines, Carrier = _carrier, TrackingNumber = _trackingNumber, TrackingUrl = _trackingUrl });
+    }
+
+    private async Task RecordReturnAsync()
+    {
+        _busy = true; _error = null; _returnNotice = null;
+        try
+        {
+            var lines = _returnQty.Where(kv => kv.Value > 0)
+                .Select(kv => new ReturnLineInput { OrderLineId = kv.Key, Quantity = kv.Value, Restock = !_noRestock.Contains(kv.Key) }).ToList();
+            var input = new ReturnInput { Reason = _returnReason ?? "", Note = _returnNote, IncludeShipping = _returnShipping, Lines = lines };
+            var actor = await Auth.GetActorAsync();
+            var saved = await Scope.RunAsync<IFulfilmentService, ReturnDto?>(s => s.RecordReturnAsync(Id, input, actor));
+            if (saved is not null)
+            {
+                _returnNotice = $"Return recorded. Suggested refund: {saved.SuggestedRefund:N2} {_order!.Currency}.";
+                _refundAmount = saved.SuggestedRefund;
+                _returnQty.Clear(); _noRestock.Clear(); _returnReason = _returnNote = null; _returnShipping = false;
+            }
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (Exception ex) { _error = "Could not record that: " + ex.Message; }
+        finally { _busy = false; }
+        var suggested = _refundAmount;
+        await ReloadAsync();
+        _refundAmount = suggested;
+    }
+
+    private async Task RefundViaProviderAsync()
+    {
+        _busy = true; _error = null; _refundNotice = null;
+        try
+        {
+            var input = new RefundStartInput { Amount = _refundAmount, IdempotencyKey = _refundKey };
+            var paymentId = _refundPaymentId;
+            var actor = await Auth.GetActorAsync();
+            var result = await Scope.RunAsync<IGatewayService, RefundResultDto?>(s => s.RefundAsync(Id, paymentId, input, actor));
+            if (result is not null)
+            {
+                _refundNotice = result.Outcome switch
+                {
+                    "Pending" => "The provider is still processing this refund. It will be recorded here when it completes.",
+                    "Unreconciled" => "The provider refunded it but it could not be recorded here. See Unreconciled payments.",
+                    _ => "Refunded " + result.Amount.ToString("N2") + " " + result.Currency + ".",
+                };
+                _refundKey = Guid.NewGuid().ToString("N"); // the next refund is a new one; a repeat click above reused the key
+                _refundAmount = 0;
+            }
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (Exception ex) { _error = "Could not refund: " + ex.Message; }
+        finally { _busy = false; }
+        var kept = _refundAmount;
+        await ReloadAsync();
+        _refundAmount = kept;
     }
 
     private async Task MoveAsync(OrderStage to)

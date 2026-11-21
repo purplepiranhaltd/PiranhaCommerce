@@ -82,6 +82,45 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.HasOne<Product>().WithMany().HasForeignKey(l => l.ProductId).OnDelete(DeleteBehavior.Restrict);
         });
 
+        b.Entity<Shipment>(e =>
+        {
+            e.ToTable("Shipment", Schema);
+            e.HasIndex(s => new { s.OrderId, s.ShippedUtc });
+            e.Property(s => s.Carrier).HasMaxLength(100);
+            e.Property(s => s.TrackingNumber).HasMaxLength(100);
+            e.Property(s => s.TrackingUrl).HasMaxLength(500);
+            e.Property(s => s.Actor).HasMaxLength(256);
+            // Restrict: shipping records are history and never go with anything else.
+            e.HasOne<Order>().WithMany().HasForeignKey(s => s.OrderId).OnDelete(DeleteBehavior.Restrict);
+            e.HasMany(s => s.Lines).WithOne().HasForeignKey(l => l.ShipmentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<ShipmentLine>(e =>
+        {
+            e.ToTable("ShipmentLine", Schema);
+            e.HasOne<OrderLine>().WithMany().HasForeignKey(l => l.OrderLineId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(l => l.OrderLineId);
+        });
+
+        b.Entity<OrderReturn>(e =>
+        {
+            e.ToTable("OrderReturn", Schema);
+            e.HasIndex(r => new { r.OrderId, r.CreatedUtc });
+            e.Property(r => r.Reason).HasMaxLength(200);
+            e.Property(r => r.Note).HasMaxLength(1000);
+            e.Property(r => r.Actor).HasMaxLength(256);
+            e.Property(r => r.SuggestedRefund).HasPrecision(18, 4);
+            e.HasOne<Order>().WithMany().HasForeignKey(r => r.OrderId).OnDelete(DeleteBehavior.Restrict);
+            e.HasMany(r => r.Lines).WithOne().HasForeignKey(l => l.OrderReturnId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<OrderReturnLine>(e =>
+        {
+            e.ToTable("OrderReturnLine", Schema);
+            e.HasOne<OrderLine>().WithMany().HasForeignKey(l => l.OrderLineId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(l => l.OrderLineId);
+        });
+
         b.Entity<Payment>(e =>
         {
             e.ToTable("Payment", Schema);

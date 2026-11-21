@@ -11,7 +11,7 @@ using PiranhaCommerce.Ecommerce;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>A stand-in gateway: signs webhooks with an HMAC like real ones do, so the host's handling can be tested end to end.</summary>
-public sealed class TestGateway : IPaymentGateway
+public sealed class TestGateway : IRefundingGateway
 {
     public const string Secret = "test-gateway-secret";
     public string Name => "testpay";
@@ -29,6 +29,15 @@ public sealed class TestGateway : IPaymentGateway
         IReadOnlyList<GatewayEvent> events = e.Type == "ignored" ? [] :
             [new GatewayEvent(e.Type == "refund" ? GatewayEventKind.RefundConfirmed : GatewayEventKind.PaymentConfirmed, e.OrderId, e.Amount, e.Currency, e.Reference)];
         return Task.FromResult(events);
+    }
+
+    /// <summary>A refund of 0.07 stays pending, 0.13 is refused; anything else succeeds. The refund id comes from the idempotency key, so a repeat is the same refund.</summary>
+    public Task<GatewayRefund> RefundAsync(GatewayRefundRequest request, CancellationToken ct = default)
+    {
+        if (request.Amount == 0.13m) throw new GatewayException("testpay refused the refund (secret internal detail)");
+        var id = "re_" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(request.IdempotencyKey)))[..12];
+        var pending = request.Amount == 0.07m;
+        return Task.FromResult(new GatewayRefund(id, pending ? "pending" : "succeeded", !pending, request.Amount, request.Currency));
     }
 
     public static string Sign(byte[] body) => Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(Secret), body));

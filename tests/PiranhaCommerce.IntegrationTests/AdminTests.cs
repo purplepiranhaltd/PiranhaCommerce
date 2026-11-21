@@ -258,6 +258,9 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
         Assert.Contains("Mark as processing", html);
         Assert.Contains("Cancel order", html);
         Assert.DoesNotContain("Mark as completed", html); // cannot skip a stage
+        Assert.Contains("<h2 style=\"margin-top:0\">Sending</h2>", html);
+        Assert.Contains("<h2 style=\"margin-top:0\">Returns</h2>", html);
+        Assert.Contains("Move the order to Processing", html);
 
         Assert.Contains("Payment: Unpaid", html);
         Assert.Contains("Record payment", html);

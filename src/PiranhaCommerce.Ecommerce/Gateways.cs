@@ -48,6 +48,40 @@ public sealed record GatewayEvent(GatewayEventKind Kind, Guid OrderId, decimal A
 
 public sealed class GatewayWebhookRejectedException(string message) : Exception(message);
 
+/// <summary>
+/// A gateway that can also send money back to the buyer's card. Optional: a gateway without it simply cannot refund from the admin
+/// (staff record a refund they made elsewhere instead). Implement it on the same class as <see cref="IPaymentGateway"/>.
+/// </summary>
+public interface IRefundingGateway : IPaymentGateway
+{
+    /// <summary>
+    /// Asks the gateway to refund part or all of one payment. The core has already checked the amount against what was paid and not
+    /// yet returned. <see cref="GatewayRefundRequest.IdempotencyKey"/> must make a repeat of the same request harmless (pass it on to
+    /// the gateway), so a double click or a retry cannot refund twice. Throw <see cref="GatewayException"/> when it is refused.
+    /// </summary>
+    Task<GatewayRefund> RefundAsync(GatewayRefundRequest request, CancellationToken ct = default);
+}
+
+/// <param name="PaymentReference">The gateway's id for the payment being refunded, as recorded when the payment was booked.</param>
+public sealed record GatewayRefundRequest(Guid OrderId, string PaymentReference, decimal Amount, string Currency, string IdempotencyKey);
+
+/// <param name="Reference">The gateway's id for the refund: the same one its webhook will carry, which is what stops the refund being booked twice.</param>
+/// <param name="Succeeded">False while the gateway is still working on it (some methods take days); the webhook books it when it finishes.</param>
+public sealed record GatewayRefund(string Reference, string Status, bool Succeeded, decimal Amount, string Currency);
+
+public sealed class RefundStartInput
+{
+    [Range(0.01, 1_000_000_000)]
+    public decimal Amount { get; set; }
+
+    /// <summary>Send the same value again to repeat a request safely (a double click, a retry). A new value is a new refund.</summary>
+    [StringLength(100)]
+    public string? IdempotencyKey { get; set; }
+}
+
+/// <param name="Outcome">Recorded, AlreadyRecorded, Unreconciled (money moved but could not be booked: see the unreconciled list) or Pending (the gateway is still processing it).</param>
+public sealed record RefundResultDto(string Provider, string Reference, string Status, decimal Amount, string Currency, string Outcome);
+
 /// <summary>A gateway could not do what was asked (it is down, refused the request, or is not configured). The message is for logs, not shoppers: the host answers with a generic one.</summary>
 public sealed class GatewayException(string message, Exception? inner = null) : Exception(message, inner);
 
@@ -68,6 +102,7 @@ public static class PaymentGatewayExtensions
         services.TryAddSingleton<T>();
         services.AddSingleton<IPaymentGateway>(sp => sp.GetRequiredService<T>());
         services.AddSingleton<IPaymentProvider>(sp => sp.GetRequiredService<T>());
+        if (typeof(IRefundingGateway).IsAssignableFrom(typeof(T))) services.AddSingleton<IRefundingGateway>(sp => (IRefundingGateway)(object)sp.GetRequiredService<T>());
         return services;
     }
 }
@@ -79,6 +114,13 @@ public interface IGatewayService
     /// owed or the order is cancelled. Null when the order does not exist.
     /// </summary>
     Task<PaymentSessionDto?> StartAsync(Guid orderId, string provider, CancellationToken ct = default);
+
+    /// <summary>
+    /// Refunds part or all of one gateway payment through the gateway and books the refund. Null when the order does not exist.
+    /// Validation error when the payment is not on this order or its provider cannot refund; conflict when the amount is more than
+    /// can still be returned through that provider, or the gateway refuses.
+    /// </summary>
+    Task<RefundResultDto?> RefundAsync(Guid orderId, Guid paymentId, RefundStartInput input, string? actor = null, CancellationToken ct = default);
 
     /// <summary>
     /// Handles a gateway's webhook. Null when there is no such gateway (404). Throws <see cref="GatewayWebhookRejectedException"/> for a
@@ -127,45 +169,96 @@ internal sealed class GatewayService(
 
         foreach (var e in events)
         {
-            // A replay of an event we have already recorded is the normal case (gateways retry): answer success, record nothing.
-            if (await db.Set<Payment>().AsNoTracking().AnyAsync(p => p.Provider == gateway.Name && p.Reference == e.Reference, ct))
+            switch (await BookEventAsync(gateway, e, $"Confirmed by {gateway.DisplayName}", $"gateway:{gateway.Name}", ct))
             {
-                already++;
-                continue;
-            }
-
-            // Money already on the unreconciled list and dealt with by a person is not listed or counted again when the gateway replays it.
-            if (await db.Set<UnreconciledPayment>().AsNoTracking().AnyAsync(u => u.Provider == gateway.Name && u.Reference == e.Reference && u.ResolvedUtc != null, ct))
-            {
-                already++;
-                continue;
-            }
-
-            try
-            {
-                await GatewayBooking.BookAsync(db, payments, gateway.Name, $"Confirmed by {gateway.DisplayName}", $"gateway:{gateway.Name}", e, ct);
-                recorded++;
-
-                // A retry of something that was waiting on the list books it, and closes the list entry.
-                var now = DateTimeOffset.UtcNow;
-                await db.Set<UnreconciledPayment>().Where(u => u.Provider == gateway.Name && u.Reference == e.Reference && u.ResolvedUtc == null)
-                    .ExecuteUpdateAsync(s => s.SetProperty(u => u.ResolvedUtc, (DateTimeOffset?)now).SetProperty(u => u.Resolution, "Booked when the gateway sent it again."), ct);
-            }
-            catch (Exception ex) when (ex is PiranhaConflictException or PiranhaValidationException)
-            {
-                // A simultaneous replay can win the race for the same reference: that is "already recorded", not a problem.
-                if (await db.Set<Payment>().AsNoTracking().AnyAsync(p => p.Provider == gateway.Name && p.Reference == e.Reference, ct)) { already++; continue; }
-
-                // The gateway says money moved but we cannot book it (order cancelled, over-paid, wrong currency, unknown order).
-                // Answering an error would only make the gateway retry for days; so it goes on the unreconciled list for a person, and in the log.
-                unreconciled++;
-                logger.LogError(ex, "Gateway {Gateway} confirmed a {Kind} of {Amount} {Currency} (reference {Reference}) for order {OrderId} that could not be recorded: {Reason}",
-                    gateway.Name, e.Kind, e.Amount, e.Currency, e.Reference, e.OrderId, ex.Message);
-                await RememberAsync(gateway.Name, e, ex.Message, ct);
+                case BookOutcome.Recorded: recorded++; break;
+                case BookOutcome.AlreadyRecorded: already++; break;
+                default: unreconciled++; break;
             }
         }
 
         return new WebhookResultDto(recorded, already, unreconciled);
+    }
+
+    private enum BookOutcome { Recorded, AlreadyRecorded, Unreconciled }
+
+    /// <summary>
+    /// Books one confirmed gateway event: nothing when it is already booked (gateways replay), the unreconciled list when the money
+    /// cannot be booked. Used for webhooks and for refunds the admin started, so both end in exactly the same record.
+    /// </summary>
+    private async Task<BookOutcome> BookEventAsync(IPaymentGateway gateway, GatewayEvent e, string note, string actor, CancellationToken ct)
+    {
+        // A replay of an event we have already recorded is the normal case (gateways retry): answer success, record nothing.
+        if (await db.Set<Payment>().AsNoTracking().AnyAsync(p => p.Provider == gateway.Name && p.Reference == e.Reference, ct))
+            return BookOutcome.AlreadyRecorded;
+
+        // Money already on the unreconciled list and dealt with by a person is not listed or counted again when the gateway replays it.
+        if (await db.Set<UnreconciledPayment>().AsNoTracking().AnyAsync(u => u.Provider == gateway.Name && u.Reference == e.Reference && u.ResolvedUtc != null, ct))
+            return BookOutcome.AlreadyRecorded;
+
+        try
+        {
+            await GatewayBooking.BookAsync(db, payments, gateway.Name, note, actor, e, ct);
+
+            // A retry of something that was waiting on the list books it, and closes the list entry.
+            var now = DateTimeOffset.UtcNow;
+            await db.Set<UnreconciledPayment>().Where(u => u.Provider == gateway.Name && u.Reference == e.Reference && u.ResolvedUtc == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(u => u.ResolvedUtc, (DateTimeOffset?)now).SetProperty(u => u.Resolution, "Booked when the gateway sent it again."), ct);
+            return BookOutcome.Recorded;
+        }
+        catch (Exception ex) when (ex is PiranhaConflictException or PiranhaValidationException)
+        {
+            // A simultaneous replay can win the race for the same reference: that is "already recorded", not a problem.
+            if (await db.Set<Payment>().AsNoTracking().AnyAsync(p => p.Provider == gateway.Name && p.Reference == e.Reference, ct)) return BookOutcome.AlreadyRecorded;
+
+            // The gateway says money moved but we cannot book it (order cancelled, over-paid, wrong currency, unknown order).
+            // Answering an error would only make the gateway retry for days; so it goes on the unreconciled list for a person, and in the log.
+            logger.LogError(ex, "Gateway {Gateway} confirmed a {Kind} of {Amount} {Currency} (reference {Reference}) for order {OrderId} that could not be recorded: {Reason}",
+                gateway.Name, e.Kind, e.Amount, e.Currency, e.Reference, e.OrderId, ex.Message);
+            await RememberAsync(gateway.Name, e, ex.Message, ct);
+            return BookOutcome.Unreconciled;
+        }
+    }
+
+    public async Task<RefundResultDto?> RefundAsync(Guid orderId, Guid paymentId, RefundStartInput input, string? actor = null, CancellationToken ct = default)
+    {
+        ModelValidator.ValidateOrThrow(input);
+        if (decimal.Round(input.Amount, 2) != input.Amount)
+            throw new PiranhaValidationException(nameof(RefundStartInput.Amount), "Use at most two decimal places.");
+
+        var order = await db.Set<Order>().AsNoTracking().Where(o => o.Id == orderId).Select(o => new { o.Currency }).FirstOrDefaultAsync(ct);
+        if (order is null) return null;
+
+        var payment = await db.Set<Payment>().AsNoTracking().FirstOrDefaultAsync(p => p.Id == paymentId && p.OrderId == orderId && p.Kind == PaymentKind.Payment, ct)
+                      ?? throw new PiranhaValidationException("PaymentId", "That is not a payment on this order.");
+        var gateway = gateways.OfType<IRefundingGateway>().FirstOrDefault(g => g.Name == payment.Provider);
+        if (gateway is null || string.IsNullOrWhiteSpace(payment.Reference))
+            throw new PiranhaValidationException("PaymentId", "That payment was not taken through a provider that can refund it. Record the refund you made yourself instead.");
+
+        // Only what this provider took and has not already given back; the gateway enforces its own limit per payment as well.
+        var sums = await db.Set<Payment>().AsNoTracking().Where(p => p.OrderId == orderId && p.Provider == gateway.Name)
+            .GroupBy(p => p.Kind).Select(g => new { Kind = g.Key, Sum = g.Sum(p => p.Amount) }).ToListAsync(ct);
+        var refundable = sums.Where(x => x.Kind == PaymentKind.Payment).Sum(x => x.Sum) - sums.Where(x => x.Kind == PaymentKind.Refund).Sum(x => x.Sum);
+        if (input.Amount > refundable)
+            throw new PiranhaConflictException($"That is more than can be refunded through {gateway.DisplayName}: {refundable:N2} {order.Currency} taken and not yet returned.");
+
+        var key = string.IsNullOrWhiteSpace(input.IdempotencyKey) ? Guid.NewGuid().ToString("N") : input.IdempotencyKey.Trim();
+        GatewayRefund result;
+        try { result = await gateway.RefundAsync(new GatewayRefundRequest(orderId, payment.Reference!, input.Amount, order.Currency, $"{orderId:N}-{paymentId:N}-{input.Amount:0.00}-{key}"), ct); }
+        catch (GatewayException ex)
+        {
+            logger.LogError(ex, "Gateway {Gateway} could not refund {Amount} on order {OrderId}: {Reason}", gateway.Name, input.Amount, orderId, ex.Message);
+            throw new PiranhaConflictException("The payment service could not make this refund. Nothing has been refunded; check the payment in the provider's dashboard before trying again.");
+        }
+
+        // Still being processed: nothing is booked yet. Its webhook books it when it succeeds (and not at all if it fails).
+        if (!result.Succeeded)
+            return new RefundResultDto(gateway.Name, result.Reference, result.Status, result.Amount, result.Currency, "Pending");
+
+        var outcome = await BookEventAsync(gateway,
+            new GatewayEvent(GatewayEventKind.RefundConfirmed, orderId, result.Amount, result.Currency, result.Reference),
+            $"Refunded through {gateway.DisplayName}", actor ?? $"gateway:{gateway.Name}", ct);
+        return new RefundResultDto(gateway.Name, result.Reference, result.Status, result.Amount, result.Currency, outcome.ToString());
     }
 
     private async Task RememberAsync(string provider, GatewayEvent e, string reason, CancellationToken ct)

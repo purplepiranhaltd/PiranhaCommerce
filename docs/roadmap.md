@@ -105,10 +105,12 @@ Not built yet:
   reminders, and a per-code attempt limit beyond the shared request limiter.
 - Payment gateways: the plugin point is built (start a payment, signed webhooks, idempotent recording; tested with a fake gateway).
   Stripe is built (`PiranhaCommerce.Payments.Stripe`). Unreconciled payments are listed in the admin (retry or resolve with a note).
-  Not built: alerts when something lands on that list (it is only a page and a count), disputes/chargebacks, a shopper-facing "payment pending" state, gateway-initiated refunds from the admin, and payment on delayed methods that confirm days later.
+  Not built: alerts when something lands on that list (it is only a page and a count), disputes/chargebacks, a shopper-facing "payment pending" state, and payment on delayed methods that confirm days later.
 - Shipping: flat price per method (optionally free above a spend). No weight/zone rates, carriers or live rates.
 - Tax: classes and per-country rates are built, prices are entered tax-exclusive; see "Tax: what is left" above.
-- Fulfilment: parcels and tracking, partial shipment, refunds and returns (restock decisions), partially cancelled orders.
+- Fulfilment: parcels, tracking, partial shipment, returns (with a restock choice per line) and refunds through the provider are built. Not built:
+  buyer-requested returns (a request and approval step), return labels, exchanges, refunding a gift voucher's share back onto the voucher, shipped/refunded emails,
+  and refund status updates for a provider refund that later fails.
 - Clean-up of old open baskets; reserving stock while a shopper is in checkout (today stock is taken only when the order is placed).
 - Per-order stock location (every online order currently draws from `Piranha:Ecommerce:StockLocationId`, or the default location).
 - One currency per store (`Piranha:Ecommerce:Currency`, default GBP).

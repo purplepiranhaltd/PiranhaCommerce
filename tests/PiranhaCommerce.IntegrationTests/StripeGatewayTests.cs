@@ -156,4 +156,36 @@ public class StripeGatewayTests
             new Dictionary<string, string> { ["Stripe-Signature"] = signed.Headers["stripe-signature"] + ",v1=" + new string('0', 64) }, signed.Body);
         Assert.Single(await Gateway().ReadWebhookAsync(withExtra));
     }
+
+    [Fact]
+    public async Task Refunding_posts_the_exact_amount_for_the_payment_with_an_idempotency_key_and_reads_the_refund_back()
+    {
+        var order = Guid.NewGuid();
+        var stripe = new FakeStripe(_ => (HttpStatusCode.OK, "{\"id\":\"re_77\",\"status\":\"succeeded\",\"amount\":450,\"currency\":\"gbp\"}"));
+        var refund = await Gateway(stripe).RefundAsync(new GatewayRefundRequest(order, "pi_123", 4.50m, "GBP", "key-1"));
+
+        Assert.Equal(("re_77", true, 4.50m, "GBP"), (refund.Reference, refund.Succeeded, refund.Amount, refund.Currency));
+        var (request, body) = Assert.Single(stripe.Calls);
+        Assert.Equal("https://api.stripe.com/v1/refunds", request.RequestUri!.ToString());
+        Assert.Equal("Bearer sk_test_x", request.Headers.Authorization!.ToString());
+        Assert.Equal("refund-key-1", request.Headers.GetValues("Idempotency-Key").Single());
+        var form = Form(body);
+        Assert.Equal("pi_123", form["payment_intent"]);
+        Assert.Equal("450", form["amount"]);
+        Assert.Equal(order.ToString(), form["metadata[order_id]"]);
+    }
+
+    [Fact]
+    public async Task A_refund_stripe_has_not_finished_is_not_reported_as_succeeded_and_a_stripe_error_is_a_gateway_error()
+    {
+        var pending = new FakeStripe(_ => (HttpStatusCode.OK, "{\"id\":\"re_78\",\"status\":\"pending\",\"amount\":100,\"currency\":\"gbp\"}"));
+        Assert.False((await Gateway(pending).RefundAsync(new GatewayRefundRequest(Guid.NewGuid(), "pi_1", 1m, "GBP", "k"))).Succeeded);
+
+        var refused = new FakeStripe(_ => (HttpStatusCode.BadRequest, "{\"error\":{\"message\":\"Charge already refunded\"}}"));
+        var ex = await Assert.ThrowsAsync<GatewayException>(() => Gateway(refused).RefundAsync(new GatewayRefundRequest(Guid.NewGuid(), "pi_1", 1m, "GBP", "k")));
+        Assert.DoesNotContain("already refunded", ex.Message); // Stripe's wording goes to the log, not the caller
+
+        var noId = new FakeStripe(_ => (HttpStatusCode.OK, "{\"status\":\"succeeded\"}"));
+        await Assert.ThrowsAsync<GatewayException>(() => Gateway(noId).RefundAsync(new GatewayRefundRequest(Guid.NewGuid(), "pi_1", 1m, "GBP", "k")));
+    }
 }
