@@ -1,7 +1,26 @@
 using Microsoft.EntityFrameworkCore;
+using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Data;
 
 namespace PiranhaCommerce.Customers;
+
+/// <summary>
+/// One thing staff did about a customer's sign-in (unlock, sign out, reset link, remove, switch off or on). Holds no password or token,
+/// and goes when the customer is erased (it is part of their data, so it is in their export too).
+/// </summary>
+public class CustomerSignInEvent : Entity
+{
+    public Guid CustomerId { get; set; }
+    public DateTimeOffset OccurredUtc { get; set; }
+    /// <summary>Who did it: the staff member's email, or null when unknown.</summary>
+    public string? Actor { get; set; }
+    /// <summary>For example "unlocked", "signed-out", "reset-link", "sign-in-removed", "switched-off", "switched-on".</summary>
+    public string Action { get; set; } = "";
+    /// <summary>Short outcome where there is one, for example "Sent" or "RateLimited".</summary>
+    public string? Detail { get; set; }
+}
+
+public sealed record SignInEventDto(DateTimeOffset OccurredUtc, string? Actor, string Action, string? Detail);
 
 /// <summary>Where a customer's sign-in stands, as staff see it.</summary>
 public enum SignInState
@@ -43,22 +62,25 @@ public interface ICustomerSignInAdminService
     Task<IReadOnlyDictionary<Guid, SignInState>> GetStatesAsync(IReadOnlyCollection<Guid> customerIds, CancellationToken ct = default);
 
     /// <summary>Clears a lockout and the count of wrong passwords. False when there is no sign-in.</summary>
-    Task<bool> UnlockAsync(Guid customerId, CancellationToken ct = default);
+    Task<bool> UnlockAsync(Guid customerId, string? actor = null, CancellationToken ct = default);
 
     /// <summary>Ends every live session at once (a token is refused on its next call). They can sign in again. False when there is no sign-in.</summary>
-    Task<bool> SignOutEverywhereAsync(Guid customerId, CancellationToken ct = default);
+    Task<bool> SignOutEverywhereAsync(Guid customerId, string? actor = null, CancellationToken ct = default);
 
     /// <summary>
     /// Emails them a link to choose a password. For a customer with no sign-in this is the invitation: following the link creates it,
     /// the email address being the proof. Null when the customer does not exist.
     /// </summary>
-    Task<ResetLinkOutcome?> SendResetLinkAsync(Guid customerId, CancellationToken ct = default);
+    Task<ResetLinkOutcome?> SendResetLinkAsync(Guid customerId, string? actor = null, CancellationToken ct = default);
 
     /// <summary>
     /// Deletes the sign-in (the customer, their addresses and orders stay) and spends any link already emailed, so an old one cannot bring
     /// it back. They can still ask for a new link themselves. False when there was none.
     /// </summary>
-    Task<bool> RemoveAsync(Guid customerId, CancellationToken ct = default);
+    Task<bool> RemoveAsync(Guid customerId, string? actor = null, CancellationToken ct = default);
+
+    /// <summary>What staff have done about this customer's sign-in, newest first (at most <paramref name="limit"/>, default 50). Null when the customer does not exist.</summary>
+    Task<IReadOnlyList<SignInEventDto>?> HistoryAsync(Guid customerId, int limit = 50, CancellationToken ct = default);
 }
 
 internal sealed partial class CustomerAccountService : ICustomerSignInAdminService
@@ -105,28 +127,54 @@ internal sealed partial class CustomerAccountService : ICustomerSignInAdminServi
         return rows.ToDictionary(r => r.Id, r => StateOf(r.HasLogin, r.Active, r.LockoutEnd, now));
     }
 
-    public async Task<bool> UnlockAsync(Guid customerId, CancellationToken ct = default)
-        => await db.Set<CustomerLogin>().Where(l => l.CustomerId == customerId)
+    internal async Task RecordAsync(Guid customerId, string action, string? actor, string? detail, CancellationToken ct)
+    {
+        db.Add(new CustomerSignInEvent { CustomerId = customerId, OccurredUtc = DateTimeOffset.UtcNow, Actor = actor, Action = action, Detail = detail });
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateException) { db.ChangeTracker.Clear(); } // the customer was erased a moment ago: there is nothing left to record against
+    }
+
+    public async Task<bool> UnlockAsync(Guid customerId, string? actor = null, CancellationToken ct = default)
+    {
+        var done = await db.Set<CustomerLogin>().Where(l => l.CustomerId == customerId)
             .ExecuteUpdateAsync(s => s.SetProperty(l => l.LockoutEnd, (DateTimeOffset?)null).SetProperty(l => l.AccessFailedCount, 0), ct) > 0;
+        if (done) await RecordAsync(customerId, "unlocked", actor, null, ct);
+        return done;
+    }
 
-    public async Task<bool> SignOutEverywhereAsync(Guid customerId, CancellationToken ct = default)
-        => await db.Set<CustomerLogin>().Where(l => l.CustomerId == customerId)
+    public async Task<bool> SignOutEverywhereAsync(Guid customerId, string? actor = null, CancellationToken ct = default)
+    {
+        var done = await db.Set<CustomerLogin>().Where(l => l.CustomerId == customerId)
             .ExecuteUpdateAsync(s => s.SetProperty(l => l.SessionVersion, l => l.SessionVersion + 1), ct) > 0;
+        if (done) await RecordAsync(customerId, "signed-out", actor, null, ct);
+        return done;
+    }
 
-    public async Task<ResetLinkOutcome?> SendResetLinkAsync(Guid customerId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<SignInEventDto>?> HistoryAsync(Guid customerId, int limit = 50, CancellationToken ct = default)
+    {
+        if (!await db.Set<Customer>().AnyAsync(c => c.Id == customerId, ct)) return null;
+        return await db.Set<CustomerSignInEvent>().AsNoTracking().Where(e => e.CustomerId == customerId)
+            .OrderByDescending(e => e.OccurredUtc).ThenByDescending(e => e.Id).Take(Math.Clamp(limit, 1, 500))
+            .Select(e => new SignInEventDto(e.OccurredUtc, e.Actor, e.Action, e.Detail)).ToListAsync(ct);
+    }
+
+    public async Task<ResetLinkOutcome?> SendResetLinkAsync(Guid customerId, string? actor = null, CancellationToken ct = default)
     {
         var customer = await db.Set<Customer>().AsNoTracking().Where(c => c.Id == customerId).Select(c => new { c.Email, c.Active }).FirstOrDefaultAsync(ct);
         if (customer is null) return null;
-        if (!customer.Active) return ResetLinkOutcome.Inactive;
-        return await SendResetLinkCoreAsync(customerId, customer.Email, ct);
+        var outcome = customer.Active ? await SendResetLinkCoreAsync(customerId, customer.Email, ct) : ResetLinkOutcome.Inactive;
+        await RecordAsync(customerId, "reset-link", actor, outcome.ToString(), ct); // attempts are recorded too, not just successes
+        return outcome;
     }
 
-    public async Task<bool> RemoveAsync(Guid customerId, CancellationToken ct = default)
+    public async Task<bool> RemoveAsync(Guid customerId, string? actor = null, CancellationToken ct = default)
     {
         // Links first: the other way round, a link used between the two steps would put the sign-in straight back.
         var now = DateTimeOffset.UtcNow;
         await db.Set<CustomerToken>().Where(t => t.CustomerId == customerId && t.UsedUtc == null)
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.UsedUtc, (DateTimeOffset?)now), ct);
-        return await db.Set<CustomerLogin>().Where(l => l.CustomerId == customerId).ExecuteDeleteAsync(ct) > 0;
+        var removed = await db.Set<CustomerLogin>().Where(l => l.CustomerId == customerId).ExecuteDeleteAsync(ct) > 0;
+        if (removed) await RecordAsync(customerId, "sign-in-removed", actor, null, ct);
+        return removed;
     }
 }

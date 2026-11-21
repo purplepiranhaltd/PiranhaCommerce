@@ -1,4 +1,5 @@
 @inject AdminScopeRunner Scope
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider Auth
 
 <div class="pc-card">
     <h2 style="margin-top:0">Sign-in</h2>
@@ -52,6 +53,19 @@
                 }
             }
         </div>
+        @if (_history.Count > 0)
+        {
+            <h3>History</h3>
+            <table class="pc-table">
+                <thead><tr><th>When (UTC)</th><th>Who</th><th>What</th></tr></thead>
+                <tbody>
+                @foreach (var e in _history)
+                {
+                    <tr><td>@e.OccurredUtc.ToString("d MMM yyyy HH:mm")</td><td>@(e.Actor ?? "unknown")</td><td>@e.Action@(e.Detail is null ? "" : " (" + e.Detail + ")")</td></tr>
+                }
+                </tbody>
+            </table>
+        }
         @if (!_status.HasSignIn)
         {
             <p class="pc-muted">This customer has no sign-in. The invitation emails them a link to choose a password, which creates one.</p>
@@ -63,6 +77,7 @@
     [Parameter] public Guid CustomerId { get; set; }
 
     private CustomerSignInDto? _status;
+    private IReadOnlyList<SignInEventDto> _history = [];
     private string? _error, _notice;
     private bool _busy, _confirmRemove;
 
@@ -84,6 +99,7 @@
             var id = CustomerId;
             _status = await Scope.RunAsync<ICustomerSignInAdminService, CustomerSignInDto?>(s => s.GetAsync(id));
             if (_status is null) _error = "That customer no longer exists.";
+            else _history = await Scope.RunAsync<ICustomerSignInAdminService, IReadOnlyList<SignInEventDto>?>(s => s.HistoryAsync(id, 20)) ?? [];
         }
         catch (Exception ex) { _error = "Could not load: " + ex.Message; }
     }
@@ -97,16 +113,19 @@
         await LoadAsync();
     }
 
-    private Task UnlockAsync() { var id = CustomerId; return RunAsync(async s => await s.UnlockAsync(id) ? "Unlocked." : "They have no sign-in."); }
+    private async Task<string?> ActorAsync() => await Auth.GetActorAsync();
 
-    private Task SignOutAsync() { var id = CustomerId; return RunAsync(async s => await s.SignOutEverywhereAsync(id) ? "Signed out everywhere. They can sign in again." : "They have no sign-in."); }
+    private async Task UnlockAsync() { var id = CustomerId; var who = await ActorAsync(); await RunAsync(async s => await s.UnlockAsync(id, who) ? "Unlocked." : "They have no sign-in."); }
 
-    private Task RemoveAsync() { var id = CustomerId; return RunAsync(async s => await s.RemoveAsync(id) ? "Sign-in removed." : "They had no sign-in."); }
+    private async Task SignOutAsync() { var id = CustomerId; var who = await ActorAsync(); await RunAsync(async s => await s.SignOutEverywhereAsync(id, who) ? "Signed out everywhere. They can sign in again." : "They have no sign-in."); }
 
-    private Task SendLinkAsync()
+    private async Task RemoveAsync() { var id = CustomerId; var who = await ActorAsync(); await RunAsync(async s => await s.RemoveAsync(id, who) ? "Sign-in removed." : "They had no sign-in."); }
+
+    private async Task SendLinkAsync()
     {
         var id = CustomerId;
-        return RunAsync(async s => await s.SendResetLinkAsync(id) switch
+        var who = await ActorAsync();
+        await RunAsync(async s => await s.SendResetLinkAsync(id, who) switch
         {
             ResetLinkOutcome.Sent => "Email sent.",
             ResetLinkOutcome.Inactive => "Not sent: the customer is switched off.",

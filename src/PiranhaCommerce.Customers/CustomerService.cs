@@ -13,7 +13,8 @@ public interface ICustomerService
 
     /// <summary>A duplicate email (any letter case) is a validation error on <c>Email</c>.</summary>
     Task<CustomerDto> CreateAsync(CustomerInput input, CancellationToken ct = default);
-    Task<CustomerDto?> UpdateAsync(Guid id, CustomerInput input, CancellationToken ct = default);
+    /// <summary>Switching the customer off or on is recorded in their sign-in history against <paramref name="actor"/>.</summary>
+    Task<CustomerDto?> UpdateAsync(Guid id, CustomerInput input, string? actor = null, CancellationToken ct = default);
 
     /// <summary>Deletes the customer and their address book. False when not found.</summary>
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
@@ -71,7 +72,7 @@ internal sealed class CustomerService(PiranhaDbContext db) : ICustomerService
         return ToDto(entity);
     }
 
-    public async Task<CustomerDto?> UpdateAsync(Guid id, CustomerInput input, CancellationToken ct = default)
+    public async Task<CustomerDto?> UpdateAsync(Guid id, CustomerInput input, string? actor = null, CancellationToken ct = default)
     {
         var entity = await db.Set<Customer>().FirstOrDefaultAsync(c => c.Id == id, ct);
         if (entity is null) return null;
@@ -80,11 +81,17 @@ internal sealed class CustomerService(PiranhaDbContext db) : ICustomerService
         entity.Email = input.Email.Trim();
         entity.NormalizedEmail = Normalize(input.Email);
         var switchedOff = entity.Active && !input.Active;
+        var switchedOn = !entity.Active && input.Active;
         Apply(entity, input);
         await SaveUniqueAsync(ct);
         // Switching a customer off ends their sessions for good: without this, switching them back on would bring an old token back to life.
         if (switchedOff)
             await db.Set<CustomerLogin>().Where(l => l.CustomerId == id).ExecuteUpdateAsync(s => s.SetProperty(l => l.SessionVersion, l => l.SessionVersion + 1), ct);
+        if (switchedOff || switchedOn)
+        {
+            db.Add(new CustomerSignInEvent { CustomerId = id, OccurredUtc = DateTimeOffset.UtcNow, Actor = actor, Action = switchedOff ? "switched-off" : "switched-on" });
+            await db.SaveChangesAsync(ct);
+        }
         return ToDto(entity);
     }
 

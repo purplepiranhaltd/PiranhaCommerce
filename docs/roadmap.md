@@ -80,7 +80,7 @@ Not built:
   and requiring a verified email before sign-in (an unverified address can register a
   new account today; the real owner recovers it with forgot-password).
 - Staff admin for shopper accounts and ending sessions early are built (a session version on each sign-in, checked on every call; see the README).
-  Not built: an audit log of those staff actions, refresh tokens, and a shopper-facing "sign out everywhere" and list of their sessions.
+  Staff actions on a sign-in are recorded (who, what, when). Not built: refresh tokens, and a shopper-facing "sign out everywhere" and list of their sessions.
 - Merging two baskets (claim only takes an unowned basket whole); guest checkout through the storefront API.
 - Customer data export and erasure are built for staff (orders anonymised, never deleted). Not built: the shopper exporting or erasing their own data
   (a storefront export, and erasure with password re-entry), a scheduled retention clean-up, and erasure in the payment provider and email provider.

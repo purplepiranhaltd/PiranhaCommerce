@@ -2,6 +2,7 @@
 @page "/admin/customers/{Id:guid}"
 @inject AdminScopeRunner Scope
 @inject NavigationManager Navigation
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider Auth
 
 <PageTitle>@(IsNew ? "New customer" : "Edit customer") - Piranha Commerce</PageTitle>
 <h1>@(IsNew ? "New customer" : "Edit customer")</h1>
@@ -92,7 +93,8 @@ else
                 Navigation.NavigateTo($"/admin/customers/{created.Id}"); // straight on to adding addresses
                 return;
             }
-            if (await Scope.RunAsync<ICustomerService, CustomerDto?>(s => s.UpdateAsync(Id!.Value, _input!)) is null)
+            var actor = await Auth.GetActorAsync();
+            if (await Scope.RunAsync<ICustomerService, CustomerDto?>(s => s.UpdateAsync(Id!.Value, _input!, actor)) is null)
             {
                 _notFound = true;
                 return;

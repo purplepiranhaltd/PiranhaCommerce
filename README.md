@@ -342,8 +342,9 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   sign-in's session version, which is checked on every storefront call along with the customer being active and the sign-in existing. Signing out
   everywhere, switching the customer off, removing the sign-in, changing the password and using a reset link each end every token. Changing
   the password returns a fresh token (the response is 200 with a token, not 204) so the device that changed it stays signed in. Tokens issued before
-  this existed carry no version and count as 0. The password hash and the version are never in any response. Staff actions are not yet recorded
-  anywhere (no audit log).
+  this existed carry no version and count as 0. The password hash and the version are never in any response. Every staff action (unlock, sign out, reset link
+  with its outcome, removal, switching off or on) is recorded with who did it and when, shown in the card and at `GET /customers/{id}/sign-in/history`,
+  included in the customer's export, and deleted with them on erasure. Customers' own sign-ins and password changes are not logged.
 - **Customer data export and erasure** (`GET /customers/{id}/export`, `POST /customers/{id}/erase`, admin: the Privacy card on a customer):
   staff can see everything held about a customer (their record including staff notes, address book, whether they can sign in but never the
   password hash, and each package's part: for the store, their orders and open baskets) and erase them. Erasing needs the customer's email typed

@@ -607,6 +607,38 @@ namespace PiranhaCommerce.Web.Migrations
                     b.ToTable("CustomerLogin", "customer");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Customers.CustomerSignInEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Actor")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset>("OccurredUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId", "OccurredUtc");
+
+                    b.ToTable("CustomerSignInEvent", "customer");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Customers.CustomerToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1593,6 +1625,15 @@ namespace PiranhaCommerce.Web.Migrations
                     b.HasOne("PiranhaCommerce.Customers.Customer", null)
                         .WithOne()
                         .HasForeignKey("PiranhaCommerce.Customers.CustomerLogin", "CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Customers.CustomerSignInEvent", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Customers.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

@@ -55,6 +55,16 @@ internal sealed class CustomersModelContributor : IModelContributor
             e.HasIndex(x => x.CustomerId);
         });
 
+        b.Entity<CustomerSignInEvent>(e =>
+        {
+            e.ToTable("CustomerSignInEvent", Schema);
+            e.Property(x => x.Actor).HasMaxLength(256);
+            e.Property(x => x.Action).HasMaxLength(32).IsRequired();
+            e.Property(x => x.Detail).HasMaxLength(200);
+            e.HasIndex(x => new { x.CustomerId, x.OccurredUtc });
+            e.HasOne<Customer>().WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         b.Entity<CustomerLogin>(e =>
         {
             e.ToTable("CustomerLogin", Schema);
@@ -109,8 +119,8 @@ internal sealed class CustomerApiEndpoints : IApiEndpointContributor
             })
             .RequireAuthorization(ApiPolicies.Write);
 
-        customers.MapPut("/{id:guid}", async (Guid id, CustomerInput input, ICustomerService svc, CancellationToken ct) =>
-                await svc.UpdateAsync(id, input, ct) is { } c ? Results.Ok(c) : Results.NotFound())
+        customers.MapPut("/{id:guid}", async (Guid id, CustomerInput input, HttpContext http, ICustomerService svc, CancellationToken ct) =>
+                await svc.UpdateAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } c ? Results.Ok(c) : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 
         customers.MapDelete("/{id:guid}", async (Guid id, ICustomerService svc, CancellationToken ct) =>
@@ -121,20 +131,23 @@ internal sealed class CustomerApiEndpoints : IApiEndpointContributor
         customers.MapGet("/{id:guid}/sign-in", async (Guid id, ICustomerSignInAdminService svc, CancellationToken ct) =>
             await svc.GetAsync(id, ct) is { } s ? Results.Ok(s) : Results.NotFound());
 
-        customers.MapPost("/{id:guid}/sign-in/unlock", async (Guid id, ICustomerSignInAdminService svc, CancellationToken ct) =>
-                await svc.UnlockAsync(id, ct) ? Results.NoContent() : Results.NotFound())
+        customers.MapGet("/{id:guid}/sign-in/history", async (Guid id, int? limit, ICustomerSignInAdminService svc, CancellationToken ct) =>
+            await svc.HistoryAsync(id, limit ?? 50, ct) is { } h ? Results.Ok(h) : Results.NotFound());
+
+        customers.MapPost("/{id:guid}/sign-in/unlock", async (Guid id, HttpContext http, ICustomerSignInAdminService svc, CancellationToken ct) =>
+                await svc.UnlockAsync(id, http.User.FindFirst("email")?.Value, ct) ? Results.NoContent() : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 
-        customers.MapPost("/{id:guid}/sign-in/sign-out", async (Guid id, ICustomerSignInAdminService svc, CancellationToken ct) =>
-                await svc.SignOutEverywhereAsync(id, ct) ? Results.NoContent() : Results.NotFound())
+        customers.MapPost("/{id:guid}/sign-in/sign-out", async (Guid id, HttpContext http, ICustomerSignInAdminService svc, CancellationToken ct) =>
+                await svc.SignOutEverywhereAsync(id, http.User.FindFirst("email")?.Value, ct) ? Results.NoContent() : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 
-        customers.MapPost("/{id:guid}/sign-in/reset-link", async (Guid id, ICustomerSignInAdminService svc, CancellationToken ct) =>
-                await svc.SendResetLinkAsync(id, ct) is { } outcome ? Results.Ok(new ResetLinkResultDto(outcome == ResetLinkOutcome.Sent, outcome)) : Results.NotFound())
+        customers.MapPost("/{id:guid}/sign-in/reset-link", async (Guid id, HttpContext http, ICustomerSignInAdminService svc, CancellationToken ct) =>
+                await svc.SendResetLinkAsync(id, http.User.FindFirst("email")?.Value, ct) is { } outcome ? Results.Ok(new ResetLinkResultDto(outcome == ResetLinkOutcome.Sent, outcome)) : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 
-        customers.MapDelete("/{id:guid}/sign-in", async (Guid id, ICustomerSignInAdminService svc, CancellationToken ct) =>
-                await svc.RemoveAsync(id, ct) ? Results.NoContent() : Results.NotFound())
+        customers.MapDelete("/{id:guid}/sign-in", async (Guid id, HttpContext http, ICustomerSignInAdminService svc, CancellationToken ct) =>
+                await svc.RemoveAsync(id, http.User.FindFirst("email")?.Value, ct) ? Results.NoContent() : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 
         // Privacy: everything held about a customer, and erasing them. Orders are anonymised, never deleted (the shop keeps its accounts).

@@ -56,7 +56,8 @@ public sealed class EraseCustomerInput
 }
 
 public sealed record CustomerExportDto(
-    DateTimeOffset ExportedUtc, CustomerDto Customer, IReadOnlyList<AddressDto> Addresses, bool HasSignIn, IReadOnlyDictionary<string, object?> Sections);
+    DateTimeOffset ExportedUtc, CustomerDto Customer, IReadOnlyList<AddressDto> Addresses, bool HasSignIn, IReadOnlyList<SignInEventDto> SignInHistory,
+    IReadOnlyDictionary<string, object?> Sections);
 
 public sealed record CustomerErasureResultDto(Guid CustomerId, DateTimeOffset ErasedUtc, IReadOnlyDictionary<string, int> Changed);
 
@@ -90,11 +91,14 @@ internal sealed class CustomerErasureService(PiranhaDbContext db, IEnumerable<IC
             .Select(a => new AddressDto(a.Id, a.CustomerId, a.Label, a.Recipient, a.Line1, a.Line2, a.City, a.Region, a.PostalCode, a.CountryCode)).ToListAsync(ct);
         var hasLogin = await db.Set<CustomerLogin>().AsNoTracking().AnyAsync(l => l.CustomerId == customerId, ct); // never the password hash
 
+        var history = await db.Set<CustomerSignInEvent>().AsNoTracking().Where(e => e.CustomerId == customerId).OrderBy(e => e.OccurredUtc).ThenBy(e => e.Id)
+            .Select(e => new SignInEventDto(e.OccurredUtc, e.Actor, e.Action, e.Detail)).ToListAsync(ct);
+
         var subject = new CustomerSubject(customerId, c.Email);
         var sections = new Dictionary<string, object?>();
         foreach (var contributor in contributors.OrderBy(x => x.Name, StringComparer.Ordinal))
             sections[contributor.Name] = await contributor.ExportAsync(subject, ct);
-        return new CustomerExportDto(DateTimeOffset.UtcNow, c, addresses, hasLogin, sections);
+        return new CustomerExportDto(DateTimeOffset.UtcNow, c, addresses, hasLogin, history, sections);
     }
 
     public async Task<CustomerErasureResultDto?> EraseAsync(Guid customerId, EraseCustomerInput input, string? actor = null, CancellationToken ct = default)

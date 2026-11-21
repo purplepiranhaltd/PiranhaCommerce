@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using PiranhaCommerce.Api.Auth;
+using Microsoft.Extensions.DependencyInjection;
 using PiranhaCommerce.Customers;
 
 namespace PiranhaCommerce.IntegrationTests;
@@ -251,5 +252,44 @@ public class ShopperSignInAdminTests(PiranhaFactory factory) : IClassFixture<Pir
 
         // None of those attempts touched the shopper.
         await AssertAcceptedAsync(s.Client);
+    }
+
+    [Fact]
+    public async Task Everything_staff_do_about_a_sign_in_is_recorded_with_who_did_it_and_goes_with_the_customer_on_erasure()
+    {
+        var staff = await factory.CreateAuthenticatedApiClientAsync();
+        var s = await RegisterAsync();
+
+        for (var i = 0; i < 5; i++)
+            await factory.CreateClient().PostAsJsonAsync("/api/v1/storefront/auth/token", new SignInInput(s.Email, "wrong-password-" + i));
+        await staff.PostAsync($"/api/v1/customers/{s.Id}/sign-in/unlock", null);
+        await staff.PostAsync($"/api/v1/customers/{s.Id}/sign-in/sign-out", null);
+        await staff.PostAsync($"/api/v1/customers/{s.Id}/sign-in/reset-link", null);
+        await staff.PutAsJsonAsync($"/api/v1/customers/{s.Id}", new CustomerInput { Email = s.Email, Active = false });
+        await staff.PutAsJsonAsync($"/api/v1/customers/{s.Id}", new CustomerInput { Email = s.Email, Active = true });
+        await staff.PutAsJsonAsync($"/api/v1/customers/{s.Id}", new CustomerInput { Email = s.Email, FirstName = "Edited", Active = true }); // not a sign-in action
+        await staff.DeleteAsync($"/api/v1/customers/{s.Id}/sign-in");
+        await staff.PostAsync($"/api/v1/customers/{s.Id}/sign-in/unlock", null); // refused (no sign-in): nothing to record
+
+        var history = (await staff.GetFromJsonAsync<List<JsonElement>>($"/api/v1/customers/{s.Id}/sign-in/history"))!;
+        Assert.Equal(new[] { "sign-in-removed", "switched-on", "switched-off", "reset-link", "signed-out", "unlocked" },
+            history.Select(e => e.GetProperty("action").GetString()!).ToArray()); // newest first
+        Assert.All(history, e => Assert.Equal("admin@piranha.local", e.GetProperty("actor").GetString()));
+        Assert.Equal("Sent", history.Single(e => e.GetProperty("action").GetString() == "reset-link").GetProperty("detail").GetString());
+
+        // A read-only user may read the history, a shopper may not, and an unknown customer is not found.
+        var (email, password) = await factory.CreateReadOnlyUserAsync();
+        var reader = await factory.CreateAuthenticatedApiClientAsync(email, password);
+        Assert.Equal(HttpStatusCode.OK, (await reader.GetAsync($"/api/v1/customers/{s.Id}/sign-in/history")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await s.Client.GetAsync($"/api/v1/customers/{s.Id}/sign-in/history")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await staff.GetAsync($"/api/v1/customers/{Guid.NewGuid()}/sign-in/history")).StatusCode);
+
+        // It is the customer's data: in their export, and gone when they are erased.
+        var export = await staff.GetFromJsonAsync<JsonElement>($"/api/v1/customers/{s.Id}/export");
+        Assert.Equal(6, export.GetProperty("signInHistory").GetArrayLength());
+        Assert.Equal(HttpStatusCode.OK, (await staff.PostAsJsonAsync($"/api/v1/customers/{s.Id}/erase", new EraseCustomerInput { ConfirmEmail = s.Email })).StatusCode);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<PiranhaCommerce.Data.PiranhaDbContext>();
+        Assert.False(await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(db.Set<CustomerSignInEvent>(), e => e.CustomerId == s.Id));
     }
 }
