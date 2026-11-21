@@ -322,6 +322,8 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   `refund.updated`. Locally: `stripe listen --forward-to localhost:5280/api/v1/payments/webhooks/stripe` prints the `whsec_...` to use. Webhook
   signatures are checked in constant time with a 5 minute tolerance; an unset webhook secret rejects everything. Amounts go to Stripe in
   minor units (pence; whole yen); three-decimal currencies are refused. Not built: disputes, saved cards, Stripe Tax, 3-decimal currencies.
+  The sample app serves plain `/thanks` and `/cart` pages (fixed text, nothing from the address echoed) for `SuccessUrl` and `CancelUrl`
+  (`http://localhost:5280/thanks?session={CHECKOUT_SESSION_ID}` and `http://localhost:5280/cart` locally); a real shop points them at its own pages.
 - **Gift vouchers** (`/vouchers`, `POST|DELETE /baskets/{id}/voucher`): a way of PAYING, applied after tax. A voucher never changes the
   price or the tax; it pays part or all of the total and the order records a `voucher` payment. The code (80 bits of randomness) is
   shown once at issue and only its hash is stored, plus the last four characters; every failure (unknown, off, expired, empty) gets the

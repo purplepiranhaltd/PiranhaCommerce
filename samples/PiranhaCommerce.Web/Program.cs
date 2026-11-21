@@ -64,6 +64,7 @@ app.MapStaticAssets();
 app.MapPiranhaApi();
 app.MapPiranhaAdmin();
 app.MapGet("/", () => Results.Redirect("/admin"));
+PiranhaCommerce.Web.ReturnPages.Map(app); // where a payment gateway sends the shopper back to
 
 app.Run();
 
