@@ -74,6 +74,12 @@ public static class PaymentTotals
     }
 }
 
+public sealed class RefundToVoucherInput
+{
+    [System.ComponentModel.DataAnnotations.Range(0.01, 1_000_000_000)] public decimal Amount { get; set; }
+    [System.ComponentModel.DataAnnotations.StringLength(500)] public string? Note { get; set; }
+}
+
 public interface IPaymentService
 {
     IReadOnlyList<PaymentProviderDto> Providers();
@@ -89,6 +95,13 @@ public interface IPaymentService
 
     /// <summary>Records money returned. Conflict when it would return more than has been received. Null when the order does not exist.</summary>
     Task<PaymentDto?> RecordRefundAsync(Guid orderId, PaymentInput input, string? actor = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gives money back onto the gift voucher the order was (partly) paid with: the voucher's balance goes up, its ledger gets a Returned row and the
+    /// order a refund. Never more than the voucher paid and has not already been returned (cancelling counts), nor more than is refundable.
+    /// Conflict when the order was not paid with a voucher or the amount is too much. Null when the order does not exist.
+    /// </summary>
+    Task<PaymentDto?> RefundToVoucherAsync(Guid orderId, RefundToVoucherInput input, string? actor = null, CancellationToken ct = default);
 }
 
 internal sealed class PaymentService(PiranhaDbContext db, IEnumerable<IPaymentProvider> providers, IEnumerable<IPaymentGateway> gateways, OrderMailer mailer) : IPaymentService
@@ -108,6 +121,65 @@ internal sealed class PaymentService(PiranhaDbContext db, IEnumerable<IPaymentPr
 
     public Task<PaymentDto?> RecordRefundAsync(Guid orderId, PaymentInput input, string? actor = null, CancellationToken ct = default)
         => RecordAsync(orderId, PaymentKind.Refund, input, actor, ct);
+
+    public async Task<PaymentDto?> RefundToVoucherAsync(Guid orderId, RefundToVoucherInput input, string? actor = null, CancellationToken ct = default)
+    {
+        ModelValidator.ValidateOrThrow(input);
+        if (decimal.Round(input.Amount, 2) != input.Amount)
+            throw new PiranhaValidationException(nameof(RefundToVoucherInput.Amount), "Use at most two decimal places.");
+        if (!await db.Set<Order>().AnyAsync(o => o.Id == orderId, ct)) return null;
+
+        var paymentId = Guid.NewGuid();
+        var strategy = db.Database.CreateExecutionStrategy();
+        try
+        {
+            await strategy.ExecuteInTransactionAsync(
+                async token =>
+                {
+                    db.ChangeTracker.Clear();
+                    // The order's row lock first, as for every payment, so this and a cancel or another refund are checked one after another.
+                    var now = DateTimeOffset.UtcNow;
+                    await db.Set<Order>().Where(o => o.Id == orderId).ExecuteUpdateAsync(s => s.SetProperty(o => o.UpdatedUtc, (DateTimeOffset?)now), token);
+                    var order = await db.Set<Order>().AsNoTracking().Where(o => o.Id == orderId).Select(o => new { o.Number, o.Currency, o.VoucherId, o.VoucherPaid }).FirstAsync(token);
+                    if (order.VoucherId is not { } voucherId || order.VoucherPaid <= 0)
+                        throw new PiranhaConflictException("This order was not paid with a gift voucher.");
+
+                    var payments = await db.Set<Payment>().AsNoTracking().Where(p => p.OrderId == orderId).Select(p => new { p.Kind, p.Provider, p.Amount }).ToListAsync(token);
+                    var paid = payments.Where(p => p.Kind == PaymentKind.Payment).Sum(p => p.Amount);
+                    var refunded = payments.Where(p => p.Kind == PaymentKind.Refund).Sum(p => p.Amount);
+                    var returnedToVoucher = payments.Where(p => p.Kind == PaymentKind.Refund && p.Provider == "voucher").Sum(p => p.Amount);
+
+                    var room = Math.Min(order.VoucherPaid - returnedToVoucher, paid - refunded);
+                    if (input.Amount > room)
+                        throw new PiranhaConflictException($"That is more than can go back onto the gift voucher: {Math.Max(0m, room):N2} {order.Currency} is left to return to it.");
+
+                    var last4 = await db.Set<GiftVoucher>().AsNoTracking().Where(v => v.Id == voucherId).Select(v => v.CodeLast4).FirstAsync(token);
+                    var reference = OrderNumbers.Format(order.Number);
+                    await db.Set<GiftVoucher>().Where(v => v.Id == voucherId).ExecuteUpdateAsync(s => s.SetProperty(v => v.Balance, v => v.Balance + input.Amount), token);
+                    db.Add(new VoucherEntry { VoucherId = voucherId, Amount = input.Amount, Kind = VoucherEntryKinds.Returned, OrderId = orderId, Reference = reference, Actor = actor, CreatedUtc = now });
+                    db.Add(new Payment
+                    {
+                        Id = paymentId, OrderId = orderId, Kind = PaymentKind.Refund, Provider = "voucher", Amount = input.Amount, Currency = order.Currency,
+                        Reference = $"VCH-{last4}-{reference}-RETURN-{paymentId:N}"[..Math.Min(200, $"VCH-{last4}-{reference}-RETURN-{paymentId:N}".Length)],
+                        Note = string.IsNullOrWhiteSpace(input.Note) ? $"Returned to gift voucher ending {last4}" : $"Returned to gift voucher ending {last4}: {input.Note.Trim()}",
+                        Actor = actor, CreatedUtc = now,
+                    });
+                    await db.SaveChangesAsync(token);
+                    return true;
+                },
+                async token => await db.Set<Payment>().AsNoTracking().AnyAsync(p => p.Id == paymentId, token),
+                ct);
+        }
+        catch (DbUpdateException)
+        {
+            db.ChangeTracker.Clear();
+            throw new PiranhaConflictException("The refund could not be recorded and nothing was changed. Please try again.");
+        }
+
+        var saved = await db.Set<Payment>().AsNoTracking().FirstAsync(p => p.Id == paymentId, ct);
+        return new PaymentDto(saved.Id, orderId, saved.Kind, saved.Provider, saved.Amount, saved.Currency, saved.Reference, saved.Note, saved.Actor, saved.CreatedUtc);
+        // No email: it is credit on a voucher, not money back to a card, the same as when cancelling.
+    }
 
     private async Task<PaymentDto?> RecordAsync(Guid orderId, PaymentKind kind, PaymentInput input, string? actor, CancellationToken ct)
     {

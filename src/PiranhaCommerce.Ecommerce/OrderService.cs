@@ -368,7 +368,8 @@ internal sealed class OrderService(
                     if (to == OrderStage.Cancelled && current.VoucherId is { } voucherId && current.VoucherPaid > 0)
                     {
                         var (paidSoFar, refundedSoFar) = await PaymentSumsAsync(id, token);
-                        var credit = Math.Min(current.VoucherPaid, paidSoFar - refundedSoFar);
+                        var alreadyReturned = await db.Set<Payment>().AsNoTracking().Where(p => p.OrderId == id && p.Kind == PaymentKind.Refund && p.Provider == "voucher").SumAsync(p => (decimal?)p.Amount, token) ?? 0m;
+                        var credit = Math.Min(current.VoucherPaid - alreadyReturned, paidSoFar - refundedSoFar);
                         if (credit > 0)
                         {
                             var reference = OrderNumbers.Format(current.Number);

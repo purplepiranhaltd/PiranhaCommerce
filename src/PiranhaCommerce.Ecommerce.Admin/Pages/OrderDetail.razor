@@ -267,6 +267,16 @@ else
                 </tbody>
             </table>
         }
+        @if (VoucherReturnable > 0)
+        {
+            <h3>Return to the gift voucher</h3>
+            <p class="pc-muted">
+                Part of this order was paid with a gift voucher. This puts money back onto that voucher (up to @VoucherReturnable.ToString("N2") @_order.Currency)
+                and records it as a refund. Cancelling the order does this for whatever is left.
+            </p>
+            <label>Amount <input type="number" step="0.01" min="0.01" @bind="_voucherAmount" /></label>
+            <button type="button" class="secondary" disabled="@_busy" @onclick="ReturnToVoucherAsync">Return to gift voucher</button>
+        }
         @if (_refundable.Count > 0 && _order.AmountPaid - _order.AmountRefunded > 0)
         {
             <h3>Refund to the buyer's card</h3>
@@ -369,6 +379,39 @@ else
         if (_refundable.Count > 0 && !_refundable.Any(x => x.Id == _refundPaymentId)) _refundPaymentId = _refundable[0].Id;
         var owed = _order!.Total - (_order.AmountPaid - _order.AmountRefunded);
         _payment = new PaymentInput { Provider = _payment.Provider ?? "manual", Amount = owed > 0 && _order.Stage != OrderStage.Cancelled ? owed : 0 };
+    }
+
+    private decimal _voucherAmount;
+
+    /// <summary>What the order's gift voucher paid and has not had back yet (and what is still refundable).</summary>
+    private decimal VoucherReturnable
+    {
+        get
+        {
+            if (_order is null || _payments is null) return 0m;
+            var paid = _payments.Where(x => x.Provider == "voucher" && x.Kind == PaymentKind.Payment).Sum(x => x.Amount);
+            var back = _payments.Where(x => x.Provider == "voucher" && x.Kind == PaymentKind.Refund).Sum(x => x.Amount);
+            return Math.Max(0m, Math.Min(paid - back, _order.AmountPaid - _order.AmountRefunded));
+        }
+    }
+
+    private async Task ReturnToVoucherAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var actor = await Auth.GetActorAsync();
+            var input = new RefundToVoucherInput { Amount = _voucherAmount };
+            await Scope.RunAsync<IPaymentService, PaymentDto?>(s => s.RefundToVoucherAsync(Id, input, actor));
+            _voucherAmount = 0;
+            _order = await Scope.RunAsync<IOrderService, OrderDto?>(s => s.GetAsync(Id)) ?? _order;
+            await LoadPaymentsAsync();
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (Exception ex) { _error = "Could not return it: " + ex.Message; }
+        finally { _busy = false; }
     }
 
     private async Task RecordAsync(bool refund)

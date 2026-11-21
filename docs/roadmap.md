@@ -99,8 +99,8 @@ Not built yet:
 - Promotions: promo codes are built (percent or fixed amount off the goods, one code per basket). Not built: free-shipping codes,
   discounts on selected products or categories, buy-one-get-one, automatic discounts with no code, per-customer use limits, stacking
   several codes, and refunds that adjust a discount after a partial return.
-- Gift vouchers are built (issue, pay at checkout, return on cancel, ledger). Not built: selling a voucher as a product (an order line
-  that issues one on payment), partial returns crediting a voucher, voucher use from the shopper side ("check my balance"), expiry
+- Gift vouchers are built (issue, pay at checkout, return on cancel or in part by staff, ledger). Not built: selling a voucher as a product (an order line
+  that issues one on payment), voucher use from the shopper side ("check my balance"), expiry
   reminders, and a per-code attempt limit beyond the shared request limiter.
 - Payment gateways: the plugin point is built (start a payment, signed webhooks, idempotent recording; tested with a fake gateway).
   Stripe is built (`PiranhaCommerce.Payments.Stripe`). Unreconciled payments are listed in the admin (retry or resolve with a note).
@@ -109,7 +109,7 @@ Not built yet:
   countries (list each country), rates by basket value or item count, dimensional weight, carriers, live rates and labels, and free-shipping promo codes.
 - Tax: classes and per-country rates are built, prices are entered tax-exclusive; see "Tax: what is left" above.
 - Fulfilment: parcels, tracking, partial shipment, returns (with a restock choice per line) and refunds through the provider are built. Not built:
-  buyer-requested returns (a request and approval step), return labels, exchanges, refunding a gift voucher's share back onto the voucher,
+  buyer-requested returns (a request and approval step), return labels, exchanges,
   and refund status updates for a provider refund that later fails.
 - Clean-up of old open baskets; reserving stock while a shopper is in checkout (today stock is taken only when the order is placed).
 - Per-order stock location (every online order currently draws from `Piranha:Ecommerce:StockLocationId`, or the default location).

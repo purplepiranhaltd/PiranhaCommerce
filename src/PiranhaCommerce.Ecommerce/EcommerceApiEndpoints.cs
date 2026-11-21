@@ -198,6 +198,13 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
                     ? Results.Created($"/api/v1/orders/{id}/payments/{p.Id}", p) : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 
+        orders.MapPost("/{id:guid}/refunds/voucher", async (Guid id, RefundToVoucherInput input, IPaymentService svc, HttpContext http, CancellationToken ct) =>
+            {
+                var payment = await svc.RefundToVoucherAsync(id, input, http.User.FindFirst("email")?.Value, ct);
+                return payment is null ? Results.NotFound() : Results.Created($"/api/v1/orders/{id}/payments", payment);
+            })
+            .RequireAuthorization(ApiPolicies.Write);
+
         orders.MapPost("/{id:guid}/refunds", async (Guid id, PaymentInput input, IPaymentService svc, HttpContext http, CancellationToken ct) =>
                 await svc.RecordRefundAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } p
                     ? Results.Created($"/api/v1/orders/{id}/payments/{p.Id}", p) : Results.NotFound())

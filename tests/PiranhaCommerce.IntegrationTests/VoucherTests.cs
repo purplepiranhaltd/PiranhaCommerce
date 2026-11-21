@@ -180,4 +180,75 @@ public class VoucherTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory
         Assert.Equal(detail.Voucher.Balance, detail.Entries.Sum(e => e.Amount));
         Assert.Contains(detail.Entries, e => e.Kind == VoucherEntryKinds.Returned && e.Amount == 8m);
     }
+
+    private static Task<HttpResponseMessage> ToVoucher(HttpClient c, Guid orderId, decimal amount, string? note = null)
+        => c.PostAsJsonAsync($"/api/v1/orders/{orderId}/refunds/voucher", new RefundToVoucherInput { Amount = amount, Note = note });
+
+    [Fact]
+    public async Task Staff_can_return_part_of_a_voucher_payment_to_the_voucher_never_more_than_it_paid_and_a_later_cancel_returns_only_the_rest()
+    {
+        var staff = await factory.CreateAuthenticatedApiClientAsync();
+        var product = await Product(staff, 10m);
+        var voucher = await Issue(staff, 8m);
+        var basket = await Basket(staff, product);
+        await staff.PostAsJsonAsync($"/api/v1/baskets/{basket.Id}/voucher", new CodeInput { Code = voucher.Code });
+        var order = await Read<OrderDto>(await staff.PostAsJsonAsync($"/api/v1/baskets/{basket.Id}/checkout", Checkout()));
+        Assert.Equal(8m, order.AmountPaid); // the voucher paid 8 of the total
+
+        var emailsBefore = factory.Email.To(order.Email).Count;
+        var first = await ToVoucher(staff, order.Id, 3m, "Goods came back");
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        var payment = await Read<PaymentDto>(first);
+        Assert.Equal((PaymentKind.Refund, "voucher", 3m), (payment.Kind, payment.Provider, payment.Amount));
+        Assert.Contains("Goods came back", payment.Note);
+        Assert.Equal(3m, (await Detail(staff, voucher.Voucher.Id)).Voucher.Balance);
+        Assert.Equal(3m, (await Read<OrderDto>(await staff.GetAsync($"/api/v1/orders/{order.Id}"))).AmountRefunded);
+
+        // Only 5 of the voucher's 8 is left to return.
+        Assert.Equal(HttpStatusCode.Conflict, (await ToVoucher(staff, order.Id, 5.01m)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await ToVoucher(staff, order.Id, 0m)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await ToVoucher(staff, order.Id, 1.005m)).StatusCode);
+        Assert.Equal(3m, (await Detail(staff, voucher.Voucher.Id)).Voucher.Balance);
+
+        // Cancelling now returns only what the voucher has not already had back.
+        Assert.Equal(HttpStatusCode.OK, (await staff.PostAsJsonAsync($"/api/v1/orders/{order.Id}/stage", new OrderStageInput { Stage = OrderStage.Cancelled }, Json)).StatusCode);
+        var detail = await Detail(staff, voucher.Voucher.Id);
+        Assert.Equal(8m, detail.Voucher.Balance);
+        Assert.Equal(detail.Voucher.Balance, detail.Entries.Sum(e => e.Amount));
+        Assert.Equal(2, detail.Entries.Count(e => e.Kind == VoucherEntryKinds.Returned));
+        Assert.Equal(HttpStatusCode.Conflict, (await ToVoucher(staff, order.Id, 0.01m)).StatusCode); // nothing left to return
+
+        Assert.DoesNotContain(factory.Email.To(order.Email).Skip(emailsBefore), m => m.TemplateKey == "order.refunded"); // credit on a voucher is not announced as a refund
+    }
+
+    [Fact]
+    public async Task Returning_to_a_voucher_needs_an_order_that_was_paid_with_one_and_a_writer_and_runs_one_at_a_time()
+    {
+        var staff = await factory.CreateAuthenticatedApiClientAsync();
+        var product = await Product(staff, 10m);
+
+        var plain = await Read<OrderDto>(await staff.PostAsJsonAsync($"/api/v1/baskets/{(await Basket(staff, product)).Id}/checkout", Checkout()));
+        await staff.PostAsJsonAsync($"/api/v1/orders/{plain.Id}/payments", new PaymentInput { Amount = plain.Total, Provider = "manual", Reference = "p-" + Tag() });
+        var notPaidByVoucher = await ToVoucher(staff, plain.Id, 1m);
+        Assert.Equal(HttpStatusCode.Conflict, notPaidByVoucher.StatusCode);
+        Assert.Contains("not paid with a gift voucher", await notPaidByVoucher.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.NotFound, (await ToVoucher(staff, Guid.NewGuid(), 1m)).StatusCode);
+
+        var voucher = await Issue(staff, 8m);
+        var basket = await Basket(staff, product);
+        await staff.PostAsJsonAsync($"/api/v1/baskets/{basket.Id}/voucher", new CodeInput { Code = voucher.Code });
+        var order = await Read<OrderDto>(await staff.PostAsJsonAsync($"/api/v1/baskets/{basket.Id}/checkout", Checkout()));
+
+        var (email, password) = await factory.CreateReadOnlyUserAsync();
+        var reader = await factory.CreateAuthenticatedApiClientAsync(email, password);
+        Assert.Equal(HttpStatusCode.Forbidden, (await ToVoucher(reader, order.Id, 1m)).StatusCode);
+
+        // Five at once for 2 each: room for four of them (8), so exactly four succeed and the ledger still adds up.
+        var results = await Task.WhenAll(Enumerable.Range(0, 5).Select(_ => ToVoucher(staff, order.Id, 2m)));
+        Assert.Equal(4, results.Count(r => r.StatusCode == HttpStatusCode.Created));
+        Assert.Equal(1, results.Count(r => r.StatusCode == HttpStatusCode.Conflict));
+        var detail = await Detail(staff, voucher.Voucher.Id);
+        Assert.Equal(8m, detail.Voucher.Balance);
+        Assert.Equal(detail.Voucher.Balance, detail.Entries.Sum(e => e.Amount));
+    }
 }

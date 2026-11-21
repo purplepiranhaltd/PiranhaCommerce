@@ -333,7 +333,7 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
     back through the provider and books it with the provider's refund id, so the provider's own webhook is recognised as the same refund.
     The amount is capped by what that provider took and has not returned, a repeated request with the same `idempotencyKey` is the same
     refund, and a refund the provider is still working on is booked when its webhook says it succeeded. A refund made in the provider's
-    dashboard is booked automatically; do not also record it by hand. A gift voucher's portion is not refunded to the voucher.
+    dashboard is booked automatically; do not also record it by hand. A gift voucher's portion is not refunded to a card: use the voucher return below.
 - **Shopper sign-ins, for staff** (`/customers/{id}/sign-in`, admin: the Sign-in card on a customer and a Sign-in column in the list): see whether a
   customer has no sign-in, can sign in, is locked out or is switched off; **unlock** a lockout; **sign out everywhere**; **send a reset link** (for a
   customer who has no sign-in, such as one staff made, this is the invitation: the link creates it, the address being the proof); and **remove the
@@ -403,7 +403,9 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   price or the tax; it pays part or all of the total and the order records a `voucher` payment. The code (80 bits of randomness) is
   shown once at issue and only its hash is stored, plus the last four characters; every failure (unknown, off, expired, empty) gets the
   same answer. The balance moves with one conditional update and every change is a ledger row (balance = sum of the ledger), so
-  simultaneous orders cannot overspend it. Cancelling an order returns what it paid onto the voucher. Staff cannot record a `voucher`
+  simultaneous orders cannot overspend it. Cancelling an order returns what it paid onto the voucher. Staff can also return part of it without cancelling
+  (`POST /orders/{id}/refunds/voucher`, admin: Payment > Return to the gift voucher): never more than the voucher paid less what already went back, a later
+  cancel returns only the rest, it is a `voucher` refund on the order and a Returned row in the voucher's ledger, and the buyer is not emailed. Staff cannot record a `voucher`
   payment or refund by hand. Vouchers are never deleted; switch them off.
 - `POST /baskets/{id}/quote` returns exactly what checkout will charge (the same calculator), with a `taxes` list (name, rate, amount).
   Orders keep copies of the method name and, on every line, the tax name, rate and amount, so editing settings later never changes an
