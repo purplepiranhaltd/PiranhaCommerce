@@ -247,6 +247,17 @@ the content, which may hold a reset link). To send real mail, add a plugin or yo
 builder.Services.AddSingleton<IEmailSender, MySmtpSender>();   // after AddPiranhaCore(): the last registration wins
 ```
 
+**SMTP** (`PiranhaCommerce.Email.Smtp`, `.AddPlugin<SmtpEmailPlugin>()`): sends every platform email through any SMTP server using
+MailKit. Settings under `Piranha:Email:Smtp`: `Host`, `Port` (587), `Security` (`StartTls` default, `SslOnConnect`, `Auto`, or `None` for a local
+mail catcher only), `Username`, `Password`, `FromAddress`, `FromName`, `ReplyToAddress`, `TimeoutSeconds`. Keep the password in user secrets or
+your host's secret store. Server certificates are always validated. The recipient must be exactly one valid address, a subject cannot
+inject headers, and neither recipient nor subject is logged. For development, run a mail catcher such as smtp4dev or Papercut and set
+`Security` to `None`.
+
+Every platform email also carries a `TemplateKey` (`order.confirmation`, `customer.set-password`) and `Variables` (its data, money already
+formatted) next to its text body. The SMTP sender ignores them and sends the text; a sender that renders its own templates (a provider
+such as Mailjet) maps the key to its template id and uses the variables.
+
 Today it sends password-reset links and, for every order placed, a plain-text order confirmation (`Piranha:Ecommerce:SendOrderConfirmations`,
 default on). A failing mail server never fails the request that triggered it: the order is still placed, and the failure is logged.
 The email is sent before the checkout response returns, so a slow provider slows checkout; queue inside your sender if that matters.

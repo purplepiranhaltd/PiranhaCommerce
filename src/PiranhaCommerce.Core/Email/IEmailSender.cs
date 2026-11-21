@@ -4,8 +4,23 @@ using Microsoft.Extensions.Logging;
 
 namespace PiranhaCommerce.Core.Email;
 
-/// <summary>One email. Plain text is always required; HTML is optional.</summary>
-public sealed record EmailMessage(string To, string Subject, string TextBody, string? HtmlBody = null);
+/// <summary>
+/// One email. The plain text body is always required and always complete: a sender that just sends mail (SMTP) uses it as is.
+/// <paramref name="TemplateKey"/> and <paramref name="Variables"/> are for a sender that renders its own templates (a provider's
+/// template engine): the key names the message ("order.confirmation") and the variables are its data. Such a sender maps the key to
+/// its own template id and falls back to the text body when it has no template for a key.
+/// </summary>
+/// <param name="TemplateKey">Stable name of the kind of message, e.g. <c>order.confirmation</c>, <c>customer.set-password</c>. Null for an ad hoc message.</param>
+/// <param name="Variables">Plain values (strings, numbers, lists of those, dictionaries) a template can show. Money is already formatted. May hold secrets such as a reset link, so a sender must not log it.</param>
+public sealed record EmailMessage(
+    string To, string Subject, string TextBody, string? HtmlBody = null, string? TemplateKey = null, IReadOnlyDictionary<string, object?>? Variables = null);
+
+/// <summary>The keys of the messages the platform itself sends.</summary>
+public static class EmailTemplates
+{
+    public const string OrderConfirmation = "order.confirmation";
+    public const string SetPassword = "customer.set-password";
+}
 
 /// <summary>
 /// The one way the platform sends email (password resets, order confirmations, ...). Nothing here knows about SMTP or any

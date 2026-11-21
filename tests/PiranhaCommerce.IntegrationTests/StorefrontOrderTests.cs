@@ -169,6 +169,12 @@ public class StorefrontOrderTests(PiranhaFactory factory) : IClassFixture<Piranh
         var mail = Assert.Single(factory.Email.To(email));
         Assert.Contains(first.Reference, mail.Subject);
         Assert.Contains(product.Name, mail.TextBody);
+        // A template-based sender (Mailjet and the like) gets the key and the data, with money already formatted.
+        Assert.Equal("order.confirmation", mail.TemplateKey);
+        Assert.Equal(first.Reference, mail.Variables!["reference"]);
+        Assert.Equal(first.Total.ToString("N2", System.Globalization.CultureInfo.InvariantCulture), mail.Variables["total"]);
+        var lines = Assert.IsAssignableFrom<IEnumerable<object>>(mail.Variables["lines"]);
+        Assert.Equal(product.Name, ((Dictionary<string, object?>)Assert.Single(lines))["name"]);
 
         factory.Email.Fail = true;
         try

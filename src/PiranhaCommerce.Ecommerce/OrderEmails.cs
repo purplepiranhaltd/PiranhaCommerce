@@ -38,6 +38,18 @@ internal static class OrderEmails
             foreach (var line in new[] { a.Recipient, a.Line1, a.Line2, a.City, a.Region, a.PostalCode, a.CountryCode })
                 if (!string.IsNullOrWhiteSpace(line)) text.AppendLine(line);
         }
-        return new EmailMessage(o.Email, $"Your order {o.Reference}", text.ToString());
+        string Money(decimal v) => v.ToString("N2", inv);
+        var variables = new Dictionary<string, object?>
+        {
+            ["reference"] = o.Reference, ["email"] = o.Email, ["currency"] = o.Currency,
+            ["subtotal"] = Money(o.Subtotal), ["discount"] = o.DiscountTotal > 0 ? Money(o.DiscountTotal) : null, ["promotionCode"] = o.PromotionCode,
+            ["shipping"] = Money(o.ShippingTotal), ["shippingMethod"] = o.ShippingMethodName, ["tax"] = Money(o.TaxTotal), ["total"] = Money(o.Total),
+            ["paid"] = o.AmountPaid > 0 ? Money(o.AmountPaid) : null, ["stillToPay"] = Money(Math.Max(0m, o.Total - o.AmountPaid + o.AmountRefunded)),
+            ["lines"] = o.Lines.Select(l => (object)new Dictionary<string, object?>
+                { ["name"] = l.Name, ["sku"] = l.Sku, ["quantity"] = l.Quantity, ["total"] = Money(l.LineTotal) }).ToList(),
+            ["taxes"] = (o.Taxes ?? []).Where(t => t.Amount > 0).Select(t => (object)new Dictionary<string, object?>
+                { ["name"] = t.Name, ["rate"] = t.Rate.ToString("0.####", inv), ["amount"] = Money(t.Amount) }).ToList(),
+        };
+        return new EmailMessage(o.Email, $"Your order {o.Reference}", text.ToString(), TemplateKey: EmailTemplates.OrderConfirmation, Variables: variables);
     }
 }
