@@ -287,6 +287,13 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   409 instead of quietly charging full price. A limited code is used up with one conditional update, so simultaneous orders cannot
   exceed the limit, and cancelling an order gives its use back (once). A code cannot be renamed once created. Every order satisfies
   Total = Subtotal - DiscountTotal + ShippingTotal + TaxTotal.
+- **Payment gateways** (plugin point): a gateway package implements `IPaymentGateway` (`StartAsync` opens a payment and returns where to
+  send the shopper; `ReadWebhookAsync` verifies the gateway's signature and says what happened) and registers with
+  `services.AddPaymentGateway<T>()`. The core does the rest: `POST /orders/{id}/payments/start` (staff) and
+  `POST /storefront/orders/{id}/pay` (the shopper's own order) ask for exactly what is still owed, and the public
+  `POST /payments/webhooks/{provider}` records confirmed payments and refunds. Replays are harmless (unique provider reference), a bad
+  signature is a bare 400, bodies over 256 KB are refused, and money the gateway confirms that cannot be booked (cancelled order,
+  over-payment, wrong currency) is logged as an error and counted as `unreconciled` rather than retried. No gateway ships in the box.
 - **Gift vouchers** (`/vouchers`, `POST|DELETE /baskets/{id}/voucher`): a way of PAYING, applied after tax. A voucher never changes the
   price or the tax; it pays part or all of the total and the order records a `voucher` payment. The code (80 bits of randomness) is
   shown once at issue and only its hash is stored, plus the last four characters; every failure (unknown, off, expired, empty) gets the

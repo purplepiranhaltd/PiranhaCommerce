@@ -11,6 +11,7 @@ using PiranhaCommerce.Api.Auth;
 using PiranhaCommerce.Core.Email;
 using PiranhaCommerce.Core.Identity;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Ecommerce;
 
 namespace PiranhaCommerce.IntegrationTests;
 
@@ -58,7 +59,7 @@ public class PiranhaFactory: WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("ConnectionStrings:Piranha", ConnectionString);
         builder.UseSetting("Piranha:RateLimit:SignInAttempts", SignInAttempts.ToString());
         // Mail goes to memory so tests can read the links and codes it would have carried.
-        builder.ConfigureTestServices(s => s.AddSingleton<IEmailSender>(Email));
+        builder.ConfigureTestServices(s => { s.AddSingleton<IEmailSender>(Email); s.AddPaymentGateway<TestGateway>(); });
     }
 
     public CapturingEmailSender Email { get; } = new();

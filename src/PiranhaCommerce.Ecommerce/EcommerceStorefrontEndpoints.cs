@@ -68,6 +68,11 @@ internal sealed class EcommerceStorefrontEndpoints : IStorefrontEndpointContribu
         orders.MapGet("/", async (int? page, int? pageSize, ClaimsPrincipal user, IOrderService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListForCustomerAsync(user.CustomerId()!.Value, page, pageSize, ct)));
 
+        // Starts a card payment for what is still owed on the shopper's own order; another shopper's order is a 404.
+        orders.MapPost("/{id:guid}/pay", async (Guid id, StartPaymentInput input, ClaimsPrincipal user, IOrderService orderSvc, IGatewayService svc, CancellationToken ct) =>
+            await orderSvc.GetForCustomerAsync(user.CustomerId()!.Value, id, ct) is not null && await svc.StartAsync(id, input.Provider, ct) is { } s
+                ? Results.Ok(s) : Results.NotFound());
+
         orders.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, IOrderService svc, CancellationToken ct) =>
             await svc.GetForCustomerAsync(user.CustomerId()!.Value, id, ct) is { } o ? Results.Ok(o) : Results.NotFound());
     }

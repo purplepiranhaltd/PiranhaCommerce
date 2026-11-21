@@ -193,6 +193,35 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
                     ? Results.Created($"/api/v1/orders/{id}/payments/{p.Id}", p) : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 
+        orders.MapPost("/{id:guid}/payments/start", async (Guid id, StartPaymentInput input, IGatewayService svc, CancellationToken ct) =>
+                await svc.StartAsync(id, input.Provider, ct) is { } s ? Results.Ok(s) : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
+        // Public on purpose: a gateway cannot sign in. The gateway plugin verifies the webhook's signature, and nothing is trusted without it.
+        api.MapPost("/payments/webhooks/{provider}", async (string provider, HttpContext http, IGatewayService svc, CancellationToken ct) =>
+            {
+                const int MaxBody = 256 * 1024;
+                if (http.Request.ContentLength > MaxBody) return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+                using var buffer = new MemoryStream();
+                var chunk = new byte[8192];
+                int read;
+                while ((read = await http.Request.Body.ReadAsync(chunk, ct)) > 0)
+                {
+                    if (buffer.Length + read > MaxBody) return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+                    buffer.Write(chunk, 0, read);
+                }
+                var headers = http.Request.Headers.ToDictionary(h => h.Key, h => h.Value.ToString(), StringComparer.OrdinalIgnoreCase);
+                try
+                {
+                    return await svc.HandleWebhookAsync(provider, new GatewayWebhookRequest(headers, buffer.ToArray()), ct) is { } r ? Results.Ok(r) : Results.NotFound();
+                }
+                catch (GatewayWebhookRejectedException)
+                {
+                    return Results.BadRequest(new { error = "The webhook was rejected." }); // never say why: it would help a forger
+                }
+            })
+            .AllowAnonymous().WithTags("Payments");
+
         api.MapGet("/payment-providers", (IPaymentService svc) => Results.Ok(svc.Providers())).WithTags("Payments");
 
         orders.MapPost("/{id:guid}/stage", async (Guid id, OrderStageInput input, IOrderService svc, HttpContext http, CancellationToken ct) =>

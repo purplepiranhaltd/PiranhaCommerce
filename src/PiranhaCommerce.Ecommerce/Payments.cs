@@ -44,7 +44,7 @@ public sealed class PaymentInput
 public sealed record PaymentDto(
     Guid Id, Guid OrderId, PaymentKind Kind, string Provider, decimal Amount, string Currency, string? Reference, string? Note, string? Actor, DateTimeOffset CreatedUtc);
 
-public sealed record PaymentProviderDto(string Name, string DisplayName);
+public sealed record PaymentProviderDto(string Name, string DisplayName, bool IsGateway = false);
 
 /// <summary>
 /// A way of taking money. Today a provider only names itself: recording a payment is something staff (or a gateway plugin's webhook)
@@ -91,9 +91,9 @@ public interface IPaymentService
     Task<PaymentDto?> RecordRefundAsync(Guid orderId, PaymentInput input, string? actor = null, CancellationToken ct = default);
 }
 
-internal sealed class PaymentService(PiranhaDbContext db, IEnumerable<IPaymentProvider> providers) : IPaymentService
+internal sealed class PaymentService(PiranhaDbContext db, IEnumerable<IPaymentProvider> providers, IEnumerable<IPaymentGateway> gateways) : IPaymentService
 {
-    public IReadOnlyList<PaymentProviderDto> Providers() => providers.Select(p => new PaymentProviderDto(p.Name, p.DisplayName)).OrderBy(p => p.Name).ToList();
+    public IReadOnlyList<PaymentProviderDto> Providers() => providers.Select(p => new PaymentProviderDto(p.Name, p.DisplayName, gateways.Any(g => g.Name == p.Name))).OrderBy(p => p.Name).ToList();
 
     public async Task<IReadOnlyList<PaymentDto>?> ListAsync(Guid orderId, CancellationToken ct = default)
     {
