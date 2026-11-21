@@ -1,0 +1,66 @@
+@page "/admin/orders/disputes"
+@using PiranhaCommerce.Core.Paging
+@inject AdminScopeRunner Scope
+
+<PageTitle>Disputes - Piranha Commerce</PageTitle>
+<h1>Disputes</h1>
+<p class="pc-muted">
+    A buyer disputed a card payment with their bank. Answer an open dispute in the payment provider's own dashboard before its deadline.
+    Winning moves no money; a lost dispute is recorded as a refund on the order.
+</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+<label><input type="checkbox" checked="@_openOnly" @onchange="ToggleAsync" /> Open ones only</label>
+
+@if (_items is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_items.Items.Count == 0)
+{
+    <p class="pc-muted">@(_openOnly ? "No open disputes." : "No disputes.")</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>Opened</th><th>Order</th><th>Provider</th><th style="text-align:right">Amount</th><th>Reason</th><th>Answer by</th><th>Status</th></tr></thead>
+        <tbody>
+        @foreach (var d in _items.Items)
+        {
+            <tr>
+                <td>@d.OpenedUtc.ToString("dd MMM yyyy")</td>
+                <td><a href="/admin/orders/@d.OrderId">@d.OrderReference</a></td>
+                <td>@d.Provider<br /><span class="pc-muted">@d.Reference</span></td>
+                <td style="text-align:right">@d.Amount.ToString("N2") @d.Currency</td>
+                <td>@d.Reason</td>
+                <td>@(d.RespondByUtc?.ToString("dd MMM yyyy") ?? "-")</td>
+                <td>@d.Status</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private PagedResult<PaymentDisputeDto>? _items;
+    private bool _openOnly = true;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private Task ToggleAsync(ChangeEventArgs e) { _openOnly = e.Value is true; return LoadAsync(); }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            DisputeStatus? status = _openOnly ? DisputeStatus.Open : null;
+            _items = await Scope.RunAsync<IDisputeService, PagedResult<PaymentDisputeDto>>(s => s.ListAsync(status, 1, 100));
+        }
+        catch (Exception ex) { _error = "Could not load disputes: " + ex.Message; }
+    }
+}

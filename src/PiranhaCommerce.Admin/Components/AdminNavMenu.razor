@@ -1,4 +1,5 @@
 @using PiranhaCommerce.Admin.Services
+@implements IDisposable
 <nav class="pc-admin-nav">
     <div class="pc-nav-group">
         <NavLink href="/admin" Match="NavLinkMatch.All">Dashboard</NavLink>
@@ -16,7 +17,7 @@
             }
             @foreach (var child in Menu.Where(i => i.ParentKey == top.Key))
             {
-                <NavLink href="@child.Href">@child.Title</NavLink>
+                <NavLink href="@child.Href">@child.Title@if (child.BadgeKey is not null && _badges.TryGetValue(child.BadgeKey, out var waiting)){<span class="pc-badge" title="@waiting waiting" aria-label="@waiting waiting">@waiting</span>}</NavLink>
             }
         </div>
     }
@@ -24,5 +25,28 @@
 
 @code {
     [Inject] private AdminMenuService Service { get; set; } = default!;
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
     private IReadOnlyList<AdminMenuItem> Menu => Service.GetMenu();
+    private IReadOnlyDictionary<string, int> _badges = new Dictionary<string, int>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        await RefreshAsync();
+    }
+
+    // Counts are read again when the person moves between pages, so dealing with something clears its badge.
+    private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        try { await InvokeAsync(async () => { await RefreshAsync(); StateHasChanged(); }); }
+        catch (Exception) { /* the circuit has gone */ }
+    }
+
+    private async Task RefreshAsync()
+    {
+        try { _badges = await Service.GetBadgesAsync(); }
+        catch (Exception) { _badges = new Dictionary<string, int>(); }
+    }
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
 }

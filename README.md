@@ -345,6 +345,9 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   this existed carry no version and count as 0. The password hash and the version are never in any response. Every staff action (unlock, sign out, reset link
   with its outcome, removal, switching off or on) is recorded with who did it and when, shown in the card and at `GET /customers/{id}/sign-in/history`,
   included in the customer's export, and deleted with them on erasure. Customers' own sign-ins and password changes are not logged.
+- **Admin menu badges**: a menu entry can show a count of things waiting for a person (`AdminMenuItem.BadgeKey` plus an `IAdminBadgeProvider`
+  registered by the plugin; zero shows nothing and a failing provider is logged and skipped). Orders > Unreconciled payments, Disputes (open) and
+  Return requests (waiting) use it; the numbers refresh when you move between pages. Disputes and Return requests also have list pages.
 - **Customer groups** (`/customer-groups`, `/customer-groups/{id}/members/{customerId}` (PUT adds, DELETE removes), `/customers/{id}/groups`; admin: Customers >
   Groups and a panel on each customer): named sets of customers (trade, staff, VIP) that staff fill and other features can use. Names are unique whatever the letter
   case; adding someone twice is harmless; deleting a customer or a group removes the memberships (the customers stay). A group cannot be deleted while a

@@ -1,0 +1,63 @@
+@page "/admin/orders/return-requests"
+@using PiranhaCommerce.Core.Paging
+@inject AdminScopeRunner Scope
+
+<PageTitle>Return requests - Piranha Commerce</PageTitle>
+<h1>Return requests</h1>
+<p class="pc-muted">
+    Buyers asking to send goods back. Open the order to approve or turn a request down; when the goods arrive, record the return there.
+</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+<label><input type="checkbox" checked="@_waitingOnly" @onchange="ToggleAsync" /> Waiting for an answer only</label>
+
+@if (_items is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_items.Items.Count == 0)
+{
+    <p class="pc-muted">@(_waitingOnly ? "Nothing is waiting." : "No requests.")</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>Asked</th><th>Order</th><th>What</th><th>Reason</th><th>Status</th></tr></thead>
+        <tbody>
+        @foreach (var r in _items.Items)
+        {
+            <tr>
+                <td>@r.RequestedUtc.ToString("dd MMM yyyy HH:mm")</td>
+                <td><a href="/admin/orders/@r.OrderId">@r.OrderReference</a></td>
+                <td>@string.Join(", ", r.Lines.Select(x => x.Quantity + " x " + x.Name))</td>
+                <td>@r.Reason</td>
+                <td>@r.Status</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private PagedResult<ReturnRequestDto>? _items;
+    private bool _waitingOnly = true;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private Task ToggleAsync(ChangeEventArgs e) { _waitingOnly = e.Value is true; return LoadAsync(); }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            ReturnRequestStatus? status = _waitingOnly ? ReturnRequestStatus.Requested : null;
+            _items = await Scope.RunAsync<IReturnRequestService, PagedResult<ReturnRequestDto>>(s => s.ListAsync(status, 1, 100));
+        }
+        catch (Exception ex) { _error = "Could not load requests: " + ex.Message; }
+    }
+}

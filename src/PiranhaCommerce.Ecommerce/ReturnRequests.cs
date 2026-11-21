@@ -94,6 +94,9 @@ public interface IReturnRequestService
 
     Task<ReturnRequestDto?> GetAsync(Guid id, CancellationToken ct = default);
 
+    /// <summary>How many are waiting for an answer (for a badge).</summary>
+    Task<int> WaitingCountAsync(CancellationToken ct = default);
+
     /// <summary>Newest first. Null when the order does not exist.</summary>
     Task<IReadOnlyList<ReturnRequestDto>?> ListForOrderAsync(Guid orderId, CancellationToken ct = default);
 
@@ -134,6 +137,8 @@ internal sealed class ReturnRequestService(PiranhaDbContext db, OrderMailer mail
         var row = await db.Set<ReturnRequest>().AsNoTracking().FirstOrDefaultAsync(r => r.Id == id, ct);
         return row is null ? null : (await ToDtosAsync([row], ct)).Single();
     }
+
+    public Task<int> WaitingCountAsync(CancellationToken ct = default) => db.Set<ReturnRequest>().AsNoTracking().CountAsync(r => r.Status == ReturnRequestStatus.Requested, ct);
 
     public async Task<IReadOnlyList<ReturnRequestDto>?> ListForOrderAsync(Guid orderId, CancellationToken ct = default)
     {

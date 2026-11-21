@@ -17,6 +17,7 @@ a { color: var(--brand); }
 .pc-admin-nav .pc-nav-group > span { text-transform: uppercase; font-size: .72rem; letter-spacing: .06em; opacity: .65; margin-bottom: .25rem; }
 .pc-admin-nav a { color: var(--sidebar-text); text-decoration: none; padding: .3rem .5rem; border-radius: 6px; }
 .pc-admin-nav a.active, .pc-admin-nav a:hover { background: rgba(255,255,255,.12); }
+.pc-badge { display: inline-block; margin-left: .5rem; min-width: 1.3rem; padding: 0 .35rem; border-radius: 999px; background: #c0392b; color: #fff; font-size: .72rem; line-height: 1.3rem; text-align: center; }
 .pc-user { margin-top: auto; font-size: .85rem; display: flex; flex-direction: column; gap: .25rem; }
 .pc-main { padding: 1.5rem 2rem; max-width: 1100px; }
 button, .pc-button { font: inherit; background: var(--brand); color: var(--brand-text); border: 0; border-radius: 6px; padding: .45rem .9rem; cursor: pointer; text-decoration: none; display: inline-block; }

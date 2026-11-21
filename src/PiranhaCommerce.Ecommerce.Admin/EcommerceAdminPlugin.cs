@@ -18,6 +18,9 @@ public sealed class EcommerceAdminPlugin : IPiranhaPlugin
     {
         services.AddSingleton(new AdminPageAssembly(typeof(EcommerceAdminPlugin).Assembly));
         services.AddSingleton<IAdminMenuContributor, EcommerceAdminMenu>();
+        services.AddSingleton<IAdminBadgeProvider, UnreconciledBadge>();
+        services.AddSingleton<IAdminBadgeProvider, DisputesBadge>();
+        services.AddSingleton<IAdminBadgeProvider, ReturnRequestsBadge>();
         services.AddSingleton<IAdminSlotContributor, EcommerceSlotItems>();
     }
 }
@@ -32,7 +35,9 @@ internal sealed class EcommerceAdminMenu : IAdminMenuContributor
         new("orders.tax", "Tax", "/admin/orders/tax", Order: 18, ParentKey: "orders"),
         new("orders.promotions", "Promotions", "/admin/orders/promotions", Order: 19, ParentKey: "orders"),
         new("orders.vouchers", "Gift vouchers", "/admin/orders/vouchers", Order: 20, ParentKey: "orders"),
-        new("orders.unreconciled", "Unreconciled payments", "/admin/orders/unreconciled", Order: 21, ParentKey: "orders"),
+        new("orders.unreconciled", "Unreconciled payments", "/admin/orders/unreconciled", Order: 21, ParentKey: "orders", BadgeKey: "unreconciled"),
+        new("orders.disputes", "Disputes", "/admin/orders/disputes", Order: 22, ParentKey: "orders", BadgeKey: "disputes"),
+        new("orders.returns", "Return requests", "/admin/orders/return-requests", Order: 23, ParentKey: "orders", BadgeKey: "return-requests"),
     ];
 }
 

@@ -230,6 +230,27 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
     }
 
     [Fact]
+    public async Task The_menu_shows_a_count_beside_what_is_waiting_for_a_person_and_the_new_lists_render()
+    {
+        // Money the provider reports for an order that does not exist waits on the unreconciled list.
+        var body = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new TestGateway.WireEvent("payment", Guid.NewGuid(), 5m, "GBP", "ch_" + Guid.NewGuid().ToString("N")[..8]),
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        var hook = new HttpRequestMessage(HttpMethod.Post, "/api/v1/payments/webhooks/testpay") { Content = new ByteArrayContent(body) };
+        hook.Content.Headers.ContentType = new("application/json");
+        hook.Headers.Add("X-Test-Signature", TestGateway.Sign(body));
+        Assert.Equal(HttpStatusCode.OK, (await factory.CreateClient().SendAsync(hook)).StatusCode);
+
+        var browser = NewBrowser();
+        await SignInAsync(browser);
+        var page = await (await browser.GetAsync("/admin/orders/unreconciled")).Content.ReadAsStringAsync();
+        Assert.Contains("class=\"pc-badge\"", page);
+        Assert.Contains("waiting", page);
+
+        Assert.Contains("<h1>Disputes</h1>", await (await browser.GetAsync("/admin/orders/disputes")).Content.ReadAsStringAsync());
+        Assert.Contains("<h1>Return requests</h1>", await (await browser.GetAsync("/admin/orders/return-requests")).Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task Order_pages_render_with_a_copy_of_the_sale_and_the_allowed_stage_buttons()
     {
         var api = await factory.CreateAuthenticatedApiClientAsync();

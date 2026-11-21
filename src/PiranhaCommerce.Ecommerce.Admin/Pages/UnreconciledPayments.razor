@@ -35,7 +35,7 @@ else
             <tr>
                 <td>@u.CreatedUtc.ToString("dd MMM yyyy HH:mm")</td>
                 <td>@u.Provider<br /><span class="pc-muted">@u.Reference</span></td>
-                <td>@(u.Kind == GatewayEventKind.PaymentConfirmed ? "Payment" : "Refund")</td>
+                <td>@(u.Kind switch { GatewayEventKind.PaymentConfirmed => "Payment", GatewayEventKind.RefundConfirmed => "Refund", GatewayEventKind.DisputeLost => "Lost dispute", GatewayEventKind.DisputeOpened => "Dispute", GatewayEventKind.DisputeWon => "Dispute won", GatewayEventKind.RefundFailed => "Refund failed", _ => u.Kind.ToString() })</td>
                 <td>
                     @if (u.OrderReference is not null)
                     {
