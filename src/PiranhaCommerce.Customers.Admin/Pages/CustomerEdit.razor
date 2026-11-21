@@ -51,6 +51,7 @@ else
     @if (Id is { } customerId)
     {
         <AdminSlot Name="@AdminSlots.CustomerEditPanels" Parameters="@(new Dictionary<string, object?> { ["CustomerId"] = customerId })" />
+        <CustomerPrivacyPanel CustomerId="customerId" />
     }
     else
     {

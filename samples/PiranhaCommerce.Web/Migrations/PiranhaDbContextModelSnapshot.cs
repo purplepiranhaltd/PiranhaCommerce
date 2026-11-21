@@ -548,6 +548,33 @@ namespace PiranhaCommerce.Web.Migrations
                     b.ToTable("CustomerAddress", "customer");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Customers.CustomerErasure", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Actor")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTimeOffset>("ErasedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.ToTable("CustomerErasure", "customer");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Customers.CustomerLogin", b =>
                 {
                     b.Property<Guid>("CustomerId")
@@ -748,6 +775,9 @@ namespace PiranhaCommerce.Web.Migrations
                         .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTimeOffset?>("ErasedUtc")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)

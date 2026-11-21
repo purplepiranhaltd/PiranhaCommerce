@@ -19,6 +19,7 @@ public sealed class CustomersPlugin : IPiranhaPlugin
         services.AddSingleton<IModelContributor, CustomersModelContributor>();
         services.AddSingleton<IApiEndpointContributor, CustomerApiEndpoints>();
         services.AddScoped<ICustomerService, CustomerService>();
+        services.AddScoped<ICustomerErasureService, CustomerErasureService>();
 
         services.AddOptions<CustomerAccountOptions>().BindConfiguration(CustomerAccountOptions.SectionName);
         services.AddScoped<ICustomerAccountService, CustomerAccountService>();
@@ -43,6 +44,14 @@ internal sealed class CustomersModelContributor : IModelContributor
             e.Property(c => c.Phone).HasMaxLength(40);
             e.Property(c => c.Notes).HasMaxLength(2000);
             e.HasIndex(c => c.NormalizedEmail).IsUnique(); // one customer per email, whatever the letter case, on every provider
+        });
+
+        b.Entity<CustomerErasure>(e =>
+        {
+            e.ToTable("CustomerErasure", Schema);
+            e.Property(x => x.Actor).HasMaxLength(256);
+            e.Property(x => x.Details).HasMaxLength(500);
+            e.HasIndex(x => x.CustomerId);
         });
 
         b.Entity<CustomerLogin>(e =>
@@ -104,6 +113,14 @@ internal sealed class CustomerApiEndpoints : IApiEndpointContributor
 
         customers.MapDelete("/{id:guid}", async (Guid id, ICustomerService svc, CancellationToken ct) =>
                 await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
+        // Privacy: everything held about a customer, and erasing them. Orders are anonymised, never deleted (the shop keeps its accounts).
+        customers.MapGet("/{id:guid}/export", async (Guid id, ICustomerErasureService svc, CancellationToken ct) =>
+            await svc.ExportAsync(id, ct) is { } export ? Results.Ok(export) : Results.NotFound());
+
+        customers.MapPost("/{id:guid}/erase", async (Guid id, EraseCustomerInput input, ICustomerErasureService svc, HttpContext http, CancellationToken ct) =>
+                await svc.EraseAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } result ? Results.Ok(result) : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 
         var addresses = api.MapGroup("/customers/{customerId:guid}/addresses").WithTags("Customer addresses");

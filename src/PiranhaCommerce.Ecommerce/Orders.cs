@@ -75,6 +75,8 @@ public class Order : AuditableEntity
     public decimal ShippingTaxRate { get; set; }
     public decimal Total { get; set; }
     public string? Notes { get; set; }
+    /// <summary>Set when the buyer's personal data was erased. The order itself is kept for the shop's accounts; its email is an undeliverable placeholder.</summary>
+    public DateTimeOffset? ErasedUtc { get; set; }
     public OrderAddress? ShippingAddress { get; set; }
     public OrderAddress? BillingAddress { get; set; }
     public List<OrderLine> Lines { get; set; } = [];

@@ -334,6 +334,21 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
     The amount is capped by what that provider took and has not returned, a repeated request with the same `idempotencyKey` is the same
     refund, and a refund the provider is still working on is booked when its webhook says it succeeded. A refund made in the provider's
     dashboard is booked automatically; do not also record it by hand. A gift voucher's portion is not refunded to the voucher.
+- **Customer data export and erasure** (`GET /customers/{id}/export`, `POST /customers/{id}/erase`, admin: the Privacy card on a customer):
+  staff can see everything held about a customer (their record including staff notes, address book, whether they can sign in but never the
+  password hash, and each package's part: for the store, their orders and open baskets) and erase them. Erasing needs the customer's email typed
+  as confirmation and runs in one transaction. The customer record, address book, sign-in and reset links are deleted. **Orders are never
+  deleted** (the shop must keep its accounts): the buyer's name, address lines, region, postcode, email and notes are replaced (the email by the
+  undeliverable `erased@erased.invalid`) while totals, items, payments, shipments and the **country** stay. That covers orders on the account and
+  guest orders under the same email address (any letter case). Notes staff typed on manual payments and on returns are cleared (the payment ledger
+  is otherwise append-only, so this is the one place its text is edited); return reasons are kept, so do not write personal data in them. Open baskets
+  are deleted and finished ones let go of the person. Erasure is refused, with the reasons, while any of their orders is Placed or Processing or
+  is cancelled with money not yet refunded (their contact details are the only way to return it). Nothing is emailed about an erased order, even
+  when a late refund arrives. A record of each erasure (the old id, when, by whom, counts) is kept with no personal data in it. A package that
+  holds personal data takes part by registering an `ICustomerDataContributor` (check, export, erase). **What this does not reach:** copies held
+  by your payment provider (Stripe keeps the checkout email), your email provider (send logs), server logs and backups. Deleting a customer with
+  `DELETE /customers/{id}` is not erasure: it leaves their orders as they were. Known gap: a checkout that lands at the very moment its customer
+  is being erased can create an order with the real email after the anonymising has run; erase again once it has been cancelled or completed.
 - **Unreconciled payments** (`/unreconciled-payments`, admin: Orders > Unreconciled payments): money a gateway confirmed that could not be booked
   (cancelled order, over-payment, wrong currency, unknown order) is saved here instead of being lost in a log. Each item can be retried
   (it books if the order can now take it) or resolved with a note of what you did. A replay of the same webhook never lists it twice, and

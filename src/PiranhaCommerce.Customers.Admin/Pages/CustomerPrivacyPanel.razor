@@ -1,0 +1,73 @@
+@inject AdminScopeRunner Scope
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider Auth
+@inject NavigationManager Navigation
+
+<div class="pc-card">
+    <h2 style="margin-top:0">Privacy</h2>
+    <p class="pc-muted">
+        Show everything held about this customer, or erase their personal data. Erasing deletes the customer record, address book and sign-in,
+        and anonymises their orders (and any guest orders under the same email): the name, address, email and notes go, while totals, items,
+        payments and the country stay, because the shop must keep its accounts. It cannot be undone. It does not reach copies held by your
+        payment provider, your email provider, server logs or backups.
+        <strong>Deleting a customer from the list does not do this</strong>: their orders would keep their details.
+    </p>
+
+    @if (_error is not null)
+    {
+        <p class="pc-error" role="alert">@_error</p>
+    }
+    @if (_notice is not null)
+    {
+        <p role="status">@_notice</p>
+    }
+
+    <button type="button" class="secondary" disabled="@_busy" @onclick="ExportAsync">Show everything held about them</button>
+    @if (_export is not null)
+    {
+        <textarea readonly rows="16" style="width:100%;font-family:monospace" aria-label="Everything held about this customer">@_export</textarea>
+    }
+
+    <h3>Erase personal data</h3>
+    <label>Type the customer's email address to confirm <input type="text" maxlength="256" @bind="_confirm" autocomplete="off" /></label>
+    <button type="button" class="danger" disabled="@(_busy || string.IsNullOrWhiteSpace(_confirm))" @onclick="EraseAsync">Erase personal data</button>
+</div>
+
+@code {
+    [Parameter] public Guid CustomerId { get; set; }
+
+    private string? _export, _error, _notice, _confirm;
+    private bool _busy;
+
+    private async Task ExportAsync()
+    {
+        _busy = true; _error = null; _notice = null;
+        try
+        {
+            var id = CustomerId;
+            var export = await Scope.RunAsync<ICustomerErasureService, CustomerExportDto?>(s => s.ExportAsync(id));
+            _export = export is null ? null : System.Text.Json.JsonSerializer.Serialize(export,
+                new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web) { WriteIndented = true, Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } });
+            if (export is null) _error = "That customer no longer exists.";
+        }
+        catch (Exception ex) { _error = "Could not load: " + ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task EraseAsync()
+    {
+        _busy = true; _error = null; _notice = null; _export = null;
+        try
+        {
+            var id = CustomerId;
+            var input = new EraseCustomerInput { ConfirmEmail = _confirm ?? "" };
+            var actor = await Auth.GetActorAsync();
+            var result = await Scope.RunAsync<ICustomerErasureService, CustomerErasureResultDto?>(s => s.EraseAsync(id, input, actor));
+            if (result is null) { _error = "That customer no longer exists."; return; }
+            Navigation.NavigateTo("/admin/customers");
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (Exception ex) { _error = "Could not erase: " + ex.Message; }
+        finally { _busy = false; }
+    }
+}

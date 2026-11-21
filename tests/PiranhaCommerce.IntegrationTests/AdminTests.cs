@@ -215,9 +215,12 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
 
         var existing = await (await browser.GetAsync($"/admin/customers/{customer.Id}")).Content.ReadAsStringAsync();
         Assert.Contains("<h2 style=\"margin-top:0\">Addresses</h2>", existing);   // contributed through the customer slot
+        Assert.Contains("<h2 style=\"margin-top:0\">Privacy</h2>", existing);
+        Assert.Contains("Erase personal data", existing);
 
         var fresh = await (await browser.GetAsync("/admin/customers/new")).Content.ReadAsStringAsync();
         Assert.DoesNotContain("<h2 style=\"margin-top:0\">Addresses</h2>", fresh);
+        Assert.DoesNotContain("Erase personal data", fresh);
         Assert.Contains("Save the customer to manage their addresses.", fresh);
     }
 

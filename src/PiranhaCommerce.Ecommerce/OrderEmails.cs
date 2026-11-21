@@ -160,21 +160,21 @@ internal sealed class OrderMailer(PiranhaDbContext db, IEmailSender email, IOpti
     public Task ShippedAsync(Guid orderId, ShipmentDto parcel, CancellationToken ct) => TryAsync("shipment", orderId, async () =>
     {
         var order = await db.Set<Order>().AsNoTracking().Include(o => o.Lines).AsSplitQuery().FirstOrDefaultAsync(o => o.Id == orderId, ct);
-        return order is null ? null : OrderEmails.Shipped(order, parcel);
+        return order is null or { ErasedUtc: not null } ? null : OrderEmails.Shipped(order, parcel); // an erased order has no one to write to
     }, ct);
 
     public Task CancelledAsync(Guid orderId, CancellationToken ct) => TryAsync("cancellation", orderId, async () =>
     {
-        var o = await db.Set<Order>().AsNoTracking().Where(x => x.Id == orderId).Select(x => new { x.Email, x.Number, x.Currency, x.Total }).FirstOrDefaultAsync(ct);
-        if (o is null) return null;
+        var o = await db.Set<Order>().AsNoTracking().Where(x => x.Id == orderId).Select(x => new { x.Email, x.Number, x.Currency, x.Total, x.ErasedUtc }).FirstOrDefaultAsync(ct);
+        if (o is null or { ErasedUtc: not null }) return null;
         var (paid, refunded) = await SumsAsync(orderId, ct);
         return OrderEmails.Cancelled(o.Email, o.Number, o.Currency, o.Total, paid, refunded);
     }, ct);
 
     public Task RefundedAsync(Guid orderId, decimal amount, CancellationToken ct) => TryAsync("refund", orderId, async () =>
     {
-        var o = await db.Set<Order>().AsNoTracking().Where(x => x.Id == orderId).Select(x => new { x.Email, x.Number, x.Currency, x.Total }).FirstOrDefaultAsync(ct);
-        if (o is null) return null;
+        var o = await db.Set<Order>().AsNoTracking().Where(x => x.Id == orderId).Select(x => new { x.Email, x.Number, x.Currency, x.Total, x.ErasedUtc }).FirstOrDefaultAsync(ct);
+        if (o is null or { ErasedUtc: not null }) return null; // e.g. a late refund webhook for an order that has since been erased
         var (_, refunded) = await SumsAsync(orderId, ct);
         return OrderEmails.Refunded(o.Email, o.Number, o.Currency, amount, refunded, o.Total);
     }, ct);
