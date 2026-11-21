@@ -30,6 +30,9 @@ public class CustomerLogin
     /// Never shown to anyone.
     /// </summary>
     public int SessionVersion { get; set; }
+
+    /// <summary>When the owner of the email address proved it (followed an emailed link, or set a password from one). Null until then.</summary>
+    public DateTimeOffset? EmailVerifiedUtc { get; set; }
 }
 
 /// <summary>Bound to <c>Piranha:Customers</c>.</summary>
@@ -52,7 +55,29 @@ public sealed class CustomerAccountOptions
     /// that page and posts the values to <c>/auth/reset-password</c>. When empty the email carries the token itself.
     /// </summary>
     public string? ResetUrlTemplate { get; set; }
+
+    /// <summary>
+    /// When true a shopper who registers must follow an emailed link before they can sign in (and registering returns no token). Off by default.
+    /// Existing sign-ins count as verified when this feature was added, so turning it on locks nobody out. Resetting a password with an emailed
+    /// link also verifies the address, since receiving it is the proof.
+    /// </summary>
+    public bool RequireVerifiedEmail { get; set; }
+
+    /// <summary>How long a verification link works.</summary>
+    public int VerifyTokenMinutes { get; set; } = 1440;
+
+    /// <summary>Like <see cref="ResetUrlTemplate"/>: the page the verification email links to, with <c>{token}</c> and <c>{email}</c>. It posts them to <c>/auth/verify-email</c>.</summary>
+    public string? VerifyUrlTemplate { get; set; }
 }
+
+public sealed class VerifyEmailInput
+{
+    [Required, StringLength(256)] public string Email { get; set; } = "";
+    [Required, StringLength(200)] public string Token { get; set; } = ""; // Unsigned codes are single use and expire
+}
+
+/// <summary>Registering when a verified email is required: no token yet.</summary>
+public sealed record VerificationRequiredDto(ProfileDto Profile, bool VerificationRequired);
 
 public sealed class RegisterInput
 {
@@ -104,7 +129,8 @@ public class CustomerToken
     public DateTimeOffset? UsedUtc { get; set; }
 }
 
-public enum SignInStatus { Valid, Invalid, LockedOut }
+/// <summary>Unverified is only ever returned for a CORRECT password, so it tells nobody that an address has an account.</summary>
+public enum SignInStatus { Valid, Invalid, LockedOut, Unverified }
 
 public sealed record SignInResult(SignInStatus Status, Guid? CustomerId, string? Email, int SessionVersion = 0);
 
@@ -142,6 +168,12 @@ public interface ICustomerAccountService
 
     /// <summary>False when the link is wrong, used, expired or for another address. Success also clears any lockout.</summary>
     Task<bool> ResetPasswordAsync(ResetPasswordInput input, CancellationToken ct = default);
+
+    /// <summary>False when the link is wrong, used, expired or for another address. Success verifies the address.</summary>
+    Task<bool> VerifyEmailAsync(VerifyEmailInput input, CancellationToken ct = default);
+
+    /// <summary>Emails a new verification link if (and only if) an active customer with that address has a sign-in that is not verified. Says nothing either way.</summary>
+    Task RequestVerificationAsync(ForgotPasswordInput input, CancellationToken ct = default);
 }
 
 internal sealed partial class CustomerAccountService(
@@ -180,6 +212,7 @@ internal sealed partial class CustomerAccountService(
             db.ChangeTracker.Clear();
             throw Taken(); // lost a race on the unique email index
         }
+        if (options.Value.RequireVerifiedEmail) await SendTokenEmailAsync(customer.Id, customer.Email, VerifyPurpose, ct); // best effort: they can ask again
         return ToProfile(customer);
     }
 
@@ -191,7 +224,7 @@ internal sealed partial class CustomerAccountService(
             from l in db.Set<CustomerLogin>()
             join c in db.Set<Customer>() on l.CustomerId equals c.Id
             where c.NormalizedEmail == normalized
-            select new { l.CustomerId, c.Email, c.Active, l.PasswordHash, l.LockoutEnd, l.SessionVersion }).FirstOrDefaultAsync(ct);
+            select new { l.CustomerId, c.Email, c.Active, l.PasswordHash, l.LockoutEnd, l.SessionVersion, l.EmailVerifiedUtc }).FirstOrDefaultAsync(ct);
 
         if (row is null || !row.Active)
         {
@@ -204,6 +237,9 @@ internal sealed partial class CustomerAccountService(
 
         if (Hasher.VerifyHashedPassword(Dummy, row.PasswordHash, password) == PasswordVerificationResult.Failed)
             return new(await RecordFailureAsync(row.CustomerId, ct) ? SignInStatus.LockedOut : SignInStatus.Invalid, null, null);
+
+        // Only now, with the right password, is it safe to say why they cannot come in.
+        if (options.Value.RequireVerifiedEmail && row.EmailVerifiedUtc is null) return new(SignInStatus.Unverified, null, null);
 
         // Granted only if the account is STILL unlocked at this instant (one atomic statement), as for staff sign-in.
         var now = DateTimeOffset.UtcNow;
@@ -242,10 +278,13 @@ internal sealed partial class CustomerAccountService(
     }
 
     public async Task<bool> IsSessionCurrentAsync(Guid customerId, int sessionVersion, CancellationToken ct = default)
-        => await (from l in db.Set<CustomerLogin>().AsNoTracking()
-                  join c in db.Set<Customer>().AsNoTracking() on l.CustomerId equals c.Id
-                  where l.CustomerId == customerId && c.Active && l.SessionVersion == sessionVersion
-                  select l.CustomerId).AnyAsync(ct);
+    {
+        var needVerified = options.Value.RequireVerifiedEmail; // a token from before the rule, or from before the address changed, stops working too
+        return await (from l in db.Set<CustomerLogin>().AsNoTracking()
+                      join c in db.Set<Customer>().AsNoTracking() on l.CustomerId equals c.Id
+                      where l.CustomerId == customerId && c.Active && l.SessionVersion == sessionVersion && (!needVerified || l.EmailVerifiedUtc != null)
+                      select l.CustomerId).AnyAsync(ct);
+    }
 
     public async Task<PasswordChangeResult?> ChangePasswordAsync(Guid customerId, ChangePasswordInput input, CancellationToken ct = default)
     {
@@ -281,28 +320,38 @@ internal sealed partial class CustomerAccountService(
         await SendResetLinkCoreAsync(customer.Id, customer.Email, ct); // the outcome is deliberately not shown to whoever asked
     }
 
-    private async Task<ResetLinkOutcome> SendResetLinkCoreAsync(Guid customerId, string customerEmail, CancellationToken ct)
+    private const string ResetPurpose = "PasswordReset";
+    private const string VerifyPurpose = "VerifyEmail";
+
+    private Task<ResetLinkOutcome> SendResetLinkCoreAsync(Guid customerId, string customerEmail, CancellationToken ct)
+        => SendTokenEmailAsync(customerId, customerEmail, ResetPurpose, ct);
+
+    /// <summary>Makes a single-use link and emails it: to choose a password (reset or invitation) or to verify the address. Each has its own hourly limit.</summary>
+    private async Task<ResetLinkOutcome> SendTokenEmailAsync(Guid customerId, string customerEmail, string purpose, CancellationToken ct)
     {
         var customer = new { Id = customerId, Email = customerEmail };
         var o = options.Value;
+        var verify = purpose == VerifyPurpose;
+        var minutes = verify ? o.VerifyTokenMinutes : o.ResetTokenMinutes;
+        var urlTemplate = verify ? o.VerifyUrlTemplate : o.ResetUrlTemplate;
         var now = DateTimeOffset.UtcNow;
         var hourAgo = now.AddHours(-1);
-        if (await db.Set<CustomerToken>().CountAsync(t => t.CustomerId == customer.Id && t.CreatedUtc > hourAgo, ct) >= o.MaxResetEmailsPerHour) return ResetLinkOutcome.RateLimited;
+        if (await db.Set<CustomerToken>().CountAsync(t => t.CustomerId == customer.Id && t.Purpose == purpose && t.CreatedUtc > hourAgo, ct) >= o.MaxResetEmailsPerHour) return ResetLinkOutcome.RateLimited;
 
         var secret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-        var token = new CustomerToken { Id = Guid.NewGuid(), CustomerId = customer.Id, TokenHash = Hash(secret), CreatedUtc = now, ExpiresUtc = now.AddMinutes(o.ResetTokenMinutes) };
+        var token = new CustomerToken { Id = Guid.NewGuid(), CustomerId = customer.Id, Purpose = purpose, TokenHash = Hash(secret), CreatedUtc = now, ExpiresUtc = now.AddMinutes(minutes) };
         db.Add(token);
         await db.SaveChangesAsync(ct);
 
         var code = $"{token.Id:N}.{secret}";
-        var link = string.IsNullOrWhiteSpace(o.ResetUrlTemplate) ? null
-            : o.ResetUrlTemplate.Replace("{token}", Uri.EscapeDataString(code)).Replace("{email}", Uri.EscapeDataString(customer.Email));
-        var message = new EmailMessage(customer.Email, CustomerEmailTemplates.SetPassword, new Dictionary<string, object?>
+        var link = string.IsNullOrWhiteSpace(urlTemplate) ? null
+            : urlTemplate.Replace("{token}", Uri.EscapeDataString(code)).Replace("{email}", Uri.EscapeDataString(customer.Email));
+        var message = new EmailMessage(customer.Email, verify ? CustomerEmailTemplates.VerifyEmail : CustomerEmailTemplates.SetPassword, new Dictionary<string, object?>
         {
-            ["email"] = customer.Email, ["link"] = link, ["code"] = code, ["expiresInMinutes"] = o.ResetTokenMinutes,
+            ["email"] = customer.Email, ["link"] = link, ["code"] = code, ["expiresInMinutes"] = minutes,
         });
         try { await email.SendAsync(message, ct); return ResetLinkOutcome.Sent; }
-        catch (Exception ex) { logger.LogWarning(ex, "Password reset email could not be sent."); return ResetLinkOutcome.SendFailed; }
+        catch (Exception ex) { logger.LogWarning(ex, "A {Purpose} email could not be sent.", purpose); return ResetLinkOutcome.SendFailed; }
     }
 
     public async Task<bool> ResetPasswordAsync(ResetPasswordInput input, CancellationToken ct = default)
@@ -315,9 +364,9 @@ internal sealed partial class CustomerAccountService(
         var customer = await db.Set<Customer>().AsNoTracking().Where(c => c.NormalizedEmail == normalized && c.Active)
             .Select(c => new { c.Id, c.Email }).FirstOrDefaultAsync(ct);
         var row = await db.Set<CustomerToken>().AsNoTracking().Where(t => t.Id == tokenId)
-            .Select(t => new { t.CustomerId, t.TokenHash, t.UsedUtc, t.ExpiresUtc }).FirstOrDefaultAsync(ct);
+            .Select(t => new { t.CustomerId, t.TokenHash, t.UsedUtc, t.ExpiresUtc, t.Purpose }).FirstOrDefaultAsync(ct);
         var now = DateTimeOffset.UtcNow;
-        if (customer is null || row is null || row.CustomerId != customer.Id || row.UsedUtc is not null || row.ExpiresUtc <= now) return false;
+        if (customer is null || row is null || row.Purpose != ResetPurpose || row.CustomerId != customer.Id || row.UsedUtc is not null || row.ExpiresUtc <= now) return false;
         if (!CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(row.TokenHash), Encoding.ASCII.GetBytes(Hash(parts[1])))) return false;
 
         // A weak password is refused BEFORE the link is spent, so the shopper can try again with the same link.
@@ -334,21 +383,56 @@ internal sealed partial class CustomerAccountService(
         var updated = await db.Set<CustomerLogin>().Where(l => l.CustomerId == customer.Id)
             .ExecuteUpdateAsync(s => s.SetProperty(l => l.PasswordHash, hash).SetProperty(l => l.PasswordChangedUtc, now)
                 .SetProperty(l => l.AccessFailedCount, 0).SetProperty(l => l.LockoutEnd, (DateTimeOffset?)null)
-                .SetProperty(l => l.SessionVersion, l => l.SessionVersion + 1), ct); // whoever held the old password is signed out
+                .SetProperty(l => l.SessionVersion, l => l.SessionVersion + 1)
+                .SetProperty(l => l.EmailVerifiedUtc, l => l.EmailVerifiedUtc ?? (DateTimeOffset?)now), ct); // whoever held the old password is signed out; the link proved the address
         if (updated == 0)
         {
             // No sign-in yet: this is how a customer made by staff or a guest order gets one, having proved the address.
-            db.Add(new CustomerLogin { CustomerId = customer.Id, PasswordHash = hash, CreatedUtc = now, PasswordChangedUtc = now });
+            db.Add(new CustomerLogin { CustomerId = customer.Id, PasswordHash = hash, CreatedUtc = now, PasswordChangedUtc = now, EmailVerifiedUtc = now });
             try { await db.SaveChangesAsync(ct); }
             catch (DbUpdateException)
             {
                 db.ChangeTracker.Clear(); // another reset created it a moment ago: ours replaces its password
                 await db.Set<CustomerLogin>().Where(l => l.CustomerId == customer.Id)
                     .ExecuteUpdateAsync(s => s.SetProperty(l => l.PasswordHash, hash).SetProperty(l => l.PasswordChangedUtc, now)
-                        .SetProperty(l => l.SessionVersion, l => l.SessionVersion + 1), ct);
+                        .SetProperty(l => l.SessionVersion, l => l.SessionVersion + 1)
+                        .SetProperty(l => l.EmailVerifiedUtc, l => l.EmailVerifiedUtc ?? (DateTimeOffset?)now), ct);
             }
         }
         return true;
+    }
+
+    public async Task<bool> VerifyEmailAsync(VerifyEmailInput input, CancellationToken ct = default)
+    {
+        ModelValidator.ValidateOrThrow(input);
+        var parts = input.Token.Split('.', 2);
+        if (parts.Length != 2 || !Guid.TryParseExact(parts[0], "N", out var tokenId)) return false;
+
+        var normalized = Normalize(input.Email);
+        var customerId = await db.Set<Customer>().AsNoTracking().Where(c => c.NormalizedEmail == normalized && c.Active).Select(c => (Guid?)c.Id).FirstOrDefaultAsync(ct);
+        var row = await db.Set<CustomerToken>().AsNoTracking().Where(t => t.Id == tokenId)
+            .Select(t => new { t.CustomerId, t.TokenHash, t.UsedUtc, t.ExpiresUtc, t.Purpose }).FirstOrDefaultAsync(ct);
+        var now = DateTimeOffset.UtcNow;
+        if (customerId is null || row is null || row.Purpose != VerifyPurpose || row.CustomerId != customerId || row.UsedUtc is not null || row.ExpiresUtc <= now) return false;
+        if (!CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(row.TokenHash), Encoding.ASCII.GetBytes(Hash(parts[1])))) return false;
+
+        var spent = await db.Set<CustomerToken>().Where(t => t.Id == tokenId && t.UsedUtc == null && t.ExpiresUtc > now)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.UsedUtc, (DateTimeOffset?)now), ct);
+        if (spent == 0) return false;
+        return await db.Set<CustomerLogin>().Where(l => l.CustomerId == customerId)
+            .ExecuteUpdateAsync(s => s.SetProperty(l => l.EmailVerifiedUtc, l => l.EmailVerifiedUtc ?? (DateTimeOffset?)now), ct) > 0;
+    }
+
+    public async Task RequestVerificationAsync(ForgotPasswordInput input, CancellationToken ct = default)
+    {
+        ModelValidator.ValidateOrThrow(input);
+        var normalized = Normalize(input.Email);
+        var customer = await (from c in db.Set<Customer>().AsNoTracking()
+                              join l in db.Set<CustomerLogin>().AsNoTracking() on c.Id equals l.CustomerId
+                              where c.NormalizedEmail == normalized && c.Active && l.EmailVerifiedUtc == null
+                              select new { c.Id, c.Email }).FirstOrDefaultAsync(ct);
+        if (customer is null) return;
+        await SendTokenEmailAsync(customer.Id, customer.Email, VerifyPurpose, ct); // the outcome is not shown to whoever asked
     }
 
     private static string Hash(string secret) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(secret)));

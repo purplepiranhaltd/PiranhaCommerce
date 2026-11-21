@@ -583,6 +583,9 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.Property<DateTimeOffset>("CreatedUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("EmailVerifiedUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTimeOffset?>("LockoutEnd")
                         .HasColumnType("timestamp with time zone");
 

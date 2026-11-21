@@ -146,6 +146,10 @@ internal sealed class CustomerApiEndpoints : IApiEndpointContributor
                 await svc.SendResetLinkAsync(id, http.User.FindFirst("email")?.Value, ct) is { } outcome ? Results.Ok(new ResetLinkResultDto(outcome == ResetLinkOutcome.Sent, outcome)) : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 
+        customers.MapPost("/{id:guid}/sign-in/verify-email", async (Guid id, HttpContext http, ICustomerSignInAdminService svc, CancellationToken ct) =>
+                await svc.MarkEmailVerifiedAsync(id, http.User.FindFirst("email")?.Value, ct) ? Results.NoContent() : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
         customers.MapDelete("/{id:guid}/sign-in", async (Guid id, HttpContext http, ICustomerSignInAdminService svc, CancellationToken ct) =>
                 await svc.RemoveAsync(id, http.User.FindFirst("email")?.Value, ct) ? Results.NoContent() : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);

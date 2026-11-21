@@ -37,7 +37,7 @@ public enum SignInState
 /// <summary>Never carries the password hash or the session version.</summary>
 public sealed record CustomerSignInDto(
     Guid CustomerId, SignInState State, bool HasSignIn, bool CustomerActive, DateTimeOffset? LockedUntil, int FailedAttempts,
-    DateTimeOffset? CreatedUtc, DateTimeOffset? PasswordChangedUtc);
+    DateTimeOffset? CreatedUtc, DateTimeOffset? PasswordChangedUtc, DateTimeOffset? EmailVerifiedUtc);
 
 /// <summary>Why staff sending a reset link did or did not result in an email.</summary>
 public enum ResetLinkOutcome
@@ -79,6 +79,9 @@ public interface ICustomerSignInAdminService
     /// </summary>
     Task<bool> RemoveAsync(Guid customerId, string? actor = null, CancellationToken ct = default);
 
+    /// <summary>Staff vouch for the address (they checked it another way). False when there is no sign-in.</summary>
+    Task<bool> MarkEmailVerifiedAsync(Guid customerId, string? actor = null, CancellationToken ct = default);
+
     /// <summary>What staff have done about this customer's sign-in, newest first (at most <paramref name="limit"/>, default 50). Null when the customer does not exist.</summary>
     Task<IReadOnlyList<SignInEventDto>?> HistoryAsync(Guid customerId, int limit = 50, CancellationToken ct = default);
 }
@@ -105,13 +108,14 @@ internal sealed partial class CustomerAccountService : ICustomerSignInAdminServi
                 Failed = l != null ? l.AccessFailedCount : 0,
                 Created = l != null ? (DateTimeOffset?)l.CreatedUtc : null,
                 Changed = l != null ? (DateTimeOffset?)l.PasswordChangedUtc : null,
+                Verified = l != null ? l.EmailVerifiedUtc : null,
             }).FirstOrDefaultAsync(ct);
         if (row is null) return null;
 
         var now = DateTimeOffset.UtcNow;
         var state = StateOf(row.HasLogin, row.Active, row.LockoutEnd, now);
         return new CustomerSignInDto(customerId, state, row.HasLogin, row.Active,
-            state == SignInState.Locked ? row.LockoutEnd : null, row.Failed, row.Created, row.Changed);
+            state == SignInState.Locked ? row.LockoutEnd : null, row.Failed, row.Created, row.Changed, row.Verified);
     }
 
     public async Task<IReadOnlyDictionary<Guid, SignInState>> GetStatesAsync(IReadOnlyCollection<Guid> customerIds, CancellationToken ct = default)
@@ -165,6 +169,15 @@ internal sealed partial class CustomerAccountService : ICustomerSignInAdminServi
         var outcome = customer.Active ? await SendResetLinkCoreAsync(customerId, customer.Email, ct) : ResetLinkOutcome.Inactive;
         await RecordAsync(customerId, "reset-link", actor, outcome.ToString(), ct); // attempts are recorded too, not just successes
         return outcome;
+    }
+
+    public async Task<bool> MarkEmailVerifiedAsync(Guid customerId, string? actor = null, CancellationToken ct = default)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var done = await db.Set<CustomerLogin>().Where(l => l.CustomerId == customerId && l.EmailVerifiedUtc == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(l => l.EmailVerifiedUtc, (DateTimeOffset?)now), ct) > 0;
+        if (done) await RecordAsync(customerId, "email-verified", actor, "by staff", ct);
+        return done;
     }
 
     public async Task<bool> RemoveAsync(Guid customerId, string? actor = null, CancellationToken ct = default)

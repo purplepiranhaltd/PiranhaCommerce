@@ -26,6 +26,15 @@
                 <span class="pc-muted"> Password last set @_status.PasswordChangedUtc?.ToString("d MMM yyyy HH:mm") UTC.</span>
             }
         </p>
+        @if (_status.HasSignIn)
+        {
+            <p>Email address: <strong>@(_status.EmailVerifiedUtc is null ? "not verified" : "verified")</strong>
+                @if (_status.EmailVerifiedUtc is null)
+                {
+                    <button type="button" class="secondary" disabled="@_busy" @onclick="VerifyAsync">Mark as verified</button>
+                }
+            </p>
+        }
         <p class="pc-muted">
             To switch a customer off, untick Active above and save: that also ends their live sessions straight away.
             Orders and addresses are never affected by anything here.
@@ -112,6 +121,8 @@
         finally { _busy = false; }
         await LoadAsync();
     }
+
+    private async Task VerifyAsync() { var id = CustomerId; var who = await ActorAsync(); await RunAsync(async s => await s.MarkEmailVerifiedAsync(id, who) ? "Marked as verified." : "Already verified, or no sign-in."); }
 
     private async Task<string?> ActorAsync() => await Auth.GetActorAsync();
 

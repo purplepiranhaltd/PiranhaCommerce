@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Options;
 using PiranhaCommerce.Api;
 using PiranhaCommerce.Api.Auth;
 using PiranhaCommerce.Core.Validation;
@@ -43,9 +44,11 @@ internal sealed class CustomerStorefrontEndpoints : IStorefrontEndpointContribut
         // Anonymous on purpose, one by one: everything else in the group needs a shopper token.
         var auth = storefront.MapGroup("/auth").WithTags("Storefront accounts");
 
-        auth.MapPost("/register", async (RegisterInput input, ICustomerAccountService accounts, ICustomerTokenIssuer tokens, CancellationToken ct) =>
+        auth.MapPost("/register", async (RegisterInput input, ICustomerAccountService accounts, ICustomerTokenIssuer tokens, IOptions<CustomerAccountOptions> accountOptions, CancellationToken ct) =>
             {
                 var profile = await accounts.RegisterAsync(input, ct);
+                // When the shop requires a verified email there is no token yet: they follow the emailed link first.
+                if (accountOptions.Value.RequireVerifiedEmail) return Results.Accepted("/api/v1/storefront/auth/verify-email", new VerificationRequiredDto(profile, true));
                 return Results.Created("/api/v1/storefront/me", new RegisteredDto(profile, tokens.Issue(profile.Id, profile.Email, 0)));
             })
             .AllowAnonymous();
@@ -54,9 +57,23 @@ internal sealed class CustomerStorefrontEndpoints : IStorefrontEndpointContribut
             {
                 var result = await accounts.CheckAsync(input.Email, input.Password, ct);
                 // Wrong password, unknown email, no account, inactive and locked out all look the same.
+                if (result.Status == SignInStatus.Unverified) return Results.Json(new { error = "email_not_verified" }, statusCode: StatusCodes.Status403Forbidden);
                 return result is { Status: SignInStatus.Valid, CustomerId: { } id, Email: { } email }
                     ? Results.Ok(tokens.Issue(id, email, result.SessionVersion))
                     : Results.Unauthorized();
+            })
+            .AllowAnonymous();
+
+        auth.MapPost("/verify-email", async (VerifyEmailInput input, ICustomerAccountService accounts, CancellationToken ct) =>
+                await accounts.VerifyEmailAsync(input, ct)
+                    ? Results.NoContent()
+                    : Results.ValidationProblem(new Dictionary<string, string[]> { [nameof(VerifyEmailInput.Token)] = ["This link is not valid, or has expired or already been used."] }))
+            .AllowAnonymous();
+
+        auth.MapPost("/resend-verification", async (ForgotPasswordInput input, ICustomerAccountService accounts, CancellationToken ct) =>
+            {
+                await accounts.RequestVerificationAsync(input, ct);
+                return Results.Accepted(); // always, whether or not that address needs one
             })
             .AllowAnonymous();
 

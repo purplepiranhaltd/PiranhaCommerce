@@ -6,6 +6,7 @@ namespace PiranhaCommerce.Customers;
 public static class CustomerEmailTemplates
 {
     public const string SetPassword = "customer.set-password";
+    public const string VerifyEmail = "customer.verify-email";
 }
 
 internal sealed class CustomerEmailContributor : IEmailTemplateContributor
@@ -19,6 +20,15 @@ internal sealed class CustomerEmailContributor : IEmailTemplateContributor
             new("link", "The page where they choose a password. Empty when the shop has no reset page set up: then show the code instead.", "https://shop.example/reset?token=abc123"),
             new("code", "The one-time code. Show it when there is no link.", "0f3a9c.Xk2j9"),
             new("expiresInMinutes", "How long the link or code works.", 60),
+        ]),
+
+        new(CustomerEmailTemplates.VerifyEmail, "Verify your email address",
+            "Sent when a shopper registers and the shop requires a verified email, and when they ask for another link. Works once.",
+        [
+            new("email", "The shopper's email address.", "ada@example.com"),
+            new("link", "The page that confirms the address. Empty when the shop has no verification page set up: then show the code instead.", "https://shop.example/verify?token=abc123"),
+            new("code", "The one-time code. Show it when there is no link.", "0f3a9c.Xk2j9"),
+            new("expiresInMinutes", "How long the link or code works.", 1440),
         ]),
     ];
 }

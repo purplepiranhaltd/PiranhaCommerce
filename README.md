@@ -345,6 +345,14 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   this existed carry no version and count as 0. The password hash and the version are never in any response. Every staff action (unlock, sign out, reset link
   with its outcome, removal, switching off or on) is recorded with who did it and when, shown in the card and at `GET /customers/{id}/sign-in/history`,
   included in the customer's export, and deleted with them on erasure. Customers' own sign-ins and password changes are not logged.
+- **Verified email** (`Piranha:Customers:RequireVerifiedEmail`, off by default): when on, registering returns 202 with no token and emails a link
+  (template `customer.verify-email`, page set by `VerifyUrlTemplate`, lasts `VerifyTokenMinutes`, default a day); the shopper posts it to
+  `/storefront/auth/verify-email` and can ask for another at `/auth/resend-verification` (silent, hourly limit counted apart from password
+  resets). Until then a correct password is answered 403 `email_not_verified`; a wrong password or unknown address is the usual 401, so it tells nobody
+  that an address has an account. Verification links and reset links are not interchangeable. Setting a password from an emailed link also verifies the
+  address (receiving it is the proof), and staff can vouch for one in the Sign-in card. A staff edit that changes the address clears the verification and
+  ends the sessions (the new address is unproven). Sign-ins that existed when this was added count as verified, so turning the option on locks no one
+  out; with it off, new shoppers are simply recorded as unverified.
 - **Shoppers' own privacy** (`GET /storefront/me/export`, `POST /storefront/me/erase`): a signed-in shopper can fetch everything held about
   them (the same export staff see, including staff-only notes: it is their data, and a formal subject-access request may require it; change that
   here if your legal advice differs) and erase their own account. Erasing needs the password again (checked and counted towards the lockout like

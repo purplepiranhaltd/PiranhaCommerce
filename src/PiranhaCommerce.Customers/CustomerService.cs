@@ -78,6 +78,7 @@ internal sealed class CustomerService(PiranhaDbContext db) : ICustomerService
         if (entity is null) return null;
         ModelValidator.ValidateOrThrow(input);
         await EnsureEmailFreeAsync(input.Email, id, ct);
+        var emailChanged = entity.NormalizedEmail != Normalize(input.Email);
         entity.Email = input.Email.Trim();
         entity.NormalizedEmail = Normalize(input.Email);
         var switchedOff = entity.Active && !input.Active;
@@ -87,6 +88,14 @@ internal sealed class CustomerService(PiranhaDbContext db) : ICustomerService
         // Switching a customer off ends their sessions for good: without this, switching them back on would bring an old token back to life.
         if (switchedOff)
             await db.Set<CustomerLogin>().Where(l => l.CustomerId == id).ExecuteUpdateAsync(s => s.SetProperty(l => l.SessionVersion, l => l.SessionVersion + 1), ct);
+        // A new address is unproven: it must be verified again, and every session (which names the old address) ends.
+        if (emailChanged)
+        {
+            await db.Set<CustomerLogin>().Where(l => l.CustomerId == id).ExecuteUpdateAsync(s => s
+                .SetProperty(l => l.EmailVerifiedUtc, (DateTimeOffset?)null).SetProperty(l => l.SessionVersion, l => l.SessionVersion + 1), ct);
+            db.Add(new CustomerSignInEvent { CustomerId = id, OccurredUtc = DateTimeOffset.UtcNow, Actor = actor, Action = "email-changed" });
+            await db.SaveChangesAsync(ct);
+        }
         if (switchedOff || switchedOn)
         {
             db.Add(new CustomerSignInEvent { CustomerId = id, OccurredUtc = DateTimeOffset.UtcNow, Actor = actor, Action = switchedOff ? "switched-off" : "switched-on" });

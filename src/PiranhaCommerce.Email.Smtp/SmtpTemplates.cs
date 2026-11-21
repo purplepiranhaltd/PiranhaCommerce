@@ -141,6 +141,7 @@ public static class SmtpTemplateDefaults
     {
         "order.confirmation" => new Content("Your order {{ reference }}", OrderConfirmationText),
         "customer.set-password" => new Content("Set your password", SetPasswordText),
+        "customer.verify-email" => new Content("Confirm your email address", VerifyEmailText),
         "order.shipped" => new Content(
             "{% if complete %}Your order {{ reference }} is on its way{% else %}Part of your order {{ reference }} is on its way{% endif %}", OrderShippedText),
         "order.cancelled" => new Content("Your order {{ reference }} has been cancelled", OrderCancelledText),
@@ -243,6 +244,19 @@ public static class SmtpTemplateDefaults
         {{ provider }} reference: {{ providerReference }}
 
         Open the admin, Orders > Unreconciled payments, to retry it or mark it dealt with.
+        """;
+
+    private const string VerifyEmailText = """
+        Please confirm this email address to finish setting up your account.
+
+        {% if link -%}
+        Confirm it here:
+        {{ link }}
+        {% else -%}
+        Your code is:
+        {{ code }}
+        {% endif %}
+        This works once and expires in {{ expiresInMinutes }} minutes. If it was not you, ignore this email: no account is used until it is confirmed.
         """;
 
     private const string SetPasswordText = """
