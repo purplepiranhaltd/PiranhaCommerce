@@ -52,6 +52,7 @@ public sealed class TestGateway : IRefundingGateway
     public sealed record WireEvent(string Type, Guid OrderId, decimal Amount, string Currency, string Reference, string? Detail = null);
 }
 
+[Collection(OrderSettings.Name)]
 public class GatewayTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };

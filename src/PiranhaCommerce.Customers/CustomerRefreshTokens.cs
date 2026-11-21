@@ -115,6 +115,14 @@ internal sealed partial class CustomerAccountService : ICustomerRefreshService
         if (email is null) return null;
 
         var next = await NewRefreshTokenAsync(row.CustomerId, row.FamilyId, row.SessionVersion, row.FamilyStartedUtc, now, ct);
+
+        // A replay can revoke the family between our claim and the new token being saved, which would leave this one alive. Looking again AFTER
+        // saving closes that: either the revoke came first (seen here) or it comes later (and covers the new token).
+        if (await db.Set<CustomerRefreshToken>().AsNoTracking().AnyAsync(t => t.FamilyId == row.FamilyId && t.RevokedUtc != null, ct))
+        {
+            await RevokeFamilyAsync(row.FamilyId, now, ct);
+            return null;
+        }
         return new RefreshResult(row.CustomerId, email, row.SessionVersion, next);
     }
 

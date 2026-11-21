@@ -13,6 +13,7 @@ public sealed class AlertFactory : PiranhaFactory
 }
 
 /// <summary>The shop is emailed when money cannot be booked, once per item, and never at the cost of the webhook.</summary>
+[Collection(OrderSettings.Name)]
 public class UnreconciledAlertTests(AlertFactory factory) : IClassFixture<AlertFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };

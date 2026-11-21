@@ -11,6 +11,7 @@ using PiranhaCommerce.Ecommerce;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>A buyer asks to send goods back; staff answer; the return recorded on arrival closes it.</summary>
+[Collection(OrderSettings.Name)]
 public class ReturnRequestTests(AlertFactory factory) : IClassFixture<AlertFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };

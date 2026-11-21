@@ -10,6 +10,7 @@ using PiranhaCommerce.Ecommerce;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Bank disputes and refunds that fail: recorded once, the shop told about the deadline, and a lost dispute booked as money gone back.</summary>
+[Collection(OrderSettings.Name)]
 public class DisputeTests(AlertFactory factory) : IClassFixture<AlertFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
