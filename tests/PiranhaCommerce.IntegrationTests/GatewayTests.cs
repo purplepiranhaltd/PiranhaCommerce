@@ -170,4 +170,102 @@ public class GatewayTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory
         Assert.Equal(HttpStatusCode.NotFound, (await shopper.PostAsJsonAsync($"/api/v1/storefront/orders/{order.Id}/pay", new StartPaymentInput { Provider = "testpay" })).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await Anonymous().PostAsJsonAsync($"/api/v1/storefront/orders/{order.Id}/pay", new StartPaymentInput { Provider = "testpay" })).StatusCode);
     }
+
+    private static async Task<UnreconciledPaymentDto?> Listed(HttpClient staff, string reference, bool? resolved = null)
+    {
+        var qs = resolved is null ? "" : $"&resolved={resolved.ToString()!.ToLowerInvariant()}";
+        var page = await Read<PiranhaCommerce.Core.Paging.PagedResult<UnreconciledPaymentDto>>(await staff.GetAsync($"/api/v1/unreconciled-payments?pageSize=100{qs}"));
+        return page.Items.SingleOrDefault(u => u.Reference == reference);
+    }
+
+    [Fact]
+    public async Task Money_that_cannot_be_booked_goes_on_the_list_once_however_often_the_gateway_repeats_it()
+    {
+        var staff = await factory.CreateAuthenticatedApiClientAsync();
+        var order = await PlaceOrder(staff);
+        var reference = "ch_" + Tag();
+        var over = new TestGateway.WireEvent("payment", order.Id, order.Total + 5m, order.Currency, reference);
+        var unknown = new TestGateway.WireEvent("payment", Guid.NewGuid(), 5m, "GBP", "ch_" + Tag());
+
+        for (var i = 0; i < 3; i++) Assert.Equal(1, (await Read<WebhookResultDto>(await Hook(Anonymous(), over))).Unreconciled);
+        await Hook(Anonymous(), unknown);
+
+        var item = await Listed(staff, reference, resolved: false);
+        Assert.NotNull(item);
+        Assert.Equal((order.Reference, order.Total + 5m, "testpay", GatewayEventKind.PaymentConfirmed), (item!.OrderReference, item.Amount, item.Provider, item.Kind));
+        Assert.Contains("more than is owed", item.Reason);
+        Assert.Null(item.ResolvedUtc);
+
+        var other = await Listed(staff, unknown.Reference, resolved: false);
+        Assert.Null(other!.OrderReference); // an order that does not exist is shown as such
+        Assert.True((await Read<JsonElement>(await staff.GetAsync("/api/v1/unreconciled-payments/open-count"))).GetProperty("open").GetInt32() >= 2);
+    }
+
+    [Fact]
+    public async Task A_retry_books_the_money_once_the_order_can_take_it_and_closes_the_item_and_until_then_says_why_not()
+    {
+        var staff = await factory.CreateAuthenticatedApiClientAsync();
+        var order = await PlaceOrder(staff);
+        Assert.Equal(HttpStatusCode.Created, (await staff.PostAsJsonAsync($"/api/v1/orders/{order.Id}/payments", new PaymentInput { Amount = order.Total })).StatusCode);
+        var reference = "ch_" + Tag();
+        await Hook(Anonymous(), new("payment", order.Id, order.Total, order.Currency, reference)); // paid twice: the second cannot be booked
+        var item = (await Listed(staff, reference, resolved: false))!;
+
+        var still = await staff.PostAsync($"/api/v1/unreconciled-payments/{item.Id}/retry", null);
+        Assert.Equal(HttpStatusCode.Conflict, still.StatusCode);
+        Assert.Contains("Still cannot be booked", await still.Content.ReadAsStringAsync());
+        Assert.Null((await Listed(staff, reference, resolved: false))!.ResolvedUtc);
+
+        // The manual payment is refunded, so the order is owed money again and the gateway's payment now fits.
+        Assert.Equal(HttpStatusCode.Created, (await staff.PostAsJsonAsync($"/api/v1/orders/{order.Id}/refunds", new PaymentInput { Amount = order.Total })).StatusCode);
+        var retried = await staff.PostAsync($"/api/v1/unreconciled-payments/{item.Id}/retry", null);
+        Assert.Equal(HttpStatusCode.OK, retried.StatusCode);
+        Assert.NotNull((await Read<UnreconciledPaymentDto>(retried)).ResolvedUtc);
+
+        var payments = await staff.GetFromJsonAsync<List<PaymentDto>>($"/api/v1/orders/{order.Id}/payments", Json);
+        Assert.Contains(payments!, p => p.Reference == reference && p.Kind == PaymentKind.Payment);
+        Assert.Equal(HttpStatusCode.Conflict, (await staff.PostAsync($"/api/v1/unreconciled-payments/{item.Id}/retry", null)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Resolving_needs_a_note_works_once_and_a_replay_afterwards_does_not_bring_it_back()
+    {
+        var staff = await factory.CreateAuthenticatedApiClientAsync();
+        var order = await PlaceOrder(staff);
+        var reference = "ch_" + Tag();
+        var evt = new TestGateway.WireEvent("payment", order.Id, order.Total + 1m, order.Currency, reference);
+        await Hook(Anonymous(), evt);
+        var item = (await Listed(staff, reference, resolved: false))!;
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await staff.PostAsJsonAsync($"/api/v1/unreconciled-payments/{item.Id}/resolve", new ResolveUnreconciledInput { Resolution = "  " })).StatusCode);
+        var done = await staff.PostAsJsonAsync($"/api/v1/unreconciled-payments/{item.Id}/resolve", new ResolveUnreconciledInput { Resolution = "Refunded in the gateway dashboard" });
+        Assert.Equal(HttpStatusCode.OK, done.StatusCode);
+        var resolved = await Read<UnreconciledPaymentDto>(done);
+        Assert.Equal(("Refunded in the gateway dashboard", "admin@piranha.local"), (resolved.Resolution, resolved.ResolvedBy));
+        Assert.Equal(HttpStatusCode.Conflict, (await staff.PostAsJsonAsync($"/api/v1/unreconciled-payments/{item.Id}/resolve", new ResolveUnreconciledInput { Resolution = "again" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await staff.PostAsJsonAsync($"/api/v1/unreconciled-payments/{Guid.NewGuid()}/resolve", new ResolveUnreconciledInput { Resolution = "x" })).StatusCode);
+
+        Assert.Null(await Listed(staff, reference, resolved: false));
+        Assert.NotNull(await Listed(staff, reference, resolved: true));
+        var replay = await Read<WebhookResultDto>(await Hook(Anonymous(), evt));
+        Assert.Equal((0, 1, 0), (replay.Recorded, replay.AlreadyRecorded, replay.Unreconciled));
+        Assert.Null(await Listed(staff, reference, resolved: false));
+    }
+
+    [Fact]
+    public async Task A_read_only_user_can_see_the_list_but_not_change_it()
+    {
+        var staff = await factory.CreateAuthenticatedApiClientAsync();
+        var order = await PlaceOrder(staff);
+        var reference = "ch_" + Tag();
+        await Hook(Anonymous(), new("payment", order.Id, order.Total + 1m, order.Currency, reference));
+        var item = (await Listed(staff, reference, resolved: false))!;
+
+        var (email, password) = await factory.CreateReadOnlyUserAsync();
+        var reader = await factory.CreateAuthenticatedApiClientAsync(email, password);
+        Assert.Equal(HttpStatusCode.OK, (await reader.GetAsync("/api/v1/unreconciled-payments")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await reader.PostAsync($"/api/v1/unreconciled-payments/{item.Id}/retry", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await reader.PostAsJsonAsync($"/api/v1/unreconciled-payments/{item.Id}/resolve", new ResolveUnreconciledInput { Resolution = "x" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await Anonymous().GetAsync("/api/v1/unreconciled-payments")).StatusCode);
+    }
 }

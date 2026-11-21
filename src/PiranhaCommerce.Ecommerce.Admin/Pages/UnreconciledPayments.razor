@@ -1,0 +1,126 @@
+@page "/admin/orders/unreconciled"
+@inject AdminScopeRunner Scope
+
+<PageTitle>Unreconciled payments - Piranha Commerce</PageTitle>
+<h1>Unreconciled payments</h1>
+<p class="pc-muted">
+    Money a payment gateway says it took or returned, which could not be put against an order (the order was cancelled, the payment
+    would have paid it twice, the currency differed, or the order is unknown). The gateway has already been answered, so nothing
+    will fix these by itself. Deal with each one, then mark it resolved with a note of what you did.
+</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+<label><input type="checkbox" checked="@_showResolved" @onchange="ToggleAsync" /> Show resolved</label>
+
+@if (_items is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_items.Items.Count == 0)
+{
+    <p class="pc-muted">@(_showResolved ? "Nothing here." : "Nothing needs attention.")</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>When</th><th>Gateway</th><th>What</th><th>Order</th><th>Amount</th><th>Why it could not be booked</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var u in _items.Items)
+        {
+            <tr>
+                <td>@u.CreatedUtc.ToString("dd MMM yyyy HH:mm")</td>
+                <td>@u.Provider<br /><span class="pc-muted">@u.Reference</span></td>
+                <td>@(u.Kind == GatewayEventKind.PaymentConfirmed ? "Payment" : "Refund")</td>
+                <td>
+                    @if (u.OrderReference is not null)
+                    {
+                        <a href="/admin/orders/@u.OrderId">@u.OrderReference</a>
+                    }
+                    else
+                    {
+                        <span class="pc-muted">unknown order</span>
+                    }
+                </td>
+                <td>@u.Amount.ToString("N2") @u.Currency</td>
+                <td>@u.Reason</td>
+                <td class="actions">
+                    @if (u.ResolvedUtc is null)
+                    {
+                        @if (_resolving == u.Id)
+                        {
+                            <input @bind="_note" placeholder="What did you do?" maxlength="500" />
+                            <button disabled="@(_busy || string.IsNullOrWhiteSpace(_note))" @onclick="() => ResolveAsync(u.Id)">Mark resolved</button>
+                            <button class="secondary" @onclick="() => _resolving = null">Cancel</button>
+                        }
+                        else
+                        {
+                            <button class="secondary" disabled="@_busy" @onclick="() => RetryAsync(u.Id)">Try booking again</button>
+                            <button class="secondary" @onclick="() => StartResolving(u.Id)">Resolve...</button>
+                        }
+                    }
+                    else
+                    {
+                        <span class="pc-muted">Resolved @u.ResolvedUtc.Value.ToString("dd MMM yyyy") @(u.ResolvedBy is null ? "" : "by " + u.ResolvedBy): @u.Resolution</span>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private PiranhaCommerce.Core.Paging.PagedResult<UnreconciledPaymentDto>? _items;
+    private bool _showResolved;
+    private Guid? _resolving;
+    private string _note = "";
+    private string? _error;
+    private bool _busy;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var all = _showResolved;
+            _items = await Scope.RunAsync<IUnreconciledPaymentService, PiranhaCommerce.Core.Paging.PagedResult<UnreconciledPaymentDto>>(
+                s => s.ListAsync(1, 100, all ? null : false));
+        }
+        catch (Exception ex) { _error = "Could not load: " + ex.Message; }
+    }
+
+    private void StartResolving(Guid id) { _resolving = id; _note = ""; }
+
+    private async Task ToggleAsync(ChangeEventArgs e) { _showResolved = e.Value is true; await LoadAsync(); }
+
+    private async Task RetryAsync(Guid id)
+    {
+        _busy = true; _error = null;
+        try { await Scope.RunAsync<IUnreconciledPaymentService, UnreconciledPaymentDto?>(s => s.RetryAsync(id)); }
+        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (Exception ex) { _error = "Could not retry: " + ex.Message; }
+        finally { _busy = false; }
+        await LoadAsync();
+    }
+
+    private async Task ResolveAsync(Guid id)
+    {
+        _busy = true; _error = null;
+        try
+        {
+            var note = _note;
+            await Scope.RunAsync<IUnreconciledPaymentService, UnreconciledPaymentDto?>(s => s.ResolveAsync(id, new ResolveUnreconciledInput { Resolution = note }));
+            _resolving = null;
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (Exception ex) { _error = "Could not resolve: " + ex.Message; }
+        finally { _busy = false; }
+        await LoadAsync();
+    }
+}

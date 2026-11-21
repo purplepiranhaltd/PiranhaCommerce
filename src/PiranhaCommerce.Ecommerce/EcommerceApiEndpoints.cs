@@ -222,6 +222,25 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
             })
             .AllowAnonymous().WithTags("Payments");
 
+        // Money a gateway confirmed that could not be booked against an order: the list a person works through.
+        var unreconciled = api.MapGroup("/unreconciled-payments").WithTags("Payments");
+
+        unreconciled.MapGet("/", async (int? page, int? pageSize, bool? resolved, IUnreconciledPaymentService svc, CancellationToken ct) =>
+            Results.Ok(await svc.ListAsync(page, pageSize, resolved ?? false, ct)));
+
+        unreconciled.MapGet("/open-count", async (IUnreconciledPaymentService svc, CancellationToken ct) => Results.Ok(new { open = await svc.OpenCountAsync(ct) }));
+
+        unreconciled.MapGet("/{id:guid}", async (Guid id, IUnreconciledPaymentService svc, CancellationToken ct) =>
+            await svc.GetAsync(id, ct) is { } u ? Results.Ok(u) : Results.NotFound());
+
+        unreconciled.MapPost("/{id:guid}/resolve", async (Guid id, ResolveUnreconciledInput input, IUnreconciledPaymentService svc, HttpContext http, CancellationToken ct) =>
+                await svc.ResolveAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } u ? Results.Ok(u) : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
+        unreconciled.MapPost("/{id:guid}/retry", async (Guid id, IUnreconciledPaymentService svc, HttpContext http, CancellationToken ct) =>
+                await svc.RetryAsync(id, http.User.FindFirst("email")?.Value, ct) is { } u ? Results.Ok(u) : Results.NotFound())
+            .RequireAuthorization(ApiPolicies.Write);
+
         api.MapGet("/payment-providers", (IPaymentService svc) => Results.Ok(svc.Providers())).WithTags("Payments");
 
         orders.MapPost("/{id:guid}/stage", async (Guid id, OrderStageInput input, IOrderService svc, HttpContext http, CancellationToken ct) =>

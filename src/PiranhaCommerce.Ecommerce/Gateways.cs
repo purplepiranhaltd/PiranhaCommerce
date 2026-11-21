@@ -134,20 +134,22 @@ internal sealed class GatewayService(
                 continue;
             }
 
+            // Money already on the unreconciled list and dealt with by a person is not listed or counted again when the gateway replays it.
+            if (await db.Set<UnreconciledPayment>().AsNoTracking().AnyAsync(u => u.Provider == gateway.Name && u.Reference == e.Reference && u.ResolvedUtc != null, ct))
+            {
+                already++;
+                continue;
+            }
+
             try
             {
-                var orderCurrency = await db.Set<Order>().AsNoTracking().Where(o => o.Id == e.OrderId).Select(o => o.Currency).FirstOrDefaultAsync(ct);
-                if (orderCurrency is null) throw new PiranhaConflictException("No such order.");
-                if (!string.Equals(orderCurrency, e.Currency, StringComparison.OrdinalIgnoreCase))
-                    throw new PiranhaConflictException($"Currency {e.Currency} does not match the order's {orderCurrency}.");
-
-                var input = new PaymentInput { Amount = e.Amount, Provider = gateway.Name, Reference = e.Reference, Note = $"Confirmed by {gateway.DisplayName}" };
-                var actor = $"gateway:{gateway.Name}";
-                var saved = e.Kind == GatewayEventKind.PaymentConfirmed
-                    ? await payments.RecordPaymentAsync(e.OrderId, input, actor, ct)
-                    : await payments.RecordRefundAsync(e.OrderId, input, actor, ct);
-                if (saved is null) throw new PiranhaConflictException("No such order.");
+                await GatewayBooking.BookAsync(db, payments, gateway.Name, $"Confirmed by {gateway.DisplayName}", $"gateway:{gateway.Name}", e, ct);
                 recorded++;
+
+                // A retry of something that was waiting on the list books it, and closes the list entry.
+                var now = DateTimeOffset.UtcNow;
+                await db.Set<UnreconciledPayment>().Where(u => u.Provider == gateway.Name && u.Reference == e.Reference && u.ResolvedUtc == null)
+                    .ExecuteUpdateAsync(s => s.SetProperty(u => u.ResolvedUtc, (DateTimeOffset?)now).SetProperty(u => u.Resolution, "Booked when the gateway sent it again."), ct);
             }
             catch (Exception ex) when (ex is PiranhaConflictException or PiranhaValidationException)
             {
@@ -155,13 +157,33 @@ internal sealed class GatewayService(
                 if (await db.Set<Payment>().AsNoTracking().AnyAsync(p => p.Provider == gateway.Name && p.Reference == e.Reference, ct)) { already++; continue; }
 
                 // The gateway says money moved but we cannot book it (order cancelled, over-paid, wrong currency, unknown order).
-                // Answering an error would only make the gateway retry for days; so it is logged loudly for someone to reconcile.
+                // Answering an error would only make the gateway retry for days; so it goes on the unreconciled list for a person, and in the log.
                 unreconciled++;
                 logger.LogError(ex, "Gateway {Gateway} confirmed a {Kind} of {Amount} {Currency} (reference {Reference}) for order {OrderId} that could not be recorded: {Reason}",
                     gateway.Name, e.Kind, e.Amount, e.Currency, e.Reference, e.OrderId, ex.Message);
+                await RememberAsync(gateway.Name, e, ex.Message, ct);
             }
         }
 
         return new WebhookResultDto(recorded, already, unreconciled);
+    }
+
+    private async Task RememberAsync(string provider, GatewayEvent e, string reason, CancellationToken ct)
+    {
+        db.ChangeTracker.Clear();
+        if (await db.Set<UnreconciledPayment>().AsNoTracking().AnyAsync(u => u.Provider == provider && u.Reference == e.Reference, ct))
+        {
+            // Already listed (the gateway is retrying): keep the reason current, add nothing.
+            await db.Set<UnreconciledPayment>().Where(u => u.Provider == provider && u.Reference == e.Reference && u.ResolvedUtc == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(u => u.Reason, UnreconciledPaymentService.Truncate(reason, 500)), ct);
+            return;
+        }
+        db.Add(new UnreconciledPayment
+        {
+            Provider = provider, Kind = e.Kind, OrderId = e.OrderId, Amount = e.Amount, Currency = UnreconciledPaymentService.Truncate(e.Currency ?? "", 3),
+            Reference = UnreconciledPaymentService.Truncate(e.Reference, 200), Reason = UnreconciledPaymentService.Truncate(reason, 500), CreatedUtc = DateTimeOffset.UtcNow,
+        });
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateException) { db.ChangeTracker.Clear(); } // a simultaneous replay listed it first
     }
 }

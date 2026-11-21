@@ -294,6 +294,10 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   `POST /payments/webhooks/{provider}` records confirmed payments and refunds. Replays are harmless (unique provider reference), a bad
   signature is a bare 400, bodies over 256 KB are refused, and money the gateway confirms that cannot be booked (cancelled order,
   over-payment, wrong currency) is logged as an error and counted as `unreconciled` rather than retried. No gateway ships in the box.
+- **Unreconciled payments** (`/unreconciled-payments`, admin: Orders > Unreconciled payments): money a gateway confirmed that could not be booked
+  (cancelled order, over-payment, wrong currency, unknown order) is saved here instead of being lost in a log. Each item can be retried
+  (it books if the order can now take it) or resolved with a note of what you did. A replay of the same webhook never lists it twice, and
+  a resolved one is not brought back. `GET /unreconciled-payments/open-count` gives the number still open, for a health check.
 - **Stripe** (`PiranhaCommerce.Payments.Stripe`, `.AddPlugin<StripePlugin>()`): the first gateway, using Stripe Checkout (a page Stripe hosts, so card
   numbers never touch your server). Settings under `Piranha:Stripe`: `SecretKey`, `WebhookSecret`, `SuccessUrl`, `CancelUrl` (set by you, never by
   a caller). Keep the two secrets in user secrets or your host's secret store, never in source control. Point a Stripe webhook endpoint at

@@ -104,8 +104,8 @@ Not built yet:
   that issues one on payment), partial returns crediting a voucher, voucher use from the shopper side ("check my balance"), expiry
   reminders, and a per-code attempt limit beyond the shared request limiter.
 - Payment gateways: the plugin point is built (start a payment, signed webhooks, idempotent recording; tested with a fake gateway).
-  Not built: an actual gateway package (Stripe first), a list of unreconciled payments in the admin (today they are only logged), a
-  shopper-facing "payment pending" state, gateway-initiated refunds from the admin, and payment on delayed methods that confirm days later.
+  Stripe is built (`PiranhaCommerce.Payments.Stripe`). Unreconciled payments are listed in the admin (retry or resolve with a note).
+  Not built: alerts when something lands on that list (it is only a page and a count), disputes/chargebacks, a shopper-facing "payment pending" state, gateway-initiated refunds from the admin, and payment on delayed methods that confirm days later.
 - Shipping: flat price per method (optionally free above a spend). No weight/zone rates, carriers or live rates.
 - Tax: classes and per-country rates are built, prices are entered tax-exclusive; see "Tax: what is left" above.
 - Fulfilment: parcels and tracking, partial shipment, refunds and returns (restock decisions), partially cancelled orders.

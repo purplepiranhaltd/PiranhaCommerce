@@ -117,6 +117,21 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.Property(p => p.MinSubtotal).HasPrecision(18, 4);
         });
 
+        b.Entity<UnreconciledPayment>(e =>
+        {
+            e.ToTable("UnreconciledPayment", Schema);
+            e.Property(u => u.Provider).HasMaxLength(50);
+            e.Property(u => u.Kind).HasConversion<string>().HasMaxLength(20);
+            e.Property(u => u.Amount).HasPrecision(18, 4);
+            e.Property(u => u.Currency).HasMaxLength(3);
+            e.Property(u => u.Reference).HasMaxLength(200);
+            e.Property(u => u.Reason).HasMaxLength(500);
+            e.Property(u => u.ResolvedBy).HasMaxLength(256);
+            e.Property(u => u.Resolution).HasMaxLength(500);
+            e.HasIndex(u => new { u.Provider, u.Reference }).IsUnique();
+            e.HasIndex(u => new { u.ResolvedUtc, u.CreatedUtc });
+        });
+
         b.Entity<GiftVoucher>(e =>
         {
             e.ToTable("GiftVoucher", Schema);
