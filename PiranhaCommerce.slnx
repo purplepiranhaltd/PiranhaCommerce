@@ -17,6 +17,7 @@
     <Project Path="src/PiranhaCommerce.Data/PiranhaCommerce.Data.csproj" />
     <Project Path="src/PiranhaCommerce.Ecommerce.Admin/PiranhaCommerce.Ecommerce.Admin.csproj" />
     <Project Path="src/PiranhaCommerce.Ecommerce/PiranhaCommerce.Ecommerce.csproj" />
+    <Project Path="src/PiranhaCommerce.Payments.Stripe/PiranhaCommerce.Payments.Stripe.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/PiranhaCommerce.Core.Tests/PiranhaCommerce.Core.Tests.csproj" />

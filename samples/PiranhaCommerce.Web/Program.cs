@@ -38,6 +38,7 @@ piranha
     .AddPlugin<EcommercePlugin>()
     .AddPlugin<CustomersAdminPlugin>()
     .AddPlugin<EcommerceAdminPlugin>()
+    .AddPlugin<PiranhaCommerce.Payments.Stripe.StripePlugin>() // inert until Piranha:Stripe keys are set
     .AddPlugin<WarrantyPlugin>();
 
 var app = builder.Build();

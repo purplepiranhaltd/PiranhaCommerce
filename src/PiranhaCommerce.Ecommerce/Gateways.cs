@@ -48,6 +48,9 @@ public sealed record GatewayEvent(GatewayEventKind Kind, Guid OrderId, decimal A
 
 public sealed class GatewayWebhookRejectedException(string message) : Exception(message);
 
+/// <summary>A gateway could not do what was asked (it is down, refused the request, or is not configured). The message is for logs, not shoppers: the host answers with a generic one.</summary>
+public sealed class GatewayException(string message, Exception? inner = null) : Exception(message, inner);
+
 public sealed class StartPaymentInput
 {
     [Required, StringLength(50)] public string Provider { get; set; } = "";
@@ -104,7 +107,13 @@ internal sealed class GatewayService(
         var outstanding = order.Total - (sums.Where(s => s.Kind == PaymentKind.Payment).Sum(s => s.Sum) - sums.Where(s => s.Kind == PaymentKind.Refund).Sum(s => s.Sum));
         if (outstanding <= 0) throw new PiranhaConflictException("Nothing is owed on this order.");
 
-        var session = await gateway.StartAsync(new GatewayStartRequest(orderId, OrderNumbers.Format(order.Number), outstanding, order.Currency, order.Email), ct);
+        GatewaySession session;
+        try { session = await gateway.StartAsync(new GatewayStartRequest(orderId, OrderNumbers.Format(order.Number), outstanding, order.Currency, order.Email), ct); }
+        catch (GatewayException ex)
+        {
+            logger.LogError(ex, "Gateway {Gateway} could not start a payment for order {OrderId}: {Reason}", gateway.Name, orderId, ex.Message);
+            throw new PiranhaConflictException("The payment service could not start this payment. Please try again shortly.");
+        }
         return new PaymentSessionDto(gateway.Name, outstanding, order.Currency, session.RedirectUrl, session.ProviderReference);
     }
 

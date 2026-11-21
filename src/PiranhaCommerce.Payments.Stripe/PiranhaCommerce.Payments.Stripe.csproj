@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Stripe Checkout gateway for Piranha Commerce: hosted card payments, signed webhooks and refunds.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\PiranhaCommerce.Core\PiranhaCommerce.Core.csproj" />
+    <ProjectReference Include="..\PiranhaCommerce.Ecommerce\PiranhaCommerce.Ecommerce.csproj" />
+  </ItemGroup>
+</Project>

@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\samples\PiranhaCommerce.Web\PiranhaCommerce.Web.csproj" />
+    <ProjectReference Include="..\..\src\PiranhaCommerce.Payments.Stripe\PiranhaCommerce.Payments.Stripe.csproj" />
   </ItemGroup>
 
 </Project>

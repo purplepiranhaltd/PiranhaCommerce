@@ -294,6 +294,13 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   `POST /payments/webhooks/{provider}` records confirmed payments and refunds. Replays are harmless (unique provider reference), a bad
   signature is a bare 400, bodies over 256 KB are refused, and money the gateway confirms that cannot be booked (cancelled order,
   over-payment, wrong currency) is logged as an error and counted as `unreconciled` rather than retried. No gateway ships in the box.
+- **Stripe** (`PiranhaCommerce.Payments.Stripe`, `.AddPlugin<StripePlugin>()`): the first gateway, using Stripe Checkout (a page Stripe hosts, so card
+  numbers never touch your server). Settings under `Piranha:Stripe`: `SecretKey`, `WebhookSecret`, `SuccessUrl`, `CancelUrl` (set by you, never by
+  a caller). Keep the two secrets in user secrets or your host's secret store, never in source control. Point a Stripe webhook endpoint at
+  `/api/v1/payments/webhooks/stripe` for `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `refund.created` and
+  `refund.updated`. Locally: `stripe listen --forward-to localhost:5280/api/v1/payments/webhooks/stripe` prints the `whsec_...` to use. Webhook
+  signatures are checked in constant time with a 5 minute tolerance; an unset webhook secret rejects everything. Amounts go to Stripe in
+  minor units (pence; whole yen); three-decimal currencies are refused. Not built: disputes, saved cards, Stripe Tax, 3-decimal currencies.
 - **Gift vouchers** (`/vouchers`, `POST|DELETE /baskets/{id}/voucher`): a way of PAYING, applied after tax. A voucher never changes the
   price or the tax; it pays part or all of the total and the order records a `voucher` payment. The code (80 bits of randomness) is
   shown once at issue and only its hash is stored, plus the last four characters; every failure (unknown, off, expired, empty) gets the
