@@ -26,11 +26,12 @@ internal sealed class CustomersAdminMenu : IAdminMenuContributor
     [
         new("customers", "Customers", Order: 20),
         new("customers.list", "All customers", "/admin/customers", Order: 21, ParentKey: "customers"),
+        new("customers.groups", "Groups", "/admin/customers/groups", Order: 22, ParentKey: "customers"),
     ];
 }
 
 internal sealed class CustomersSlotItems : IAdminSlotContributor
 {
     public IEnumerable<AdminSlotItem> GetItems() =>
-        [new(AdminSlots.CustomerEditPanels, typeof(CustomerAddressesPanel), Order: 10)];
+        [new(AdminSlots.CustomerEditPanels, typeof(CustomerAddressesPanel), Order: 10), new(AdminSlots.CustomerEditPanels, typeof(CustomerGroupsPanel), Order: 20)];
 }

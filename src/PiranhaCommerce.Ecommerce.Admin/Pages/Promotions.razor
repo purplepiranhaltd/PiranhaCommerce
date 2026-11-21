@@ -32,6 +32,15 @@
         <label>Most orders that may use it (optional) <InputNumber @bind-Value="_input.MaxRedemptions" /></label>
         <label>Starts (optional) <InputDate TValue="DateTimeOffset?" @bind-Value="_input.StartsUtc" /></label>
         <label>Ends (optional) <InputDate TValue="DateTimeOffset?" @bind-Value="_input.EndsUtc" /></label>
+        <label>Only for a customer group (optional; shoppers must be signed in and in it)
+            <InputSelect TValue="Guid?" @bind-Value="_input.CustomerGroupId">
+                <option value="">Anyone</option>
+                @foreach (var g in _groups)
+                {
+                    <option value="@g.Id">@g.Name</option>
+                }
+            </InputSelect>
+        </label>
         <label><InputCheckbox @bind-Value="_input.Active" /> Active</label>
         <button type="submit" disabled="@_busy">Save</button>
         @if (_editing is not null)
@@ -57,7 +66,7 @@ else
         @foreach (var p in _promotions)
         {
             <tr>
-                <td>@p.Code @(string.IsNullOrWhiteSpace(p.Name) ? "" : "- " + p.Name)</td>
+                <td>@p.Code @(string.IsNullOrWhiteSpace(p.Name) ? "" : "- " + p.Name)@(p.CustomerGroupName is null ? "" : " (group: " + p.CustomerGroupName + ")")</td>
                 <td>@(p.Kind == PromotionKind.Percent ? p.Value.ToString("0.##") + "%" : p.Value.ToString("N2")) @(p.MinSubtotal is { } min ? $"over {min:N2}" : "")</td>
                 <td>@p.Redeemed@(p.MaxRedemptions is { } max ? " of " + max : "")</td>
                 <td>@(p.StartsUtc?.ToString("dd MMM yyyy") ?? "any time") to @(p.EndsUtc?.ToString("dd MMM yyyy") ?? "no end")</td>
@@ -82,6 +91,7 @@ else
 
 @code {
     private IReadOnlyList<PromotionDto>? _promotions;
+    private IReadOnlyList<PiranhaCommerce.Customers.CustomerGroupDto> _groups = [];
     private PromotionInput _input = new();
     private Guid? _editing;
     private Guid? _confirmDelete;
@@ -92,7 +102,11 @@ else
 
     private async Task LoadAsync()
     {
-        try { _promotions = await Scope.RunAsync<IPromotionService, IReadOnlyList<PromotionDto>>(s => s.ListAsync()); }
+        try
+        {
+            _promotions = await Scope.RunAsync<IPromotionService, IReadOnlyList<PromotionDto>>(s => s.ListAsync());
+            _groups = await Scope.RunAsync<PiranhaCommerce.Customers.ICustomerGroupService, IReadOnlyList<PiranhaCommerce.Customers.CustomerGroupDto>>(s => s.ListAsync());
+        }
         catch (Exception ex) { _error = "Could not load promotions: " + ex.Message; }
     }
 
@@ -102,7 +116,7 @@ else
         _input = new PromotionInput
         {
             Code = p.Code, Name = p.Name, Kind = p.Kind, Value = p.Value, MinSubtotal = p.MinSubtotal,
-            StartsUtc = p.StartsUtc, EndsUtc = p.EndsUtc, MaxRedemptions = p.MaxRedemptions, Active = p.Active,
+            StartsUtc = p.StartsUtc, EndsUtc = p.EndsUtc, MaxRedemptions = p.MaxRedemptions, Active = p.Active, CustomerGroupId = p.CustomerGroupId,
         };
     }
 

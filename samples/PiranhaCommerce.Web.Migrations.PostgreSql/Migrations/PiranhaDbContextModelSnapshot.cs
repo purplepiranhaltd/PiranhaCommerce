@@ -572,6 +572,69 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.ToTable("CustomerErasure", "customer");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Customers.CustomerGroup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset?>("UpdatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NormalizedName")
+                        .IsUnique();
+
+                    b.ToTable("CustomerGroup", "customer");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Customers.CustomerGroupMember", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AddedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset>("AddedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("GroupId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("GroupId", "CustomerId")
+                        .IsUnique();
+
+                    b.ToTable("CustomerGroupMember", "customer");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Customers.CustomerLogin", b =>
                 {
                     b.Property<Guid>("CustomerId")
@@ -1202,6 +1265,9 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.Property<DateTimeOffset>("CreatedUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("CustomerGroupId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset?>("EndsUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -1238,6 +1304,8 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
 
                     b.HasIndex("Code")
                         .IsUnique();
+
+                    b.HasIndex("CustomerGroupId");
 
                     b.ToTable("Promotion", "ecom");
                 });
@@ -1784,6 +1852,21 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Customers.CustomerGroupMember", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Customers.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PiranhaCommerce.Customers.CustomerGroup", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Customers.CustomerLogin", b =>
                 {
                     b.HasOne("PiranhaCommerce.Customers.Customer", null)
@@ -2003,6 +2086,14 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.HasOne("PiranhaCommerce.Ecommerce.TaxClass", null)
                         .WithMany()
                         .HasForeignKey("TaxClassId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.Promotion", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Customers.CustomerGroup", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerGroupId")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 

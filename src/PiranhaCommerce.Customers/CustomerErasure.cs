@@ -57,7 +57,7 @@ public sealed class EraseCustomerInput
 
 public sealed record CustomerExportDto(
     DateTimeOffset ExportedUtc, CustomerDto Customer, IReadOnlyList<AddressDto> Addresses, bool HasSignIn, IReadOnlyList<SignInEventDto> SignInHistory,
-    IReadOnlyDictionary<string, object?> Sections);
+    IReadOnlyDictionary<string, object?> Sections, IReadOnlyList<string>? Groups = null);
 
 public sealed record CustomerErasureResultDto(Guid CustomerId, DateTimeOffset ErasedUtc, IReadOnlyDictionary<string, int> Changed);
 
@@ -98,7 +98,8 @@ internal sealed class CustomerErasureService(PiranhaDbContext db, IEnumerable<IC
         var sections = new Dictionary<string, object?>();
         foreach (var contributor in contributors.OrderBy(x => x.Name, StringComparer.Ordinal))
             sections[contributor.Name] = await contributor.ExportAsync(subject, ct);
-        return new CustomerExportDto(DateTimeOffset.UtcNow, c, addresses, hasLogin, history, sections);
+        var groups = await (from m in db.Set<CustomerGroupMember>().AsNoTracking() join g in db.Set<CustomerGroup>().AsNoTracking() on m.GroupId equals g.Id where m.CustomerId == customerId orderby g.NormalizedName select g.Name).ToListAsync(ct);
+        return new CustomerExportDto(DateTimeOffset.UtcNow, c, addresses, hasLogin, history, sections, groups);
     }
 
     public async Task<CustomerErasureResultDto?> EraseAsync(Guid customerId, EraseCustomerInput input, string? actor = null, CancellationToken ct = default)

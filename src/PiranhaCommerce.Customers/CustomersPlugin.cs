@@ -20,6 +20,8 @@ public sealed class CustomersPlugin : IPiranhaPlugin
         services.AddSingleton<IApiEndpointContributor, CustomerApiEndpoints>();
         services.AddScoped<ICustomerService, CustomerService>();
         services.AddScoped<ICustomerErasureService, CustomerErasureService>();
+        services.AddScoped<ICustomerGroupService, CustomerGroupService>();
+        services.AddSingleton<IApiEndpointContributor, CustomerGroupEndpoints>();
 
         services.AddOptions<CustomerAccountOptions>().BindConfiguration(CustomerAccountOptions.SectionName);
         services.AddScoped<ICustomerAccountService, CustomerAccountService>();
@@ -45,6 +47,25 @@ internal sealed class CustomersModelContributor : IModelContributor
             e.Property(c => c.Phone).HasMaxLength(40);
             e.Property(c => c.Notes).HasMaxLength(2000);
             e.HasIndex(c => c.NormalizedEmail).IsUnique(); // one customer per email, whatever the letter case, on every provider
+        });
+
+        b.Entity<CustomerGroup>(e =>
+        {
+            e.ToTable("CustomerGroup", Schema);
+            e.Property(g => g.Name).HasMaxLength(100).IsRequired();
+            e.Property(g => g.NormalizedName).HasMaxLength(100).IsRequired();
+            e.Property(g => g.Description).HasMaxLength(500);
+            e.HasIndex(g => g.NormalizedName).IsUnique();
+        });
+
+        b.Entity<CustomerGroupMember>(e =>
+        {
+            e.ToTable("CustomerGroupMember", Schema);
+            e.Property(m => m.AddedBy).HasMaxLength(256);
+            e.HasIndex(m => new { m.GroupId, m.CustomerId }).IsUnique();
+            e.HasIndex(m => m.CustomerId);
+            e.HasOne<CustomerGroup>().WithMany().HasForeignKey(m => m.GroupId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Customer>().WithMany().HasForeignKey(m => m.CustomerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         b.Entity<CustomerErasure>(e =>

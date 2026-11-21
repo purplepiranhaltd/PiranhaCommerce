@@ -1,0 +1,201 @@
+@page "/admin/customers/groups"
+@using PiranhaCommerce.Core.Paging
+@inject AdminScopeRunner Scope
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider Auth
+
+<PageTitle>Customer groups - Piranha Commerce</PageTitle>
+<h1>Customer groups</h1>
+<p class="pc-muted">
+    A group is a named set of customers (trade, staff, VIP). Other features use it to decide who may have something: a promotion can be limited to a group.
+    Add a customer to groups from their own page, or here.
+</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+<div class="pc-card">
+    <EditForm Model="_input" OnValidSubmit="SaveAsync" FormName="group-edit">
+        <DataAnnotationsValidator />
+        <h2 style="margin-top:0">@(_editing is null ? "Add a group" : "Edit group")</h2>
+        <label>Name <InputText @bind-Value="_input.Name" /></label>
+        <ValidationMessage For="() => _input.Name" />
+        <label>Description (optional) <InputText @bind-Value="_input.Description" /></label>
+        <button type="submit" disabled="@_busy">Save</button>
+        @if (_editing is not null)
+        {
+            <button type="button" class="secondary" @onclick="Reset">Cancel</button>
+        }
+    </EditForm>
+</div>
+
+@if (_groups is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_groups.Count == 0)
+{
+    <p class="pc-muted">No groups yet.</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>Name</th><th>Description</th><th style="text-align:right">Customers</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var g in _groups)
+        {
+            var group = g;
+            <tr>
+                <td>@g.Name</td>
+                <td>@g.Description</td>
+                <td style="text-align:right">@g.MemberCount</td>
+                <td class="actions">
+                    <button class="secondary" @onclick="() => OpenAsync(group)">Customers</button>
+                    <button class="secondary" @onclick="() => Edit(group)">Edit</button>
+                    @if (_confirmDelete == g.Id)
+                    {
+                        <button class="danger" @onclick="() => DeleteAsync(group.Id)">Confirm delete</button>
+                        <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
+                    }
+                    else
+                    {
+                        <button class="secondary" @onclick="() => _confirmDelete = group.Id">Delete</button>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@if (_open is not null)
+{
+    <div class="pc-card">
+        <h2 style="margin-top:0">Customers in @_open.Name</h2>
+        @if (_members is { Count: 0 })
+        {
+            <p class="pc-muted">No one yet.</p>
+        }
+        else if (_members is not null)
+        {
+            <table class="pc-table">
+                <thead><tr><th>Email</th><th>Name</th><th>Added</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var m in _members)
+                {
+                    var member = m;
+                    <tr>
+                        <td>@m.Email</td>
+                        <td>@m.FirstName @m.LastName</td>
+                        <td>@m.AddedUtc.ToString("dd MMM yyyy")@(m.AddedBy is null ? "" : " by " + m.AddedBy)</td>
+                        <td class="actions"><button class="secondary" disabled="@_busy" @onclick="() => RemoveAsync(member.CustomerId)">Remove</button></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+        <h3>Add a customer</h3>
+        <input type="search" placeholder="Search name or email" @bind="_search" @bind:event="oninput" aria-label="Search customers to add" />
+        <button class="secondary" @onclick="SearchAsync">Search</button>
+        @foreach (var c in _found)
+        {
+            var customer = c;
+            <div>@c.Email <button type="button" disabled="@_busy" @onclick="() => AddAsync(customer.Id)">Add</button></div>
+        }
+    </div>
+}
+
+@code {
+    private IReadOnlyList<CustomerGroupDto>? _groups;
+    private CustomerGroupInput _input = new();
+    private Guid? _editing, _confirmDelete;
+    private CustomerGroupDto? _open;
+    private IReadOnlyList<CustomerGroupMemberDto>? _members;
+    private IReadOnlyList<CustomerDto> _found = [];
+    private string? _error, _search;
+    private bool _busy;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try { _groups = await Scope.RunAsync<ICustomerGroupService, IReadOnlyList<CustomerGroupDto>>(s => s.ListAsync()); }
+        catch (Exception ex) { _error = "Could not load groups: " + ex.Message; }
+    }
+
+    private void Edit(CustomerGroupDto g) { _editing = g.Id; _input = new CustomerGroupInput { Name = g.Name, Description = g.Description }; }
+    private void Reset() { _editing = null; _input = new(); }
+
+    private async Task SaveAsync()
+    {
+        _busy = true; _error = null;
+        try
+        {
+            var input = _input;
+            if (_editing is { } id) await Scope.RunAsync<ICustomerGroupService, CustomerGroupDto?>(s => s.UpdateAsync(id, input));
+            else await Scope.RunAsync<ICustomerGroupService, CustomerGroupDto>(s => s.CreateAsync(input));
+            Reset();
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _error = "Could not save: " + ex.Message; }
+        finally { _busy = false; }
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        _confirmDelete = null; _error = null;
+        try { await Scope.RunAsync<ICustomerGroupService, bool>(s => s.DeleteAsync(id)); if (_open?.Id == id) _open = null; }
+        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (Exception ex) { _error = "Could not delete: " + ex.Message; }
+        await LoadAsync();
+    }
+
+    private async Task OpenAsync(CustomerGroupDto g)
+    {
+        _open = g; _found = []; _search = null;
+        await LoadMembersAsync();
+    }
+
+    private async Task LoadMembersAsync()
+    {
+        if (_open is not { } g) return;
+        var id = g.Id;
+        var page = await Scope.RunAsync<ICustomerGroupService, PagedResult<CustomerGroupMemberDto>?>(s => s.ListMembersAsync(id, 1, 100));
+        _members = page?.Items ?? [];
+    }
+
+    private async Task SearchAsync()
+    {
+        var term = _search;
+        var page = await Scope.RunAsync<ICustomerService, PagedResult<CustomerDto>>(s => s.ListAsync(1, 10, term));
+        _found = page.Items;
+    }
+
+    private async Task AddAsync(Guid customerId)
+    {
+        if (_open is not { } g) return;
+        _busy = true; _error = null;
+        try
+        {
+            var actor = await Auth.GetActorAsync();
+            await Scope.RunAsync<ICustomerGroupService, CustomerGroupMemberDto?>(s => s.AddMemberAsync(g.Id, customerId, actor));
+        }
+        catch (Exception ex) { _error = "Could not add: " + ex.Message; }
+        finally { _busy = false; }
+        await LoadMembersAsync();
+        await LoadAsync();
+    }
+
+    private async Task RemoveAsync(Guid customerId)
+    {
+        if (_open is not { } g) return;
+        _busy = true; _error = null;
+        try { await Scope.RunAsync<ICustomerGroupService, bool>(s => s.RemoveMemberAsync(g.Id, customerId)); }
+        catch (Exception ex) { _error = "Could not remove: " + ex.Message; }
+        finally { _busy = false; }
+        await LoadMembersAsync();
+        await LoadAsync();
+    }
+}

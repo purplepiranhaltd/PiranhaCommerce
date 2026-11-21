@@ -201,6 +201,8 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.HasIndex(u => new { u.ResolvedUtc, u.CreatedUtc });
         });
 
+        b.Entity<Promotion>().HasOne<PiranhaCommerce.Customers.CustomerGroup>().WithMany().HasForeignKey(p => p.CustomerGroupId).OnDelete(DeleteBehavior.Restrict);
+
         b.Entity<PaymentDispute>(e =>
         {
             e.ToTable("PaymentDispute", Schema);

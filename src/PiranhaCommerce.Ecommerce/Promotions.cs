@@ -31,6 +31,9 @@ public class Promotion : AuditableEntity
     public int? MaxRedemptions { get; set; }
     public int Redeemed { get; set; }
     public bool Active { get; set; } = true;
+
+    /// <summary>When set, only signed-in customers in this group can use the code. A plain value in the model with a database link (restrict).</summary>
+    public Guid? CustomerGroupId { get; set; }
 }
 
 public sealed class PromotionInput
@@ -47,11 +50,14 @@ public sealed class PromotionInput
     public DateTimeOffset? EndsUtc { get; set; }
     [Range(1, int.MaxValue)] public int? MaxRedemptions { get; set; }
     public bool Active { get; set; } = true;
+
+    /// <summary>Limit the code to the members of this customer group. Empty means anyone.</summary>
+    public Guid? CustomerGroupId { get; set; }
 }
 
 public sealed record PromotionDto(
     Guid Id, string Code, string? Name, PromotionKind Kind, decimal Value, decimal? MinSubtotal, DateTimeOffset? StartsUtc,
-    DateTimeOffset? EndsUtc, int? MaxRedemptions, int Redeemed, bool Active);
+    DateTimeOffset? EndsUtc, int? MaxRedemptions, int Redeemed, bool Active, Guid? CustomerGroupId = null, string? CustomerGroupName = null);
 
 public sealed class CodeInput
 {
@@ -66,9 +72,10 @@ public static class PromotionRules
     public static string Normalize(string code) => code.Trim().ToUpperInvariant();
 
     /// <summary>Why the code cannot be used right now, or null when it can. <paramref name="goods"/> is the basket's goods total before the discount.</summary>
-    public static string? Problem(Promotion? p, decimal goods, DateTimeOffset now)
+    public static string? Problem(Promotion? p, decimal goods, DateTimeOffset now, bool eligible = true)
     {
         if (p is null || !p.Active) return NotValid;
+        if (!eligible) return NotValid; // a code for a group looks like any other bad code to someone outside it
         if (p.StartsUtc is { } start && start > now) return NotValid;
         if (p.EndsUtc is { } end && end <= now) return NotValid;
         if (p.MaxRedemptions is { } max && p.Redeemed >= max) return "That code has been used up.";
@@ -123,17 +130,31 @@ public interface IPromotionService
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 }
 
+/// <summary>Whether a customer may use a code that is limited to a customer group.</summary>
+internal static class PromotionEligibility
+{
+    public static async Task<bool> Async(PiranhaDbContext db, Promotion? p, Guid? customerId, CancellationToken ct)
+    {
+        if (p?.CustomerGroupId is not { } groupId) return true;
+        return customerId is { } c && await db.Set<PiranhaCommerce.Customers.CustomerGroupMember>().AsNoTracking().AnyAsync(m => m.GroupId == groupId && m.CustomerId == c, ct);
+    }
+}
+
 internal sealed class PromotionService(PiranhaDbContext db) : IPromotionService
 {
     public async Task<IReadOnlyList<PromotionDto>> ListAsync(CancellationToken ct = default)
-        => (await db.Set<Promotion>().AsNoTracking().OrderBy(p => p.Code).ToListAsync(ct)).Select(ToDto).ToList();
+        => await ToDtosAsync(await db.Set<Promotion>().AsNoTracking().OrderBy(p => p.Code).ToListAsync(ct), ct);
 
     public async Task<PromotionDto?> GetAsync(Guid id, CancellationToken ct = default)
-        => await db.Set<Promotion>().AsNoTracking().Where(p => p.Id == id).Select(p => ToDto(p)).FirstOrDefaultAsync(ct);
+    {
+        var p = await db.Set<Promotion>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
+        return p is null ? null : (await ToDtosAsync([p], ct))[0];
+    }
 
     public async Task<PromotionDto> CreateAsync(PromotionInput input, CancellationToken ct = default)
     {
         Validate(input);
+        await CheckGroupAsync(input, ct);
         var p = new Promotion { Code = PromotionRules.Normalize(input.Code) };
         Apply(p, input);
         db.Add(p);
@@ -143,12 +164,13 @@ internal sealed class PromotionService(PiranhaDbContext db) : IPromotionService
             db.ChangeTracker.Clear();
             throw new PiranhaValidationException(nameof(PromotionInput.Code), "That code already exists.");
         }
-        return ToDto(p);
+        return (await GetAsync(p.Id, ct))!;
     }
 
     public async Task<PromotionDto?> UpdateAsync(Guid id, PromotionInput input, CancellationToken ct = default)
     {
         Validate(input);
+        await CheckGroupAsync(input, ct);
         var p = await db.Set<Promotion>().FirstOrDefaultAsync(x => x.Id == id, ct);
         if (p is null) return null;
         if (PromotionRules.Normalize(input.Code) != p.Code)
@@ -156,7 +178,13 @@ internal sealed class PromotionService(PiranhaDbContext db) : IPromotionService
         Apply(p, input);
         p.UpdatedUtc = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
-        return ToDto(p);
+        return (await GetAsync(p.Id, ct))!;
+    }
+
+    private async Task CheckGroupAsync(PromotionInput input, CancellationToken ct)
+    {
+        if (input.CustomerGroupId is { } g && !await db.Set<PiranhaCommerce.Customers.CustomerGroup>().AnyAsync(x => x.Id == g, ct))
+            throw new PiranhaValidationException(nameof(PromotionInput.CustomerGroupId), "That customer group does not exist.");
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
@@ -175,9 +203,14 @@ internal sealed class PromotionService(PiranhaDbContext db) : IPromotionService
     {
         p.Name = string.IsNullOrWhiteSpace(i.Name) ? null : i.Name.Trim();
         p.Kind = i.Kind; p.Value = i.Value; p.MinSubtotal = i.MinSubtotal;
-        p.StartsUtc = i.StartsUtc; p.EndsUtc = i.EndsUtc; p.MaxRedemptions = i.MaxRedemptions; p.Active = i.Active;
+        p.StartsUtc = i.StartsUtc; p.EndsUtc = i.EndsUtc; p.MaxRedemptions = i.MaxRedemptions; p.Active = i.Active; p.CustomerGroupId = i.CustomerGroupId;
     }
 
-    private static PromotionDto ToDto(Promotion p) =>
-        new(p.Id, p.Code, p.Name, p.Kind, p.Value, p.MinSubtotal, p.StartsUtc, p.EndsUtc, p.MaxRedemptions, p.Redeemed, p.Active);
+    private async Task<IReadOnlyList<PromotionDto>> ToDtosAsync(IReadOnlyList<Promotion> rows, CancellationToken ct)
+    {
+        var groupIds = rows.Where(p => p.CustomerGroupId != null).Select(p => p.CustomerGroupId!.Value).Distinct().ToList();
+        var names = groupIds.Count == 0 ? [] : await db.Set<PiranhaCommerce.Customers.CustomerGroup>().AsNoTracking().Where(g => groupIds.Contains(g.Id)).ToDictionaryAsync(g => g.Id, g => g.Name, ct);
+        return rows.Select(p => new PromotionDto(p.Id, p.Code, p.Name, p.Kind, p.Value, p.MinSubtotal, p.StartsUtc, p.EndsUtc, p.MaxRedemptions, p.Redeemed, p.Active,
+            p.CustomerGroupId, p.CustomerGroupId is { } g ? names.GetValueOrDefault(g) : null)).ToList();
+    }
 }

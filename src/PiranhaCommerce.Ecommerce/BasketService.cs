@@ -121,7 +121,8 @@ internal sealed class BasketService(PiranhaDbContext db, ICustomerService custom
         {
             normalized = PromotionRules.Normalize(code);
             var promo = await db.Set<Promotion>().AsNoTracking().FirstOrDefaultAsync(p => p.Code == normalized, ct);
-            if (PromotionRules.Problem(promo, decimal.MaxValue, DateTimeOffset.UtcNow) is { } problem)
+            var owner = await db.Set<Basket>().AsNoTracking().Where(b => b.Id == basketId).Select(b => b.CustomerId).FirstOrDefaultAsync(ct);
+            if (PromotionRules.Problem(promo, decimal.MaxValue, DateTimeOffset.UtcNow, await PromotionEligibility.Async(db, promo, owner, ct)) is { } problem)
                 throw new PiranhaValidationException(nameof(CodeInput.Code), problem);
         }
 
@@ -226,7 +227,7 @@ internal sealed class BasketService(PiranhaDbContext db, ICustomerService custom
         if (basket.PromotionCode is { } code)
         {
             var promo = await db.Set<Promotion>().AsNoTracking().FirstOrDefaultAsync(p => p.Code == code, ct);
-            problem = PromotionRules.Problem(promo, basket.Subtotal, DateTimeOffset.UtcNow);
+            problem = PromotionRules.Problem(promo, basket.Subtotal, DateTimeOffset.UtcNow, await PromotionEligibility.Async(db, promo, basket.CustomerId, ct));
             if (problem is null) discount = PromotionRules.Discount(promo!, basket.Subtotal);
         }
 

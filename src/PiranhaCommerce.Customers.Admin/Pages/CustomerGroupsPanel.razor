@@ -1,0 +1,98 @@
+@* Panel for AdminSlots.CustomerEditPanels; the slot supplies CustomerId. Saves independently of the customer form. *@
+@inject AdminScopeRunner Scope
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider Auth
+
+<div class="pc-card" style="margin-top:1rem">
+    <h2 style="margin-top:0">Customer groups</h2>
+    @if (_error is not null)
+    {
+        <p class="pc-error" role="alert">@_error</p>
+    }
+    @if (_mine is null || _all is null)
+    {
+        <p class="pc-muted">Loading...</p>
+    }
+    else
+    {
+        @if (_mine.Count == 0)
+        {
+            <p class="pc-muted">Not in any group.</p>
+        }
+        else
+        {
+            <ul>
+            @foreach (var g in _mine)
+            {
+                var group = g;
+                <li>@g.Name <button type="button" class="secondary" disabled="@_busy" @onclick="() => RemoveAsync(group.Id)">Remove</button></li>
+            }
+            </ul>
+        }
+        @if (_all.Any(g => _mine.All(m => m.Id != g.Id)))
+        {
+            <select @bind="_pick" aria-label="Group to add">
+                <option value="">Add to a group...</option>
+                @foreach (var g in _all.Where(g => _mine.All(m => m.Id != g.Id)))
+                {
+                    <option value="@g.Id">@g.Name</option>
+                }
+            </select>
+            <button type="button" disabled="@(_busy || string.IsNullOrEmpty(_pick))" @onclick="AddAsync">Add</button>
+        }
+        else if (_all.Count == 0)
+        {
+            <p class="pc-muted">No groups exist yet. Create them under Customers &gt; Groups.</p>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public Guid CustomerId { get; set; }
+
+    private IReadOnlyList<CustomerGroupRefDto>? _mine;
+    private IReadOnlyList<CustomerGroupDto>? _all;
+    private string? _pick, _error;
+    private bool _busy;
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var id = CustomerId;
+        try
+        {
+            _mine = await Scope.RunAsync<ICustomerGroupService, IReadOnlyList<CustomerGroupRefDto>?>(s => s.GroupsOfAsync(id)) ?? [];
+            _all = await Scope.RunAsync<ICustomerGroupService, IReadOnlyList<CustomerGroupDto>>(s => s.ListAsync());
+        }
+        catch (Exception ex) { _error = "Could not load groups: " + ex.Message; }
+    }
+
+    private async Task AddAsync()
+    {
+        if (!Guid.TryParse(_pick, out var groupId)) return;
+        _busy = true; _error = null;
+        try
+        {
+            var actor = await Auth.GetActorAsync();
+            var customerId = CustomerId;
+            await Scope.RunAsync<ICustomerGroupService, CustomerGroupMemberDto?>(s => s.AddMemberAsync(groupId, customerId, actor));
+            _pick = null;
+        }
+        catch (Exception ex) { _error = "Could not add: " + ex.Message; }
+        finally { _busy = false; }
+        await LoadAsync();
+    }
+
+    private async Task RemoveAsync(Guid groupId)
+    {
+        _busy = true; _error = null;
+        try
+        {
+            var customerId = CustomerId;
+            await Scope.RunAsync<ICustomerGroupService, bool>(s => s.RemoveMemberAsync(groupId, customerId));
+        }
+        catch (Exception ex) { _error = "Could not remove: " + ex.Message; }
+        finally { _busy = false; }
+        await LoadAsync();
+    }
+}

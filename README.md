@@ -345,6 +345,12 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   this existed carry no version and count as 0. The password hash and the version are never in any response. Every staff action (unlock, sign out, reset link
   with its outcome, removal, switching off or on) is recorded with who did it and when, shown in the card and at `GET /customers/{id}/sign-in/history`,
   included in the customer's export, and deleted with them on erasure. Customers' own sign-ins and password changes are not logged.
+- **Customer groups** (`/customer-groups`, `/customer-groups/{id}/members/{customerId}` (PUT adds, DELETE removes), `/customers/{id}/groups`; admin: Customers >
+  Groups and a panel on each customer): named sets of customers (trade, staff, VIP) that staff fill and other features can use. Names are unique whatever the letter
+  case; adding someone twice is harmless; deleting a customer or a group removes the memberships (the customers stay). A group cannot be deleted while a
+  promotion is limited to it. A promotion can be limited to a group (`customerGroupId`): only signed-in customers in it can apply the code, and everyone
+  else is told the same "That code is not valid." as for any wrong code. It is checked again at checkout, so leaving the group after applying the code stops the
+  order (409) without using up the code. A customer's export lists their groups. Groups hold no prices: group pricing is not built.
 - **Disputes and failed refunds** (Stripe: `charge.dispute.created`, `charge.dispute.closed`, `refund.failed` / a failed `refund.updated`; `GET /disputes`,
   `GET /orders/{id}/disputes`): a buyer disputing a card payment with their bank is recorded once (by the provider's id, so replays are harmless) and the
   shop's alert address is emailed (`alert.dispute-opened`) with the reason and the date to answer by: you respond in the provider's own dashboard.

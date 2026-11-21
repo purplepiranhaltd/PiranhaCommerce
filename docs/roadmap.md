@@ -39,7 +39,7 @@ history.
 ## Not yet built (agreed direction)
 
 - Translations for the admin UI and storefront (user-facing text is kept out of the data model so this needs no migrations).
-- Customer groups (named in the vocabulary; for segmentation and pricing).
+- Customer groups: built (named sets of customers, promotions limited to a group). Not built: group pricing, price lists, automatic membership rules, group-limited shipping or payment methods.
 - Shopper accounts are built; what is left (email, password reset, token revocation) is under "Shopper accounts: what is left".
 - Alerts and recount tasks for negative stock (the report and per-movement balances exist).
 
@@ -82,7 +82,7 @@ Not built:
 - Merging two baskets (claim only takes an unowned basket whole); guest checkout through the storefront API.
 - Customer data export and erasure are built for staff (orders anonymised, never deleted). Shoppers can export and erase their own account through the storefront API.
   Not built: a scheduled retention clean-up, and erasure in the payment provider and email provider.
-- Customer groups, social sign-in, two-factor.
+- Social sign-in, two-factor.
 - Shopper sign-in is rate limited by client address (with the staff limits) but there is no CAPTCHA or breached-password check.
 
 ## Baskets and orders: decisions and what is left

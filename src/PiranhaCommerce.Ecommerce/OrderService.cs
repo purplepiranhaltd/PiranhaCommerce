@@ -173,12 +173,12 @@ internal sealed class OrderService(
                     // rather than quietly charging full price.
                     Promotion? promo = null;
                     var discount = 0m;
-                    var held = await db.Set<Basket>().AsNoTracking().Where(b => b.Id == basketId).Select(b => new { b.PromotionCode, b.VoucherId }).FirstAsync(token);
+                    var held = await db.Set<Basket>().AsNoTracking().Where(b => b.Id == basketId).Select(b => new { b.PromotionCode, b.VoucherId, b.CustomerId }).FirstAsync(token);
                     var promoCode = held.PromotionCode;
                     if (promoCode is not null)
                     {
                         promo = await db.Set<Promotion>().AsNoTracking().FirstOrDefaultAsync(p => p.Code == promoCode, token);
-                        if (PromotionRules.Problem(promo, subtotal, DateTimeOffset.UtcNow) is { } problem)
+                        if (PromotionRules.Problem(promo, subtotal, DateTimeOffset.UtcNow, await PromotionEligibility.Async(db, promo, input.CustomerId ?? held.CustomerId, token)) is { } problem)
                             throw new PiranhaConflictException($"The promotion code on this basket cannot be used: {problem} Remove it to continue.");
                         var used = await db.Set<Promotion>()
                             .Where(p => p.Id == promo!.Id && p.Active && (p.MaxRedemptions == null || p.Redeemed < p.MaxRedemptions))
