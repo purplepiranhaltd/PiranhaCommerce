@@ -68,6 +68,17 @@ public sealed class CustomerAccountOptions
 
     /// <summary>Like <see cref="ResetUrlTemplate"/>: the page the verification email links to, with <c>{token}</c> and <c>{email}</c>. It posts them to <c>/auth/verify-email</c>.</summary>
     public string? VerifyUrlTemplate { get; set; }
+
+    /// <summary>
+    /// How long a shopper's refresh token lasts after each use (so someone who keeps using the shop stays signed in). 0 switches refresh tokens off:
+    /// shoppers then sign in again when the short access token ends.
+    /// </summary>
+    [System.ComponentModel.DataAnnotations.Range(0, 3650)]
+    public int RefreshTokenDays { get; set; } = 30;
+
+    /// <summary>The longest a sign-in on one device can be kept going by refreshing, however often it is used.</summary>
+    [System.ComponentModel.DataAnnotations.Range(1, 3650)]
+    public int RefreshTokenMaxDays { get; set; } = 180;
 }
 
 public sealed class VerifyEmailInput

@@ -9,7 +9,8 @@ using PiranhaCommerce.Core.Identity;
 namespace PiranhaCommerce.Api.Auth;
 
 public sealed record TokenRequest(string Email, string Password);
-public sealed record TokenResponse(string AccessToken, string TokenType, int ExpiresIn);
+/// <param name="RefreshToken">Shoppers only, and only when refresh tokens are switched on: swap it at the refresh endpoint for the next access token. Shown once.</param>
+public sealed record TokenResponse(string AccessToken, string TokenType, int ExpiresIn, string? RefreshToken = null);
 
 public sealed class JwtTokenService(IOptions<PiranhaJwtOptions> options, UserManager<PiranhaUser> users, ICredentialChecker credentials)
 {

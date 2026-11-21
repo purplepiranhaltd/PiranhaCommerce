@@ -26,6 +26,7 @@ public sealed class CustomersPlugin : IPiranhaPlugin
         services.AddOptions<CustomerAccountOptions>().BindConfiguration(CustomerAccountOptions.SectionName);
         services.AddScoped<ICustomerAccountService, CustomerAccountService>();
         services.AddScoped<ICustomerSignInAdminService>(sp => (CustomerAccountService)sp.GetRequiredService<ICustomerAccountService>());
+        services.AddScoped<ICustomerRefreshService>(sp => (CustomerAccountService)sp.GetRequiredService<ICustomerAccountService>());
         services.AddSingleton<IStorefrontEndpointContributor, CustomerStorefrontEndpoints>();
         services.AddSingleton<PiranhaCommerce.Core.Email.IEmailTemplateContributor, CustomerEmailContributor>();
     }
@@ -93,6 +94,17 @@ internal sealed class CustomersModelContributor : IModelContributor
             e.Property(l => l.PasswordHash).HasMaxLength(512).IsRequired();
             e.Property(l => l.SessionVersion).HasDefaultValue(0);
             e.HasOne<Customer>().WithOne().HasForeignKey<CustomerLogin>(l => l.CustomerId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<CustomerRefreshToken>(e =>
+        {
+            e.ToTable("CustomerRefreshToken", Schema);
+            e.HasKey(x => x.Id);
+            e.Property(x => x.TokenHash).HasMaxLength(64).IsRequired();
+            e.HasIndex(x => x.TokenHash).IsUnique();
+            e.HasIndex(x => x.FamilyId);
+            e.HasIndex(x => new { x.CustomerId, x.ExpiresUtc });
+            e.HasOne<Customer>().WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         b.Entity<CustomerToken>(e =>

@@ -44,23 +44,38 @@ internal sealed class CustomerStorefrontEndpoints : IStorefrontEndpointContribut
         // Anonymous on purpose, one by one: everything else in the group needs a shopper token.
         var auth = storefront.MapGroup("/auth").WithTags("Storefront accounts");
 
-        auth.MapPost("/register", async (RegisterInput input, ICustomerAccountService accounts, ICustomerTokenIssuer tokens, IOptions<CustomerAccountOptions> accountOptions, CancellationToken ct) =>
+        auth.MapPost("/register", async (RegisterInput input, ICustomerAccountService accounts, ICustomerTokenIssuer tokens, ICustomerRefreshService refresh, IOptions<CustomerAccountOptions> accountOptions, CancellationToken ct) =>
             {
                 var profile = await accounts.RegisterAsync(input, ct);
                 // When the shop requires a verified email there is no token yet: they follow the emailed link first.
                 if (accountOptions.Value.RequireVerifiedEmail) return Results.Accepted("/api/v1/storefront/auth/verify-email", new VerificationRequiredDto(profile, true));
-                return Results.Created("/api/v1/storefront/me", new RegisteredDto(profile, tokens.Issue(profile.Id, profile.Email, 0)));
+                return Results.Created("/api/v1/storefront/me", new RegisteredDto(profile, tokens.Issue(profile.Id, profile.Email, 0) with { RefreshToken = await refresh.IssueRefreshTokenAsync(profile.Id, 0, ct) }));
             })
             .AllowAnonymous();
 
-        auth.MapPost("/token", async (SignInInput input, ICustomerAccountService accounts, ICustomerTokenIssuer tokens, CancellationToken ct) =>
+        auth.MapPost("/token", async (SignInInput input, ICustomerAccountService accounts, ICustomerTokenIssuer tokens, ICustomerRefreshService refresh, CancellationToken ct) =>
             {
                 var result = await accounts.CheckAsync(input.Email, input.Password, ct);
                 // Wrong password, unknown email, no account, inactive and locked out all look the same.
                 if (result.Status == SignInStatus.Unverified) return Results.Json(new { error = "email_not_verified" }, statusCode: StatusCodes.Status403Forbidden);
                 return result is { Status: SignInStatus.Valid, CustomerId: { } id, Email: { } email }
-                    ? Results.Ok(tokens.Issue(id, email, result.SessionVersion))
+                    ? Results.Ok(tokens.Issue(id, email, result.SessionVersion) with { RefreshToken = await refresh.IssueRefreshTokenAsync(id, result.SessionVersion, ct) })
                     : Results.Unauthorized();
+            })
+            .AllowAnonymous();
+
+        // Swaps a refresh token for a new access token and the next refresh token. Anything that is not a live token is the same 401.
+        auth.MapPost("/refresh", async (RefreshTokenInput input, ICustomerRefreshService refresh, ICustomerTokenIssuer tokens, CancellationToken ct) =>
+                await refresh.RefreshAsync(input.RefreshToken, ct) is { } r
+                    ? Results.Ok(tokens.Issue(r.CustomerId, r.Email, r.SessionVersion) with { RefreshToken = r.RefreshToken })
+                    : Results.Unauthorized())
+            .AllowAnonymous();
+
+        // Signs this device out for good: its refresh token (and any it was swapped for) stops working. The access token simply runs out.
+        auth.MapPost("/logout", async (RefreshTokenInput input, ICustomerRefreshService refresh, CancellationToken ct) =>
+            {
+                await refresh.RevokeRefreshTokenAsync(input.RefreshToken, ct);
+                return Results.NoContent(); // always, so it says nothing about whether the token was real
             })
             .AllowAnonymous();
 
@@ -99,9 +114,9 @@ internal sealed class CustomerStorefrontEndpoints : IStorefrontEndpointContribut
             await accounts.UpdateProfileAsync(user.CustomerId()!.Value, input, ct) is { } p ? Results.Ok(p) : Results.Unauthorized());
 
         // Changing the password ends every session, so the response carries a new token for the device that changed it.
-        me.MapPost("/password", async (ChangePasswordInput input, ClaimsPrincipal user, ICustomerAccountService accounts, ICustomerTokenIssuer tokens, CancellationToken ct) =>
+        me.MapPost("/password", async (ChangePasswordInput input, ClaimsPrincipal user, ICustomerAccountService accounts, ICustomerTokenIssuer tokens, ICustomerRefreshService refresh, CancellationToken ct) =>
             await accounts.ChangePasswordAsync(user.CustomerId()!.Value, input, ct) is { } changed
-                ? Results.Ok(tokens.Issue(user.CustomerId()!.Value, changed.Email, changed.SessionVersion))
+                ? Results.Ok(tokens.Issue(user.CustomerId()!.Value, changed.Email, changed.SessionVersion) with { RefreshToken = await refresh.IssueRefreshTokenAsync(user.CustomerId()!.Value, changed.SessionVersion, ct) })
                 : Results.ValidationProblem(new Dictionary<string, string[]> { [nameof(ChangePasswordInput.CurrentPassword)] = ["The current password is not correct."] }));
 
         // Their own data: everything held about them, and erasing their account. The id is always the token's. Erasing needs the password again

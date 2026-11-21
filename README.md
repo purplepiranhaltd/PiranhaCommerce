@@ -213,6 +213,13 @@ Shoppers sign in separately from staff. Under `/api/v1/storefront`:
 
 - `POST /auth/register`, `POST /auth/token` (anonymous). Registration returns a token; a wrong password, unknown email, locked or
   deactivated account all answer the same `401`. 5 wrong passwords lock the account for 15 minutes (`Piranha:Customers`).
+- **Refresh tokens** (`POST /auth/refresh`, `POST /auth/logout`, both with `{ "refreshToken" }`): signing in, registering and changing a password also return a
+  `refreshToken`. Swap it at `/auth/refresh` for a new access token and the next refresh token (each is single use; the response is the same shape as
+  signing in). Only a hash is stored. Using a token a second time means it was copied, so that device's whole chain is revoked (note that two refreshes at
+  the same moment look like this, so an app should refresh from one place). A refresh token stops working when sessions are ended (sign out everywhere,
+  password change or reset, switching the customer off, a staff email change), after `Piranha:Customers:RefreshTokenDays` (default 30, counted from each
+  use; 0 switches refresh tokens off) and after `RefreshTokenMaxDays` (default 180) since that sign-in began. Anything not live is the same `401`.
+  `/auth/logout` ends one device's chain (always `204`). Refresh tokens are for the shopper API only, never staff.
 - `GET|PUT /me`, `POST /me/password`, `GET|POST|PUT|DELETE /me/addresses` - the signed-in shopper's own record only. Staff notes are never shown.
 - `POST /baskets`, `GET /baskets/{id}`, `PUT|DELETE /baskets/{id}/lines/{productId}`, `POST /baskets/{id}/quote`,
   `POST /baskets/{id}/checkout`, `POST /baskets/{id}/claim`, `GET /orders`, `GET /orders/{id}`.
