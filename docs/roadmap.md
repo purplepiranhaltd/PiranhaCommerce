@@ -111,7 +111,7 @@ Not built yet:
 - Fulfilment: parcels, tracking, partial shipment, returns (with a restock choice per line) and refunds through the provider are built. Not built:
   return labels, exchanges, automatic expiry of unanswered return requests,
   and refund status updates for a provider refund that later fails.
-- Clean-up of old open baskets; reserving stock while a shopper is in checkout (today stock is taken only when the order is placed).
+- Reserving stock while a shopper is in checkout (today stock is taken only when the order is placed). Old open baskets are cleared automatically (see the README).
 - Per-order stock location (every online order currently draws from `Piranha:Ecommerce:StockLocationId`, or the default location).
 - One currency per store (`Piranha:Ecommerce:Currency`, default GBP).
 - Quantities are whole numbers in baskets; stock itself supports fractions for channels that need them.

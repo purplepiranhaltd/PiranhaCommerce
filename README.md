@@ -345,6 +345,10 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   this existed carry no version and count as 0. The password hash and the version are never in any response. Every staff action (unlock, sign out, reset link
   with its outcome, removal, switching off or on) is recorded with who did it and when, shown in the card and at `GET /customers/{id}/sign-in/history`,
   included in the customer's export, and deleted with them on erasure. Customers' own sign-ins and password changes are not logged.
+- **Abandoned baskets**: open baskets nobody has touched for `Piranha:Ecommerce:AbandonedBasketDays` (default 60; 0 keeps them for ever) are deleted with
+  their lines by a background job that runs every six hours (first run a minute after start). Any change to a basket (a line, a promo code, a voucher, a
+  shopper claiming it) counts as being active. Checked-out baskets are never touched. Baskets hold no stock, so this is housekeeping only. `IBasketHousekeeper`
+  does the work if you want to run it from your own scheduler.
 - **Admin menu badges**: a menu entry can show a count of things waiting for a person (`AdminMenuItem.BadgeKey` plus an `IAdminBadgeProvider`
   registered by the plugin; zero shows nothing and a failing provider is logged and skipped). Orders > Unreconciled payments, Disputes (open) and
   Return requests (waiting) use it; the numbers refresh when you move between pages. Disputes and Return requests also have list pages.

@@ -68,7 +68,7 @@ internal sealed class BasketService(PiranhaDbContext db, ICustomerService custom
     {
         // One atomic statement: of two customers claiming the same basket at once, exactly one wins.
         var claimed = await db.Set<Basket>().Where(b => b.Id == basketId && b.CustomerId == null && b.Status == BasketStatus.Open)
-            .ExecuteUpdateAsync(s => s.SetProperty(b => b.CustomerId, (Guid?)customerId), ct);
+            .ExecuteUpdateAsync(s => s.SetProperty(b => b.CustomerId, (Guid?)customerId).SetProperty(b => b.UpdatedUtc, (DateTimeOffset?)DateTimeOffset.UtcNow), ct);
         return claimed > 0 || await IsOwnedByAsync(basketId, customerId, ct);
     }
 
@@ -105,7 +105,7 @@ internal sealed class BasketService(PiranhaDbContext db, ICustomerService custom
         }
 
         var changed = await db.Set<Basket>().Where(b => b.Id == basketId && b.Status == BasketStatus.Open)
-            .ExecuteUpdateAsync(s => s.SetProperty(b => b.VoucherId, voucherId), ct);
+            .ExecuteUpdateAsync(s => s.SetProperty(b => b.VoucherId, voucherId).SetProperty(b => b.UpdatedUtc, (DateTimeOffset?)DateTimeOffset.UtcNow), ct);
         if (changed == 0)
         {
             if (!await db.Set<Basket>().AnyAsync(b => b.Id == basketId, ct)) return null;
@@ -128,7 +128,7 @@ internal sealed class BasketService(PiranhaDbContext db, ICustomerService custom
 
         // Only an open basket can change: once checked out it is read-only, and the update says so atomically.
         var changed = await db.Set<Basket>().Where(b => b.Id == basketId && b.Status == BasketStatus.Open)
-            .ExecuteUpdateAsync(s => s.SetProperty(b => b.PromotionCode, normalized), ct);
+            .ExecuteUpdateAsync(s => s.SetProperty(b => b.PromotionCode, normalized).SetProperty(b => b.UpdatedUtc, (DateTimeOffset?)DateTimeOffset.UtcNow), ct);
         if (changed == 0)
         {
             if (!await db.Set<Basket>().AnyAsync(b => b.Id == basketId, ct)) return null;
@@ -148,6 +148,7 @@ internal sealed class BasketService(PiranhaDbContext db, ICustomerService custom
         if (input.Quantity == 0)
         {
             await db.Set<BasketLine>().Where(l => l.BasketId == basketId && l.ProductId == productId).ExecuteDeleteAsync(ct);
+            await TouchAsync(basketId, ct);
             return await GetAsync(basketId, ct);
         }
 
@@ -176,8 +177,14 @@ internal sealed class BasketService(PiranhaDbContext db, ICustomerService custom
                 }
             }
         }
+        await TouchAsync(basketId, ct);
         return await GetAsync(basketId, ct);
     }
+
+    /// <summary>Notes that the shopper has just been here, so an active basket is never taken for an abandoned one.</summary>
+    private Task TouchAsync(Guid basketId, CancellationToken ct) =>
+        db.Set<Basket>().Where(b => b.Id == basketId && b.Status == BasketStatus.Open)
+            .ExecuteUpdateAsync(s => s.SetProperty(b => b.UpdatedUtc, (DateTimeOffset?)DateTimeOffset.UtcNow), ct);
 
     public async Task<IReadOnlyList<ShippingOptionDto>?> ShippingOptionsAsync(Guid basketId, string countryCode, CancellationToken ct = default)
     {

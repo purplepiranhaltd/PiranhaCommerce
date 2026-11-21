@@ -222,4 +222,11 @@ public sealed class EcommerceOptions
     /// an email plugin is registered, and can never fail the webhook.
     /// </summary>
     public string? AlertEmail { get; set; }
+
+    /// <summary>
+    /// Open baskets nobody has touched for this many days are deleted (checked-out baskets never are). 0 keeps them for ever. Baskets hold no
+    /// stock, so this is only housekeeping: a shopper who comes back later simply starts a new basket.
+    /// </summary>
+    [Range(0, 3650)]
+    public int AbandonedBasketDays { get; set; } = 60;
 }

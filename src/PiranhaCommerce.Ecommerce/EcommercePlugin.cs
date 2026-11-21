@@ -28,6 +28,8 @@ public sealed class EcommercePlugin : IPiranhaPlugin
         services.AddOptions<EcommerceOptions>().BindConfiguration(EcommerceOptions.SectionName);
         services.AddScoped<IProductListingService, ProductListingService>();
         services.AddScoped<IBasketService, BasketService>();
+        services.AddScoped<IBasketHousekeeper, BasketHousekeeper>();
+        services.AddHostedService<BasketHousekeepingService>();
         services.AddScoped<OrderMailer>();
         services.AddScoped<PiranhaCommerce.Customers.ICustomerDataContributor, EcommerceCustomerData>();
         services.AddScoped<IOrderService, OrderService>();
