@@ -345,6 +345,14 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   this existed carry no version and count as 0. The password hash and the version are never in any response. Every staff action (unlock, sign out, reset link
   with its outcome, removal, switching off or on) is recorded with who did it and when, shown in the card and at `GET /customers/{id}/sign-in/history`,
   included in the customer's export, and deleted with them on erasure. Customers' own sign-ins and password changes are not logged.
+- **Shipping by destination and weight** (`/shipping-methods/{id}/rates`, admin: edit a method on Orders > Shipping, and a product's weight in its Online
+  store settings): a method with no rates charges its flat price everywhere, as before. Give it rate rows (a country, or `*` for every other country,
+  and a weight band in grams: from the first figure up to, but not including, the second; empty for no limit) and it charges by where the parcel goes and
+  what the basket weighs (each product's weight times the quantity; a product with none set counts as nothing). Rows for the destination country take
+  precedence over the `*` rows, and a destination or weight no row covers is not served: the method is refused at quote and checkout, and left out of
+  `GET /baskets/{id}/shipping-options?countryCode=GB` (also under `/storefront/baskets`), which lists what a basket can use with what each costs now. A
+  method's "free when the basket reaches" still applies on top of a rate. Rates are replaced as a whole set (a PUT; an empty list goes back to the flat
+  price) and bands for one country may not overlap. A product's weight is part of its listing, so a PUT of the listing without it clears it.
 - **Verified email** (`Piranha:Customers:RequireVerifiedEmail`, off by default): when on, registering returns 202 with no token and emails a link
   (template `customer.verify-email`, page set by `VerifyUrlTemplate`, lasts `VerifyTokenMinutes`, default a day); the shopper posts it to
   `/storefront/auth/verify-email` and can ask for another at `/auth/resend-verification` (silent, hourly limit counted apart from password

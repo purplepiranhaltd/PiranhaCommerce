@@ -145,6 +145,15 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.Property(m => m.FreeOver).HasPrecision(18, 4);
         });
 
+        b.Entity<ShippingRate>(e =>
+        {
+            e.ToTable("ShippingRate", Schema);
+            e.Property(r => r.CountryCode).HasMaxLength(2).IsRequired();
+            e.Property(r => r.Price).HasPrecision(18, 4);
+            e.HasIndex(r => new { r.ShippingMethodId, r.CountryCode });
+            e.HasOne<ShippingMethod>().WithMany().HasForeignKey(r => r.ShippingMethodId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         b.Entity<Promotion>(e =>
         {
             e.ToTable("Promotion", Schema);

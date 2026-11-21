@@ -20,13 +20,14 @@ internal sealed class ProductListingService(PiranhaDbContext db) : IProductListi
     {
         if (!await db.Set<Product>().AnyAsync(p => p.Id == productId, ct)) return null;
         var listing = await db.Set<ProductListing>().AsNoTracking()
-            .Where(l => l.ProductId == productId).Select(l => new { l.Published, l.TaxClassId }).FirstOrDefaultAsync(ct);
-        return new ProductListingDto(productId, listing?.Published ?? false, listing?.TaxClassId);
+            .Where(l => l.ProductId == productId).Select(l => new { l.Published, l.TaxClassId, l.WeightGrams }).FirstOrDefaultAsync(ct);
+        return new ProductListingDto(productId, listing?.Published ?? false, listing?.TaxClassId, listing?.WeightGrams);
     }
 
     public async Task<ProductListingDto?> SetAsync(Guid productId, ProductListingInput input, CancellationToken ct = default)
     {
         if (!await db.Set<Product>().AnyAsync(p => p.Id == productId, ct)) return null;
+        ModelValidator.ValidateOrThrow(input);
 
         if (input.TaxClassId is { } classId && !await db.Set<TaxClass>().AnyAsync(c => c.Id == classId, ct))
             throw new PiranhaValidationException(nameof(ProductListingInput.TaxClassId), "That tax class does not exist.");
@@ -36,7 +37,8 @@ internal sealed class ProductListingService(PiranhaDbContext db) : IProductListi
             db.Add(listing = new ProductListing { ProductId = productId });
         listing.Published = input.Published;
         listing.TaxClassId = input.TaxClassId;
+        listing.WeightGrams = input.WeightGrams;
         await db.SaveChangesAsync(ct);
-        return new ProductListingDto(productId, listing.Published, listing.TaxClassId);
+        return new ProductListingDto(productId, listing.Published, listing.TaxClassId, listing.WeightGrams);
     }
 }

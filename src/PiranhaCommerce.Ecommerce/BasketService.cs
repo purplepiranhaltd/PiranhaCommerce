@@ -13,6 +13,9 @@ public interface IBasketService
 
     Task<BasketDto?> GetAsync(Guid basketId, CancellationToken ct = default);
 
+    /// <summary>The shipping methods this basket can use for a destination country, with what each would cost now (after any free-over rule). Null when the basket does not exist.</summary>
+    Task<IReadOnlyList<ShippingOptionDto>?> ShippingOptionsAsync(Guid basketId, string countryCode, CancellationToken ct = default);
+
     /// <summary>
     /// Puts a promo code on an open basket (null or blank removes it). A code that does not exist, is off, outside its dates or used up
     /// is a validation error with one answer; the minimum spend is judged at quote and checkout, as the basket may still grow.
@@ -175,6 +178,27 @@ internal sealed class BasketService(PiranhaDbContext db, ICustomerService custom
         return await GetAsync(basketId, ct);
     }
 
+    public async Task<IReadOnlyList<ShippingOptionDto>?> ShippingOptionsAsync(Guid basketId, string countryCode, CancellationToken ct = default)
+    {
+        if (!System.Text.RegularExpressions.Regex.IsMatch(countryCode ?? "", "^[A-Za-z]{2}$"))
+            throw new PiranhaValidationException("CountryCode", "Use a two-letter country code such as GB.");
+        if (await GetAsync(basketId, ct) is null) return null;
+
+        var options = new List<ShippingOptionDto>();
+        var methods = await db.Set<ShippingMethod>().AsNoTracking().Where(m => m.Active).OrderBy(m => m.Position).ThenBy(m => m.Name).ThenBy(m => m.Id).ToListAsync(ct);
+        foreach (var m in methods)
+        {
+            try
+            {
+                var quote = await QuoteAsync(basketId, new QuoteInput { ShippingMethodId = m.Id, CountryCode = countryCode! }, ct);
+                if (quote is null) return null;
+                options.Add(new ShippingOptionDto(m.Id, m.Name, quote.ShippingTotal));
+            }
+            catch (PiranhaValidationException) { } // this method does not serve that destination and weight: left out
+        }
+        return options;
+    }
+
     public async Task<QuoteDto?> QuoteAsync(Guid basketId, QuoteInput input, CancellationToken ct = default)
     {
         ModelValidator.ValidateOrThrow(input);
@@ -186,6 +210,15 @@ internal sealed class BasketService(PiranhaDbContext db, ICustomerService custom
         if (methods.Count > 0)
             method = methods.FirstOrDefault(m => m.Id == input.ShippingMethodId)
                      ?? throw new PiranhaValidationException(nameof(QuoteInput.ShippingMethodId), "Choose an available shipping method.");
+
+        // By weight and destination, when the method has rates: the same lookup checkout uses.
+        decimal? shippingPrice = null;
+        if (method is not null)
+        {
+            var weight = await ShippingPricing.WeightAsync(db, basket.Lines.Select(l => (l.ProductId, l.Quantity)).ToList(), ct);
+            shippingPrice = await ShippingPricing.PriceAsync(db, method, input.CountryCode.ToUpperInvariant(), weight, ct)
+                ?? throw new PiranhaValidationException(nameof(QuoteInput.ShippingMethodId), "That shipping method is not available for this destination and basket.");
+        }
 
         // A code that cannot be used right now is reported and left out of the price; checkout would refuse it.
         var discount = 0m;
@@ -201,7 +234,7 @@ internal sealed class BasketService(PiranhaDbContext db, ICustomerService custom
         var classes = await TaxLookup.ClassesAsync(db, basket.Lines.Select(l => l.ProductId).ToList(), ct);
         var calc = OrderPricing.Calculate(
             basket.Lines.Select(l => (l.LineTotal, classes.GetValueOrDefault(l.ProductId))).ToList(),
-            discount, method, rules, defaultClass, input.CountryCode.ToUpperInvariant());
+            discount, method, rules, defaultClass, input.CountryCode.ToUpperInvariant(), shippingPrice);
 
         // A gift voucher pays part of the total; it never changes the price or the tax.
         var applied = 0m;

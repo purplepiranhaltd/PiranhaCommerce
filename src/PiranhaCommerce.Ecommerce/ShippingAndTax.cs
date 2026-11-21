@@ -60,7 +60,95 @@ public sealed class ShippingMethodInput
     [Range(0, 10_000)] public int Position { get; set; }
 }
 
-public sealed record ShippingMethodDto(Guid Id, string Name, decimal Price, decimal? FreeOver, bool Active, int Position);
+/// <param name="RateCount">How many rate rows the method has. Zero means the flat <paramref name="Price"/> applies everywhere.</param>
+public sealed record ShippingMethodDto(Guid Id, string Name, decimal Price, decimal? FreeOver, bool Active, int Position, int RateCount = 0);
+
+/// <summary>
+/// One price band of a shipping method: for a destination country (or <c>*</c> for every other country) and a basket weight from
+/// <see cref="MinWeightGrams"/> (inclusive) up to <see cref="MaxWeightGrams"/> (exclusive; null for no upper limit).
+/// A method with no rate rows charges its flat price everywhere. With rate rows, a destination or weight no row covers is not served by the method.
+/// </summary>
+public class ShippingRate : Entity
+{
+    public Guid ShippingMethodId { get; set; }
+    public required string CountryCode { get; set; }
+    public int MinWeightGrams { get; set; }
+    public int? MaxWeightGrams { get; set; }
+    public decimal Price { get; set; }
+}
+
+public sealed class ShippingRateInput
+{
+    [Required, RegularExpression(@"^(\*|[A-Za-z]{2})$", ErrorMessage = "Use a two-letter country code such as GB, or * for every other country.")]
+    public string CountryCode { get; set; } = "";
+    [Range(0, 100_000_000)] public int MinWeightGrams { get; set; }
+    [Range(1, 100_000_000)] public int? MaxWeightGrams { get; set; }
+    [Range(0, 1_000_000)] public decimal Price { get; set; }
+}
+
+/// <summary>Replaces the whole set of rates of a method. An empty list goes back to the flat price.</summary>
+public sealed class ShippingRatesInput
+{
+    public List<ShippingRateInput> Rates { get; set; } = [];
+}
+
+public sealed record ShippingRateDto(Guid Id, string CountryCode, int MinWeightGrams, int? MaxWeightGrams, decimal Price);
+
+/// <summary>A shipping method a basket can use for a destination, with what it would cost.</summary>
+public sealed record ShippingOptionDto(Guid Id, string Name, decimal Price);
+
+/// <summary>Works out what a method charges for a destination and weight, before any free-over rule.</summary>
+public static class ShippingRates
+{
+    public const string Fallback = "*";
+
+    /// <summary>
+    /// The flat price when the method has no rates. Otherwise the rate for the destination: rows for that exact country take
+    /// precedence over the <c>*</c> rows, and the row whose weight band holds the basket weight sets the price. Null when nothing covers it
+    /// (the method is not available for that destination and basket).
+    /// </summary>
+    public static decimal? PriceFor(ShippingMethod method, IReadOnlyList<ShippingRate> rates, string countryCode, long weightGrams)
+    {
+        if (rates.Count == 0) return method.Price;
+        var exact = rates.Where(r => string.Equals(r.CountryCode, countryCode, StringComparison.OrdinalIgnoreCase)).ToList();
+        var pool = exact.Count > 0 ? exact : rates.Where(r => r.CountryCode == Fallback).ToList();
+        return pool.FirstOrDefault(r => weightGrams >= r.MinWeightGrams && (r.MaxWeightGrams is null || weightGrams < r.MaxWeightGrams))?.Price;
+    }
+
+    /// <summary>The first problem with a set of rows, or null: a band must end after it starts, and bands for one country must not overlap.</summary>
+    public static string? Problem(IReadOnlyList<ShippingRateInput> rates)
+    {
+        foreach (var r in rates)
+            if (r.MaxWeightGrams is { } max && max <= r.MinWeightGrams) return "A weight band must end above where it starts.";
+        foreach (var group in rates.GroupBy(r => r.CountryCode.ToUpperInvariant()))
+        {
+            var ordered = group.OrderBy(r => r.MinWeightGrams).ToList();
+            for (var i = 1; i < ordered.Count; i++)
+                if (ordered[i - 1].MaxWeightGrams is null || ordered[i - 1].MaxWeightGrams > ordered[i].MinWeightGrams)
+                    return $"The weight bands for {group.Key} overlap.";
+        }
+        return null;
+    }
+}
+
+internal static class ShippingPricing
+{
+    /// <summary>Total weight in grams. A product with no weight set counts as nothing.</summary>
+    public static async Task<long> WeightAsync(PiranhaDbContext db, IReadOnlyCollection<(Guid ProductId, int Quantity)> lines, CancellationToken ct)
+    {
+        var ids = lines.Select(l => l.ProductId).ToList();
+        var weights = (await db.Set<ProductListing>().AsNoTracking().Where(l => ids.Contains(l.ProductId) && l.WeightGrams != null)
+            .Select(l => new { l.ProductId, l.WeightGrams }).ToListAsync(ct)).ToDictionary(x => x.ProductId, x => (long)x.WeightGrams!.Value);
+        return lines.Sum(l => l.Quantity * weights.GetValueOrDefault(l.ProductId));
+    }
+
+    /// <summary>What the method charges for this destination and weight; null when it does not serve them.</summary>
+    public static async Task<decimal?> PriceAsync(PiranhaDbContext db, ShippingMethod method, string countryCode, long weightGrams, CancellationToken ct)
+    {
+        var rates = await db.Set<ShippingRate>().AsNoTracking().Where(r => r.ShippingMethodId == method.Id).ToListAsync(ct);
+        return ShippingRates.PriceFor(method, rates, countryCode, weightGrams);
+    }
+}
 
 public sealed class TaxClassInput
 {
@@ -106,8 +194,9 @@ public sealed record QuoteDto(
 /// <summary>The one place totals are worked out, used by the quote and by checkout so they can never disagree.</summary>
 public static class OrderPricing
 {
-    public static decimal ShippingFor(ShippingMethod? method, decimal subtotal)
-        => method is null ? 0m : method.FreeOver is { } free && subtotal >= free ? 0m : method.Price;
+    /// <param name="price">What the method charges here when that is not its flat price (a rate for the destination and weight).</param>
+    public static decimal ShippingFor(ShippingMethod? method, decimal subtotal, decimal? price = null)
+        => method is null ? 0m : method.FreeOver is { } free && subtotal >= free ? 0m : price ?? method.Price;
 
     /// <summary>
     /// Every money figure of an order, worked out in one place so the quote and checkout can never disagree:
@@ -119,7 +208,7 @@ public static class OrderPricing
     /// <param name="discount">What the promo code takes off the goods; limited here to the goods total.</param>
     public static TaxCalculation Calculate(
         IReadOnlyList<(decimal LineTotal, Guid? TaxClassId)> lines, decimal discount, ShippingMethod? method,
-        IReadOnlyList<TaxRule> rules, Guid defaultClassId, string countryCode)
+        IReadOnlyList<TaxRule> rules, Guid defaultClassId, string countryCode, decimal? shippingPrice = null)
     {
         static decimal Round(decimal v) => Math.Round(v, 2, MidpointRounding.AwayFromZero);
         TaxedAmount Apply(decimal net, Guid classId)
@@ -130,7 +219,7 @@ public static class OrderPricing
 
         var shares = PromotionRules.Allocate(lines.Select(l => l.LineTotal).ToList(), discount);
         var goodsAfterDiscount = lines.Sum(l => l.LineTotal) - shares.Sum();
-        var shipping = ShippingFor(method, goodsAfterDiscount);
+        var shipping = ShippingFor(method, goodsAfterDiscount, shippingPrice);
 
         var perLine = lines.Select((l, i) => Apply(l.LineTotal - shares[i], l.TaxClassId ?? defaultClassId)).ToList();
         var forShipping = Apply(shipping, defaultClassId);
@@ -179,6 +268,12 @@ public interface IShippingService
 {
     Task<IReadOnlyList<ShippingMethodDto>> ListAsync(bool activeOnly, CancellationToken ct = default);
     Task<ShippingMethodDto> CreateAsync(ShippingMethodInput input, CancellationToken ct = default);
+
+    /// <summary>The method's rate rows, oldest first by country then weight. Null when the method does not exist.</summary>
+    Task<IReadOnlyList<ShippingRateDto>?> GetRatesAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>Replaces all the method's rates (an empty list goes back to the flat price). Null when the method does not exist; a validation error when bands overlap.</summary>
+    Task<IReadOnlyList<ShippingRateDto>?> SetRatesAsync(Guid id, ShippingRatesInput input, CancellationToken ct = default);
     Task<ShippingMethodDto?> UpdateAsync(Guid id, ShippingMethodInput input, CancellationToken ct = default);
     /// <summary>Orders keep their own copy of the method name and price, so deleting is always safe.</summary>
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
@@ -189,7 +284,7 @@ internal sealed class ShippingService(PiranhaDbContext db) : IShippingService
     public async Task<IReadOnlyList<ShippingMethodDto>> ListAsync(bool activeOnly, CancellationToken ct = default)
         => await db.Set<ShippingMethod>().AsNoTracking().Where(m => !activeOnly || m.Active)
             .OrderBy(m => m.Position).ThenBy(m => m.Name).ThenBy(m => m.Id)
-            .Select(m => new ShippingMethodDto(m.Id, m.Name, m.Price, m.FreeOver, m.Active, m.Position)).ToListAsync(ct);
+            .Select(m => new ShippingMethodDto(m.Id, m.Name, m.Price, m.FreeOver, m.Active, m.Position, db.Set<ShippingRate>().Count(r => r.ShippingMethodId == m.Id))).ToListAsync(ct);
 
     public async Task<ShippingMethodDto> CreateAsync(ShippingMethodInput input, CancellationToken ct = default)
     {
@@ -209,7 +304,44 @@ internal sealed class ShippingService(PiranhaDbContext db) : IShippingService
         Apply(m, input);
         m.UpdatedUtc = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
-        return ToDto(m);
+        return ToDto(m) with { RateCount = await db.Set<ShippingRate>().CountAsync(r => r.ShippingMethodId == id, ct) };
+    }
+
+    public async Task<IReadOnlyList<ShippingRateDto>?> GetRatesAsync(Guid id, CancellationToken ct = default)
+    {
+        if (!await db.Set<ShippingMethod>().AnyAsync(m => m.Id == id, ct)) return null;
+        return await db.Set<ShippingRate>().AsNoTracking().Where(r => r.ShippingMethodId == id)
+            .OrderBy(r => r.CountryCode).ThenBy(r => r.MinWeightGrams).ThenBy(r => r.Id)
+            .Select(r => new ShippingRateDto(r.Id, r.CountryCode, r.MinWeightGrams, r.MaxWeightGrams, r.Price)).ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<ShippingRateDto>?> SetRatesAsync(Guid id, ShippingRatesInput input, CancellationToken ct = default)
+    {
+        if (input.Rates is null || input.Rates.Count > 200) throw new PiranhaValidationException(nameof(ShippingRatesInput.Rates), "Give at most 200 rates.");
+        foreach (var r in input.Rates) ModelValidator.ValidateOrThrow(r); // the list is not walked by the validator, so each row is
+        if (ShippingRates.Problem(input.Rates) is { } problem) throw new PiranhaValidationException(nameof(ShippingRatesInput.Rates), problem);
+
+        var strategy = db.Database.CreateExecutionStrategy();
+        var found = await strategy.ExecuteInTransactionAsync(
+            async token =>
+            {
+                db.ChangeTracker.Clear();
+                // Touch the method row first: two simultaneous replacements then run one after the other instead of mixing their rows.
+                var touched = await db.Set<ShippingMethod>().Where(m => m.Id == id).ExecuteUpdateAsync(s => s.SetProperty(m => m.UpdatedUtc, (DateTimeOffset?)DateTimeOffset.UtcNow), token);
+                if (touched == 0) return false;
+                await db.Set<ShippingRate>().Where(r => r.ShippingMethodId == id).ExecuteDeleteAsync(token);
+                foreach (var r in input.Rates)
+                    db.Add(new ShippingRate
+                    {
+                        ShippingMethodId = id, CountryCode = r.CountryCode.ToUpperInvariant(), MinWeightGrams = r.MinWeightGrams,
+                        MaxWeightGrams = r.MaxWeightGrams, Price = r.Price,
+                    });
+                await db.SaveChangesAsync(token);
+                return true;
+            },
+            async token => await db.Set<ShippingRate>().AsNoTracking().CountAsync(r => r.ShippingMethodId == id, token) == input.Rates.Count,
+            ct);
+        return found ? await GetRatesAsync(id, ct) : null;
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)

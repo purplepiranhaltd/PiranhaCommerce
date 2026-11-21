@@ -23,6 +23,9 @@
                 }
             </InputSelect>
         </label>
+        <label>Weight in grams (for shipping rates by weight; leave empty if you do not use them)
+            <InputNumber @bind-Value="_weightGrams" />
+        </label>
         <button type="button" @onclick="SaveAsync" disabled="@_saving">Save online settings</button>
         @if (_message is not null)
         {
@@ -38,6 +41,7 @@
     private ProductListingDto? _listing;
     private IReadOnlyList<TaxClassDto> _classes = [];
     private Guid? _taxClassId;
+    private int? _weightGrams;
     private bool _published, _loading = true, _saving;
     private string? _message;
     private Guid _loadedFor;
@@ -51,6 +55,7 @@
         _listing = await Scope.RunAsync<IProductListingService, ProductListingDto?>(s => s.GetAsync(ProductId));
         _published = _listing?.Published ?? false;
         _taxClassId = _listing?.TaxClassId;
+        _weightGrams = _listing?.WeightGrams;
         _classes = await Scope.RunAsync<ITaxService, IReadOnlyList<TaxClassDto>>(s => s.ListClassesAsync());
         _loading = false;
     }
@@ -61,7 +66,7 @@
         try
         {
             _listing = await Scope.RunAsync<IProductListingService, ProductListingDto?>(
-                s => s.SetAsync(ProductId, new ProductListingInput { Published = _published, TaxClassId = _taxClassId }));
+                s => s.SetAsync(ProductId, new ProductListingInput { Published = _published, TaxClassId = _taxClassId, WeightGrams = _weightGrams }));
             _message = _listing is null ? "Product no longer exists." : "Saved.";
         }
         finally { _saving = false; }

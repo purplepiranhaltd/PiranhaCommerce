@@ -60,6 +60,9 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
                 await svc.SetVoucherAsync(id, null, ct) is { } b ? Results.Ok(b) : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 
+        baskets.MapGet("/{id:guid}/shipping-options", async (Guid id, string countryCode, IBasketService svc, CancellationToken ct) =>
+            await svc.ShippingOptionsAsync(id, countryCode, ct) is { } o ? Results.Ok(o) : Results.NotFound());
+
         baskets.MapPost("/{id:guid}/quote", async (Guid id, QuoteInput input, IBasketService svc, CancellationToken ct) =>
             await svc.QuoteAsync(id, input, ct) is { } q ? Results.Ok(q) : Results.NotFound());
 
@@ -73,6 +76,13 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
                 var m = await svc.CreateAsync(input, ct);
                 return Results.Created($"/api/v1/shipping-methods/{m.Id}", m);
             })
+            .RequireAuthorization(ApiPolicies.Write);
+
+        shipping.MapGet("/{id:guid}/rates", async (Guid id, IShippingService svc, CancellationToken ct) =>
+            await svc.GetRatesAsync(id, ct) is { } r ? Results.Ok(r) : Results.NotFound());
+
+        shipping.MapPut("/{id:guid}/rates", async (Guid id, ShippingRatesInput input, IShippingService svc, CancellationToken ct) =>
+                await svc.SetRatesAsync(id, input, ct) is { } r ? Results.Ok(r) : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 
         shipping.MapPut("/{id:guid}", async (Guid id, ShippingMethodInput input, IShippingService svc, CancellationToken ct) =>

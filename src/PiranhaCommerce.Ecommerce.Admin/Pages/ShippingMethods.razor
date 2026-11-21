@@ -3,7 +3,7 @@
 
 <PageTitle>Shipping methods - Piranha Commerce</PageTitle>
 <h1>Shipping methods</h1>
-<p class="pc-muted">Once any method is active, checkout must choose one. With none, shipping is free. Orders keep their own copy of the name and price.</p>
+<p class="pc-muted">Once any method is active, checkout must choose one. With none, shipping is free. Orders keep their own copy of the name and price. A method can charge by destination and basket weight: edit it, then add rates below.</p>
 
 @if (_error is not null)
 {
@@ -28,6 +28,40 @@
     </EditForm>
 </div>
 
+@if (_editing is not null)
+{
+    <div class="pc-card">
+        <h2 style="margin-top:0">Rates for this method</h2>
+        <p class="pc-muted">
+            With no rates, the price above applies everywhere. With rates, a destination or weight no row covers is not served by this method.
+            Each row is a country (or * for every other country) and a weight band in grams: from the first weight up to, but not including, the second
+            (leave it empty for no limit). Rows for a country you list take precedence over the * rows. The "free when the basket reaches" amount still applies.
+            Set a product's weight in its Online store settings.
+        </p>
+        <table class="pc-table">
+            <thead><tr><th>Country</th><th>From (g)</th><th>Up to (g)</th><th>Price</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var r in _rates)
+            {
+                <tr>
+                    <td><InputText @bind-Value="r.CountryCode" maxlength="2" style="width:4rem" /></td>
+                    <td><InputNumber @bind-Value="r.MinWeightGrams" /></td>
+                    <td><InputNumber @bind-Value="r.MaxWeightGrams" /></td>
+                    <td><InputNumber @bind-Value="r.Price" /></td>
+                    <td class="actions"><button type="button" class="secondary" @onclick="() => _rates.Remove(r)">Remove</button></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+        <button type="button" class="secondary" @onclick="AddRate">Add a rate</button>
+        <button type="button" disabled="@_busy" @onclick="SaveRatesAsync">Save rates</button>
+        @if (_ratesMessage is not null)
+        {
+            <span class="pc-muted" role="status"> @_ratesMessage</span>
+        }
+    </div>
+}
+
 @if (_methods is null)
 {
     <p class="pc-muted">Loading...</p>
@@ -39,7 +73,7 @@ else if (_methods.Count == 0)
 else
 {
     <table class="pc-table">
-        <thead><tr><th>Name</th><th style="text-align:right">Price</th><th style="text-align:right">Free over</th><th>Active</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th style="text-align:right">Price</th><th style="text-align:right">Free over</th><th>Rates</th><th>Active</th><th></th></tr></thead>
         <tbody>
         @foreach (var m in _methods)
         {
@@ -47,9 +81,10 @@ else
                 <td>@m.Name</td>
                 <td style="text-align:right">@m.Price.ToString("N2")</td>
                 <td style="text-align:right">@(m.FreeOver?.ToString("N2") ?? "-")</td>
+                <td>@(m.RateCount == 0 ? "flat price" : m.RateCount + " rates")</td>
                 <td>@(m.Active ? "Yes" : "No")</td>
                 <td class="actions">
-                    <button class="secondary" @onclick="() => Edit(m)">Edit</button>
+                    <button class="secondary" @onclick="() => EditAsync(m)">Edit</button>
                     @if (_confirmDelete == m.Id)
                     {
                         <button class="danger" @onclick="() => DeleteAsync(m.Id)">Confirm delete</button>
@@ -70,6 +105,8 @@ else
     private IReadOnlyList<ShippingMethodDto>? _methods;
     private ShippingMethodInput _input = new();
     private Guid? _editing;
+    private List<ShippingRateInput> _rates = [];
+    private string? _ratesMessage;
     private Guid? _confirmDelete;
     private string? _error;
     private bool _busy;
@@ -82,13 +119,35 @@ else
         catch (Exception ex) { _error = "Could not load shipping methods: " + ex.Message; }
     }
 
-    private void Edit(ShippingMethodDto m)
+    private async Task EditAsync(ShippingMethodDto m)
     {
         _editing = m.Id;
+        _ratesMessage = null;
         _input = new ShippingMethodInput { Name = m.Name, Price = m.Price, FreeOver = m.FreeOver, Active = m.Active, Position = m.Position };
+        var id = m.Id;
+        var rates = await Scope.RunAsync<IShippingService, IReadOnlyList<ShippingRateDto>?>(s => s.GetRatesAsync(id));
+        _rates = (rates ?? []).Select(r => new ShippingRateInput { CountryCode = r.CountryCode, MinWeightGrams = r.MinWeightGrams, MaxWeightGrams = r.MaxWeightGrams, Price = r.Price }).ToList();
     }
 
-    private void Reset() { _editing = null; _input = new(); }
+    private void Reset() { _editing = null; _input = new(); _rates = []; _ratesMessage = null; }
+
+    private void AddRate() => _rates.Add(new ShippingRateInput { CountryCode = "*" });
+
+    private async Task SaveRatesAsync()
+    {
+        if (_editing is not { } id) return;
+        _busy = true; _error = null; _ratesMessage = null;
+        try
+        {
+            var input = new ShippingRatesInput { Rates = _rates };
+            var saved = await Scope.RunAsync<IShippingService, IReadOnlyList<ShippingRateDto>?>(s => s.SetRatesAsync(id, input));
+            _ratesMessage = saved is null ? "That method no longer exists." : "Saved.";
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _error = "Could not save the rates: " + ex.Message; }
+        finally { _busy = false; }
+        await LoadAsync();
+    }
 
     private async Task SaveAsync()
     {

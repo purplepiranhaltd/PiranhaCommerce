@@ -1117,6 +1117,9 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.Property<Guid?>("TaxClassId")
                         .HasColumnType("uuid");
 
+                    b.Property<int?>("WeightGrams")
+                        .HasColumnType("integer");
+
                     b.HasKey("ProductId");
 
                     b.HasIndex("TaxClassId");
@@ -1274,6 +1277,37 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("ShippingMethod", "ecom");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.ShippingRate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CountryCode")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)");
+
+                    b.Property<int?>("MaxWeightGrams")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MinWeightGrams")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<Guid>("ShippingMethodId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShippingMethodId", "CountryCode");
+
+                    b.ToTable("ShippingRate", "ecom");
                 });
 
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.TaxClass", b =>
@@ -1852,6 +1886,15 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.HasOne("PiranhaCommerce.Ecommerce.Shipment", null)
                         .WithMany("Lines")
                         .HasForeignKey("ShipmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.ShippingRate", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Ecommerce.ShippingMethod", null)
+                        .WithMany()
+                        .HasForeignKey("ShippingMethodId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

@@ -158,7 +158,15 @@ internal sealed class OrderService(
 
                     // 2b. Shipping and tax, from the current rules, by the same calculator the quote uses.
                     var subtotal = lines.Sum(l => l.Price * l.Quantity);
+                    var country = input.ShippingAddress!.CountryCode.Trim().ToUpperInvariant();
                     var method = await ChooseShippingAsync(input.ShippingMethodId, token);
+                    decimal? shippingPrice = null; // by weight and destination when the method has rates
+                    if (method is not null)
+                    {
+                        var weight = await ShippingPricing.WeightAsync(db, lines.Select(l => (l.Id, l.Quantity)).ToList(), token);
+                        shippingPrice = await ShippingPricing.PriceAsync(db, method, country, weight, token)
+                            ?? throw new PiranhaValidationException(nameof(CheckoutInput.ShippingMethodId), "That shipping method is not available for this destination and basket.");
+                    }
 
                     // 2a. The promo code, if the basket holds one: checked again NOW, and one use spent with a single conditional
                     // update, so a limited code cannot be over-used by simultaneous orders. A code that fails stops the order (409)
@@ -179,11 +187,10 @@ internal sealed class OrderService(
                         discount = PromotionRules.Discount(promo!, subtotal);
                     }
 
-                    var country = input.ShippingAddress!.CountryCode.Trim().ToUpperInvariant();
                     var (rules, defaultClass) = await TaxLookup.LoadAsync(db, token);
                     var classes = await TaxLookup.ClassesAsync(db, productIdsInBasket, token);
                     var calc = OrderPricing.Calculate(
-                        lines.Select(l => (l.Price * l.Quantity, classes.GetValueOrDefault(l.Id))).ToList(), discount, method, rules, defaultClass, country);
+                        lines.Select(l => (l.Price * l.Quantity, classes.GetValueOrDefault(l.Id))).ToList(), discount, method, rules, defaultClass, country, shippingPrice);
 
                     // 3. Next order number. The UPDATE takes the counter row's lock, which is held to commit, so numbers are never shared.
                     await db.Set<OrderCounter>().Where(c => c.Id == 1)

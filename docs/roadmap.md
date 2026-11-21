@@ -76,8 +76,7 @@ Not built:
 
 - **Email**: the plugin point (`IEmailSender`), password reset / first sign-in by emailed link, and order confirmations and order updates (sent, cancelled, refunded) are built.
   SMTP sender is built, with editable templates in its own admin section. Planned: a Mailjet package using its Transactional Email templates (words live in Mailjet; a message is a key plus variables). Not built: other providers (SendGrid, Azure Communication Services - a plugin each), HTML and editable templates, a queue with
-  retries (mail is sent inline and a failure is only logged), welcome and order-status emails (shipped, cancelled, refunded),
-  and the order-status emails above. A verified email before sign-in is built as an option (`RequireVerifiedEmail`, off by default).
+  retries (mail is sent inline and a failure is only logged) and a welcome email. A verified email before sign-in is built as an option (`RequireVerifiedEmail`, off by default).
 - Staff admin for shopper accounts and ending sessions early are built (a session version on each sign-in, checked on every call; see the README).
   Staff actions on a sign-in are recorded (who, what, when). Not built: refresh tokens, and a shopper-facing "sign out everywhere" and list of their sessions.
 - Merging two baskets (claim only takes an unowned basket whole); guest checkout through the storefront API.
@@ -106,7 +105,8 @@ Not built yet:
 - Payment gateways: the plugin point is built (start a payment, signed webhooks, idempotent recording; tested with a fake gateway).
   Stripe is built (`PiranhaCommerce.Payments.Stripe`). Unreconciled payments are listed in the admin (retry or resolve with a note).
   An email alert goes to `AlertEmail` when something lands on that list. Not built: a badge in the admin menu, disputes/chargebacks, a shopper-facing "payment pending" state, and payment on delayed methods that confirm days later.
-- Shipping: flat price per method (optionally free above a spend). No weight/zone rates, carriers or live rates.
+- Shipping: a flat price per method (optionally free above a spend), or rates by destination country and basket weight. Not built: zones that group
+  countries (list each country), rates by basket value or item count, dimensional weight, carriers, live rates and labels, and free-shipping promo codes.
 - Tax: classes and per-country rates are built, prices are entered tax-exclusive; see "Tax: what is left" above.
 - Fulfilment: parcels, tracking, partial shipment, returns (with a restock choice per line) and refunds through the provider are built. Not built:
   buyer-requested returns (a request and approval step), return labels, exchanges, refunding a gift voucher's share back onto the voucher,
