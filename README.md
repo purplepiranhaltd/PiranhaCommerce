@@ -344,7 +344,8 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   is otherwise append-only, so this is the one place its text is edited); return reasons are kept, so do not write personal data in them. Open baskets
   are deleted and finished ones let go of the person. Erasure is refused, with the reasons, while any of their orders is Placed or Processing or
   is cancelled with money not yet refunded (their contact details are the only way to return it). Nothing is emailed about an erased order, even
-  when a late refund arrives. A record of each erasure (the old id, when, by whom, counts) is kept with no personal data in it. A package that
+  when a late refund arrives, and the SMTP sender also refuses any address on the reserved `.invalid` domain before connecting (an email sender
+  should check `UndeliverableAddress.IsUndeliverable`, since a send can cost money). A record of each erasure (the old id, when, by whom, counts) is kept with no personal data in it. A package that
   holds personal data takes part by registering an `ICustomerDataContributor` (check, export, erase). **What this does not reach:** copies held
   by your payment provider (Stripe keeps the checkout email), your email provider (send logs), server logs and backups. Deleting a customer with
   `DELETE /customers/{id}` is not erasure: it leaves their orders as they were. Known gap: a checkout that lands at the very moment its customer

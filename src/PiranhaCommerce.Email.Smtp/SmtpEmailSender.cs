@@ -71,6 +71,13 @@ public sealed class SmtpEmailSender(IOptions<SmtpEmailOptions> options, ISmtpTem
         if (!TryAddress(message.To, out var to) || (message.To ?? "").Contains(',') || (message.To ?? "").Contains(';'))
             throw new ArgumentException("The recipient is not a single valid email address.", nameof(message));
 
+        // An address that can never deliver (an erased customer's placeholder) is not worth a connection: skip it before touching the server.
+        if (UndeliverableAddress.IsUndeliverable(message.To))
+        {
+            logger.LogInformation("Email not sent: the recipient address can never deliver.");
+            return;
+        }
+
         var mime = new MimeMessage();
         mime.From.Add(from);
         mime.To.Add(to);

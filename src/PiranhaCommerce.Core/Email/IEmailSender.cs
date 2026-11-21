@@ -77,6 +77,22 @@ internal sealed class NoEmailSender(ILogger<NoEmailSender> logger) : IEmailSende
     }
 }
 
+/// <summary>Addresses no email should ever be attempted to. Every email sender should check this before connecting to a provider, because a send can cost money.</summary>
+public static class UndeliverableAddress
+{
+    /// <summary>
+    /// True for an address on the reserved <c>.invalid</c> domain (RFC 2606), which can never deliver. Erased customers' orders carry one
+    /// (<c>erased@erased.invalid</c>). The check ignores letter case and a trailing dot.
+    /// </summary>
+    public static bool IsUndeliverable(string? address)
+    {
+        var at = address?.LastIndexOf('@') ?? -1;
+        if (address is null || at < 0) return false;
+        var domain = address[(at + 1)..].Trim().TrimEnd('.');
+        return domain.Equals("invalid", StringComparison.OrdinalIgnoreCase) || domain.EndsWith(".invalid", StringComparison.OrdinalIgnoreCase);
+    }
+}
+
 public static class EmailServiceCollectionExtensions
 {
     /// <summary>Registers the do-nothing default unless a real sender is already registered, and the template catalog. Safe to call more than once.</summary>

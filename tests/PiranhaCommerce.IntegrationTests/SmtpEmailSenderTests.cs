@@ -170,6 +170,25 @@ public class SmtpEmailSenderTests
         Assert.StartsWith("Hello", mime.Subject);
     }
 
+    [Theory]
+    [InlineData("erased@erased.invalid")]
+    [InlineData("Someone@Example.INVALID")]
+    [InlineData("a@mail.example.invalid.")]
+    public async Task An_address_that_can_never_deliver_is_skipped_without_connecting_to_the_server(string to)
+    {
+        await using var server = new FakeSmtpServer();
+        await Sender(server).SendAsync(new EmailMessage(to, "customer.set-password", ResetVariables())); // no error, no connection, no cost
+        Assert.Empty(server.Received);
+
+        // Nothing is even listening here: a real attempt would throw, so quietly returning proves it never tried.
+        await Sender(null).SendAsync(new EmailMessage(to, "customer.set-password", ResetVariables()));
+
+        // Look-alikes are real addresses and are sent as normal.
+        await Sender(server).SendAsync(new EmailMessage("ada@invalidity.example", "customer.set-password", ResetVariables()));
+        await Sender(server).SendAsync(new EmailMessage("ada@example.com", "customer.set-password", ResetVariables()));
+        Assert.Equal(2, server.Received.Count);
+    }
+
     [Fact]
     public async Task A_key_with_no_stored_or_shipped_wording_fails_clearly_and_sends_nothing()
     {
