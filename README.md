@@ -420,8 +420,12 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   Winning moves no money. Losing is booked as a refund on the order (the money has gone back to the card) with no email to the buyer; if it cannot be
   booked (for example the shop already refunded in full) it still closes and waits on the unreconciled list. A refund that fails at the provider is
   listed there too, and alerts the shop, because the buyer has not been paid back: deal with it at the provider, then resolve it (retrying cannot book
-  these). Gateways report these through `GatewayEventKind.DisputeOpened | DisputeWon | DisputeLost | RefundFailed`. Not built: submitting
-  dispute evidence from the admin, and the provider's dispute fee.
+  these). Gateways report these through `GatewayEventKind.DisputeOpened | DisputeWon | DisputeLost | RefundFailed`. The provider's fee for the dispute is kept on it (`fee`, in the dispute's currency, updated as the provider reports it, so it shows
+  a fee that is returned when the shop wins) and is a cost to you, not part of the order. Evidence: `POST /disputes/{id}/evidence` (write access) sends what the
+  shop gives (product description, customer name and email, shipping address, carrier, tracking number, shipping date, notes) through the provider when it supports it
+  (Stripe does; other gateways opt in with `IDisputeEvidenceGateway`). `submit: false` saves it at the provider and can be repeated; `submit: true` sends it to the bank
+  and is final (`evidenceSubmittedUtc`). A decided dispute, one already sent, or an empty form is refused, and so is evidence the provider refuses (409). The
+  Disputes page has an Evidence form. Not built: uploading files (receipts, proof of delivery), as that needs file storage.
 - **Buyer-requested returns** (storefront `POST|GET /orders/{id}/return-requests`, `DELETE .../{requestId}`; staff `/return-requests`,
   `/return-requests/{id}/approve|reject`, `GET /orders/{id}/return-requests`; admin: Returns on the order page): a signed-in shopper asks to send
   back items of their own order. Only goods that were sent and are not already returned or asked for can be requested (open requests hold their
@@ -481,7 +485,7 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   `/api/v1/payments/webhooks/stripe` for `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `refund.created` and
   `refund.updated`. Locally: `stripe listen --forward-to localhost:5280/api/v1/payments/webhooks/stripe` prints the `whsec_...` to use. Webhook
   signatures are checked in constant time with a 5 minute tolerance; an unset webhook secret rejects everything. Amounts go to Stripe in
-  minor units (pence; whole yen); three-decimal currencies are refused. Not built: disputes, saved cards, Stripe Tax, 3-decimal currencies.
+  minor units (pence; whole yen); three-decimal currencies are refused. Not built: saved cards, Stripe Tax, 3-decimal currencies.
   The sample app serves plain `/thanks` and `/cart` pages (fixed text, nothing from the address echoed) for `SuccessUrl` and `CancelUrl`
   (`http://localhost:5280/thanks?session={CHECKOUT_SESSION_ID}` and `http://localhost:5280/cart` locally); a real shop points them at its own pages.
 - **Gift vouchers** (`/vouchers`, `POST|DELETE /baskets/{id}/voucher`): a way of PAYING, applied after tax. A voucher never changes the

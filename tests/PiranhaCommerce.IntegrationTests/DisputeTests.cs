@@ -47,6 +47,75 @@ public class DisputeTests(AlertFactory factory) : IClassFixture<AlertFactory>
     private static async Task<List<PaymentDisputeDto>> DisputesOf(HttpClient staff, OrderDto o) => await Read<List<PaymentDisputeDto>>(await staff.GetAsync($"/api/v1/orders/{o.Id}/disputes"));
 
     [Fact]
+    public async Task The_provider_fee_is_recorded_with_the_dispute_and_kept_up_to_date()
+    {
+        var staff = await factory.CreateAuthenticatedApiClientAsync();
+        var order = await PaidOrder(staff);
+        var id = "dp_" + Tag();
+        await Hook(new("dispute-opened", order.Id, order.Total, order.Currency, id, null, 15m));
+        Assert.Equal(15m, Assert.Single(await DisputesOf(staff, order)).Fee);
+        await Hook(new("dispute-won", order.Id, order.Total, order.Currency, id, null, 0m)); // the fee came back
+        var d = Assert.Single(await DisputesOf(staff, order));
+        Assert.Equal((DisputeStatus.Won, 0m), (d.Status, d.Fee));
+        await Hook(new("dispute-won", order.Id, order.Total, order.Currency, id)); // a replay that says nothing about fees keeps the figure
+        Assert.Equal(0m, Assert.Single(await DisputesOf(staff, order)).Fee);
+    }
+
+    [Fact]
+    public async Task Evidence_can_be_saved_then_sent_to_the_bank_once_and_not_after_the_dispute_is_decided()
+    {
+        var staff = await factory.CreateAuthenticatedApiClientAsync();
+        var order = await PaidOrder(staff);
+        var id = "dp_" + Tag();
+        await Hook(new("dispute-opened", order.Id, order.Total, order.Currency, id));
+        var dispute = Assert.Single(await DisputesOf(staff, order));
+        string Url(Guid d) => $"/api/v1/disputes/{d}/evidence";
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await staff.PostAsJsonAsync(Url(dispute.Id), new DisputeEvidenceInput())).StatusCode); // nothing to send
+        Assert.Equal(HttpStatusCode.NotFound, (await staff.PostAsJsonAsync(Url(Guid.NewGuid()), new DisputeEvidenceInput { Notes = "x" })).StatusCode);
+
+        // Saved only: it can still be changed.
+        var saved = await staff.PostAsJsonAsync(Url(dispute.Id), new DisputeEvidenceInput { ProductDescription = "A widget", TrackingNumber = "TRK1", ShippingDate = new DateOnly(2026, 11, 1) });
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        Assert.Null((await Read<PaymentDisputeDto>(saved)).EvidenceSubmittedUtc);
+
+        var sent = await staff.PostAsJsonAsync(Url(dispute.Id), new DisputeEvidenceInput { ProductDescription = "A widget", Notes = "Signed for", Submit = true });
+        Assert.NotNull((await Read<PaymentDisputeDto>(sent)).EvidenceSubmittedUtc);
+        var last = TestGateway.Evidence.Where(e => e.Reference == id).ToList();
+        Assert.Equal((2, false, true), (last.Count, last[0].Evidence.Submit, last[1].Evidence.Submit));
+        Assert.Equal(("TRK1", new DateOnly(2026, 11, 1)), (last[0].Evidence.TrackingNumber, last[0].Evidence.ShippingDate));
+
+        // Final once sent.
+        Assert.Equal(HttpStatusCode.Conflict, (await staff.PostAsJsonAsync(Url(dispute.Id), new DisputeEvidenceInput { Notes = "more" })).StatusCode);
+
+        // A decided dispute takes none.
+        var order2 = await PaidOrder(staff);
+        var id2 = "dp_" + Tag();
+        await Hook(new("dispute-opened", order2.Id, order2.Total, order2.Currency, id2));
+        await Hook(new("dispute-lost", order2.Id, order2.Total, order2.Currency, id2));
+        var closed = Assert.Single(await DisputesOf(staff, order2));
+        Assert.Equal(HttpStatusCode.Conflict, (await staff.PostAsJsonAsync(Url(closed.Id), new DisputeEvidenceInput { Notes = "late" })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Evidence_the_provider_refuses_is_a_conflict_and_does_not_count_as_sent_and_a_reader_cannot_send_any()
+    {
+        var staff = await factory.CreateAuthenticatedApiClientAsync();
+        var order = await PaidOrder(staff);
+        var id = "dp_refuse_" + Tag();
+        await Hook(new("dispute-opened", order.Id, order.Total, order.Currency, id));
+        var dispute = Assert.Single(await DisputesOf(staff, order));
+
+        var refused = await staff.PostAsJsonAsync($"/api/v1/disputes/{dispute.Id}/evidence", new DisputeEvidenceInput { Notes = "x", Submit = true });
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Null(Assert.Single(await DisputesOf(staff, order)).EvidenceSubmittedUtc);
+
+        var (email, password) = await factory.CreateReadOnlyUserAsync();
+        var reader = await factory.CreateAuthenticatedApiClientAsync(email, password);
+        Assert.Equal(HttpStatusCode.Forbidden, (await reader.PostAsJsonAsync($"/api/v1/disputes/{dispute.Id}/evidence", new DisputeEvidenceInput { Notes = "x" })).StatusCode);
+    }
+
+    [Fact]
     public async Task An_opened_dispute_is_recorded_once_and_tells_the_shop_about_the_deadline()
     {
         var staff = await factory.CreateAuthenticatedApiClientAsync();

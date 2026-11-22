@@ -232,6 +232,7 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.Property(d => d.Currency).HasMaxLength(3);
             e.Property(d => d.Status).HasConversion<string>().HasMaxLength(10);
             e.Property(d => d.Reason).HasMaxLength(200);
+            e.Property(d => d.Fee).HasPrecision(18, 4);
             e.HasIndex(d => new { d.Provider, d.Reference }).IsUnique();
             e.HasIndex(d => new { d.OrderId, d.OpenedUtc });
             e.HasIndex(d => new { d.Status, d.OpenedUtc });

@@ -201,6 +201,8 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
         var disputes = api.MapGroup("/disputes").WithTags("Payments");
         disputes.MapGet("/", async (DisputeStatus? status, int? page, int? pageSize, IDisputeService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListAsync(status, page, pageSize, ct))).RequireAuthorization(ApiPolicies.Read);
+        disputes.MapPost("/{id:guid}/evidence", async (Guid id, DisputeEvidenceInput input, IDisputeService svc, CancellationToken ct) =>
+            await svc.SubmitEvidenceAsync(id, input, ct) is { } d ? Results.Ok(d) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
         orders.MapGet("/{id:guid}/disputes", async (Guid id, IDisputeService svc, CancellationToken ct) =>
             await svc.ListForOrderAsync(id, ct) is { } list ? Results.Ok(list) : Results.NotFound()).RequireAuthorization(ApiPolicies.Read);
 

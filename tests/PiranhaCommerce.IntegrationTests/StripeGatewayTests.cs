@@ -132,6 +132,29 @@ public class StripeGatewayTests
     }
 
     [Fact]
+    public async Task Dispute_evidence_goes_to_the_dispute_with_only_the_fields_given_and_a_refusal_is_an_error()
+    {
+        var stripe = new FakeStripe(r => (HttpStatusCode.OK, "{}"));
+        await Gateway(stripe).SubmitEvidenceAsync("dp_1", new DisputeEvidence("A widget", null, "ada@example.com", null, "DPD", "TRK 1", new DateOnly(2026, 11, 1), "Signed for", false));
+        var (request, body) = Assert.Single(stripe.Calls);
+        Assert.Equal("/v1/disputes/dp_1", request.RequestUri!.AbsolutePath);
+        var form = Uri.UnescapeDataString(body.Replace("+", " "));
+        Assert.Contains("evidence[product_description]=A widget", form);
+        Assert.Contains("evidence[customer_email_address]=ada@example.com", form);
+        Assert.Contains("evidence[shipping_date]=2026-11-01", form);
+        Assert.Contains("evidence[uncategorized_text]=Signed for", form);
+        Assert.Contains("submit=false", form);
+        Assert.DoesNotContain("customer_name", form);
+
+        stripe.Calls.Clear();
+        await Gateway(stripe).SubmitEvidenceAsync("dp_1", new DisputeEvidence(null, null, null, null, null, null, null, "x", true));
+        Assert.Contains("submit=true", stripe.Calls[0].Body);
+
+        var refusing = new FakeStripe(_ => (HttpStatusCode.BadRequest, "{\"error\":{\"message\":\"already submitted\"}}"));
+        await Assert.ThrowsAsync<GatewayException>(() => Gateway(refusing).SubmitEvidenceAsync("dp_1", new DisputeEvidence(null, null, null, null, null, null, null, "x", true)));
+    }
+
+    [Fact]
     public async Task Disputes_and_failed_refunds_are_read_with_their_order_amount_reason_and_deadline()
     {
         var order = Guid.NewGuid();
@@ -140,6 +163,12 @@ public class StripeGatewayTests
             : (HttpStatusCode.NotFound, "{}"));
         static string Dispute(string type, string status) =>
             "{\"type\":\"" + type + "\",\"data\":{\"object\":{\"id\":\"dp_1\",\"status\":\"" + status + "\",\"amount\":1250,\"currency\":\"gbp\",\"payment_intent\":\"pi_123\",\"reason\":\"fraudulent\",\"evidence_details\":{\"due_by\":1893456000}}}}";
+
+        // The fee is the net of the balance transactions in the dispute's currency (a debit, and any reversal).
+        var withFee = "{\"type\":\"charge.dispute.closed\",\"data\":{\"object\":{\"id\":\"dp_1\",\"status\":\"won\",\"amount\":1250,\"currency\":\"gbp\",\"payment_intent\":\"pi_123\",\"balance_transactions\":[{\"currency\":\"gbp\",\"fee\":1500},{\"currency\":\"gbp\",\"fee\":-1500},{\"currency\":\"usd\",\"fee\":999}]}}}";
+        Assert.Equal(0m, Assert.Single(await Gateway(stripe).ReadWebhookAsync(Signed(withFee))).Fee);
+        Assert.Equal(15m, Assert.Single(await Gateway(stripe).ReadWebhookAsync(Signed(withFee.Replace("-1500", "0")))).Fee);
+        Assert.Null(Assert.Single(await Gateway(stripe).ReadWebhookAsync(Signed(Dispute("charge.dispute.created", "needs_response")))).Fee);
 
         var opened = Assert.Single(await Gateway(stripe).ReadWebhookAsync(Signed(Dispute("charge.dispute.created", "needs_response"))));
         Assert.Equal((GatewayEventKind.DisputeOpened, order, 12.50m, "GBP", "dp_1", "fraudulent"), (opened.Kind, opened.OrderId, opened.Amount, opened.Currency, opened.Reference, opened.Detail));

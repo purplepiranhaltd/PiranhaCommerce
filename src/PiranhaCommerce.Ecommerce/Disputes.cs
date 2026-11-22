@@ -1,6 +1,8 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Paging;
+using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
 
 namespace PiranhaCommerce.Ecommerce;
@@ -26,14 +28,39 @@ public class PaymentDispute : Entity
     public DateTimeOffset OpenedUtc { get; set; }
     public DateTimeOffset? RespondByUtc { get; set; }
     public DateTimeOffset? ClosedUtc { get; set; }
+    /// <summary>What the provider charged the shop for the dispute (a cost of doing business, not part of the order), when it said.</summary>
+    public decimal? Fee { get; set; }
+    /// <summary>When the shop's evidence was sent to the bank. Null until then; once set it cannot be changed.</summary>
+    public DateTimeOffset? EvidenceSubmittedUtc { get; set; }
 }
 
 public sealed record PaymentDisputeDto(
     Guid Id, string Provider, string Reference, Guid OrderId, string OrderReference, decimal Amount, string Currency, DisputeStatus Status,
-    string? Reason, DateTimeOffset OpenedUtc, DateTimeOffset? RespondByUtc, DateTimeOffset? ClosedUtc);
+    string? Reason, DateTimeOffset OpenedUtc, DateTimeOffset? RespondByUtc, DateTimeOffset? ClosedUtc, decimal? Fee = null, DateTimeOffset? EvidenceSubmittedUtc = null);
+
+public sealed class DisputeEvidenceInput
+{
+    [StringLength(5000)] public string? ProductDescription { get; set; }
+    [StringLength(200)] public string? CustomerName { get; set; }
+    [EmailAddress, StringLength(256)] public string? CustomerEmail { get; set; }
+    [StringLength(500)] public string? ShippingAddress { get; set; }
+    [StringLength(100)] public string? ShippingCarrier { get; set; }
+    [StringLength(100)] public string? TrackingNumber { get; set; }
+    public DateOnly? ShippingDate { get; set; }
+    /// <summary>Anything else that shows the buyer received what they paid for.</summary>
+    [StringLength(10000)] public string? Notes { get; set; }
+    /// <summary>False saves it at the provider and can be changed; true sends it to the bank and is final.</summary>
+    public bool Submit { get; set; }
+}
 
 public interface IDisputeService
 {
+    /// <summary>
+    /// Sends evidence for an open dispute through its provider. Validation error when the provider cannot take evidence from here, nothing is
+    /// filled in, or the dispute has already been answered; conflict when it is no longer open. Null when the dispute does not exist.
+    /// </summary>
+    Task<PaymentDisputeDto?> SubmitEvidenceAsync(Guid disputeId, DisputeEvidenceInput input, CancellationToken ct = default);
+
     /// <param name="status">null for all. Newest first.</param>
     Task<PagedResult<PaymentDisputeDto>> ListAsync(DisputeStatus? status, int? page, int? pageSize, CancellationToken ct = default);
 
@@ -44,8 +71,39 @@ public interface IDisputeService
     Task<int> OpenCountAsync(CancellationToken ct = default);
 }
 
-internal sealed class DisputeService(PiranhaDbContext db) : IDisputeService
+internal sealed class DisputeService(PiranhaDbContext db, IEnumerable<IDisputeEvidenceGateway> evidenceGateways) : IDisputeService
 {
+    public async Task<PaymentDisputeDto?> SubmitEvidenceAsync(Guid disputeId, DisputeEvidenceInput input, CancellationToken ct = default)
+    {
+        ModelValidator.ValidateOrThrow(input);
+        var d = await db.Set<PaymentDispute>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == disputeId, ct);
+        if (d is null) return null;
+        if (d.Status != DisputeStatus.Open) throw new PiranhaConflictException("This dispute has already been decided.");
+        if (d.EvidenceSubmittedUtc is not null) throw new PiranhaConflictException("Evidence has already been sent to the bank for this dispute and cannot be changed.");
+        if (string.IsNullOrWhiteSpace(input.ProductDescription + input.CustomerName + input.CustomerEmail + input.ShippingAddress + input.ShippingCarrier + input.TrackingNumber + input.Notes) && input.ShippingDate is null)
+            throw new PiranhaValidationException(nameof(DisputeEvidenceInput.Notes), "Give at least some evidence.");
+        var gateway = evidenceGateways.FirstOrDefault(g => string.Equals(g.Name, d.Provider, StringComparison.OrdinalIgnoreCase))
+            ?? throw new PiranhaValidationException(nameof(PaymentDisputeDto.Provider), $"Evidence for {d.Provider} disputes has to be sent in the provider's own dashboard.");
+
+        try
+        {
+            await gateway.SubmitEvidenceAsync(d.Reference, new DisputeEvidence(
+                Clean(input.ProductDescription), Clean(input.CustomerName), Clean(input.CustomerEmail), Clean(input.ShippingAddress), Clean(input.ShippingCarrier),
+                Clean(input.TrackingNumber), input.ShippingDate, Clean(input.Notes), input.Submit), ct);
+        }
+        catch (GatewayException ex)
+        {
+            throw new PiranhaConflictException("The payment provider did not accept the evidence: " + ex.Message);
+        }
+
+        if (input.Submit)
+            await db.Set<PaymentDispute>().Where(x => x.Id == d.Id && x.EvidenceSubmittedUtc == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.EvidenceSubmittedUtc, (DateTimeOffset?)DateTimeOffset.UtcNow), ct);
+        return (await ToDtosAsync([await db.Set<PaymentDispute>().AsNoTracking().FirstAsync(x => x.Id == d.Id, ct)], ct))[0];
+    }
+
+    private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
     public async Task<PagedResult<PaymentDisputeDto>> ListAsync(DisputeStatus? status, int? page, int? pageSize, CancellationToken ct = default)
     {
         var (p, size) = Paging.Normalize(page, pageSize);
@@ -69,6 +127,6 @@ internal sealed class DisputeService(PiranhaDbContext db) : IDisputeService
         var ids = rows.Select(r => r.OrderId).Distinct().ToList();
         var numbers = await db.Set<Order>().AsNoTracking().Where(o => ids.Contains(o.Id)).Select(o => new { o.Id, o.Number }).ToDictionaryAsync(o => o.Id, o => o.Number, ct);
         return rows.Select(d => new PaymentDisputeDto(d.Id, d.Provider, d.Reference, d.OrderId, OrderNumbers.Format(numbers.GetValueOrDefault(d.OrderId)), d.Amount, d.Currency,
-            d.Status, d.Reason, d.OpenedUtc, d.RespondByUtc, d.ClosedUtc)).ToList();
+            d.Status, d.Reason, d.OpenedUtc, d.RespondByUtc, d.ClosedUtc, d.Fee, d.EvidenceSubmittedUtc)).ToList();
     }
 }

@@ -50,7 +50,8 @@ public enum GatewayEventKind { PaymentConfirmed = 0, RefundConfirmed = 1, Disput
 /// <param name="Reference">The gateway's unique id for this payment, refund or dispute. Replays of the same webhook carry the same one, which is what makes them harmless.</param>
 /// <param name="Detail">For a dispute, the reason the bank gave. Optional.</param>
 /// <param name="RespondBy">For a dispute that has just opened, when the shop must answer by. Optional.</param>
-public sealed record GatewayEvent(GatewayEventKind Kind, Guid OrderId, decimal Amount, string Currency, string Reference, string? Detail = null, DateTimeOffset? RespondBy = null);
+/// <param name="Fee">For a dispute, the fee the provider has charged the shop for it so far (in the dispute's currency), when it says. Optional.</param>
+public sealed record GatewayEvent(GatewayEventKind Kind, Guid OrderId, decimal Amount, string Currency, string Reference, string? Detail = null, DateTimeOffset? RespondBy = null, decimal? Fee = null);
 
 public sealed class GatewayWebhookRejectedException(string message) : Exception(message);
 
@@ -67,6 +68,24 @@ public interface IRefundingGateway : IPaymentGateway
     /// </summary>
     Task<GatewayRefund> RefundAsync(GatewayRefundRequest request, CancellationToken ct = default);
 }
+
+/// <summary>
+/// A gateway that can send the shop's evidence for a dispute to the bank. Optional, like refunding: without it the shop answers in the
+/// provider's own dashboard. Implement it on the same class as <see cref="IPaymentGateway"/>.
+/// </summary>
+public interface IDisputeEvidenceGateway : IPaymentGateway
+{
+    /// <summary>
+    /// Sends the evidence for the dispute with the gateway's own id. With <see cref="DisputeEvidence.Submit"/> false it is only saved at the
+    /// gateway and can still be changed; true sends it to the bank, after which it cannot be changed. Throw <see cref="GatewayException"/> when refused.
+    /// </summary>
+    Task SubmitEvidenceAsync(string reference, DisputeEvidence evidence, CancellationToken ct = default);
+}
+
+/// <summary>What the shop tells the bank. Every field is optional; the gateway sends the ones it has a place for.</summary>
+public sealed record DisputeEvidence(
+    string? ProductDescription, string? CustomerName, string? CustomerEmail, string? ShippingAddress, string? ShippingCarrier,
+    string? TrackingNumber, DateOnly? ShippingDate, string? Notes, bool Submit);
 
 /// <param name="PaymentReference">The gateway's id for the payment being refunded, as recorded when the payment was booked.</param>
 public sealed record GatewayRefundRequest(Guid OrderId, string PaymentReference, decimal Amount, string Currency, string IdempotencyKey);
@@ -109,6 +128,7 @@ public static class PaymentGatewayExtensions
         services.AddSingleton<IPaymentGateway>(sp => sp.GetRequiredService<T>());
         services.AddSingleton<IPaymentProvider>(sp => sp.GetRequiredService<T>());
         if (typeof(IRefundingGateway).IsAssignableFrom(typeof(T))) services.AddSingleton<IRefundingGateway>(sp => (IRefundingGateway)(object)sp.GetRequiredService<T>());
+        if (typeof(IDisputeEvidenceGateway).IsAssignableFrom(typeof(T))) services.AddSingleton<IDisputeEvidenceGateway>(sp => (IDisputeEvidenceGateway)(object)sp.GetRequiredService<T>());
         return services;
     }
 }
@@ -297,7 +317,7 @@ internal sealed class GatewayService(
                 Provider = provider, Reference = UnreconciledPaymentService.Truncate(e.Reference, 200), OrderId = e.OrderId, Amount = e.Amount,
                 Currency = UnreconciledPaymentService.Truncate(e.Currency ?? "", 3), Status = newStatus,
                 Reason = e.Detail is null ? null : UnreconciledPaymentService.Truncate(e.Detail, 200), OpenedUtc = now, RespondByUtc = e.RespondBy,
-                ClosedUtc = newStatus == DisputeStatus.Open ? null : now,
+                ClosedUtc = newStatus == DisputeStatus.Open ? null : now, Fee = e.Fee,
             };
             db.Add(dispute);
             try { await db.SaveChangesAsync(ct); changed = true; opened = newStatus == DisputeStatus.Open; }
@@ -309,6 +329,10 @@ internal sealed class GatewayService(
             changed = await db.Set<PaymentDispute>().Where(d => d.Id == existing.Id && d.Status == DisputeStatus.Open)
                 .ExecuteUpdateAsync(s => s.SetProperty(d => d.Status, newStatus).SetProperty(d => d.ClosedUtc, (DateTimeOffset?)now), ct) > 0;
         }
+
+        // The provider's fee can grow or be returned as the dispute goes on: keep the latest figure it gave.
+        if (e.Fee is { } fee && existing is not null)
+            await db.Set<PaymentDispute>().Where(d => d.Id == existing.Id).ExecuteUpdateAsync(s => s.SetProperty(d => d.Fee, (decimal?)fee), ct);
 
         // The shop must answer a new dispute by a deadline: it is the one thing worth an email.
         if (opened) await mailer.DisputeOpenedAsync(provider, e, ct);

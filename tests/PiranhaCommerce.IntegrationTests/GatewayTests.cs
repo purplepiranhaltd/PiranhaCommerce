@@ -11,8 +11,18 @@ using PiranhaCommerce.Ecommerce;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>A stand-in gateway: signs webhooks with an HMAC like real ones do, so the host's handling can be tested end to end.</summary>
-public sealed class TestGateway : IRefundingGateway
+public sealed class TestGateway : IRefundingGateway, IDisputeEvidenceGateway
 {
+    /// <summary>Evidence sent through this gateway: (dispute reference, evidence). A reference starting dp_refuse is refused.</summary>
+    public static readonly System.Collections.Concurrent.ConcurrentQueue<(string Reference, DisputeEvidence Evidence)> Evidence = new();
+
+    public Task SubmitEvidenceAsync(string reference, DisputeEvidence evidence, CancellationToken ct = default)
+    {
+        if (reference.StartsWith("dp_refuse", StringComparison.Ordinal)) throw new GatewayException("testpay refused the evidence");
+        Evidence.Enqueue((reference, evidence));
+        return Task.CompletedTask;
+    }
+
     public const string Secret = "test-gateway-secret";
     public string Name => "testpay";
     public string DisplayName => "Test gateway";
@@ -35,7 +45,7 @@ public sealed class TestGateway : IRefundingGateway
                 "dispute-lost" => GatewayEventKind.DisputeLost,
                 "refund-failed" => GatewayEventKind.RefundFailed,
                 _ => GatewayEventKind.PaymentConfirmed,
-            }, e.OrderId, e.Amount, e.Currency, e.Reference, e.Detail, e.Type == "dispute-opened" ? new DateTimeOffset(2030, 1, 15, 0, 0, 0, TimeSpan.Zero) : null)];
+            }, e.OrderId, e.Amount, e.Currency, e.Reference, e.Detail, e.Type == "dispute-opened" ? new DateTimeOffset(2030, 1, 15, 0, 0, 0, TimeSpan.Zero) : null, e.Fee)];
         return Task.FromResult(events);
     }
 
@@ -49,7 +59,7 @@ public sealed class TestGateway : IRefundingGateway
     }
 
     public static string Sign(byte[] body) => Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(Secret), body));
-    public sealed record WireEvent(string Type, Guid OrderId, decimal Amount, string Currency, string Reference, string? Detail = null);
+    public sealed record WireEvent(string Type, Guid OrderId, decimal Amount, string Currency, string Reference, string? Detail = null, decimal? Fee = null);
 }
 
 [Collection(OrderSettings.Name)]

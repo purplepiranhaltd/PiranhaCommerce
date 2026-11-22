@@ -1415,6 +1415,13 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                         .HasMaxLength(3)
                         .HasColumnType("character varying(3)");
 
+                    b.Property<DateTimeOffset?>("EvidenceSubmittedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal?>("Fee")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
                     b.Property<DateTimeOffset>("OpenedUtc")
                         .HasColumnType("timestamp with time zone");
 

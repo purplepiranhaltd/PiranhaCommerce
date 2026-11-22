@@ -1419,6 +1419,13 @@ namespace PiranhaCommerce.Web.Migrations
                         .HasMaxLength(3)
                         .HasColumnType("nvarchar(3)");
 
+                    b.Property<DateTimeOffset?>("EvidenceSubmittedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<decimal?>("Fee")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<DateTimeOffset>("OpenedUtc")
                         .HasColumnType("datetimeoffset");
 

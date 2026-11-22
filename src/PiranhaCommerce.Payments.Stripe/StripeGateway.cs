@@ -41,7 +41,7 @@ public sealed class StripeOptions
 }
 
 /// <summary>Takes card payments through Stripe Checkout (a page Stripe hosts, so card numbers never touch this application).</summary>
-public sealed class StripeGateway(IHttpClientFactory http, IOptions<StripeOptions> options, ILogger<StripeGateway> logger, TimeProvider? time = null) : IRefundingGateway
+public sealed class StripeGateway(IHttpClientFactory http, IOptions<StripeOptions> options, ILogger<StripeGateway> logger, TimeProvider? time = null) : IRefundingGateway, IDisputeEvidenceGateway
 {
     public const string HttpClientName = "PiranhaCommerce.Stripe";
 
@@ -102,6 +102,23 @@ public sealed class StripeGateway(IHttpClientFactory http, IOptions<StripeOption
         if (id is null || !root.TryGetProperty("amount", out var amount) || !amount.TryGetInt64(out var minor))
             throw new GatewayException("Stripe answered a refund without an id or amount.");
         return new GatewayRefund(id, status, status == "succeeded", FromMinorUnits(minor, currency), currency);
+    }
+
+    public async Task SubmitEvidenceAsync(string reference, DisputeEvidence evidence, CancellationToken ct = default)
+    {
+        var form = new List<KeyValuePair<string, string>>();
+        void Add(string name, string? value) { if (!string.IsNullOrWhiteSpace(value)) form.Add(new($"evidence[{name}]", value)); }
+        Add("product_description", evidence.ProductDescription);
+        Add("customer_name", evidence.CustomerName);
+        Add("customer_email_address", evidence.CustomerEmail);
+        Add("shipping_address", evidence.ShippingAddress);
+        Add("shipping_carrier", evidence.ShippingCarrier);
+        Add("shipping_tracking_number", evidence.TrackingNumber);
+        Add("shipping_date", evidence.ShippingDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        Add("uncategorized_text", evidence.Notes);
+        form.Add(new("submit", evidence.Submit ? "true" : "false"));
+        // Stripe refuses further changes once submitted, so a retry of the same call is the only repeat that matters, and it is harmless.
+        using var response = await SendAsync(HttpMethod.Post, $"/v1/disputes/{Uri.EscapeDataString(reference)}", new FormUrlEncodedContent(form), null, ct);
     }
 
     public async Task<IReadOnlyList<GatewayEvent>> ReadWebhookAsync(GatewayWebhookRequest request, CancellationToken ct = default)
@@ -165,7 +182,16 @@ public sealed class StripeGateway(IHttpClientFactory http, IOptions<StripeOption
 
                 using var pi = await FetchAsync($"/v1/payment_intents/{Uri.EscapeDataString(intent)}", ct);
                 if (!pi.RootElement.TryGetProperty("metadata", out var meta) || !TryOrderId(meta, out var orderId, "order_id")) return [];
-                return [new GatewayEvent(kind.Value, orderId, FromMinorUnits(minor, currency), currency, reference, Str(obj, "reason"), respondBy)];
+                // Stripe's fee for the dispute is on the balance transactions it created (the debit, and any reversal if the shop wins): net it, in the dispute's currency.
+                decimal? fee = null;
+                if (obj.TryGetProperty("balance_transactions", out var txs) && txs.ValueKind == JsonValueKind.Array)
+                {
+                    long feeMinor = 0; var any = false;
+                    foreach (var tx in txs.EnumerateArray())
+                        if (string.Equals(Str(tx, "currency"), currency, StringComparison.OrdinalIgnoreCase) && tx.TryGetProperty("fee", out var f) && f.TryGetInt64(out var fm)) { feeMinor += fm; any = true; }
+                    if (any) fee = FromMinorUnits(feeMinor, currency);
+                }
+                return [new GatewayEvent(kind.Value, orderId, FromMinorUnits(minor, currency), currency, reference, Str(obj, "reason"), respondBy, fee)];
             }
 
             default:

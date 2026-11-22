@@ -5,8 +5,9 @@
 <PageTitle>Disputes - Piranha Commerce</PageTitle>
 <h1>Disputes</h1>
 <p class="pc-muted">
-    A buyer disputed a card payment with their bank. Answer an open dispute in the payment provider's own dashboard before its deadline.
-    Winning moves no money; a lost dispute is recorded as a refund on the order.
+    A buyer disputed a card payment with their bank. Answer an open dispute before its deadline: where the provider allows it you can send evidence from here
+    (save it first if you like, then send it: sending is final), otherwise use the provider's own dashboard. Winning moves no money; a lost dispute is recorded
+    as a refund on the order. The fee is what the provider charged you for the dispute.
 </p>
 
 @if (_error is not null)
@@ -27,7 +28,7 @@ else if (_items.Items.Count == 0)
 else
 {
     <table class="pc-table">
-        <thead><tr><th>Opened</th><th>Order</th><th>Provider</th><th style="text-align:right">Amount</th><th>Reason</th><th>Answer by</th><th>Status</th></tr></thead>
+        <thead><tr><th>Opened</th><th>Order</th><th>Provider</th><th style="text-align:right">Amount</th><th>Reason</th><th style="text-align:right">Fee</th><th>Answer by</th><th>Status</th><th></th></tr></thead>
         <tbody>
         @foreach (var d in _items.Items)
         {
@@ -37,9 +38,30 @@ else
                 <td>@d.Provider<br /><span class="pc-muted">@d.Reference</span></td>
                 <td style="text-align:right">@d.Amount.ToString("N2") @d.Currency</td>
                 <td>@d.Reason</td>
+                <td style="text-align:right">@(d.Fee is null ? "-" : d.Fee.Value.ToString("N2"))</td>
                 <td>@(d.RespondByUtc?.ToString("dd MMM yyyy") ?? "-")</td>
-                <td>@d.Status</td>
+                <td>@d.Status@(d.EvidenceSubmittedUtc is not null ? " (evidence sent)" : "")</td>
+                <td>@if (d.Status == DisputeStatus.Open && d.EvidenceSubmittedUtc is null) { <button type="button" class="secondary" @onclick="() => Open(d)">Evidence</button> }</td>
             </tr>
+            @if (_editing == d.Id)
+            {
+                <tr><td colspan="9">
+                    <div class="pc-card">
+                        <label>What was sold <textarea rows="2" @bind="_form.ProductDescription"></textarea></label>
+                        <label>Customer name <input @bind="_form.CustomerName" /></label>
+                        <label>Customer email <input @bind="_form.CustomerEmail" /></label>
+                        <label>Shipping address <input @bind="_form.ShippingAddress" /></label>
+                        <label>Carrier <input @bind="_form.ShippingCarrier" /></label>
+                        <label>Tracking number <input @bind="_form.TrackingNumber" /></label>
+                        <label>Shipped on <input type="date" @bind="_form.ShippingDate" /></label>
+                        <label>Anything else that shows they received it <textarea rows="3" @bind="_form.Notes"></textarea></label>
+                        <button type="button" class="secondary" disabled="@_busy" @onclick="() => SendAsync(d, false)">Save only</button>
+                        <button type="button" disabled="@_busy" @onclick="() => SendAsync(d, true)">Send to the bank (final)</button>
+                        <button type="button" class="secondary" @onclick="() => _editing = null">Close</button>
+                        @if (_message is not null) { <p role="status">@_message</p> }
+                    </div>
+                </td></tr>
+            }
         }
         </tbody>
     </table>
@@ -48,7 +70,29 @@ else
 @code {
     private PagedResult<PaymentDisputeDto>? _items;
     private bool _openOnly = true;
-    private string? _error;
+    private string? _error, _message;
+    private Guid? _editing;
+    private bool _busy;
+    private DisputeEvidenceInput _form = new();
+
+    private void Open(PaymentDisputeDto d) { _editing = d.Id; _form = new(); _message = null; }
+
+    private async Task SendAsync(PaymentDisputeDto d, bool submit)
+    {
+        _busy = true; _message = null;
+        try
+        {
+            _form.Submit = submit;
+            var input = _form; var id = d.Id;
+            await Scope.RunAsync<IDisputeService, PaymentDisputeDto?>(s => s.SubmitEvidenceAsync(id, input));
+            if (submit) _editing = null;
+            else _message = "Saved at the provider. You can still change it.";
+            await LoadAsync();
+        }
+        catch (PiranhaCommerce.Core.Validation.PiranhaValidationException ex) { _message = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
+        catch (Exception ex) { _message = ex.Message; }
+        finally { _busy = false; }
+    }
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
