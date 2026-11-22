@@ -189,7 +189,12 @@ public sealed class QuoteInput
 public sealed record QuoteDto(
     string Currency, decimal Subtotal, decimal ShippingTotal, string? TaxName, decimal TaxRate, decimal TaxTotal, decimal Total,
     IReadOnlyList<TaxLineDto> Taxes, decimal DiscountTotal = 0m, string? PromotionCode = null, string? PromotionProblem = null,
-    decimal VoucherApplied = 0m, decimal AmountDue = 0m, string? VoucherLast4 = null, string? VoucherProblem = null);
+    decimal VoucherApplied = 0m, decimal AmountDue = 0m, string? VoucherLast4 = null, string? VoucherProblem = null,
+    IReadOnlyList<QuoteLineDto>? Lines = null, decimal ShippingTax = 0m);
+
+/// <summary>One basket line as it will be charged: the goods after its share of any discount, its tax, and the two added together, so a shop can show tax-inclusive line prices.</summary>
+public sealed record QuoteLineDto(
+    Guid ProductId, string Name, int Quantity, decimal UnitPrice, decimal LineTotal, decimal DiscountAmount, string? TaxName, decimal TaxRate, decimal TaxAmount, decimal LineTotalIncludingTax);
 
 /// <summary>The one place totals are worked out, used by the quote and by checkout so they can never disagree.</summary>
 public static class OrderPricing
@@ -232,6 +237,9 @@ public static class OrderPricing
         var (name, rate) = breakdown.Count switch { 0 => ((string?)null, 0m), 1 => (breakdown[0].Name, breakdown[0].Rate), _ => ("Tax", 0m) };
         return new TaxCalculation(perLine, forShipping, tax, goodsAfterDiscount + shipping + tax, name, rate, breakdown, shipping, shares.Sum(), shares);
     }
+
+    /// <summary>A price with tax added at a rate, rounded to the penny (for showing a unit price; charges are worked out per line by <see cref="Calculate"/>).</summary>
+    public static decimal IncludingTax(decimal price, decimal ratePercent) => price + Math.Round(price * ratePercent / 100m, 2, MidpointRounding.AwayFromZero);
 
     /// <summary>The class's rule for the country, else its fallback rule, else none (not taxed).</summary>
     public static TaxRule? RuleFor(IEnumerable<TaxRule> rules, Guid taxClassId, string countryCode)

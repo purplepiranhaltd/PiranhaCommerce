@@ -258,7 +258,9 @@ internal sealed partial class BasketService(PiranhaDbContext db, ICustomerServic
         }
 
         return new QuoteDto(basket.Currency, basket.Subtotal, calc.ShippingTotal, calc.SummaryName, calc.SummaryRate, calc.Tax, calc.Total,
-            calc.Breakdown, calc.Discount, basket.PromotionCode, problem, applied, calc.Total - applied, basket.VoucherLast4, voucherProblem);
+            calc.Breakdown, calc.Discount, basket.PromotionCode, problem, applied, calc.Total - applied, basket.VoucherLast4, voucherProblem,
+            basket.Lines.Select((l, i) => new QuoteLineDto(l.ProductId, l.Name, l.Quantity, l.UnitPrice, l.LineTotal, calc.LineDiscounts[i], calc.Lines[i].Name, calc.Lines[i].Rate,
+                calc.Lines[i].Amount, l.LineTotal - calc.LineDiscounts[i] + calc.Lines[i].Amount)).ToList(), calc.Shipping.Amount);
     }
 
     private Task<int> SetQuantityAsync(Guid basketId, Guid productId, int quantity, CancellationToken ct)

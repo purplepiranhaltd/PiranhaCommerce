@@ -375,6 +375,13 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   .../{categoryId}` with `{ "percent" }`; admin: Orders > Group category discounts). It covers the category's sub-categories (the nearest category that
   has one set wins), replaces the group's own percentage for products in it, and `0` means no discount there. A product in several categories gets
   the largest percentage. Within one group the most specific thing wins: fixed product price, then category percentage, then the group's own percentage.
+- **Tax-inclusive display.** Prices are still entered and stored without tax; a shop front can show them with tax added. The price lookups
+  (`GET /storefront/guest/prices`, `/storefront/prices`, `/customers/{id}/prices`) take an optional `countryCode` (or use `Piranha:Ecommerce:DefaultCountryCode`,
+  the shop's home country) and then also return `taxCountry`, `taxRate`, `priceIncludingTax` and `regularPriceIncludingTax`, by the rate of that product's tax class in that
+  country (0 when not taxed there; no tax figures when no country is known, as before). Each is the price plus its tax rounded to the penny, so a total built from unit
+  prices can differ by a penny from what is charged: charges are worked out per line, and the quote is the authority. A quote also returns `lines` (each with its share
+  of any discount, its tax, and `lineTotalIncludingTax`) and `shippingTax`, so a basket page can show tax-inclusive lines that add up to the total; order lines return
+  `lineTotalIncludingTax` too. Not built: entering prices tax-inclusive, and tax-inclusive figures on the basket itself (it does not know the destination: use the quote).
 - **Sales** (`/sales`, admin: Orders > Sales): between a start and an end (UTC), a percentage off the regular price of every product the sale covers: all
   products, whole categories (with their sub-categories) or named products, and a named product can have a fixed sale price instead (`PUT /sales/{id}/products/{productId}`
   with `{ "price" }`, or none to use the percentage; `PUT|DELETE /sales/{id}/categories/{categoryId}`). `enabled: false` pulls a sale early or holds it back; its status is

@@ -31,8 +31,8 @@ Built: sales, and group prices, by group percentage, by category percentage and 
 - **Advertised member prices** (like a supermarket's loyalty-card price): show everyone the member price, but only members get it. Today a shopper
   only sees a different price once they are identified, because the price lookup is by customer. This needs the member price returned alongside the
   regular price for people who are not members, and wording to say who qualifies.
-- **Tax-inclusive display.** Prices are entered and calculated tax-exclusive. Shoppers will need to see tax-inclusive prices (and the basket and order
-  showing the tax inside the price), by the destination country's rate. Not built.
+- **Tax-inclusive display:** built for showing (see the README): price lookups and quotes return tax-inclusive figures for a destination. Still open: entering prices
+  tax-inclusive (see Tax below), and a way for a shop front to show tax-inclusive figures on a basket before a destination is chosen without calling the quote.
 - **Minimum quantities and quantity breaks** ("10 or more at X"): left out for now.
 
 ## Translations (on hold, needs design)

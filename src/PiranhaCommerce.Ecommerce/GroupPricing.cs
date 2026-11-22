@@ -47,7 +47,11 @@ public sealed record ProductGroupPriceDto(Guid GroupId, string GroupName, decima
 
 /// <summary>What one shopper pays for a product: <see cref="Price"/> is the regular price unless one of their groups gives them less.</summary>
 /// <param name="SaleEndsUtc">When the price is a sale price, when that sale ends.</param>
-public sealed record ShopperPriceDto(Guid ProductId, decimal RegularPrice, decimal Price, bool Discounted, DateTimeOffset? SaleEndsUtc = null);
+/// <param name="TaxCountry">The destination the tax-inclusive figures are for (null when none was given and the shop has no default country).</param>
+/// <param name="TaxRate">The rate that applies to this product there (0 when it is not taxed). The tax-inclusive prices are the price plus that rate, rounded to the penny. A basket or quote adds tax per line, so a total can differ from unit price times quantity by a penny: the quote is what is charged.</param>
+public sealed record ShopperPriceDto(
+    Guid ProductId, decimal RegularPrice, decimal Price, bool Discounted, DateTimeOffset? SaleEndsUtc = null,
+    string? TaxCountry = null, decimal? TaxRate = null, decimal? PriceIncludingTax = null, decimal? RegularPriceIncludingTax = null);
 
 public interface IGroupPricingService
 {
@@ -70,7 +74,8 @@ public interface IGroupPricingService
     Task<bool> RemoveCategoryDiscountAsync(Guid groupId, Guid categoryId, CancellationToken ct = default);
 
     /// <summary>The prices this customer pays (a null customer pays the regular price). Products that do not exist are left out. At most 200 at a time.</summary>
-    Task<IReadOnlyList<ShopperPriceDto>> PricesAsync(Guid? customerId, IReadOnlyCollection<Guid> productIds, CancellationToken ct = default);
+    /// <param name="countryCode">The destination to show tax-inclusive prices for; the shop's default country when empty. A validation error when it is not two letters.</param>
+    Task<IReadOnlyList<ShopperPriceDto>> PricesAsync(Guid? customerId, IReadOnlyCollection<Guid> productIds, string? countryCode = null, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -162,7 +167,7 @@ internal static class GroupPricing
     }
 }
 
-internal sealed class GroupPricingService(PiranhaDbContext db) : IGroupPricingService
+internal sealed class GroupPricingService(PiranhaDbContext db, Microsoft.Extensions.Options.IOptions<EcommerceOptions> options) : IGroupPricingService
 {
     private async Task<IReadOnlyList<ProductGroupPriceDto>> RowsAsync(Guid productId, decimal regular, CancellationToken ct)
     {
@@ -254,15 +259,28 @@ internal sealed class GroupPricingService(PiranhaDbContext db) : IGroupPricingSe
     public async Task<bool> RemoveAsync(Guid productId, Guid groupId, CancellationToken ct = default) =>
         await db.Set<GroupPrice>().Where(p => p.GroupId == groupId && p.ProductId == productId).ExecuteDeleteAsync(ct) > 0;
 
-    public async Task<IReadOnlyList<ShopperPriceDto>> PricesAsync(Guid? customerId, IReadOnlyCollection<Guid> productIds, CancellationToken ct = default)
+    public async Task<IReadOnlyList<ShopperPriceDto>> PricesAsync(Guid? customerId, IReadOnlyCollection<Guid> productIds, string? countryCode = null, CancellationToken ct = default)
     {
+        if (!string.IsNullOrWhiteSpace(countryCode) && !System.Text.RegularExpressions.Regex.IsMatch(countryCode, "^[A-Za-z]{2}$"))
+            throw new PiranhaValidationException("countryCode", "Use a two-letter country code such as GB.");
+        var country = (string.IsNullOrWhiteSpace(countryCode) ? options.Value.DefaultCountryCode : countryCode)?.ToUpperInvariant();
         var ids = productIds.Distinct().Take(200).ToList();
         if (ids.Count == 0) return [];
         var regular = await db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).Select(p => new { p.Id, p.Price }).ToListAsync(ct);
         var effective = await GroupPricing.EffectiveAsync(db, customerId, regular.Select(r => (r.Id, r.Price)).ToList(), ct);
         var sales = await SalePricing.ActiveAsync(db, regular.Select(r => (r.Id, r.Price)).ToList(), ct);
+        var rates = new Dictionary<Guid, decimal>();
+        if (country is not null)
+        {
+            var (rules, defaultClass) = await TaxLookup.LoadAsync(db, ct);
+            var classes = await TaxLookup.ClassesAsync(db, regular.Select(r => r.Id).ToList(), ct);
+            foreach (var r in regular) rates[r.Id] = OrderPricing.RuleFor(rules, classes.GetValueOrDefault(r.Id) ?? defaultClass, country)?.Rate ?? 0m;
+        }
         return regular.Select(r => new ShopperPriceDto(r.Id, r.Price, effective[r.Id], effective[r.Id] < r.Price,
-            sales.TryGetValue(r.Id, out var sale) && sale.Price <= effective[r.Id] ? sale.EndsUtc : null)).OrderBy(r => r.ProductId).ToList();
+            sales.TryGetValue(r.Id, out var sale) && sale.Price <= effective[r.Id] ? sale.EndsUtc : null,
+            country, country is null ? null : rates[r.Id],
+            country is null ? null : OrderPricing.IncludingTax(effective[r.Id], rates[r.Id]),
+            country is null ? null : OrderPricing.IncludingTax(r.Price, rates[r.Id]))).OrderBy(r => r.ProductId).ToList();
     }
 }
 
@@ -295,8 +313,8 @@ internal sealed class GroupPricingEndpoints : IApiEndpointContributor
             .RequireAuthorization(ApiPolicies.Write);
 
         // For a shop front that shows prices on a shopper's behalf: what this customer pays for these products.
-        api.MapGet("/customers/{customerId:guid}/prices", async (Guid customerId, Guid[]? productIds, IGroupPricingService svc, CancellationToken ct) =>
-                Results.Ok(await svc.PricesAsync(customerId, productIds ?? [], ct)))
+        api.MapGet("/customers/{customerId:guid}/prices", async (Guid customerId, Guid[]? productIds, string? countryCode, IGroupPricingService svc, CancellationToken ct) =>
+                Results.Ok(await svc.PricesAsync(customerId, productIds ?? [], countryCode, ct)))
             .WithTags("Group prices");
     }
 }
@@ -306,8 +324,8 @@ internal sealed class GroupPricingStorefrontEndpoints : IStorefrontEndpointContr
 {
     public void MapEndpoints(IEndpointRouteBuilder storefront)
     {
-        storefront.MapGet("/prices", async (Guid[]? productIds, System.Security.Claims.ClaimsPrincipal user, IGroupPricingService svc, CancellationToken ct) =>
-                Results.Ok(await svc.PricesAsync(user.CustomerId(), productIds ?? [], ct)))
+        storefront.MapGet("/prices", async (Guid[]? productIds, string? countryCode, System.Security.Claims.ClaimsPrincipal user, IGroupPricingService svc, CancellationToken ct) =>
+                Results.Ok(await svc.PricesAsync(user.CustomerId(), productIds ?? [], countryCode, ct)))
             .WithTags("Storefront prices").AddEndpointFilter<ActiveCustomerFilter>();
     }
 }

@@ -183,7 +183,11 @@ public sealed record OrderAddressDto(string? Recipient, string Line1, string? Li
 
 public sealed record OrderLineDto(
     Guid ProductId, string Name, string? Sku, decimal UnitPrice, int Quantity, decimal LineTotal, string? TaxName = null, decimal TaxRate = 0m, decimal TaxAmount = 0m, decimal DiscountAmount = 0m,
-    Guid Id = default, int QuantityShipped = 0, int QuantityReturned = 0);
+    Guid Id = default, int QuantityShipped = 0, int QuantityReturned = 0)
+{
+    /// <summary>What the customer paid for this line with its tax: the line total less its share of any discount, plus its tax.</summary>
+    public decimal LineTotalIncludingTax => LineTotal - DiscountAmount + TaxAmount;
+}
 
 public sealed record OrderSummaryDto(
     Guid Id, long Number, string Reference, OrderStage Stage, PaymentStatus PaymentStatus, string Email, string Currency, decimal Total, DateTimeOffset CreatedUtc);
@@ -236,6 +240,13 @@ public sealed class EcommerceOptions
     /// build a basket and sign in or register to check out (the basket is merged or claimed). On by default.
     /// </summary>
     public bool AllowGuestCheckout { get; set; } = true;
+
+    /// <summary>
+    /// The shop's home country (two letters, e.g. GB). Price lookups that are not told a destination show tax-inclusive prices for it. Leave empty to show
+    /// no tax-inclusive prices unless the caller names a country.
+    /// </summary>
+    [RegularExpression("^[A-Za-z]{2}$", ErrorMessage = "Use a two-letter country code such as GB.")]
+    public string? DefaultCountryCode { get; set; }
 
     /// <summary>
     /// Orders still at Placed with no payment at all after this many hours are cancelled, which puts their stock back for other buyers (the buyer is

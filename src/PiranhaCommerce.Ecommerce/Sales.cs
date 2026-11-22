@@ -298,7 +298,7 @@ internal sealed class SaleEndpoints : IApiEndpointContributor
 internal sealed class SaleStorefrontEndpoints : IStorefrontEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder storefront) =>
-        storefront.MapGet("/guest/prices", async (Guid[]? productIds, IGroupPricingService svc, CancellationToken ct) =>
-                Results.Ok(await svc.PricesAsync(null, productIds ?? [], ct)))
+        storefront.MapGet("/guest/prices", async (Guid[]? productIds, string? countryCode, IGroupPricingService svc, CancellationToken ct) =>
+                Results.Ok(await svc.PricesAsync(null, productIds ?? [], countryCode, ct)))
             .AllowAnonymous().WithTags("Storefront prices");
 }
