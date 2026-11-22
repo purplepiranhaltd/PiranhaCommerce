@@ -233,6 +233,7 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
         Assert.Contains("<h2 style=\"margin-top:0\">Customer groups</h2>", existing);
         Assert.Contains("<h1>Customer groups</h1>", await (await browser.GetAsync("/admin/customers/groups")).Content.ReadAsStringAsync());
         Assert.Contains("<h1>Group category discounts</h1>", await (await browser.GetAsync("/admin/orders/group-discounts")).Content.ReadAsStringAsync());
+        Assert.Contains("<h1>Sales</h1>", await (await browser.GetAsync("/admin/orders/sales")).Content.ReadAsStringAsync());
         Assert.Contains("Erase personal data", existing);
 
         var fresh = await (await browser.GetAsync("/admin/customers/new")).Content.ReadAsStringAsync();

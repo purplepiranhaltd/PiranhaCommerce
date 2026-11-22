@@ -29,6 +29,9 @@ public sealed class EcommercePlugin : IPiranhaPlugin
         services.AddScoped<IProductListingService, ProductListingService>();
         services.AddScoped<IBasketService, BasketService>();
         services.AddScoped<IGroupPricingService, GroupPricingService>();
+        services.AddScoped<ISaleService, SaleService>();
+        services.AddSingleton<IApiEndpointContributor, SaleEndpoints>();
+        services.AddSingleton<IStorefrontEndpointContributor, SaleStorefrontEndpoints>();
         services.AddScoped<IGuestBasketService>(sp => (BasketService)sp.GetRequiredService<IBasketService>());
         services.AddSingleton<IStorefrontEndpointContributor, GuestStorefrontEndpoints>();
         services.AddSingleton<IApiEndpointContributor, GroupPricingEndpoints>();

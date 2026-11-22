@@ -46,7 +46,8 @@ public sealed class GroupPriceInput
 public sealed record ProductGroupPriceDto(Guid GroupId, string GroupName, decimal DiscountPercent, decimal? FixedPrice, decimal GroupPrice, decimal? CategoryPercent = null);
 
 /// <summary>What one shopper pays for a product: <see cref="Price"/> is the regular price unless one of their groups gives them less.</summary>
-public sealed record ShopperPriceDto(Guid ProductId, decimal RegularPrice, decimal Price, bool Discounted);
+/// <param name="SaleEndsUtc">When the price is a sale price, when that sale ends.</param>
+public sealed record ShopperPriceDto(Guid ProductId, decimal RegularPrice, decimal Price, bool Discounted, DateTimeOffset? SaleEndsUtc = null);
 
 public interface IGroupPricingService
 {
@@ -102,7 +103,16 @@ internal static class GroupPricing
         return best;
     }
 
+    /// <summary>What the customer pays: the lowest of the regular price, any running sale's price, and what their groups give. A null customer gets the sale price at most.</summary>
     public static async Task<Dictionary<Guid, decimal>> EffectiveAsync(PiranhaDbContext db, Guid? customerId, IReadOnlyCollection<(Guid ProductId, decimal Price)> items, CancellationToken ct)
+    {
+        var result = await ForGroupsAsync(db, customerId, items, ct);
+        foreach (var (id, sale) in await SalePricing.ActiveAsync(db, items, ct))
+            if (sale.Price < result[id]) result[id] = sale.Price;
+        return result;
+    }
+
+    private static async Task<Dictionary<Guid, decimal>> ForGroupsAsync(PiranhaDbContext db, Guid? customerId, IReadOnlyCollection<(Guid ProductId, decimal Price)> items, CancellationToken ct)
     {
         var result = new Dictionary<Guid, decimal>();
         foreach (var (id, price) in items) result[id] = price;
@@ -250,7 +260,9 @@ internal sealed class GroupPricingService(PiranhaDbContext db) : IGroupPricingSe
         if (ids.Count == 0) return [];
         var regular = await db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).Select(p => new { p.Id, p.Price }).ToListAsync(ct);
         var effective = await GroupPricing.EffectiveAsync(db, customerId, regular.Select(r => (r.Id, r.Price)).ToList(), ct);
-        return regular.Select(r => new ShopperPriceDto(r.Id, r.Price, effective[r.Id], effective[r.Id] < r.Price)).OrderBy(r => r.ProductId).ToList();
+        var sales = await SalePricing.ActiveAsync(db, regular.Select(r => (r.Id, r.Price)).ToList(), ct);
+        return regular.Select(r => new ShopperPriceDto(r.Id, r.Price, effective[r.Id], effective[r.Id] < r.Price,
+            sales.TryGetValue(r.Id, out var sale) && sale.Price <= effective[r.Id] ? sale.EndsUtc : null)).OrderBy(r => r.ProductId).ToList();
     }
 }
 

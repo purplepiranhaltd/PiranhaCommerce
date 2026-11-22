@@ -24,12 +24,10 @@ Not built:
 
 ## Pricing: what is left
 
-Built: group prices, by group percentage, by category percentage and by fixed price per product (see the README). Agreed to do later:
+Built: sales, and group prices, by group percentage, by category percentage and by fixed price per product (see the README). Agreed to do later:
 
-- **Sale and offer prices.** A sale between two dates that discounts some or all products (a percentage or a fixed price, per product or per
-  category, for everyone or a group). Revisit this properly: it needs a start and end, a way to choose the products, a rule for how it combines with a
-  group price (today the customer pays the lowest of the regular price and their group prices, and a promo code then comes off that) and a way to show
-  "was / now" prices. Today the only discounts are group prices and promo codes.
+- **Sale and offer prices:** built (see the README): dated sales by percentage or fixed price on all products, categories or named products, for everyone. Not built:
+  a sale for one customer group only, buy-one-get-one and other offers, and recurring sales (copy a sale to run it again).
 - **Advertised member prices** (like a supermarket's loyalty-card price): show everyone the member price, but only members get it. Today a shopper
   only sees a different price once they are identified, because the price lookup is by customer. This needs the member price returned alongside the
   regular price for people who are not members, and wording to say who qualifies.

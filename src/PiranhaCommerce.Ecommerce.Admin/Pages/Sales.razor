@@ -1,0 +1,263 @@
+@page "/admin/orders/sales"
+@using PiranhaCommerce.Catalog
+@using PiranhaCommerce.Core.Validation
+@inject AdminScopeRunner Scope
+
+<PageTitle>Sales - Piranha Commerce</PageTitle>
+<h1>Sales</h1>
+<p class="pc-muted">
+    A sale runs between two dates and takes a percentage off every product it covers: all products, whole categories (with their sub-categories), or products you name.
+    A named product can have a fixed sale price instead. Everyone gets the sale price, signed in or not, and the regular price is still shown beside it. Where a customer
+    group also gives a price, they pay the lower of the two (they do not add together), and a promo code then comes off that. With several sales running, the lowest price wins.
+</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+@if (_message is not null)
+{
+    <p role="status">@_message</p>
+}
+
+<button type="button" disabled="@_busy" @onclick="NewSale">New sale</button>
+
+@if (_sales is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_sales.Count == 0)
+{
+    <p class="pc-muted">There are no sales yet.</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>Name</th><th>Runs</th><th style="text-align:right">% off</th><th>Covers</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var s in _sales)
+        {
+            var sale = s;
+            <tr>
+                <td>@s.Name</td>
+                <td>@s.StartsUtc.ToString("dd MMM yyyy HH:mm") to @s.EndsUtc.ToString("dd MMM yyyy HH:mm") UTC</td>
+                <td style="text-align:right">@s.Percent.ToString("0.##")</td>
+                <td>@(s.AllProducts ? "All products" : $"{s.Categories.Count} categories, {s.Products.Count} products")</td>
+                <td>@s.Status</td>
+                <td class="actions">
+                    <button type="button" class="secondary" @onclick="() => Edit(sale)">Edit</button>
+                    <button type="button" class="secondary" disabled="@_busy" @onclick="() => DeleteAsync(sale)">Delete</button>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@if (_form is not null)
+{
+    <div class="pc-card" style="margin-top:1rem">
+        <h2 style="margin-top:0">@(_editingId is null ? "New sale" : "Edit sale")</h2>
+        <label>Name <input @bind="_form.Name" maxlength="200" /></label>
+        <label>Starts (UTC) <input type="datetime-local" @bind="_starts" /></label>
+        <label>Ends (UTC) <input type="datetime-local" @bind="_ends" /></label>
+        <label>Percentage off <input type="number" step="0.01" min="0" max="100" @bind="_form.Percent" /></label>
+        <label><input type="checkbox" @bind="_form.AllProducts" /> Covers every product</label>
+        <label><input type="checkbox" @bind="_form.Enabled" /> Switched on (untick to pull it early or hold it back)</label>
+        <button type="button" disabled="@_busy" @onclick="SaveAsync">Save sale</button>
+        <button type="button" class="secondary" @onclick="() => _form = null">Close</button>
+    </div>
+}
+
+@if (_current is not null)
+{
+    <div class="pc-card" style="margin-top:1rem">
+        <h2 style="margin-top:0">@_current.Name: what it covers</h2>
+
+        <h3>Categories (with their sub-categories)</h3>
+        @foreach (var c in _categories)
+        {
+            var cat = c;
+            <label style="display:block;padding-left:@(c.Depth * 1.25)rem">
+                <input type="checkbox" checked="@_current.Categories.Any(x => x.CategoryId == cat.Id)" disabled="@_busy" @onchange="e => ToggleCategoryAsync(cat.Id, e.Value is true)" /> @c.Name
+            </label>
+        }
+        @if (_categories.Count == 0) { <p class="pc-muted">There are no categories.</p> }
+
+        <h3>Named products</h3>
+        @if (_current.Products.Count > 0)
+        {
+            <table class="pc-table">
+                <thead><tr><th>Product</th><th style="text-align:right">Regular</th><th style="width:9rem">Sale price</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var p in _current.Products)
+                {
+                    var prod = p;
+                    <tr>
+                        <td>@p.Name <span class="pc-muted">@p.Sku</span></td>
+                        <td style="text-align:right">@p.RegularPrice.ToString("N2")</td>
+                        <td><input type="number" step="0.01" min="0" aria-label="Sale price for @p.Name" placeholder="use the %" value="@_prices.GetValueOrDefault(p.ProductId)" @onchange="e => _prices[prod.ProductId] = e.Value?.ToString()" /></td>
+                        <td class="actions">
+                            <button type="button" disabled="@_busy" @onclick="() => SavePriceAsync(prod)">Save</button>
+                            <button type="button" class="secondary" disabled="@_busy" @onclick="() => RemoveProductAsync(prod)">Remove</button>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+        <label>Add a product (search by name or SKU)
+            <input @bind="_search" @bind:event="oninput" placeholder="Start typing" />
+        </label>
+        <button type="button" class="secondary" disabled="@_busy" @onclick="SearchAsync">Search</button>
+        @foreach (var f in _found)
+        {
+            var found = f;
+            <div>@f.Name <span class="pc-muted">@f.Sku, @f.Price.ToString("N2")</span> <button type="button" disabled="@_busy" @onclick="() => AddProductAsync(found)">Add</button></div>
+        }
+        <p><button type="button" class="secondary" @onclick="() => _current = null">Close</button></p>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<SaleDto>? _sales;
+    private SaleDto? _current;
+    private SaleInput? _form;
+    private Guid? _editingId;
+    private DateTime _starts = DateTime.UtcNow, _ends = DateTime.UtcNow.AddDays(7);
+    private List<(Guid Id, string Name, int Depth)> _categories = [];
+    private readonly Dictionary<Guid, string?> _prices = [];
+    private IReadOnlyList<ProductDto> _found = [];
+    private string _search = "";
+    private bool _busy;
+    private string? _error, _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var cats = await Scope.RunAsync<ICategoryService, IReadOnlyList<CategoryDto>>(s => s.ListAsync());
+            _categories = CategoryTree.Flatten(cats).Select(x => (x.Category.Id, x.Category.Name, x.Depth)).ToList();
+        }
+        catch { }
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try { _sales = await Scope.RunAsync<ISaleService, IReadOnlyList<SaleDto>>(s => s.ListAsync(null)); }
+        catch (Exception ex) { _error = "Could not load sales: " + ex.Message; _sales ??= []; }
+    }
+
+    private void NewSale()
+    {
+        _editingId = null; _message = null; _error = null;
+        _form = new SaleInput { Name = "" };
+        _starts = DateTime.UtcNow; _ends = DateTime.UtcNow.AddDays(7);
+    }
+
+    private void Edit(SaleDto s)
+    {
+        _editingId = s.Id; _message = null; _error = null;
+        _form = new SaleInput { Name = s.Name, Percent = s.Percent, AllProducts = s.AllProducts, Enabled = s.Enabled };
+        _starts = s.StartsUtc.UtcDateTime; _ends = s.EndsUtc.UtcDateTime;
+        Select(s);
+    }
+
+    private void Select(SaleDto s)
+    {
+        _current = s;
+        _prices.Clear();
+        foreach (var p in s.Products) _prices[p.ProductId] = p.Price?.ToString("0.##");
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_form is null) return;
+        _busy = true; _error = null; _message = null;
+        try
+        {
+            _form.StartsUtc = new DateTimeOffset(DateTime.SpecifyKind(_starts, DateTimeKind.Utc));
+            _form.EndsUtc = new DateTimeOffset(DateTime.SpecifyKind(_ends, DateTimeKind.Utc));
+            var input = _form; var id = _editingId;
+            var saved = id is null
+                ? await Scope.RunAsync<ISaleService, SaleDto?>(s => s.CreateAsync(input)!)
+                : await Scope.RunAsync<ISaleService, SaleDto?>(s => s.UpdateAsync(id.Value, input));
+            if (saved is not null) { _editingId = saved.Id; Select(saved); _message = "Saved. Now choose what the sale covers."; }
+            await LoadAsync();
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
+        catch (Exception ex) { _error = "Could not save: " + ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task DeleteAsync(SaleDto s)
+    {
+        _busy = true; _error = null; _message = null;
+        try
+        {
+            var id = s.Id;
+            await Scope.RunAsync<ISaleService, bool>(x => x.DeleteAsync(id));
+            if (_current?.Id == id) { _current = null; _form = null; }
+            await LoadAsync();
+            _message = $"Deleted {s.Name}. Orders already placed keep the prices they were charged.";
+        }
+        catch (Exception ex) { _error = "Could not delete: " + ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task Run(Func<ISaleService, Task<SaleDto?>> action)
+    {
+        _busy = true; _error = null; _message = null;
+        try
+        {
+            var updated = await Scope.RunAsync<ISaleService, SaleDto?>(action);
+            if (updated is not null) Select(updated);
+            await LoadAsync();
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
+        catch (Exception ex) { _error = "Could not save: " + ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private Task ToggleCategoryAsync(Guid categoryId, bool on)
+    {
+        var sale = _current!.Id;
+        return Run(s => on ? s.AddCategoryAsync(sale, categoryId) : s.RemoveCategoryAsync(sale, categoryId));
+    }
+
+    private Task SavePriceAsync(SaleProductDto p)
+    {
+        var sale = _current!.Id;
+        decimal? price = null;
+        if (!string.IsNullOrWhiteSpace(_prices[p.ProductId]))
+        {
+            if (!decimal.TryParse(_prices[p.ProductId], out var parsed)) { _error = "Enter a price, or leave it empty to use the sale's percentage."; return Task.CompletedTask; }
+            price = parsed;
+        }
+        return Run(s => s.SetProductAsync(sale, p.ProductId, new SaleProductInput { Price = price }));
+    }
+
+    private Task RemoveProductAsync(SaleProductDto p)
+    {
+        var sale = _current!.Id;
+        return Run(s => s.RemoveProductAsync(sale, p.ProductId));
+    }
+
+    private Task AddProductAsync(ProductDto p)
+    {
+        var sale = _current!.Id;
+        _found = [];
+        return Run(s => s.SetProductAsync(sale, p.Id, new SaleProductInput()));
+    }
+
+    private async Task SearchAsync()
+    {
+        try
+        {
+            var text = _search;
+            _found = (await Scope.RunAsync<IProductService, PiranhaCommerce.Core.Paging.PagedResult<ProductDto>>(s => s.ListAsync(1, 8, text))).Items;
+        }
+        catch (Exception ex) { _error = "Could not search: " + ex.Message; }
+    }
+}

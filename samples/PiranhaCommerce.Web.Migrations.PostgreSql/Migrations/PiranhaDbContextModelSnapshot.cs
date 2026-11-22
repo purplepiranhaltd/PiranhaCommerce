@@ -1618,6 +1618,80 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.ToTable("ReturnRequestLine", "ecom");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.Sale", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("AllProducts")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("EndsUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal>("Percent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<DateTimeOffset>("StartsUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("UpdatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Enabled", "StartsUtc", "EndsUtc");
+
+                    b.ToTable("Sale", "ecom");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.SaleCategory", b =>
+                {
+                    b.Property<Guid>("SaleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("SaleId", "CategoryId");
+
+                    b.HasIndex("CategoryId");
+
+                    b.ToTable("SaleCategory", "ecom");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.SaleProduct", b =>
+                {
+                    b.Property<Guid>("SaleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("Price")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.HasKey("SaleId", "ProductId");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("SaleProduct", "ecom");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.Shipment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2436,6 +2510,36 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.HasOne("PiranhaCommerce.Ecommerce.ReturnRequest", null)
                         .WithMany("Lines")
                         .HasForeignKey("ReturnRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.SaleCategory", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Catalog.Category", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PiranhaCommerce.Ecommerce.Sale", null)
+                        .WithMany()
+                        .HasForeignKey("SaleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.SaleProduct", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Catalog.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PiranhaCommerce.Ecommerce.Sale", null)
+                        .WithMany()
+                        .HasForeignKey("SaleId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

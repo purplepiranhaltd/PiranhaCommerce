@@ -21,6 +21,31 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.HasIndex(p => p.ProductId);
         });
 
+        b.Entity<Sale>(e =>
+        {
+            e.ToTable("Sale", Schema);
+            e.Property(x => x.Name).HasMaxLength(200);
+            e.Property(x => x.Percent).HasPrecision(5, 2);
+            e.HasIndex(x => new { x.Enabled, x.StartsUtc, x.EndsUtc });
+        });
+        b.Entity<SaleProduct>(e =>
+        {
+            e.ToTable("SaleProduct", Schema);
+            e.HasKey(x => new { x.SaleId, x.ProductId });
+            e.Property(x => x.Price).HasPrecision(18, 4);
+            e.HasOne<Sale>().WithMany().HasForeignKey(x => x.SaleId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.ProductId);
+        });
+        b.Entity<SaleCategory>(e =>
+        {
+            e.ToTable("SaleCategory", Schema);
+            e.HasKey(x => new { x.SaleId, x.CategoryId });
+            e.HasOne<Sale>().WithMany().HasForeignKey(x => x.SaleId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Category>().WithMany().HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.CategoryId);
+        });
+
         b.Entity<GroupCategoryDiscount>(e =>
         {
             e.ToTable("GroupCategoryDiscount", Schema);

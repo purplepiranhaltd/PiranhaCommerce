@@ -375,6 +375,14 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   .../{categoryId}` with `{ "percent" }`; admin: Orders > Group category discounts). It covers the category's sub-categories (the nearest category that
   has one set wins), replaces the group's own percentage for products in it, and `0` means no discount there. A product in several categories gets
   the largest percentage. Within one group the most specific thing wins: fixed product price, then category percentage, then the group's own percentage.
+- **Sales** (`/sales`, admin: Orders > Sales): between a start and an end (UTC), a percentage off the regular price of every product the sale covers: all
+  products, whole categories (with their sub-categories) or named products, and a named product can have a fixed sale price instead (`PUT /sales/{id}/products/{productId}`
+  with `{ "price" }`, or none to use the percentage; `PUT|DELETE /sales/{id}/categories/{categoryId}`). `enabled: false` pulls a sale early or holds it back; its status is
+  Off, Scheduled, Running or Ended. Everyone gets the sale price, signed in or not: `GET /storefront/guest/prices?productIds=...` (anonymous) and `/storefront/prices` answer
+  `{ productId, regularPrice, price, discounted, saleEndsUtc }` so a shop front can show "was / now" and a countdown. With several sales running the lowest price wins, a sale
+  never raises a price, and a sale and a group price do not add together: the customer pays the lower of the two, and a promo code then comes off that. Baskets, quotes and
+  checkout all use it (a basket line shows `regularPrice` when it is reduced), and an order keeps the price charged when the sale ends. A sale on all products changes
+  every price while it runs, so check the dates. Staff with write access change sales; anyone with a token can read them.
 - **Guest baskets and checkout** (anonymous, under `/api/v1/storefront/guest/baskets`): a shopper who is not signed in can `POST` a basket, add and remove
   lines (`PUT|DELETE /{id}/lines/{productId}`), use a promo code or gift voucher, see shipping options and a quote, and check out with an email address and
   shipping address (`POST /{id}/checkout`, same body as the signed-in checkout; any `customerId` in it is ignored). The order belongs to no customer, the
