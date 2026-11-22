@@ -375,6 +375,20 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   .../{categoryId}` with `{ "percent" }`; admin: Orders > Group category discounts). It covers the category's sub-categories (the nearest category that
   has one set wins), replaces the group's own percentage for products in it, and `0` means no discount there. A product in several categories gets
   the largest percentage. Within one group the most specific thing wins: fixed product price, then category percentage, then the group's own percentage.
+- **Guest baskets and checkout** (anonymous, under `/api/v1/storefront/guest/baskets`): a shopper who is not signed in can `POST` a basket, add and remove
+  lines (`PUT|DELETE /{id}/lines/{productId}`), use a promo code or gift voucher, see shipping options and a quote, and check out with an email address and
+  shipping address (`POST /{id}/checkout`, same body as the signed-in checkout; any `customerId` in it is ignored). The order belongs to no customer, the
+  confirmation goes to the email given, and group prices and group-limited promo codes do not apply (nobody is identified). Knowing the basket id is the
+  whole of the proof, as it is for claiming a basket; these routes only ever touch a basket that has no owner, so a signed-in shopper's basket answers
+  `404` here, and the signed-in routes still need a token. Starting a guest basket is limited per client address (`Piranha:RateLimit:GuestBasketAttempts`,
+  default 120 a minute: a shop front on one server address makes one per visitor), and promo and voucher codes share the sign-in limit. Set
+  `Piranha:Ecommerce:AllowGuestCheckout` to `false` to require an account to check out (guests can still build a basket; checkout answers `403`). There is
+  no guest order lookup afterwards: the order comes back from the checkout call and by email. Old unowned baskets are cleared like any (`AbandonedBasketDays`).
+- **Merging baskets**: `POST /storefront/baskets/{id}/merge` with `{ "fromBasketId" }`, signed in, moves the lines of a guest basket into the shopper's own
+  basket and deletes the guest one. Quantities add up (a line never goes past 10,000), a product that can no longer be bought is left behind, and a promo code
+  or voucher on the guest basket comes along only when the shopper's basket has none (and a code limited to a group only if they are in it). Anything
+  that is not their own basket or not an open guest basket is `404`, and two merges of the same guest basket at once move its lines once. Use `claim` instead
+  when the shopper has no basket yet and the whole guest basket should simply become theirs.
 - **Unpaid orders** (off by default): with `Piranha:Ecommerce:UnpaidOrderHours` above 0, an order still at Placed with no payment of any kind after that many
   hours is cancelled by a background job (every 15 minutes), exactly as if staff had cancelled it: the stock goes back on the shelf, the promo use is given
   back and the buyer gets the cancellation email. The movement is recorded as done by "system (unpaid order expired)". Part-paid orders, orders already in

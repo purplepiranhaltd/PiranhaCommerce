@@ -98,7 +98,7 @@ Not built:
   retries (mail is sent inline and a failure is only logged) and a welcome email. A verified email before sign-in is built as an option (`RequireVerifiedEmail`, off by default).
 - Staff admin for shopper accounts and ending sessions early are built (a session version on each sign-in, checked on every call; see the README).
   Staff actions on a sign-in are recorded (who, what, when). Refresh tokens are built (single use, rotated, revoked on reuse). Shoppers can list their devices, end one and sign out everywhere.
-- Merging two baskets (claim only takes an unowned basket whole); guest checkout through the storefront API.
+- Guest order lookup (an order placed as a guest can only be seen from the checkout response and the confirmation email), and offering a guest to turn their order into an account.
 - Customer data export and erasure are built for staff (orders anonymised, never deleted). Shoppers can export and erase their own account through the storefront API.
   Not built: a scheduled retention clean-up, and erasure in the payment provider and email provider.
 - Social sign-in, two-factor.
@@ -136,4 +136,4 @@ Not built yet:
 - Per-order stock location (every online order currently draws from `Piranha:Ecommerce:StockLocationId`, or the default location).
 - One currency per store (`Piranha:Ecommerce:Currency`, default GBP).
 - Quantities are whole numbers in baskets; stock itself supports fractions for channels that need them.
-- Order emails and notifications; guest checkout rules for the storefront API.
+- Order emails and notifications: built (see the README); guest checkout rules are the `AllowGuestCheckout` setting.

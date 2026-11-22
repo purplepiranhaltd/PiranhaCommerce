@@ -232,6 +232,12 @@ public sealed class EcommerceOptions
     public int AbandonedBasketDays { get; set; } = 60;
 
     /// <summary>
+    /// Whether a shopper who is not signed in may place an order (<c>POST /storefront/guest/baskets/{id}/checkout</c>). When false they can still
+    /// build a basket and sign in or register to check out (the basket is merged or claimed). On by default.
+    /// </summary>
+    public bool AllowGuestCheckout { get; set; } = true;
+
+    /// <summary>
     /// Orders still at Placed with no payment at all after this many hours are cancelled, which puts their stock back for other buyers (the buyer is
     /// emailed like any cancel). 0 (the default) never does it: shops that take orders on account or by invoice, or that record payments by hand
     /// later, must leave it off. Paid or part-paid orders and orders already in progress are never touched.

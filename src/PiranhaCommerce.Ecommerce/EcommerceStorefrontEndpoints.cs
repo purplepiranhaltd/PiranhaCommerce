@@ -26,6 +26,11 @@ internal sealed class EcommerceStorefrontEndpoints : IStorefrontEndpointContribu
         baskets.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, IBasketService svc, CancellationToken ct) =>
             await svc.IsOwnedByAsync(id, user.CustomerId()!.Value, ct) && await svc.GetAsync(id, ct) is { } b ? Results.Ok(b) : Results.NotFound());
 
+        // Moves a guest basket's lines into this one (a shopper who built a basket before signing in, and already had one). Knowing the guest
+        // basket id is the proof, as for claim. Anything that is not the caller's own basket, or not an open guest basket, answers 404.
+        baskets.MapPost("/{id:guid}/merge", async (Guid id, MergeBasketInput input, ClaimsPrincipal user, IBasketService svc, IGuestBasketService guests, CancellationToken ct) =>
+            await svc.IsOwnedByAsync(id, user.CustomerId()!.Value, ct) && await guests.MergeAsync(id, input.FromBasketId, user.CustomerId()!.Value, ct) is { } b ? Results.Ok(b) : Results.NotFound());
+
         baskets.MapPost("/{id:guid}/claim", async (Guid id, ClaimsPrincipal user, IBasketService svc, CancellationToken ct) =>
             await svc.ClaimAsync(id, user.CustomerId()!.Value, ct) && await svc.GetAsync(id, ct) is { } b ? Results.Ok(b) : Results.NotFound());
 

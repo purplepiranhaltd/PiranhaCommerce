@@ -22,6 +22,9 @@ public sealed class SignInRateLimitOptions
     /// <summary>Sign-in attempts one client address may make in each window.</summary>
     public int SignInAttempts { get; set; } = 10;
 
+    /// <summary>Guest baskets one client address may create in each window (a shop front on one server address creates one per visitor, so this is generous).</summary>
+    public int GuestBasketAttempts { get; set; } = 120;
+
     /// <summary>Window length in seconds.</summary>
     public int WindowSeconds { get; set; } = 60;
 }
@@ -40,6 +43,10 @@ internal static class SignInRateLimiting
             || p.EndsWith("/auth/reset-password", StringComparison.OrdinalIgnoreCase)
             || p.EndsWith("/me/password", StringComparison.OrdinalIgnoreCase)
             || p.Equals("/admin/login", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Starting a guest basket: anonymous, so it is limited per client like the sign-in routes, but with its own, higher allowance.</summary>
+    internal static bool IsGuestBasketCreate(HttpContext http) =>
+        HttpMethods.IsPost(http.Request.Method) && http.Request.Path.Value is { } p && p.TrimEnd('/').EndsWith("/guest/baskets", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// One bucket per client. IPv6 clients are grouped by their /64, because one machine typically owns a whole /64
@@ -67,6 +74,14 @@ internal static class SignInRateLimiting
             o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             o.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(http =>
             {
+                if (s.Enabled && IsGuestBasketCreate(http))
+                    return RateLimitPartition.GetSlidingWindowLimiter("guest:" + ClientKey(http), _ => new SlidingWindowRateLimiterOptions
+                    {
+                        PermitLimit = Math.Max(1, s.GuestBasketAttempts),
+                        Window = TimeSpan.FromSeconds(Math.Max(1, s.WindowSeconds)),
+                        SegmentsPerWindow = 6,
+                        QueueLimit = 0,
+                    });
                 if (!s.Enabled || !IsSignIn(http)) return RateLimitPartition.GetNoLimiter("none");
                 return RateLimitPartition.GetSlidingWindowLimiter(ClientKey(http), _ => new SlidingWindowRateLimiterOptions
                 {

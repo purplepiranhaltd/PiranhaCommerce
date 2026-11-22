@@ -48,7 +48,7 @@ public interface IBasketService
     Task<QuoteDto?> QuoteAsync(Guid basketId, QuoteInput input, CancellationToken ct = default);
 }
 
-internal sealed class BasketService(PiranhaDbContext db, ICustomerService customers, IOptions<EcommerceOptions> options) : IBasketService
+internal sealed partial class BasketService(PiranhaDbContext db, ICustomerService customers, IOptions<EcommerceOptions> options) : IBasketService
 {
     public async Task<BasketDto> CreateAsync(BasketCreateInput input, CancellationToken ct = default)
     {
