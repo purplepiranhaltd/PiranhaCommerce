@@ -366,6 +366,16 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   progress and orders with nothing to pay are never touched, and a payment that lands a moment before is detected inside the cancel and wins. A payment
   that arrives after is refused like any payment on a cancelled order (a gateway one lands on the unreconciled list). Leave it off if you take orders on
   account or record payments by hand later. `IUnpaidOrderExpiry` does the work if you want to run it from your own scheduler.
+- **Stock transfers** (`/api/v1/stock/transfers`, admin: Catalog > Stock transfers): move stock between locations in two steps by two people.
+  `POST` sends it: the stock leaves the sending location at once (refused if there is not enough) and the transfer is **in transit**, on neither shelf but
+  listed at `GET /stock/in-transit` (per product and route) and as `inTransit` on a product's stock level. `POST /{id}/receive` (by a different user, unless
+  `Piranha:Stock:AllowSameUserToReceive` is true) adds what arrived to the receiving location; send `{ "lines": [{ "productId", "quantity" }] }` to say
+  less (or more) arrived than was sent, and the transfer is flagged (`hasDiscrepancy`, filter `?discrepancies=true`). `POST /{id}/cancel` while in
+  transit puts the stock back. Every step is a ledger movement ("Transfer sent", "Transfer received", "Transfer cancelled") carrying the `TRF-` reference
+  and the user. A transfer is received or cancelled once however many people try at the same moment. The menu shows how many are in transit.
+- **Staff locations** (`GET /staff/locations`, `PUT /staff/{userId}/locations` with `{ "locationIds": [...] }`, admin: Catalog > Staff locations): limit a
+  staff user to certain stock locations. They can then only send, receive, cancel and manually adjust stock at those (others get `403`). A user with none
+  ticked is not limited. The location is named on each action, so there is no choose-a-location step at sign-in.
 - **Admin menu badges**: a menu entry can show a count of things waiting for a person (`AdminMenuItem.BadgeKey` plus an `IAdminBadgeProvider`
   registered by the plugin; zero shows nothing and a failing provider is logged and skipped). Orders > Unreconciled payments, Disputes (open) and
   Return requests (waiting) use it; the numbers refresh when you move between pages. Disputes and Return requests also have list pages.

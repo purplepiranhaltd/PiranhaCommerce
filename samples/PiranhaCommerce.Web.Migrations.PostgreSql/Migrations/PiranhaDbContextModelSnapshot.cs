@@ -242,6 +242,21 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.ToTable("ProductCategory", "catalog");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Catalog.StaffLocation", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("LocationId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("UserId", "LocationId");
+
+                    b.HasIndex("LocationId");
+
+                    b.ToTable("StaffLocation", "catalog");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Catalog.StockLevel", b =>
                 {
                     b.Property<Guid>("ProductId")
@@ -342,6 +357,124 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.HasIndex("ProductId", "CreatedUtc");
 
                     b.ToTable("StockMovement", "catalog");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Catalog.StockTransfer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CancelledBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTimeOffset?>("CancelledUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("FromLocationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("HasDiscrepancy")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<long>("Number")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ReceivedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<Guid?>("ReceivedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("ReceivedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SentBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<Guid?>("SentByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("SentUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ToLocationId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FromLocationId");
+
+                    b.HasIndex("Number")
+                        .IsUnique();
+
+                    b.HasIndex("ToLocationId");
+
+                    b.HasIndex("Status", "Number");
+
+                    b.ToTable("StockTransfer", "catalog");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Catalog.StockTransferCounter", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("LastNumber")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("StockTransferCounter", "catalog");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            LastNumber = 1000L
+                        });
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Catalog.StockTransferLine", b =>
+                {
+                    b.Property<Guid>("TransferId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ProductName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal?>("QuantityReceived")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal>("QuantitySent")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<string>("Sku")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("TransferId", "ProductId");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("StockTransferLine", "catalog");
                 });
 
             modelBuilder.Entity("PiranhaCommerce.Core.Identity.PiranhaRole", b =>
@@ -1864,6 +1997,21 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Catalog.StaffLocation", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Catalog.StockLocation", null)
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PiranhaCommerce.Core.Identity.PiranhaUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Catalog.StockLevel", b =>
                 {
                     b.HasOne("PiranhaCommerce.Catalog.StockLocation", null)
@@ -1891,6 +2039,36 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                         .WithMany()
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Catalog.StockTransfer", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Catalog.StockLocation", null)
+                        .WithMany()
+                        .HasForeignKey("FromLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PiranhaCommerce.Catalog.StockLocation", null)
+                        .WithMany()
+                        .HasForeignKey("ToLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Catalog.StockTransferLine", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Catalog.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PiranhaCommerce.Catalog.StockTransfer", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("TransferId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
@@ -2239,6 +2417,11 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                         .HasForeignKey("PiranhaCommerce.Example.Warranty.ProductWarranty", "ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Catalog.StockTransfer", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.Basket", b =>

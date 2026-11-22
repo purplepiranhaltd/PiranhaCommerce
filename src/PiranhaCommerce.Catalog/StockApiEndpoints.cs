@@ -17,8 +17,14 @@ internal sealed class StockApiEndpoints : IApiEndpointContributor
         group.MapGet("/movements", async (Guid productId, int? page, int? pageSize, IStockService svc, CancellationToken ct) =>
             await svc.ListMovementsAsync(productId, page, pageSize, ct) is { } r ? Results.Ok(r) : Results.NotFound());
 
-        group.MapPost("/adjustments", async (Guid productId, StockAdjustmentInput input, HttpContext http, IStockService svc, CancellationToken ct) =>
-                await svc.AdjustAsync(productId, input, http.User.FindFirst("email")?.Value ?? http.User.Identity?.Name, ct) is { } r ? Results.Ok(r) : Results.NotFound())
+        // A user limited to certain locations (see /staff/{userId}/locations) can only adjust stock at those.
+        group.MapPost("/adjustments", async (Guid productId, StockAdjustmentInput input, HttpContext http, IStockService svc, IStaffLocationService staff, CancellationToken ct) =>
+            {
+                var actor = http.User.ForStaff();
+                if (!await staff.CanActAtAsync(actor.UserId, input.LocationId ?? StockLocations.DefaultId, ct))
+                    throw new PiranhaCommerce.Core.Validation.PiranhaForbiddenException("You are not assigned to that location, so you cannot adjust its stock.");
+                return await svc.AdjustAsync(productId, input, actor.Name, ct) is { } r ? Results.Ok(r) : Results.NotFound();
+            })
             .RequireAuthorization(ApiPolicies.Write);
 
         // Products below zero at any location: the "recount needed" report.

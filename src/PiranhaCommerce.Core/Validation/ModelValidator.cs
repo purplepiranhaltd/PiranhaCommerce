@@ -31,3 +31,6 @@ public static class ModelValidator
 
 /// <summary>Thrown when a request is valid but conflicts with current state (e.g. deleting something still in use). Maps to HTTP 409.</summary>
 public sealed class PiranhaConflictException(string message) : Exception(message);
+
+/// <summary>Thrown when the signed-in user is not allowed to do this (for example, acting at a stock location they are not assigned to). Maps to HTTP 403.</summary>
+public sealed class PiranhaForbiddenException(string message) : Exception(message);

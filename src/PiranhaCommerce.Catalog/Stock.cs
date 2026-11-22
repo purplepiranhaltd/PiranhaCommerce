@@ -92,7 +92,8 @@ public sealed class StockAdjustmentInput : IValidatableObject
 /// <summary>Quantity at one location. <see cref="Quantity"/> on <see cref="StockLevelDto"/> is the total across locations.</summary>
 public sealed record StockLocationLevelDto(Guid LocationId, string LocationCode, string LocationName, decimal Quantity);
 
-public sealed record StockLevelDto(Guid ProductId, decimal Quantity, IReadOnlyList<StockLocationLevelDto> Locations);
+/// <param name="InTransit">Stock sent on a transfer and not yet received. It is in none of the location quantities and not in <paramref name="Quantity"/>.</param>
+public sealed record StockLevelDto(Guid ProductId, decimal Quantity, IReadOnlyList<StockLocationLevelDto> Locations, decimal InTransit = 0m);
 
 public sealed record StockMovementDto(
     Guid Id, Guid ProductId, Guid LocationId, decimal Delta, decimal? Balance, string Reason, string? Reference, string? Actor, DateTimeOffset CreatedUtc);

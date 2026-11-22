@@ -196,6 +196,16 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
         var negative = await browser.GetAsync("/admin/catalog/negative-stock");
         Assert.Equal(HttpStatusCode.OK, negative.StatusCode);
         Assert.Contains("<h1>Negative stock</h1>", await negative.Content.ReadAsStringAsync());
+
+        var transfers = await browser.GetAsync("/admin/catalog/stock-transfers");
+        Assert.Equal(HttpStatusCode.OK, transfers.StatusCode);
+        Assert.Contains("<h1>Stock transfers</h1>", await transfers.Content.ReadAsStringAsync());
+
+        var staff = await browser.GetAsync("/admin/catalog/staff-locations");
+        Assert.Equal(HttpStatusCode.OK, staff.StatusCode);
+        var staffHtml = await staff.Content.ReadAsStringAsync();
+        Assert.Contains("<h1>Staff locations</h1>", staffHtml);
+        Assert.Contains("admin@piranha.local", staffHtml);
     }
 
     [Fact]

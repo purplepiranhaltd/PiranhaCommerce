@@ -66,6 +66,48 @@ internal sealed class CatalogModelContributor : IModelContributor
             e.HasIndex(l => l.Quantity); // the negative stock report
         });
 
+        b.Entity<StockTransfer>(e =>
+        {
+            e.ToTable("StockTransfer", Schema);
+            e.HasIndex(t => t.Number).IsUnique();
+            e.HasIndex(t => new { t.Status, t.Number });
+            e.Property(t => t.Note).HasMaxLength(500);
+            e.Property(t => t.SentBy).HasMaxLength(256);
+            e.Property(t => t.ReceivedBy).HasMaxLength(256);
+            e.Property(t => t.CancelledBy).HasMaxLength(256);
+            e.HasOne<StockLocation>().WithMany().HasForeignKey(t => t.FromLocationId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<StockLocation>().WithMany().HasForeignKey(t => t.ToLocationId).OnDelete(DeleteBehavior.Restrict);
+            e.HasMany(t => t.Lines).WithOne().HasForeignKey(l => l.TransferId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<StockTransferLine>(e =>
+        {
+            e.ToTable("StockTransferLine", Schema);
+            e.HasKey(l => new { l.TransferId, l.ProductId });
+            e.Property(l => l.ProductName).HasMaxLength(200).IsRequired();
+            e.Property(l => l.Sku).HasMaxLength(100);
+            e.Property(l => l.QuantitySent).HasPrecision(18, 4);
+            e.Property(l => l.QuantityReceived).HasPrecision(18, 4);
+            // The transfer is a record of what moved: a product that was transferred cannot be deleted out from under it.
+            e.HasOne<Product>().WithMany().HasForeignKey(l => l.ProductId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<StockTransferCounter>(e =>
+        {
+            e.ToTable("StockTransferCounter", Schema);
+            e.HasKey(c => c.Id);
+            e.Property(c => c.Id).ValueGeneratedNever();
+            e.HasData(new StockTransferCounter { Id = 1, LastNumber = StockTransferNumbers.First - 1 });
+        });
+
+        b.Entity<StaffLocation>(e =>
+        {
+            e.ToTable("StaffLocation", Schema);
+            e.HasKey(x => new { x.UserId, x.LocationId });
+            e.HasOne<PiranhaCommerce.Core.Identity.PiranhaUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<StockLocation>().WithMany().HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.Restrict);
+        });
+
         b.Entity<StockMovement>(e =>
         {
             e.ToTable("StockMovement", Schema);

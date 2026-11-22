@@ -18,6 +18,7 @@ public sealed class CatalogAdminPlugin : IPiranhaPlugin
         services.AddSingleton(new AdminPageAssembly(typeof(CatalogAdminPlugin).Assembly));
         services.AddSingleton<IAdminMenuContributor, CatalogAdminMenu>();
         services.AddSingleton<IAdminSlotContributor, CatalogSlotItems>();
+        services.AddSingleton<IAdminBadgeProvider, StockTransfersBadge>();
     }
 }
 
@@ -30,6 +31,8 @@ internal sealed class CatalogAdminMenu : IAdminMenuContributor
         new("catalog.categories", "Categories", "/admin/catalog/categories", Order: 12, ParentKey: "catalog"),
         new("catalog.negative-stock", "Negative stock", "/admin/catalog/negative-stock", Order: 13, ParentKey: "catalog"),
         new("catalog.stock-locations", "Stock locations", "/admin/catalog/stock-locations", Order: 14, ParentKey: "catalog"),
+        new("catalog.stock-transfers", "Stock transfers", "/admin/catalog/stock-transfers", Order: 15, ParentKey: "catalog", BadgeKey: "stock-transfers"),
+        new("catalog.staff-locations", "Staff locations", "/admin/catalog/staff-locations", Order: 16, ParentKey: "catalog"),
     ];
 }
 
@@ -41,4 +44,11 @@ internal sealed class CatalogSlotItems : IAdminSlotContributor
             new(AdminSlots.ProductEditPanels, typeof(ProductBarcodesPanel), Order: 6),
             new(AdminSlots.ProductEditPanels, typeof(ProductStockPanel), Order: 7),
         ];
+}
+
+/// <summary>The number of transfers still in transit, shown beside the menu entry.</summary>
+internal sealed class StockTransfersBadge : IAdminBadgeProvider
+{
+    public string Key => "stock-transfers";
+    public Task<int> CountAsync(IServiceProvider services, CancellationToken ct = default) => services.GetRequiredService<IStockTransferService>().InTransitCountAsync(ct);
 }

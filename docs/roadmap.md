@@ -2,33 +2,25 @@
 
 Things we have agreed need doing but have not built. Each entry records the requirement as stated, so the design starts from it.
 
-## Stock transfers between locations
+## Stock transfers and staff locations
 
-Stock can be held at several locations (`StockLocation`) but cannot yet be moved between them.
+Built (see the README): a transfer is sent by one person and received by another, in transit between, with every step in the stock ledger; a
+difference between sent and received is recorded and flagged; a staff user can be limited to certain locations.
 
-Requirements:
+How the open questions were settled, so they can be revisited:
 
-- A transfer is **sent by a user at the sending location** and **received by a user at the receiving location**. Two people, two
-  steps; neither can complete the other's step.
-- Between sending and receiving the stock is **in transit**: it has left the sender's level and is not yet in the receiver's. It
-  must be visible as in transit (not lost, not double counted), per product and per route.
-- Every step is recorded in the stock ledger, so the ledger still explains every level. Sending writes a negative movement at the
-  sender; receiving writes a positive movement at the receiver. The quantity received may differ from the quantity sent (damage,
-  miscount); a difference needs to be recorded and flagged, like negative stock.
-- A transfer that is never received must stay visible as outstanding.
+- **Assignment, not sign-in.** A staff user is assigned to zero or more locations (`PUT /staff/{userId}/locations`). Zero means not limited (this keeps
+  every existing user working). The location an action happens at is named on the action (send from X, receive at Y, adjust at Z) and checked against
+  the assignment, so a person who works at two sites needs no "choose a location" step at sign-in.
+- **Per location:** sending, receiving, cancelling and manual stock adjustments. Everything else (catalogue, reports, orders) is global.
+- **Two people:** the receiver must be a different user from the sender, unless `Piranha:Stock:AllowSameUserToReceive` is set for a one-person shop.
 
-This depends on **location-aware sign-in** (below): "sent by a user at the sending location" needs to know where a user is.
+Not built:
 
-## Signing in at a location
-
-Today there is one kind of admin user, with no location. Needed: a user can sign in *at* a particular location, so actions such as
-sending or receiving a transfer, stock adjustments and (later) EPOS sales are attributed to, and restricted to, that location.
-
-Open questions to settle when this is designed:
-
-- Is a user assigned to one or several locations, and chooses one at sign-in when several?
-- Which permissions are per location (send/receive transfers, adjust stock) and which are global (reports, catalog editing)?
-- How this relates to the EPOS till: a till belongs to a location, so signing in at a till implies the location.
+- Signing in *at* a location (a location claim in the token) and a till that implies one: this is for EPOS, which can add it on top of the assignment.
+- Permissions finer than "administrator or read-only" (for example, can send but not adjust).
+- Receiving a transfer in parts over several visits, and a write-off record for the difference (today the difference is on the transfer, not on a shelf).
+- Transfers raised by the receiving site as a request, and approval before stock leaves.
 
 ## Customers: personal data
 

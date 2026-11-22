@@ -1,0 +1,79 @@
+@page "/admin/catalog/staff-locations"
+@inject AdminScopeRunner Scope
+
+<PageTitle>Staff locations - Piranha Commerce</PageTitle>
+<h1>Staff locations</h1>
+<p class="pc-muted">
+    Limit a member of staff to certain stock locations. They can then only send, receive and adjust stock at those. Someone with no location ticked is
+    not limited and can act at every location.
+</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+@if (_message is not null)
+{
+    <p role="status">@_message</p>
+}
+
+@if (_users is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead>
+        <tr><th>Staff</th>@foreach (var l in _locations) { <th title="@l.Name">@l.Code</th> }<th></th></tr>
+        </thead>
+        <tbody>
+        @foreach (var u in _users)
+        {
+            <tr>
+                <td>@u.Email @(u.Active ? "" : "(inactive)")<br /><span class="pc-muted">@(_chosen[u.UserId].Count == 0 ? "All locations" : "Limited")</span></td>
+                @foreach (var l in _locations)
+                {
+                    <td><input type="checkbox" aria-label="@u.Email at @l.Code" checked="@_chosen[u.UserId].Contains(l.Id)" @onchange="e => Toggle(u.UserId, l.Id, e.Value is true)" /></td>
+                }
+                <td class="actions"><button @onclick="() => SaveAsync(u)">Save</button></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<StockLocationDto> _locations = [];
+    private List<StaffLocationsDto>? _users;
+    private readonly Dictionary<Guid, HashSet<Guid>> _chosen = [];
+    private string? _error, _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _locations = (await Scope.RunAsync<IStockLocationService, IReadOnlyList<StockLocationDto>>(s => s.ListAsync())).Where(l => l.Active).ToList();
+            _users = (await Scope.RunAsync<IStaffLocationService, IReadOnlyList<StaffLocationsDto>>(s => s.ListAsync())).ToList();
+            foreach (var u in _users) _chosen[u.UserId] = [.. u.LocationIds];
+        }
+        catch (Exception ex) { _error = "Could not load: " + ex.Message; _users ??= []; }
+    }
+
+    private void Toggle(Guid user, Guid location, bool on)
+    {
+        if (on) _chosen[user].Add(location); else _chosen[user].Remove(location);
+    }
+
+    private async Task SaveAsync(StaffLocationsDto u)
+    {
+        _error = null; _message = null;
+        try
+        {
+            var ids = _chosen[u.UserId].ToList();
+            await Scope.RunAsync<IStaffLocationService, StaffLocationsDto?>(s => s.SetAsync(u.UserId, ids));
+            _message = ids.Count == 0 ? $"{u.Email} can act at every location." : $"{u.Email} is limited to the locations ticked.";
+        }
+        catch (Exception ex) { _error = "Could not save: " + ex.Message; }
+    }
+}

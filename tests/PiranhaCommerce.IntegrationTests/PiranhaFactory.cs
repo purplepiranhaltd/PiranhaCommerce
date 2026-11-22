@@ -101,6 +101,20 @@ public class PiranhaFactory: WebApplicationFactory<Program>, IAsyncLifetime
         return client;
     }
 
+    /// <summary>Creates another administrator, so a test can have two different people (sending and receiving a stock transfer).</summary>
+    public async Task<(Guid Id, string Email, string Password)> CreateAdministratorAsync()
+    {
+        using var scope = Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<PiranhaUser>>();
+        var email = $"admin-{Guid.NewGuid():N}@piranha.local";
+        const string password = "Admin2-Passw0rd!";
+        var user = new PiranhaUser { UserName = email, Email = email, EmailConfirmed = true };
+        var result = await users.CreateAsync(user, password);
+        Assert.True(result.Succeeded, string.Join(";", result.Errors.Select(e => e.Description)));
+        Assert.True((await users.AddToRoleAsync(user, PiranhaRoles.Administrator)).Succeeded);
+        return (user.Id, email, password);
+    }
+
     /// <summary>Creates a user with no roles (can authenticate, but is not an administrator).</summary>
     public async Task<(string Email, string Password)> CreateReadOnlyUserAsync()
     {

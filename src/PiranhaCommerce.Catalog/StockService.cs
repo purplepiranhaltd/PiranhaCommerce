@@ -48,7 +48,11 @@ internal sealed class StockService(PiranhaDbContext db) : IStockService
             .OrderBy(x => x.Code)
             .Select(x => new StockLocationLevelDto(x.Id, x.Code, x.Name, x.Quantity))
             .ToListAsync(ct);
-        return new StockLevelDto(productId, locations.Sum(x => x.Quantity), locations);
+        var inTransit = await (from l in db.Set<StockTransferLine>().AsNoTracking()
+                               join t in db.Set<StockTransfer>().AsNoTracking() on l.TransferId equals t.Id
+                               where l.ProductId == productId && t.Status == StockTransferStatus.InTransit
+                               select (decimal?)l.QuantitySent).SumAsync(ct) ?? 0m;
+        return new StockLevelDto(productId, locations.Sum(x => x.Quantity), locations, inTransit);
     }
 
     public async Task<PagedResult<StockMovementDto>?> ListMovementsAsync(Guid productId, int? page, int? pageSize, CancellationToken ct = default)
