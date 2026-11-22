@@ -22,6 +22,21 @@ Not built:
 - Receiving a transfer in parts over several visits, and a write-off record for the difference (today the difference is on the transfer, not on a shelf).
 - Transfers raised by the receiving site as a request, and approval before stock leaves.
 
+## Pricing: what is left
+
+Built: group prices (see the README). Agreed to do later:
+
+- **Sale and offer prices.** A sale between two dates that discounts some or all products (a percentage or a fixed price, per product or per
+  category, for everyone or a group). Revisit this properly: it needs a start and end, a way to choose the products, a rule for how it combines with a
+  group price (today the customer pays the lowest of the regular price and their group prices, and a promo code then comes off that) and a way to show
+  "was / now" prices. Today the only discounts are group prices and promo codes.
+- **Advertised member prices** (like a supermarket's loyalty-card price): show everyone the member price, but only members get it. Today a shopper
+  only sees a different price once they are identified, because the price lookup is by customer. This needs the member price returned alongside the
+  regular price for people who are not members, and wording to say who qualifies.
+- **Tax-inclusive display.** Prices are entered and calculated tax-exclusive. Shoppers will need to see tax-inclusive prices (and the basket and order
+  showing the tax inside the price), by the destination country's rate. Not built.
+- **Minimum quantities and quantity breaks** ("10 or more at X"): left out for now.
+
 ## Customers: personal data
 
 Customers hold personal data. Before orders exist we need an approach for erasing or anonymising a customer who has orders (the

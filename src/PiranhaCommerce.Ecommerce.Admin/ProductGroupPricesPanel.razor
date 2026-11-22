@@ -1,0 +1,112 @@
+@* Panel for AdminSlots.ProductEditPanels; the slot supplies ProductId. Saves independently of the product form. *@
+<div class="pc-card" style="margin-top:1rem">
+    <h2 style="margin-top:0">Customer group prices</h2>
+    <p class="pc-muted">
+        Members of a group pay the group's percentage off this product's price, or a fixed price set here, which wins over the percentage. Someone in
+        several groups pays the lowest. A group never makes a product dearer than its normal price. Set a group's percentage on the Customer groups page.
+    </p>
+    @if (_loading)
+    {
+        <p class="pc-muted">Loading...</p>
+    }
+    else if (_rows is null)
+    {
+        <p class="pc-error">Could not load group prices for this product.</p>
+    }
+    else if (_rows.Count == 0)
+    {
+        <p class="pc-muted">There are no customer groups yet.</p>
+    }
+    else
+    {
+        <table class="pc-table">
+            <thead><tr><th>Group</th><th style="text-align:right">% off</th><th style="width:9rem">Fixed price</th><th style="text-align:right">Members pay</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var r in _rows)
+            {
+                var row = r;
+                <tr>
+                    <td>@r.GroupName</td>
+                    <td style="text-align:right">@r.DiscountPercent.ToString("0.##")</td>
+                    <td><input type="number" step="0.01" min="0" aria-label="Fixed price for @r.GroupName" placeholder="none" value="@_edits[r.GroupId]" @onchange="e => _edits[row.GroupId] = e.Value?.ToString()" /></td>
+                    <td style="text-align:right">@r.GroupPrice.ToString("N2")</td>
+                    <td class="actions">
+                        <button type="button" disabled="@_busy" @onclick="() => SaveAsync(row)">Save</button>
+                        @if (r.FixedPrice is not null)
+                        {
+                            <button type="button" class="secondary" disabled="@_busy" @onclick="() => ClearAsync(row)">Clear</button>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+        @if (_message is not null)
+        {
+            <p role="status">@_message</p>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Guid ProductId { get; set; }
+    [Inject] private AdminScopeRunner Scope { get; set; } = default!;
+
+    private IReadOnlyList<ProductGroupPriceDto>? _rows;
+    private readonly Dictionary<Guid, string?> _edits = [];
+    private bool _loading = true, _busy;
+    private string? _message;
+    private Guid _loadedFor;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedFor == ProductId) return;
+        _loadedFor = ProductId;
+        _message = null;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var id = ProductId;
+            _rows = await Scope.RunAsync<IGroupPricingService, IReadOnlyList<ProductGroupPriceDto>?>(s => s.ListForProductAsync(id));
+            _edits.Clear();
+            foreach (var r in _rows ?? []) _edits[r.GroupId] = r.FixedPrice?.ToString("0.##");
+        }
+        catch { _rows = null; }
+        _loading = false;
+    }
+
+    private async Task SaveAsync(ProductGroupPriceDto row)
+    {
+        _busy = true; _message = null;
+        try
+        {
+            if (!decimal.TryParse(_edits[row.GroupId], out var price)) { _message = "Enter a price, or use Clear to remove the fixed price."; return; }
+            var id = ProductId;
+            await Scope.RunAsync<IGroupPricingService, ProductGroupPriceDto?>(s => s.SetAsync(id, row.GroupId, new GroupPriceInput { Price = price }));
+            await LoadAsync();
+            _message = $"Saved the {row.GroupName} price.";
+        }
+        catch (PiranhaCommerce.Core.Validation.PiranhaValidationException ex) { _message = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
+        catch (Exception ex) { _message = "Could not save: " + ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task ClearAsync(ProductGroupPriceDto row)
+    {
+        _busy = true; _message = null;
+        try
+        {
+            var id = ProductId;
+            await Scope.RunAsync<IGroupPricingService, bool>(s => s.RemoveAsync(id, row.GroupId));
+            await LoadAsync();
+            _message = $"Removed the fixed {row.GroupName} price.";
+        }
+        catch (Exception ex) { _message = "Could not remove: " + ex.Message; }
+        finally { _busy = false; }
+    }
+}

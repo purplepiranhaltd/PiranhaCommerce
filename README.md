@@ -360,6 +360,17 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   their lines by a background job that runs every six hours (first run a minute after start). Any change to a basket (a line, a promo code, a voucher, a
   shopper claiming it) counts as being active. Checked-out baskets are never touched. Baskets hold no stock, so this is housekeeping only. `IBasketHousekeeper`
   does the work if you want to run it from your own scheduler.
+- **Customer group prices**: a customer group can give its members a percentage off every product (`discountPercent` on the group, 0 to 100, 2 decimal
+  places) and a product can carry a fixed price for a group (`PUT|DELETE /products/{id}/group-prices/{groupId}` with `{ "price" }`, `GET` lists every group
+  with what it pays; admin: the "Customer group prices" panel on the product page and the % field on Customer groups). What a customer pays: for each
+  group they belong to, the fixed price if that product has one for the group, otherwise the regular price less the group's percentage (rounded to 2
+  places); they pay the **lowest** of those and the regular price, so a group never makes anything dearer. Baskets, quotes and checkout all use the same
+  rule, so they cannot disagree; the basket line shows the `regularPrice` when a group price applies, and an order keeps the price it was charged. A
+  promo code then discounts the group price (10% off a 100 product at 20% group price is 8, not 10). The price follows membership: join or leave a group
+  and an open basket re-prices. Only identified customers get group prices: a guest basket pays the regular price. Prices are tax-exclusive, like all
+  prices here. To show a shopper their prices, call `GET /storefront/prices?productIds=...` (their own token) or, from a shop front acting for them,
+  `GET /customers/{id}/prices?productIds=...`: each answer is `{ productId, regularPrice, price, discounted }`. (There is no shopper-facing catalogue
+  endpoint, so this is the way to price a list of products for a signed-in shopper.)
 - **Unpaid orders** (off by default): with `Piranha:Ecommerce:UnpaidOrderHours` above 0, an order still at Placed with no payment of any kind after that many
   hours is cancelled by a background job (every 15 minutes), exactly as if staff had cancelled it: the stock goes back on the shelf, the promo use is given
   back and the buyer gets the cancellation email. The movement is recorded as done by "system (unpaid order expired)". Part-paid orders, orders already in

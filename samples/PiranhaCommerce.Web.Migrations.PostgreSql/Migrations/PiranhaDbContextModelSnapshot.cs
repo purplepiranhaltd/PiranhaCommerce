@@ -718,6 +718,12 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<decimal>("DiscountPercent")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasDefaultValue(0m);
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1032,6 +1038,25 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                         .IsUnique();
 
                     b.ToTable("GiftVoucher", "ecom");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.GroupPrice", b =>
+                {
+                    b.Property<Guid>("GroupId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.HasKey("GroupId", "ProductId");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("GroupPrice", "ecom");
                 });
 
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.Order", b =>
@@ -2137,6 +2162,21 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.HasOne("PiranhaCommerce.Ecommerce.Basket", null)
                         .WithMany("Lines")
                         .HasForeignKey("BasketId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PiranhaCommerce.Catalog.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.GroupPrice", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Customers.CustomerGroup", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 

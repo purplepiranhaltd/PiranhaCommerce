@@ -86,7 +86,9 @@ internal sealed class BasketService(PiranhaDbContext db, ICustomerService custom
             .Where(l => l.Published && db.Set<BasketLine>().Any(b => b.BasketId == basketId && b.ProductId == l.ProductId))
             .Select(l => l.ProductId).ToListAsync(ct)).ToHashSet();
 
-        var dtos = lines.Select(x => new BasketLineDto(x.Id, x.Name, x.Sku, x.Price, x.Quantity, x.Price * x.Quantity, published.Contains(x.Id))).ToList();
+        // What this customer pays: the regular price, or less when one of their groups gives a better one.
+        var pay = await GroupPricing.EffectiveAsync(db, basket.CustomerId, lines.Select(x => (x.Id, x.Price)).ToList(), ct);
+        var dtos = lines.Select(x => new BasketLineDto(x.Id, x.Name, x.Sku, pay[x.Id], x.Quantity, pay[x.Id] * x.Quantity, published.Contains(x.Id), pay[x.Id] < x.Price ? x.Price : null)).ToList();
         return new BasketDto(basket.Id, basket.Status, basket.CustomerId, basket.OrderId, options.Value.Currency.ToUpperInvariant(),
             dtos.Sum(d => d.LineTotal), dtos, basket.PromotionCode,
             basket.VoucherId is { } vid ? await db.Set<GiftVoucher>().AsNoTracking().Where(v => v.Id == vid).Select(v => v.CodeLast4).FirstOrDefaultAsync(ct) : null);

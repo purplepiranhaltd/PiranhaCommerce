@@ -149,6 +149,10 @@ internal sealed partial class OrderService(
                         .OrderBy(x => x.Name).ThenBy(x => x.Id)
                         .ToListAsync(token);
                     if (lines.Count == 0) throw new PiranhaConflictException("The basket is empty.");
+                    // The buyer's group prices, decided here in the transaction exactly as the basket and quote show them.
+                    var buyer = input.CustomerId ?? await db.Set<Basket>().AsNoTracking().Where(b => b.Id == basketId).Select(b => b.CustomerId).FirstAsync(token);
+                    var pay = await GroupPricing.EffectiveAsync(db, buyer, lines.Select(l => (l.Id, l.Price)).ToList(), token);
+                    lines = lines.Select(l => new { l.Id, l.Name, l.Sku, Price = pay[l.Id], l.Quantity }).ToList();
                     var productIdsInBasket = lines.Select(x => x.Id).ToList();
                     var published = (await db.Set<ProductListing>().AsNoTracking().Where(l => l.Published && productIdsInBasket.Contains(l.ProductId))
                         .Select(l => l.ProductId).ToListAsync(token)).ToHashSet();

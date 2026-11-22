@@ -56,6 +56,7 @@ internal sealed class CustomersModelContributor : IModelContributor
             e.Property(g => g.Name).HasMaxLength(100).IsRequired();
             e.Property(g => g.NormalizedName).HasMaxLength(100).IsRequired();
             e.Property(g => g.Description).HasMaxLength(500);
+            e.Property(g => g.DiscountPercent).HasPrecision(5, 2).HasDefaultValue(0m);
             e.HasIndex(g => g.NormalizedName).IsUnique();
         });
 

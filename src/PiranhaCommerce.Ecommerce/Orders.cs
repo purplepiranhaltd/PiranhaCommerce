@@ -146,7 +146,8 @@ public sealed class BasketLineInput
     public const int Max = 10_000;
 }
 
-public sealed record BasketLineDto(Guid ProductId, string Name, string? Sku, decimal UnitPrice, int Quantity, decimal LineTotal, bool Available);
+/// <param name="RegularPrice">The product's own price, shown when a customer group gives this shopper a lower <paramref name="UnitPrice"/>; null when they pay the regular price.</param>
+public sealed record BasketLineDto(Guid ProductId, string Name, string? Sku, decimal UnitPrice, int Quantity, decimal LineTotal, bool Available, decimal? RegularPrice = null);
 
 public sealed record BasketDto(
     Guid Id, BasketStatus Status, Guid? CustomerId, Guid? OrderId, string Currency, decimal Subtotal, IReadOnlyList<BasketLineDto> Lines,

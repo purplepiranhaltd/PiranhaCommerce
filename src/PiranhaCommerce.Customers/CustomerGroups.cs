@@ -13,7 +13,7 @@ namespace PiranhaCommerce.Customers;
 
 /// <summary>
 /// A named set of customers (trade, staff, VIP...). Staff put customers in and take them out; other packages use membership to decide who may
-/// have something (a promotion limited to a group today). A group holds no prices of its own.
+/// have something (a promotion limited to a group today). A group carries a percentage off for its members; fixed prices per product live with the product (see Ecommerce group prices).
 /// </summary>
 public class CustomerGroup : AuditableEntity
 {
@@ -22,6 +22,9 @@ public class CustomerGroup : AuditableEntity
     /// <summary>Upper-case form of the name, so the database keeps names unique whatever the letter case.</summary>
     public required string NormalizedName { get; set; }
     public string? Description { get; set; }
+
+    /// <summary>Percentage off every product's regular price for this group's members (0 = none). A fixed price set on a product for the group beats it.</summary>
+    public decimal DiscountPercent { get; set; }
 }
 
 public class CustomerGroupMember : Entity
@@ -36,9 +39,12 @@ public sealed class CustomerGroupInput
 {
     [Required, StringLength(100, MinimumLength = 1)] public string Name { get; set; } = "";
     [StringLength(500)] public string? Description { get; set; }
+
+    /// <summary>Up to 2 decimal places, 0 to 100.</summary>
+    [Range(0, 100)] public decimal DiscountPercent { get; set; }
 }
 
-public sealed record CustomerGroupDto(Guid Id, string Name, string? Description, int MemberCount, DateTimeOffset CreatedUtc);
+public sealed record CustomerGroupDto(Guid Id, string Name, string? Description, int MemberCount, DateTimeOffset CreatedUtc, decimal DiscountPercent = 0m);
 public sealed record CustomerGroupRefDto(Guid Id, string Name);
 public sealed record CustomerGroupMemberDto(Guid CustomerId, string Email, string? FirstName, string? LastName, DateTimeOffset AddedUtc, string? AddedBy);
 
@@ -77,11 +83,17 @@ internal sealed class CustomerGroupService(PiranhaDbContext db) : ICustomerGroup
 {
     private static string Normalize(string name) => name.Trim().ToUpperInvariant();
 
+    private static void CheckPercent(CustomerGroupInput input)
+    {
+        if (decimal.Round(input.DiscountPercent, 2) != input.DiscountPercent)
+            throw new PiranhaValidationException(nameof(CustomerGroupInput.DiscountPercent), "The percentage can have at most 2 decimal places.");
+    }
+
     public async Task<IReadOnlyList<CustomerGroupDto>> ListAsync(CancellationToken ct = default)
     {
         var groups = await db.Set<CustomerGroup>().AsNoTracking().OrderBy(g => g.NormalizedName).ToListAsync(ct);
         var counts = await db.Set<CustomerGroupMember>().AsNoTracking().GroupBy(m => m.GroupId).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.Count, ct);
-        return groups.Select(g => new CustomerGroupDto(g.Id, g.Name, g.Description, counts.GetValueOrDefault(g.Id), g.CreatedUtc)).ToList();
+        return groups.Select(g => new CustomerGroupDto(g.Id, g.Name, g.Description, counts.GetValueOrDefault(g.Id), g.CreatedUtc, g.DiscountPercent)).ToList();
     }
 
     public async Task<CustomerGroupDto?> GetAsync(Guid id, CancellationToken ct = default)
@@ -89,13 +101,14 @@ internal sealed class CustomerGroupService(PiranhaDbContext db) : ICustomerGroup
         var g = await db.Set<CustomerGroup>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
         if (g is null) return null;
         var count = await db.Set<CustomerGroupMember>().AsNoTracking().CountAsync(m => m.GroupId == id, ct);
-        return new CustomerGroupDto(g.Id, g.Name, g.Description, count, g.CreatedUtc);
+        return new CustomerGroupDto(g.Id, g.Name, g.Description, count, g.CreatedUtc, g.DiscountPercent);
     }
 
     public async Task<CustomerGroupDto> CreateAsync(CustomerGroupInput input, CancellationToken ct = default)
     {
         ModelValidator.ValidateOrThrow(input);
-        var g = new CustomerGroup { Name = input.Name.Trim(), NormalizedName = Normalize(input.Name), Description = string.IsNullOrWhiteSpace(input.Description) ? null : input.Description.Trim() };
+        CheckPercent(input);
+        var g = new CustomerGroup { Name = input.Name.Trim(), NormalizedName = Normalize(input.Name), Description = string.IsNullOrWhiteSpace(input.Description) ? null : input.Description.Trim(), DiscountPercent = input.DiscountPercent };
         db.Add(g);
         try { await db.SaveChangesAsync(ct); }
         catch (DbUpdateException)
@@ -103,14 +116,16 @@ internal sealed class CustomerGroupService(PiranhaDbContext db) : ICustomerGroup
             db.ChangeTracker.Clear();
             throw new PiranhaValidationException(nameof(CustomerGroupInput.Name), "There is already a group with that name.");
         }
-        return new CustomerGroupDto(g.Id, g.Name, g.Description, 0, g.CreatedUtc);
+        return new CustomerGroupDto(g.Id, g.Name, g.Description, 0, g.CreatedUtc, g.DiscountPercent);
     }
 
     public async Task<CustomerGroupDto?> UpdateAsync(Guid id, CustomerGroupInput input, CancellationToken ct = default)
     {
         ModelValidator.ValidateOrThrow(input);
+        CheckPercent(input);
         var g = await db.Set<CustomerGroup>().FirstOrDefaultAsync(x => x.Id == id, ct);
         if (g is null) return null;
+        g.DiscountPercent = input.DiscountPercent;
         g.Name = input.Name.Trim(); g.NormalizedName = Normalize(input.Name);
         g.Description = string.IsNullOrWhiteSpace(input.Description) ? null : input.Description.Trim();
         g.UpdatedUtc = DateTimeOffset.UtcNow;

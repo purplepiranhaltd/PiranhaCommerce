@@ -22,6 +22,8 @@
         <label>Name <InputText @bind-Value="_input.Name" /></label>
         <ValidationMessage For="() => _input.Name" />
         <label>Description (optional) <InputText @bind-Value="_input.Description" /></label>
+        <label>Percentage off every product for members (0 for none; set fixed prices per product on the product page) <InputNumber @bind-Value="_input.DiscountPercent" /></label>
+        <ValidationMessage For="() => _input.DiscountPercent" />
         <button type="submit" disabled="@_busy">Save</button>
         @if (_editing is not null)
         {
@@ -41,7 +43,7 @@ else if (_groups.Count == 0)
 else
 {
     <table class="pc-table">
-        <thead><tr><th>Name</th><th>Description</th><th style="text-align:right">Customers</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th>Description</th><th style="text-align:right">% off</th><th style="text-align:right">Customers</th><th></th></tr></thead>
         <tbody>
         @foreach (var g in _groups)
         {
@@ -49,6 +51,7 @@ else
             <tr>
                 <td>@g.Name</td>
                 <td>@g.Description</td>
+                <td style="text-align:right">@(g.DiscountPercent > 0 ? g.DiscountPercent.ToString("0.##") : "-")</td>
                 <td style="text-align:right">@g.MemberCount</td>
                 <td class="actions">
                     <button class="secondary" @onclick="() => OpenAsync(group)">Customers</button>
@@ -124,7 +127,7 @@ else
         catch (Exception ex) { _error = "Could not load groups: " + ex.Message; }
     }
 
-    private void Edit(CustomerGroupDto g) { _editing = g.Id; _input = new CustomerGroupInput { Name = g.Name, Description = g.Description }; }
+    private void Edit(CustomerGroupDto g) { _editing = g.Id; _input = new CustomerGroupInput { Name = g.Name, Description = g.Description, DiscountPercent = g.DiscountPercent }; }
     private void Reset() { _editing = null; _input = new(); }
 
     private async Task SaveAsync()

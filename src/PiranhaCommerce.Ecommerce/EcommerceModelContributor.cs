@@ -11,6 +11,16 @@ internal sealed class EcommerceModelContributor : IModelContributor
 
     public void OnModelCreating(ModelBuilder b)
     {
+        b.Entity<GroupPrice>(e =>
+        {
+            e.ToTable("GroupPrice", Schema);
+            e.HasKey(p => new { p.GroupId, p.ProductId });
+            e.Property(p => p.Price).HasPrecision(18, 4);
+            e.HasOne<PiranhaCommerce.Customers.CustomerGroup>().WithMany().HasForeignKey(p => p.GroupId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Product>().WithMany().HasForeignKey(p => p.ProductId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(p => p.ProductId);
+        });
+
         b.Entity<ProductListing>(e =>
         {
             e.ToTable("ProductListing", Schema);
