@@ -336,8 +336,8 @@ public class OrderTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
         async Task<PagedResult<OrderSummaryDto>> List(string query) => await Read<PagedResult<OrderSummaryDto>>(await c.GetAsync("/api/v1/orders?" + query));
 
         Assert.Equal(order.Id, (await List("search=" + Uri.EscapeDataString(email))).Items.Single().Id);
-        Assert.Equal(order.Id, (await List($"search=ORD-{order.Number}")).Items.Single().Id);
-        Assert.Equal(order.Id, (await List($"search={order.Number}")).Items.Single().Id);
+        Assert.Contains((await List($"search=ORD-{order.Number}")).Items, o => o.Id == order.Id); // a number can match inside a longer one on a database that has seen many orders
+        Assert.Contains((await List($"search={order.Number}")).Items, o => o.Id == order.Id); // a number can match inside a longer one on a database that has seen many orders
         Assert.Contains((await List("stage=Placed&pageSize=100")).Items, o => o.Id == order.Id);
         Assert.DoesNotContain((await List("stage=Cancelled&pageSize=100")).Items, o => o.Id == order.Id);
     }
