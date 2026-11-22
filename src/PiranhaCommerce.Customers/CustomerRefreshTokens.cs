@@ -38,8 +38,20 @@ public sealed class RefreshTokenInput
 
 public sealed record RefreshResult(Guid CustomerId, string Email, int SessionVersion, string RefreshToken);
 
+/// <summary>One signed-in device of a shopper: its refresh chain. Id is what ends it.</summary>
+public sealed record ShopperSessionDto(Guid Id, DateTimeOffset StartedUtc, DateTimeOffset LastUsedUtc, DateTimeOffset ExpiresUtc);
+
 public interface ICustomerRefreshService
 {
+    /// <summary>The shopper's devices that can still refresh. A device whose access token is still running but which has no refresh token is not listed.</summary>
+    Task<IReadOnlyList<ShopperSessionDto>> ListSessionsAsync(Guid customerId, CancellationToken ct = default);
+
+    /// <summary>Ends one device's chain. False when it is not one of this customer's live sessions.</summary>
+    Task<bool> EndSessionAsync(Guid customerId, Guid sessionId, CancellationToken ct = default);
+
+    /// <summary>Ends every session, access tokens included, and returns the new session version for the new token of whoever asked. Null if the customer is gone.</summary>
+    Task<PasswordChangeResult?> SignOutEverywhereAsync(Guid customerId, CancellationToken ct = default);
+
     /// <summary>
     /// Starts a new refresh family for a sign-in that has just succeeded and returns the token (shown once, never stored). Null when refresh
     /// tokens are switched off (<c>RefreshTokenDays</c> is 0).
@@ -124,6 +136,32 @@ internal sealed partial class CustomerAccountService : ICustomerRefreshService
             return null;
         }
         return new RefreshResult(row.CustomerId, email, row.SessionVersion, next);
+    }
+
+    public async Task<IReadOnlyList<ShopperSessionDto>> ListSessionsAsync(Guid customerId, CancellationToken ct = default)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var live = await (from t in db.Set<CustomerRefreshToken>().AsNoTracking()
+                          join l in db.Set<CustomerLogin>() on t.CustomerId equals l.CustomerId
+                          where t.CustomerId == customerId && t.UsedUtc == null && t.RevokedUtc == null && t.ExpiresUtc > now && t.SessionVersion == l.SessionVersion
+                          select new ShopperSessionDto(t.FamilyId, t.FamilyStartedUtc, t.CreatedUtc, t.ExpiresUtc)).ToListAsync(ct);
+        return live.OrderByDescending(x => x.LastUsedUtc).ToList();
+    }
+
+    public async Task<bool> EndSessionAsync(Guid customerId, Guid sessionId, CancellationToken ct = default)
+    {
+        var mine = await db.Set<CustomerRefreshToken>().AnyAsync(t => t.FamilyId == sessionId && t.CustomerId == customerId && t.RevokedUtc == null, ct);
+        if (!mine) return false;
+        await RevokeFamilyAsync(sessionId, DateTimeOffset.UtcNow, ct);
+        return true;
+    }
+
+    async Task<PasswordChangeResult?> ICustomerRefreshService.SignOutEverywhereAsync(Guid customerId, CancellationToken ct)
+    {
+        if (!await SignOutEverywhereAsync(customerId, "shopper", ct)) return null;
+        var row = await (from l in db.Set<CustomerLogin>().AsNoTracking() join c in db.Set<Customer>() on l.CustomerId equals c.Id
+                         where l.CustomerId == customerId select new { c.Email, l.SessionVersion }).FirstOrDefaultAsync(ct);
+        return row is null ? null : new PasswordChangeResult(row.Email, row.SessionVersion);
     }
 
     public async Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken ct = default)

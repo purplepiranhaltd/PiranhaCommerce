@@ -140,4 +140,56 @@ public class RefreshTokenTests(PiranhaFactory factory) : IClassFixture<PiranhaFa
         var capped = await db.Set<CustomerRefreshToken>().AsNoTracking().Where(t => t.CustomerId == p2.Id && t.UsedUtc == null).SingleAsync();
         Assert.True(capped.ExpiresUtc < DateTimeOffset.UtcNow.AddDays(1));
     }
+
+    private HttpClient As(string accessToken)
+    {
+        var c = factory.CreateClient();
+        c.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        return c;
+    }
+
+    private static async Task<List<ShopperSessionDto>> Sessions(HttpClient c) =>
+        (await (await c.GetAsync("/api/v1/storefront/me/sessions")).Content.ReadFromJsonAsync<List<ShopperSessionDto>>(Json))!;
+
+    [Fact]
+    public async Task A_shopper_can_list_and_end_their_own_devices()
+    {
+        var (profile, laptop) = await Register();
+        var phone = await Tok(await factory.CreateClient().PostAsJsonAsync("/api/v1/storefront/auth/token", new SignInInput(profile.Email, Password)));
+        var me = As(laptop.AccessToken);
+        var sessions = await Sessions(me);
+        Assert.Equal(2, sessions.Count);
+
+        // Refreshing keeps it one device, not two.
+        await Refresh(laptop.RefreshToken);
+        var after = await Sessions(me);
+        Assert.Equal(2, after.Count);
+        Assert.Equivalent(sessions.Select(s => s.Id).Order(), after.Select(s => s.Id).Order());
+
+        // Someone else cannot end it; the owner can, once.
+        var (_, stranger) = await Register();
+        var target = after[0].Id;
+        Assert.Equal(HttpStatusCode.NotFound, (await As(stranger.AccessToken).DeleteAsync($"/api/v1/storefront/me/sessions/{target}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await me.DeleteAsync($"/api/v1/storefront/me/sessions/{target}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await me.DeleteAsync($"/api/v1/storefront/me/sessions/{target}")).StatusCode);
+        Assert.Single(await Sessions(me));
+        Assert.DoesNotContain(await Sessions(me), s => s.Id == target);
+    }
+
+    [Fact]
+    public async Task Signing_out_everywhere_ends_every_other_device_and_keeps_the_one_that_asked()
+    {
+        var (profile, laptop) = await Register();
+        var phone = await Tok(await factory.CreateClient().PostAsJsonAsync("/api/v1/storefront/auth/token", new SignInInput(profile.Email, Password)));
+
+        var r = await As(laptop.AccessToken).PostAsync("/api/v1/storefront/me/sign-out-everywhere", null);
+        Assert.Equal(HttpStatusCode.OK, r.StatusCode);
+        var fresh = await Tok(r);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, await Me(phone.AccessToken));
+        Assert.Equal(HttpStatusCode.Unauthorized, await Me(laptop.AccessToken));
+        Assert.Equal(HttpStatusCode.Unauthorized, (await Refresh(phone.RefreshToken)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, await Me(fresh.AccessToken));
+        Assert.Single(await Sessions(As(fresh.AccessToken)));
+    }
 }

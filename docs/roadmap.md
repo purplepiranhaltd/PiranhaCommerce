@@ -78,7 +78,7 @@ Not built:
   SMTP sender is built, with editable templates in its own admin section. Planned: a Mailjet package using its Transactional Email templates (words live in Mailjet; a message is a key plus variables). Not built: other providers (SendGrid, Azure Communication Services - a plugin each), HTML and editable templates, a queue with
   retries (mail is sent inline and a failure is only logged) and a welcome email. A verified email before sign-in is built as an option (`RequireVerifiedEmail`, off by default).
 - Staff admin for shopper accounts and ending sessions early are built (a session version on each sign-in, checked on every call; see the README).
-  Staff actions on a sign-in are recorded (who, what, when). Refresh tokens are built (single use, rotated, revoked on reuse). Not built: a shopper-facing "sign out everywhere" and list of their sessions.
+  Staff actions on a sign-in are recorded (who, what, when). Refresh tokens are built (single use, rotated, revoked on reuse). Shoppers can list their devices, end one and sign out everywhere.
 - Merging two baskets (claim only takes an unowned basket whole); guest checkout through the storefront API.
 - Customer data export and erasure are built for staff (orders anonymised, never deleted). Shoppers can export and erase their own account through the storefront API.
   Not built: a scheduled retention clean-up, and erasure in the payment provider and email provider.

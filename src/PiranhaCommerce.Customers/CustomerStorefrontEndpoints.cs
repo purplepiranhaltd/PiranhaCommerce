@@ -119,6 +119,17 @@ internal sealed class CustomerStorefrontEndpoints : IStorefrontEndpointContribut
                 ? Results.Ok(tokens.Issue(user.CustomerId()!.Value, changed.Email, changed.SessionVersion) with { RefreshToken = await refresh.IssueRefreshTokenAsync(user.CustomerId()!.Value, changed.SessionVersion, ct) })
                 : Results.ValidationProblem(new Dictionary<string, string[]> { [nameof(ChangePasswordInput.CurrentPassword)] = ["The current password is not correct."] }));
 
+        // Their signed-in devices (the ones that can still refresh), ending one, and signing out everywhere. Signing out everywhere ends every
+        // access token too; the response carries a new token for the device that asked, like a password change.
+        me.MapGet("/sessions", async (ClaimsPrincipal user, ICustomerRefreshService refresh, CancellationToken ct) =>
+            Results.Ok(await refresh.ListSessionsAsync(user.CustomerId()!.Value, ct)));
+        me.MapDelete("/sessions/{id:guid}", async (Guid id, ClaimsPrincipal user, ICustomerRefreshService refresh, CancellationToken ct) =>
+            await refresh.EndSessionAsync(user.CustomerId()!.Value, id, ct) ? Results.NoContent() : Results.NotFound());
+        me.MapPost("/sign-out-everywhere", async (ClaimsPrincipal user, ICustomerRefreshService refresh, ICustomerTokenIssuer tokens, CancellationToken ct) =>
+            await refresh.SignOutEverywhereAsync(user.CustomerId()!.Value, ct) is { } r
+                ? Results.Ok(tokens.Issue(user.CustomerId()!.Value, r.Email, r.SessionVersion) with { RefreshToken = await refresh.IssueRefreshTokenAsync(user.CustomerId()!.Value, r.SessionVersion, ct) })
+                : Results.Unauthorized());
+
         // Their own data: everything held about them, and erasing their account. The id is always the token's. Erasing needs the password again
         // (checked and counted like a sign-in), so a stolen token alone cannot wipe an account. Orders are anonymised, never deleted.
         me.MapGet("/export", async (ClaimsPrincipal user, ICustomerErasureService svc, CancellationToken ct) =>
