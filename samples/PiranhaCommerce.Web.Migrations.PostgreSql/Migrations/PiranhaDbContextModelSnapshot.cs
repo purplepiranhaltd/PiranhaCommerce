@@ -705,6 +705,10 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.Property<DateTimeOffset?>("UsedUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("FamilyId");

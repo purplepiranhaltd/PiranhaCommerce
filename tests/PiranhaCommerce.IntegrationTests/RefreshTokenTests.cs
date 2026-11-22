@@ -192,4 +192,55 @@ public class RefreshTokenTests(PiranhaFactory factory) : IClassFixture<PiranhaFa
         Assert.Equal(HttpStatusCode.OK, await Me(fresh.AccessToken));
         Assert.Single(await Sessions(As(fresh.AccessToken)));
     }
+
+    private async Task<TokenResponse> SignInWith(string email, string? userAgent)
+    {
+        var c = factory.CreateClient();
+        if (userAgent is not null) c.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
+        return await Tok(await c.PostAsJsonAsync("/api/v1/storefront/auth/token", new SignInInput(email, Password)));
+    }
+
+    [Fact]
+    public async Task Devices_are_named_from_the_user_agent_and_the_current_one_is_marked()
+    {
+        var (profile, _) = await Register();
+        var chrome = await SignInWith(profile.Email, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36");
+        var phone = await SignInWith(profile.Email, "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1");
+        var app = await SignInWith(profile.Email, "MyShopApp/2.1");
+
+        var seenByChrome = await Sessions(As(chrome.AccessToken));
+        Assert.Contains(seenByChrome, s => s.Device == "Chrome on Windows" && s.Current);
+        Assert.Contains(seenByChrome, s => s.Device == "Safari on iPhone" && !s.Current);
+        Assert.Contains(seenByChrome, s => s.Device == "MyShopApp/2.1" && !s.Current);
+        Assert.Single(seenByChrome, s => s.Current);
+
+        // Refreshing keeps the name and the mark: the new access token carries the same session id.
+        var refreshed = await Tok(await Refresh(phone.RefreshToken));
+        var seenByPhone = await Sessions(As(refreshed.AccessToken));
+        Assert.Single(seenByPhone, s => s.Current);
+        Assert.Equal("Safari on iPhone", seenByPhone.Single(s => s.Current).Device);
+
+        // Ending the device you are on, from that device, is allowed and signs it out of refreshing.
+        var mine = seenByPhone.Single(s => s.Current).Id;
+        Assert.Equal(HttpStatusCode.NoContent, (await As(refreshed.AccessToken).DeleteAsync($"/api/v1/storefront/me/sessions/{mine}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await Refresh(refreshed.RefreshToken)).StatusCode);
+        Assert.NotNull(app.RefreshToken);
+    }
+
+    [Fact]
+    public async Task No_user_agent_is_an_unknown_device_and_a_huge_or_dirty_one_is_stored_cleaned_and_short()
+    {
+        var (profile, _) = await Register();
+        var none = await SignInWith(profile.Email, null);
+        Assert.Contains(await Sessions(As(none.AccessToken)), s => s.Current && s.Device == "Unknown device");
+
+        var c = factory.CreateClient();
+        c.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "Edg-test/" + new string('x', 400));
+        var big = await Tok(await c.PostAsJsonAsync("/api/v1/storefront/auth/token", new SignInInput(profile.Email, Password)));
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<PiranhaDbContext>();
+        var stored = await db.Set<CustomerRefreshToken>().AsNoTracking().Where(t => t.CustomerId == profile.Id && t.UserAgent != null).Select(t => t.UserAgent!).ToListAsync();
+        Assert.All(stored, s => Assert.True(s.Length <= 200));
+        Assert.NotNull(big.RefreshToken);
+    }
 }

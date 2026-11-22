@@ -17,6 +17,9 @@ public static class StorefrontUser
         => Guid.TryParse(user.FindFirstValue("sub"), out var id) ? id : null;
 
     /// <summary>The session version the token was issued with. A token from before versions existed has none, which counts as 0.</summary>
+    public static Guid? SessionId(this ClaimsPrincipal user)
+        => Guid.TryParse(user.FindFirstValue("sid"), out var id) ? id : null;
+
     public static int SessionVersion(this ClaimsPrincipal user)
         => int.TryParse(user.FindFirstValue("sv"), out var v) ? v : 0;
 }
@@ -39,27 +42,34 @@ public sealed class ActiveCustomerFilter : IEndpointFilter
 
 internal sealed class CustomerStorefrontEndpoints : IStorefrontEndpointContributor
 {
+    /// <summary>A new sign-in on this device: its access token (carrying the session id) and refresh token, labelled with the caller's User-Agent.</summary>
+    private static async Task<TokenResponse> SignedInAsync(ICustomerTokenIssuer tokens, ICustomerRefreshService refresh, HttpContext http, Guid id, string email, int sessionVersion, CancellationToken ct)
+    {
+        var issued = await refresh.IssueRefreshTokenAsync(id, sessionVersion, http.Request.Headers.UserAgent.ToString(), ct);
+        return tokens.Issue(id, email, sessionVersion, issued?.SessionId) with { RefreshToken = issued?.Token };
+    }
+
     public void MapEndpoints(IEndpointRouteBuilder storefront)
     {
         // Anonymous on purpose, one by one: everything else in the group needs a shopper token.
         var auth = storefront.MapGroup("/auth").WithTags("Storefront accounts");
 
-        auth.MapPost("/register", async (RegisterInput input, ICustomerAccountService accounts, ICustomerTokenIssuer tokens, ICustomerRefreshService refresh, IOptions<CustomerAccountOptions> accountOptions, CancellationToken ct) =>
+        auth.MapPost("/register", async (RegisterInput input, ICustomerAccountService accounts, ICustomerTokenIssuer tokens, ICustomerRefreshService refresh, IOptions<CustomerAccountOptions> accountOptions, HttpContext http, CancellationToken ct) =>
             {
                 var profile = await accounts.RegisterAsync(input, ct);
                 // When the shop requires a verified email there is no token yet: they follow the emailed link first.
                 if (accountOptions.Value.RequireVerifiedEmail) return Results.Accepted("/api/v1/storefront/auth/verify-email", new VerificationRequiredDto(profile, true));
-                return Results.Created("/api/v1/storefront/me", new RegisteredDto(profile, tokens.Issue(profile.Id, profile.Email, 0) with { RefreshToken = await refresh.IssueRefreshTokenAsync(profile.Id, 0, ct) }));
+                return Results.Created("/api/v1/storefront/me", new RegisteredDto(profile, await SignedInAsync(tokens, refresh, http, profile.Id, profile.Email, 0, ct)));
             })
             .AllowAnonymous();
 
-        auth.MapPost("/token", async (SignInInput input, ICustomerAccountService accounts, ICustomerTokenIssuer tokens, ICustomerRefreshService refresh, CancellationToken ct) =>
+        auth.MapPost("/token", async (SignInInput input, ICustomerAccountService accounts, ICustomerTokenIssuer tokens, ICustomerRefreshService refresh, HttpContext http, CancellationToken ct) =>
             {
                 var result = await accounts.CheckAsync(input.Email, input.Password, ct);
                 // Wrong password, unknown email, no account, inactive and locked out all look the same.
                 if (result.Status == SignInStatus.Unverified) return Results.Json(new { error = "email_not_verified" }, statusCode: StatusCodes.Status403Forbidden);
                 return result is { Status: SignInStatus.Valid, CustomerId: { } id, Email: { } email }
-                    ? Results.Ok(tokens.Issue(id, email, result.SessionVersion) with { RefreshToken = await refresh.IssueRefreshTokenAsync(id, result.SessionVersion, ct) })
+                    ? Results.Ok(await SignedInAsync(tokens, refresh, http, id, email, result.SessionVersion, ct))
                     : Results.Unauthorized();
             })
             .AllowAnonymous();
@@ -67,7 +77,7 @@ internal sealed class CustomerStorefrontEndpoints : IStorefrontEndpointContribut
         // Swaps a refresh token for a new access token and the next refresh token. Anything that is not a live token is the same 401.
         auth.MapPost("/refresh", async (RefreshTokenInput input, ICustomerRefreshService refresh, ICustomerTokenIssuer tokens, CancellationToken ct) =>
                 await refresh.RefreshAsync(input.RefreshToken, ct) is { } r
-                    ? Results.Ok(tokens.Issue(r.CustomerId, r.Email, r.SessionVersion) with { RefreshToken = r.RefreshToken })
+                    ? Results.Ok(tokens.Issue(r.CustomerId, r.Email, r.SessionVersion, r.SessionId) with { RefreshToken = r.RefreshToken })
                     : Results.Unauthorized())
             .AllowAnonymous();
 
@@ -114,20 +124,20 @@ internal sealed class CustomerStorefrontEndpoints : IStorefrontEndpointContribut
             await accounts.UpdateProfileAsync(user.CustomerId()!.Value, input, ct) is { } p ? Results.Ok(p) : Results.Unauthorized());
 
         // Changing the password ends every session, so the response carries a new token for the device that changed it.
-        me.MapPost("/password", async (ChangePasswordInput input, ClaimsPrincipal user, ICustomerAccountService accounts, ICustomerTokenIssuer tokens, ICustomerRefreshService refresh, CancellationToken ct) =>
+        me.MapPost("/password", async (ChangePasswordInput input, ClaimsPrincipal user, ICustomerAccountService accounts, ICustomerTokenIssuer tokens, ICustomerRefreshService refresh, HttpContext http, CancellationToken ct) =>
             await accounts.ChangePasswordAsync(user.CustomerId()!.Value, input, ct) is { } changed
-                ? Results.Ok(tokens.Issue(user.CustomerId()!.Value, changed.Email, changed.SessionVersion) with { RefreshToken = await refresh.IssueRefreshTokenAsync(user.CustomerId()!.Value, changed.SessionVersion, ct) })
+                ? Results.Ok(await SignedInAsync(tokens, refresh, http, user.CustomerId()!.Value, changed.Email, changed.SessionVersion, ct))
                 : Results.ValidationProblem(new Dictionary<string, string[]> { [nameof(ChangePasswordInput.CurrentPassword)] = ["The current password is not correct."] }));
 
         // Their signed-in devices (the ones that can still refresh), ending one, and signing out everywhere. Signing out everywhere ends every
         // access token too; the response carries a new token for the device that asked, like a password change.
         me.MapGet("/sessions", async (ClaimsPrincipal user, ICustomerRefreshService refresh, CancellationToken ct) =>
-            Results.Ok(await refresh.ListSessionsAsync(user.CustomerId()!.Value, ct)));
+            Results.Ok(await refresh.ListSessionsAsync(user.CustomerId()!.Value, user.SessionId(), ct)));
         me.MapDelete("/sessions/{id:guid}", async (Guid id, ClaimsPrincipal user, ICustomerRefreshService refresh, CancellationToken ct) =>
             await refresh.EndSessionAsync(user.CustomerId()!.Value, id, ct) ? Results.NoContent() : Results.NotFound());
-        me.MapPost("/sign-out-everywhere", async (ClaimsPrincipal user, ICustomerRefreshService refresh, ICustomerTokenIssuer tokens, CancellationToken ct) =>
+        me.MapPost("/sign-out-everywhere", async (ClaimsPrincipal user, ICustomerRefreshService refresh, ICustomerTokenIssuer tokens, HttpContext http, CancellationToken ct) =>
             await refresh.SignOutEverywhereAsync(user.CustomerId()!.Value, ct) is { } r
-                ? Results.Ok(tokens.Issue(user.CustomerId()!.Value, r.Email, r.SessionVersion) with { RefreshToken = await refresh.IssueRefreshTokenAsync(user.CustomerId()!.Value, r.SessionVersion, ct) })
+                ? Results.Ok(await SignedInAsync(tokens, refresh, http, user.CustomerId()!.Value, r.Email, r.SessionVersion, ct))
                 : Results.Unauthorized());
 
         // Their own data: everything held about them, and erasing their account. The id is always the token's. Erasing needs the password again

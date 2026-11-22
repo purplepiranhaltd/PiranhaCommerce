@@ -220,7 +220,8 @@ Shoppers sign in separately from staff. Under `/api/v1/storefront`:
   password change or reset, switching the customer off, a staff email change), after `Piranha:Customers:RefreshTokenDays` (default 30, counted from each
   use; 0 switches refresh tokens off) and after `RefreshTokenMaxDays` (default 180) since that sign-in began. Anything not live is the same `401`.
   `/auth/logout` ends one device's chain (always `204`). Refresh tokens are for the shopper API only, never staff.
-- **Their devices:** `GET /me/sessions` lists the devices that can still refresh (id, started, last used, expires); `DELETE /me/sessions/{id}` ends one
+- **Their devices:** `GET /me/sessions` lists the devices that can still refresh (id, a readable `device` such as "Chrome on Windows" taken from the
+  User-Agent when they signed in, `current` for the device making the call, started, last used, expires). The User-Agent is cleaned and cut to 200 characters; no IP address is kept. A shop's own app can send a User-Agent like `MyShop/2.1` and that is shown as it is; `DELETE /me/sessions/{id}` ends one
   (`404` if it is not theirs). `POST /me/sign-out-everywhere` ends every session, access tokens included, and returns a new token pair for the device that
   asked. It is recorded in the sign-in history as done by the shopper.
 - `GET|PUT /me`, `POST /me/password`, `GET|POST|PUT|DELETE /me/addresses` - the signed-in shopper's own record only. Staff notes are never shown.

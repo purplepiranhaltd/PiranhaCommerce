@@ -101,6 +101,7 @@ internal sealed class CustomersModelContributor : IModelContributor
             e.ToTable("CustomerRefreshToken", Schema);
             e.HasKey(x => x.Id);
             e.Property(x => x.TokenHash).HasMaxLength(64).IsRequired();
+            e.Property(x => x.UserAgent).HasMaxLength(200);
             e.HasIndex(x => x.TokenHash).IsUnique();
             e.HasIndex(x => x.FamilyId);
             e.HasIndex(x => new { x.CustomerId, x.ExpiresUtc });

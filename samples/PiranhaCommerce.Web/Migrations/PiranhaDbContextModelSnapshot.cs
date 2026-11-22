@@ -708,6 +708,10 @@ namespace PiranhaCommerce.Web.Migrations
                     b.Property<DateTimeOffset?>("UsedUtc")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("FamilyId");

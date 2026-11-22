@@ -28,6 +28,9 @@ public class CustomerRefreshToken
     public DateTimeOffset FamilyStartedUtc { get; set; }
     public DateTimeOffset? UsedUtc { get; set; }
     public DateTimeOffset? RevokedUtc { get; set; }
+
+    /// <summary>The caller's User-Agent when the sign-in began (cleaned and cut short), so the shopper can tell their devices apart. No address is kept.</summary>
+    public string? UserAgent { get; set; }
 }
 
 public sealed class RefreshTokenInput
@@ -36,15 +39,18 @@ public sealed class RefreshTokenInput
     public string RefreshToken { get; set; } = "";
 }
 
-public sealed record RefreshResult(Guid CustomerId, string Email, int SessionVersion, string RefreshToken);
+public sealed record RefreshResult(Guid CustomerId, string Email, int SessionVersion, string RefreshToken, Guid SessionId);
+
+/// <summary>A new refresh token and the device it belongs to.</summary>
+public sealed record IssuedRefreshToken(string Token, Guid SessionId);
 
 /// <summary>One signed-in device of a shopper: its refresh chain. Id is what ends it.</summary>
-public sealed record ShopperSessionDto(Guid Id, DateTimeOffset StartedUtc, DateTimeOffset LastUsedUtc, DateTimeOffset ExpiresUtc);
+public sealed record ShopperSessionDto(Guid Id, string Device, bool Current, DateTimeOffset StartedUtc, DateTimeOffset LastUsedUtc, DateTimeOffset ExpiresUtc);
 
 public interface ICustomerRefreshService
 {
     /// <summary>The shopper's devices that can still refresh. A device whose access token is still running but which has no refresh token is not listed.</summary>
-    Task<IReadOnlyList<ShopperSessionDto>> ListSessionsAsync(Guid customerId, CancellationToken ct = default);
+    Task<IReadOnlyList<ShopperSessionDto>> ListSessionsAsync(Guid customerId, Guid? currentSessionId = null, CancellationToken ct = default);
 
     /// <summary>Ends one device's chain. False when it is not one of this customer's live sessions.</summary>
     Task<bool> EndSessionAsync(Guid customerId, Guid sessionId, CancellationToken ct = default);
@@ -56,7 +62,7 @@ public interface ICustomerRefreshService
     /// Starts a new refresh family for a sign-in that has just succeeded and returns the token (shown once, never stored). Null when refresh
     /// tokens are switched off (<c>RefreshTokenDays</c> is 0).
     /// </summary>
-    Task<string?> IssueRefreshTokenAsync(Guid customerId, int sessionVersion, CancellationToken ct = default);
+    Task<IssuedRefreshToken?> IssueRefreshTokenAsync(Guid customerId, int sessionVersion, string? userAgent = null, CancellationToken ct = default);
 
     /// <summary>
     /// Swaps a refresh token for the next one. Null for anything that is not a live token: unknown, expired, revoked, from before sessions were
@@ -72,14 +78,15 @@ internal sealed partial class CustomerAccountService : ICustomerRefreshService
 {
     private static string RefreshHash(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 
-    public async Task<string?> IssueRefreshTokenAsync(Guid customerId, int sessionVersion, CancellationToken ct = default)
+    public async Task<IssuedRefreshToken?> IssueRefreshTokenAsync(Guid customerId, int sessionVersion, string? userAgent = null, CancellationToken ct = default)
     {
         if (options.Value.RefreshTokenDays <= 0) return null;
         var now = DateTimeOffset.UtcNow;
-        return await NewRefreshTokenAsync(customerId, Guid.NewGuid(), sessionVersion, now, now, ct);
+        var family = Guid.NewGuid();
+        return new IssuedRefreshToken(await NewRefreshTokenAsync(customerId, family, sessionVersion, now, now, DeviceNames.Clean(userAgent), ct), family);
     }
 
-    private async Task<string> NewRefreshTokenAsync(Guid customerId, Guid family, int sessionVersion, DateTimeOffset familyStarted, DateTimeOffset now, CancellationToken ct)
+    private async Task<string> NewRefreshTokenAsync(Guid customerId, Guid family, int sessionVersion, DateTimeOffset familyStarted, DateTimeOffset now, string? userAgent, CancellationToken ct)
     {
         var o = options.Value;
         var raw = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_'); // 256 bits: cannot be guessed
@@ -88,7 +95,7 @@ internal sealed partial class CustomerAccountService : ICustomerRefreshService
         db.Add(new CustomerRefreshToken
         {
             Id = Guid.NewGuid(), CustomerId = customerId, FamilyId = family, TokenHash = RefreshHash(raw), SessionVersion = sessionVersion,
-            CreatedUtc = now, ExpiresUtc = expires < cap ? expires : cap, FamilyStartedUtc = familyStarted,
+            CreatedUtc = now, ExpiresUtc = expires < cap ? expires : cap, FamilyStartedUtc = familyStarted, UserAgent = userAgent,
         });
         await db.SaveChangesAsync(ct);
 
@@ -126,7 +133,7 @@ internal sealed partial class CustomerAccountService : ICustomerRefreshService
         var email = await db.Set<Customer>().AsNoTracking().Where(c => c.Id == row.CustomerId).Select(c => c.Email).FirstOrDefaultAsync(ct);
         if (email is null) return null;
 
-        var next = await NewRefreshTokenAsync(row.CustomerId, row.FamilyId, row.SessionVersion, row.FamilyStartedUtc, now, ct);
+        var next = await NewRefreshTokenAsync(row.CustomerId, row.FamilyId, row.SessionVersion, row.FamilyStartedUtc, now, row.UserAgent, ct);
 
         // A replay can revoke the family between our claim and the new token being saved, which would leave this one alive. Looking again AFTER
         // saving closes that: either the revoke came first (seen here) or it comes later (and covers the new token).
@@ -135,17 +142,18 @@ internal sealed partial class CustomerAccountService : ICustomerRefreshService
             await RevokeFamilyAsync(row.FamilyId, now, ct);
             return null;
         }
-        return new RefreshResult(row.CustomerId, email, row.SessionVersion, next);
+        return new RefreshResult(row.CustomerId, email, row.SessionVersion, next, row.FamilyId);
     }
 
-    public async Task<IReadOnlyList<ShopperSessionDto>> ListSessionsAsync(Guid customerId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<ShopperSessionDto>> ListSessionsAsync(Guid customerId, Guid? currentSessionId = null, CancellationToken ct = default)
     {
         var now = DateTimeOffset.UtcNow;
         var live = await (from t in db.Set<CustomerRefreshToken>().AsNoTracking()
                           join l in db.Set<CustomerLogin>() on t.CustomerId equals l.CustomerId
                           where t.CustomerId == customerId && t.UsedUtc == null && t.RevokedUtc == null && t.ExpiresUtc > now && t.SessionVersion == l.SessionVersion
-                          select new ShopperSessionDto(t.FamilyId, t.FamilyStartedUtc, t.CreatedUtc, t.ExpiresUtc)).ToListAsync(ct);
-        return live.OrderByDescending(x => x.LastUsedUtc).ToList();
+                          select new { t.FamilyId, t.UserAgent, t.FamilyStartedUtc, t.CreatedUtc, t.ExpiresUtc }).ToListAsync(ct);
+        return live.OrderByDescending(x => x.CreatedUtc)
+            .Select(x => new ShopperSessionDto(x.FamilyId, DeviceNames.Describe(x.UserAgent), x.FamilyId == currentSessionId, x.FamilyStartedUtc, x.CreatedUtc, x.ExpiresUtc)).ToList();
     }
 
     public async Task<bool> EndSessionAsync(Guid customerId, Guid sessionId, CancellationToken ct = default)

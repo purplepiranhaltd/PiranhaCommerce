@@ -15,7 +15,8 @@ namespace PiranhaCommerce.Api.Auth;
 public interface ICustomerTokenIssuer
 {
     /// <summary><paramref name="sessionVersion"/> is the sign-in's current version: the token dies when sessions are ended.</summary>
-    TokenResponse Issue(Guid customerId, string email, int sessionVersion);
+    /// <param name="sessionId">The device's refresh family, carried as the <c>sid</c> claim so a device can be told which of its sessions is the current one.</param>
+    TokenResponse Issue(Guid customerId, string email, int sessionVersion, Guid? sessionId = null);
 }
 
 internal sealed class CustomerTokenIssuer(IOptions<PiranhaJwtOptions> options) : ICustomerTokenIssuer
@@ -27,7 +28,7 @@ internal sealed class CustomerTokenIssuer(IOptions<PiranhaJwtOptions> options) :
         return new SymmetricSecurityKey(HMACSHA256.HashData(staffKey, Encoding.UTF8.GetBytes("piranha-commerce/customer-tokens")));
     }
 
-    public TokenResponse Issue(Guid customerId, string email, int sessionVersion)
+    public TokenResponse Issue(Guid customerId, string email, int sessionVersion, Guid? sessionId = null)
     {
         var o = options.Value;
         var claims = new List<Claim>
@@ -37,6 +38,7 @@ internal sealed class CustomerTokenIssuer(IOptions<PiranhaJwtOptions> options) :
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new("sv", sessionVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)),
         };
+        if (sessionId is { } sid) claims.Add(new Claim("sid", sid.ToString()));
         var token = new JwtSecurityToken(o.Issuer, o.CustomerAudience, claims,
             expires: DateTime.UtcNow.AddMinutes(o.LifetimeMinutes),
             signingCredentials: new SigningCredentials(GetKey(o), SecurityAlgorithms.HmacSha256));
