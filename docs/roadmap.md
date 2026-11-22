@@ -37,6 +37,18 @@ Built: group prices, by group percentage, by category percentage and by fixed pr
   showing the tax inside the price), by the destination country's rate. Not built.
 - **Minimum quantities and quantity breaks** ("10 or more at X"): left out for now.
 
+## Translations (on hold, needs design)
+
+Deliberately not started: it needs a lot of thought. Questions to settle first:
+
+- What is translated, and in what order: catalogue text (product, category and shipping method names and descriptions), emails, admin screens, API messages
+  (these would first need stable error codes so clients can translate by code).
+- Languages: a fixed list in configuration or added by staff; fallback to the default language or hide; one language per language or regional variants.
+- Storage: a translations table keyed by item, field and language (no migration per language) or columns per language.
+- Who sees which: language from `Accept-Language` or a parameter; a shopper's saved language for emails; the language an order was placed in.
+- Entering translations: sections on each admin page, bulk import and export, a report of untranslated items, and whether any machine suggestions.
+- Related: translated URL slugs, selling in other currencies and countries, tax-inclusive display.
+
 ## Customers: personal data
 
 Customers hold personal data. Before orders exist we need an approach for erasing or anonymising a customer who has orders (the
