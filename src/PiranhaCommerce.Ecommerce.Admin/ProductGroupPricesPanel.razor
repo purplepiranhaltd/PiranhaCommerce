@@ -3,7 +3,7 @@
     <h2 style="margin-top:0">Customer group prices</h2>
     <p class="pc-muted">
         Members of a group pay the group's percentage off this product's price, or a fixed price set here, which wins over the percentage. Someone in
-        several groups pays the lowest. A group never makes a product dearer than its normal price. Set a group's percentage on the Customer groups page.
+        several groups pays the lowest. A group never makes a product dearer than its normal price. A group's overall percentage is set on the Customer groups page, and its percentage for a whole category on the Group category discounts page.
     </p>
     @if (_loading)
     {
@@ -27,7 +27,7 @@
                 var row = r;
                 <tr>
                     <td>@r.GroupName</td>
-                    <td style="text-align:right">@r.DiscountPercent.ToString("0.##")</td>
+                    <td style="text-align:right">@((r.CategoryPercent ?? r.DiscountPercent).ToString("0.##"))@(r.CategoryPercent is not null ? " (category)" : "")</td>
                     <td><input type="number" step="0.01" min="0" aria-label="Fixed price for @r.GroupName" placeholder="none" value="@_edits[r.GroupId]" @onchange="e => _edits[row.GroupId] = e.Value?.ToString()" /></td>
                     <td style="text-align:right">@r.GroupPrice.ToString("N2")</td>
                     <td class="actions">

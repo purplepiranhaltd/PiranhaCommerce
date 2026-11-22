@@ -371,6 +371,10 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   prices here. To show a shopper their prices, call `GET /storefront/prices?productIds=...` (their own token) or, from a shop front acting for them,
   `GET /customers/{id}/prices?productIds=...`: each answer is `{ productId, regularPrice, price, discounted }`. (There is no shopper-facing catalogue
   endpoint, so this is the way to price a list of products for a signed-in shopper.)
+  **By category:** a group can also have a percentage for a whole category (`GET /customer-groups/{id}/category-discounts`, `PUT|DELETE
+  .../{categoryId}` with `{ "percent" }`; admin: Orders > Group category discounts). It covers the category's sub-categories (the nearest category that
+  has one set wins), replaces the group's own percentage for products in it, and `0` means no discount there. A product in several categories gets
+  the largest percentage. Within one group the most specific thing wins: fixed product price, then category percentage, then the group's own percentage.
 - **Unpaid orders** (off by default): with `Piranha:Ecommerce:UnpaidOrderHours` above 0, an order still at Placed with no payment of any kind after that many
   hours is cancelled by a background job (every 15 minutes), exactly as if staff had cancelled it: the stock goes back on the shelf, the promo use is given
   back and the buyer gets the cancellation email. The movement is recorded as done by "system (unpaid order expired)". Part-paid orders, orders already in

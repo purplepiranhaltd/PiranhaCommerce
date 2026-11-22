@@ -21,6 +21,16 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.HasIndex(p => p.ProductId);
         });
 
+        b.Entity<GroupCategoryDiscount>(e =>
+        {
+            e.ToTable("GroupCategoryDiscount", Schema);
+            e.HasKey(d => new { d.GroupId, d.CategoryId });
+            e.Property(d => d.Percent).HasPrecision(5, 2);
+            e.HasOne<PiranhaCommerce.Customers.CustomerGroup>().WithMany().HasForeignKey(d => d.GroupId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Category>().WithMany().HasForeignKey(d => d.CategoryId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(d => d.CategoryId);
+        });
+
         b.Entity<ProductListing>(e =>
         {
             e.ToTable("ProductListing", Schema);

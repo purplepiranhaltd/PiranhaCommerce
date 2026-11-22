@@ -178,7 +178,7 @@ public class GroupPricingTests(PiranhaFactory factory) : IClassFixture<PiranhaFa
         }));
         Assert.Equal(8.49m, order.Lines.Single().UnitPrice);
 
-        foreach (var bad in new[] { -1m, 101m, 10.555m })
+        foreach (var bad in new[] { -1m, 100.5m, 101m, 10.555m })
             Assert.Equal(HttpStatusCode.BadRequest, (await staff.PostAsJsonAsync("/api/v1/customer-groups", new CustomerGroupInput { Name = "Bad " + Tag(), DiscountPercent = bad })).StatusCode);
     }
 
@@ -210,5 +210,121 @@ public class GroupPricingTests(PiranhaFactory factory) : IClassFixture<PiranhaFa
         // The group goes, and its prices go with it.
         Assert.Equal(HttpStatusCode.NoContent, (await staff.DeleteAsync($"/api/v1/customer-groups/{group.Id}")).StatusCode);
         Assert.DoesNotContain(await Read<List<ProductGroupPriceDto>>(await staff.GetAsync($"/api/v1/products/{p.Id}/group-prices")), r => r.GroupId == group.Id);
+    }
+
+    private static async Task<CategoryDto> NewCategory(HttpClient c, Guid? parent = null) =>
+        await Read<CategoryDto>(await c.PostAsJsonAsync("/api/v1/categories", new CategoryInput { Name = "Cat " + Tag(), ParentId = parent }));
+
+    private static Task<HttpResponseMessage> Put(HttpClient c, CustomerGroupDto g, CategoryDto cat, decimal percent) =>
+        c.PutAsJsonAsync($"/api/v1/customer-groups/{g.Id}/category-discounts/{cat.Id}", new GroupCategoryDiscountInput { Percent = percent });
+
+    private static Task<HttpResponseMessage> Place(HttpClient c, ProductDto p, params CategoryDto[] cats) =>
+        c.PutAsJsonAsync($"/api/v1/products/{p.Id}/categories", new ProductCategoriesInput { CategoryIds = cats.Select(x => x.Id).ToList() });
+
+    [Fact]
+    public async Task A_category_percentage_overrides_the_group_percentage_for_products_in_it_and_a_fixed_price_still_wins()
+    {
+        var staff = await factory.CreateAuthenticatedApiClientAsync();
+        var group = await NewGroup(staff, 5m);
+        var shoes = await NewCategory(staff);
+        var inShoes = await NewProduct(staff, 100m); await Place(staff, inShoes, shoes);
+        var elsewhere = await NewProduct(staff, 100m);
+        var (shopper, id) = await NewShopper();
+        await Join(staff, group.Id, id);
+        Assert.Equal(95m, await PriceOf(shopper, inShoes));
+
+        Assert.Equal(HttpStatusCode.OK, (await Put(staff, group, shoes, 25m)).StatusCode);
+        Assert.Equal(75m, await PriceOf(shopper, inShoes));
+        Assert.Equal(95m, await PriceOf(shopper, elsewhere)); // only the category
+
+        // The product page shows where the percentage came from.
+        var row = (await Read<List<ProductGroupPriceDto>>(await staff.GetAsync($"/api/v1/products/{inShoes.Id}/group-prices"))).Single(r => r.GroupId == group.Id);
+        Assert.Equal((25m, 5m, 75m), (row.CategoryPercent!.Value, row.DiscountPercent, row.GroupPrice));
+
+        // The basket uses it too.
+        var basket = await BasketWith(shopper, inShoes);
+        Assert.Equal((75m, 100m), (basket.Lines.Single().UnitPrice, basket.Lines.Single().RegularPrice));
+
+        // A fixed price for the product is more specific still.
+        await Fix(staff, inShoes, group, 60m);
+        Assert.Equal(60m, await PriceOf(shopper, inShoes));
+        await staff.DeleteAsync($"/api/v1/products/{inShoes.Id}/group-prices/{group.Id}");
+
+        // Removing the category discount brings the group percentage back.
+        Assert.Equal(HttpStatusCode.NoContent, (await staff.DeleteAsync($"/api/v1/customer-groups/{group.Id}/category-discounts/{shoes.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await staff.DeleteAsync($"/api/v1/customer-groups/{group.Id}/category-discounts/{shoes.Id}")).StatusCode);
+        Assert.Equal(95m, await PriceOf(shopper, inShoes));
+    }
+
+    [Fact]
+    public async Task A_category_covers_its_sub_categories_the_nearest_one_set_wins_and_zero_switches_it_off()
+    {
+        var staff = await factory.CreateAuthenticatedApiClientAsync();
+        var group = await NewGroup(staff, 5m);
+        var clothing = await NewCategory(staff);
+        var shoes = await NewCategory(staff, clothing.Id);
+        var boots = await NewCategory(staff, shoes.Id);
+        var boot = await NewProduct(staff, 100m); await Place(staff, boot, boots);
+        var (shopper, id) = await NewShopper();
+        await Join(staff, group.Id, id);
+
+        await Put(staff, group, clothing, 30m);
+        Assert.Equal(70m, await PriceOf(shopper, boot)); // two levels down still covered
+
+        await Put(staff, group, shoes, 10m);
+        Assert.Equal(90m, await PriceOf(shopper, boot)); // nearest wins, even though it is less
+
+        await Put(staff, group, boots, 0m);
+        Assert.Equal(100m, await PriceOf(shopper, boot)); // 0 means none here, not even the 5% of the group
+    }
+
+    [Fact]
+    public async Task A_product_in_several_categories_gets_the_largest_percentage_and_groups_still_compete()
+    {
+        var staff = await factory.CreateAuthenticatedApiClientAsync();
+        var group = await NewGroup(staff);
+        var a = await NewCategory(staff); var b = await NewCategory(staff);
+        var p = await NewProduct(staff, 200m); await Place(staff, p, a, b);
+        var (shopper, id) = await NewShopper();
+        await Join(staff, group.Id, id);
+        await Put(staff, group, a, 10m);
+        await Put(staff, group, b, 40m);
+        Assert.Equal(120m, await PriceOf(shopper, p));
+
+        var other = await NewGroup(staff, 50m); // a second group with a better price wins
+        await Join(staff, other.Id, id);
+        Assert.Equal(100m, await PriceOf(shopper, p));
+    }
+
+    [Fact]
+    public async Task Category_discounts_are_validated_listed_and_writers_only_and_go_with_the_group_or_category()
+    {
+        var staff = await factory.CreateAuthenticatedApiClientAsync();
+        var group = await NewGroup(staff);
+        var cat = await NewCategory(staff);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Put(staff, group, cat, -1m)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Put(staff, group, cat, 100.5m)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Put(staff, group, cat, 12.345m)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await staff.PutAsJsonAsync($"/api/v1/customer-groups/{Guid.NewGuid()}/category-discounts/{cat.Id}", new GroupCategoryDiscountInput { Percent = 5 })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await staff.PutAsJsonAsync($"/api/v1/customer-groups/{group.Id}/category-discounts/{Guid.NewGuid()}", new GroupCategoryDiscountInput { Percent = 5 })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await staff.GetAsync($"/api/v1/customer-groups/{Guid.NewGuid()}/category-discounts")).StatusCode);
+
+        await Put(staff, group, cat, 12m);
+        await Put(staff, group, cat, 15m); // replaces
+        var listed = await Read<List<GroupCategoryDiscountDto>>(await staff.GetAsync($"/api/v1/customer-groups/{group.Id}/category-discounts"));
+        Assert.Equal(15m, listed.Single().Percent);
+
+        var viewer = await factory.CreateReadOnlyUserAsync();
+        var read = await factory.CreateAuthenticatedApiClientAsync(viewer.Email, viewer.Password);
+        Assert.Equal(HttpStatusCode.OK, (await read.GetAsync($"/api/v1/customer-groups/{group.Id}/category-discounts")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await Put(read, group, cat, 1m)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await read.DeleteAsync($"/api/v1/customer-groups/{group.Id}/category-discounts/{cat.Id}")).StatusCode);
+
+        // Deleting the category takes its discount with it; so does deleting the group.
+        Assert.Equal(HttpStatusCode.NoContent, (await staff.DeleteAsync($"/api/v1/categories/{cat.Id}")).StatusCode);
+        Assert.Empty(await Read<List<GroupCategoryDiscountDto>>(await staff.GetAsync($"/api/v1/customer-groups/{group.Id}/category-discounts")));
+        var cat2 = await NewCategory(staff);
+        await Put(staff, group, cat2, 5m);
+        Assert.Equal(HttpStatusCode.NoContent, (await staff.DeleteAsync($"/api/v1/customer-groups/{group.Id}")).StatusCode);
     }
 }

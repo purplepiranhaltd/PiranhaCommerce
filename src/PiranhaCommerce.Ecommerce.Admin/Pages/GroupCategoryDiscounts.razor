@@ -1,0 +1,138 @@
+@page "/admin/orders/group-discounts"
+@using PiranhaCommerce.Catalog
+@using PiranhaCommerce.Customers
+@inject AdminScopeRunner Scope
+
+<PageTitle>Group category discounts - Piranha Commerce</PageTitle>
+<h1>Group category discounts</h1>
+<p class="pc-muted">
+    A percentage off a whole category for the members of one customer group. It covers the category's sub-categories (the nearest one set wins), and
+    replaces the group's own percentage for products in it. Enter 0 to give no discount in a category. A product in several categories gets the
+    largest percentage. A fixed price set on a product still wins over any percentage, and someone in several groups pays the lowest.
+</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+@if (_message is not null)
+{
+    <p role="status">@_message</p>
+}
+
+@if (_groups is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_groups.Count == 0)
+{
+    <p class="pc-muted">There are no customer groups yet. Add one on the Customer groups page.</p>
+}
+else
+{
+    <label>Customer group
+        <select @bind="_groupId" @bind:after="LoadAsync">
+            @foreach (var g in _groups)
+            {
+                <option value="@g.Id">@g.Name (@(g.DiscountPercent > 0 ? g.DiscountPercent.ToString("0.##") + "% overall" : "no overall percentage"))</option>
+            }
+        </select>
+    </label>
+
+    @if (_rows.Count == 0)
+    {
+        <p class="pc-muted">There are no categories yet.</p>
+    }
+    else
+    {
+        <table class="pc-table">
+            <thead><tr><th>Category</th><th style="width:9rem">% off</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var r in _rows)
+            {
+                var row = r;
+                <tr>
+                    <td><span style="padding-left:@(r.Depth * 1.25)rem">@r.Name</span></td>
+                    <td><input type="number" step="0.01" min="0" max="100" aria-label="Percentage off for @r.Name" placeholder="not set"
+                               value="@_edits[r.Id]" @onchange="e => _edits[row.Id] = e.Value?.ToString()" /></td>
+                    <td class="actions">
+                        <button type="button" disabled="@_busy" @onclick="() => SaveAsync(row)">Save</button>
+                        @if (_set.Contains(r.Id))
+                        {
+                            <button type="button" class="secondary" disabled="@_busy" @onclick="() => ClearAsync(row)">Clear</button>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private sealed record Row(Guid Id, string Name, int Depth);
+
+    private IReadOnlyList<CustomerGroupDto>? _groups;
+    private Guid _groupId;
+    private List<Row> _rows = [];
+    private readonly Dictionary<Guid, string?> _edits = [];
+    private readonly HashSet<Guid> _set = [];
+    private bool _busy;
+    private string? _error, _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _groups = await Scope.RunAsync<ICustomerGroupService, IReadOnlyList<CustomerGroupDto>>(s => s.ListAsync());
+            var categories = await Scope.RunAsync<ICategoryService, IReadOnlyList<CategoryDto>>(s => s.ListAsync());
+            _rows = CategoryTree.Flatten(categories).Select(x => new Row(x.Category.Id, x.Category.Name, x.Depth)).ToList();
+            if (_groups.Count > 0) { _groupId = _groups[0].Id; await LoadAsync(); }
+        }
+        catch (Exception ex) { _error = "Could not load: " + ex.Message; _groups ??= []; }
+    }
+
+    private async Task LoadAsync()
+    {
+        _error = null; _message = null;
+        try
+        {
+            var id = _groupId;
+            var set = await Scope.RunAsync<IGroupPricingService, IReadOnlyList<GroupCategoryDiscountDto>?>(s => s.ListCategoryDiscountsAsync(id)) ?? [];
+            _set.Clear(); _edits.Clear();
+            foreach (var r in _rows) _edits[r.Id] = null;
+            foreach (var d in set) { _set.Add(d.CategoryId); _edits[d.CategoryId] = d.Percent.ToString("0.##"); }
+        }
+        catch (Exception ex) { _error = "Could not load: " + ex.Message; }
+    }
+
+    private async Task SaveAsync(Row row)
+    {
+        _busy = true; _error = null; _message = null;
+        try
+        {
+            if (!decimal.TryParse(_edits[row.Id], out var percent)) { _error = "Enter a percentage, or use Clear to remove it."; return; }
+            var group = _groupId;
+            await Scope.RunAsync<IGroupPricingService, GroupCategoryDiscountDto?>(s => s.SetCategoryDiscountAsync(group, row.Id, new GroupCategoryDiscountInput { Percent = percent }));
+            await LoadAsync();
+            _message = $"Saved {percent:0.##}% for {row.Name}.";
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
+        catch (Exception ex) { _error = "Could not save: " + ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task ClearAsync(Row row)
+    {
+        _busy = true; _error = null; _message = null;
+        try
+        {
+            var group = _groupId;
+            await Scope.RunAsync<IGroupPricingService, bool>(s => s.RemoveCategoryDiscountAsync(group, row.Id));
+            await LoadAsync();
+            _message = $"Removed the discount for {row.Name}.";
+        }
+        catch (Exception ex) { _error = "Could not remove: " + ex.Message; }
+        finally { _busy = false; }
+    }
+}

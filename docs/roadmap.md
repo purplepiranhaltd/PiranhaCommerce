@@ -24,7 +24,7 @@ Not built:
 
 ## Pricing: what is left
 
-Built: group prices (see the README). Agreed to do later:
+Built: group prices, by group percentage, by category percentage and by fixed price per product (see the README). Agreed to do later:
 
 - **Sale and offer prices.** A sale between two dates that discounts some or all products (a percentage or a fixed price, per product or per
   category, for everyone or a group). Revisit this properly: it needs a start and end, a way to choose the products, a rule for how it combines with a

@@ -41,7 +41,7 @@ public sealed class CustomerGroupInput
     [StringLength(500)] public string? Description { get; set; }
 
     /// <summary>Up to 2 decimal places, 0 to 100.</summary>
-    [Range(0, 100)] public decimal DiscountPercent { get; set; }
+    [Range(typeof(decimal), "0", "100")] public decimal DiscountPercent { get; set; }
 }
 
 public sealed record CustomerGroupDto(Guid Id, string Name, string? Description, int MemberCount, DateTimeOffset CreatedUtc, decimal DiscountPercent = 0m);

@@ -1043,6 +1043,25 @@ namespace PiranhaCommerce.Web.Migrations
                     b.ToTable("GiftVoucher", "ecom");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.GroupCategoryDiscount", b =>
+                {
+                    b.Property<Guid>("GroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Percent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.HasKey("GroupId", "CategoryId");
+
+                    b.HasIndex("CategoryId");
+
+                    b.ToTable("GroupCategoryDiscount", "ecom");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.GroupPrice", b =>
                 {
                     b.Property<Guid>("GroupId")
@@ -2172,6 +2191,21 @@ namespace PiranhaCommerce.Web.Migrations
                     b.HasOne("PiranhaCommerce.Catalog.Product", null)
                         .WithMany()
                         .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.GroupCategoryDiscount", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Catalog.Category", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PiranhaCommerce.Customers.CustomerGroup", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
