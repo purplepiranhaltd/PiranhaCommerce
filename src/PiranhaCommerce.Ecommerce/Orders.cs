@@ -229,4 +229,12 @@ public sealed class EcommerceOptions
     /// </summary>
     [Range(0, 3650)]
     public int AbandonedBasketDays { get; set; } = 60;
+
+    /// <summary>
+    /// Orders still at Placed with no payment at all after this many hours are cancelled, which puts their stock back for other buyers (the buyer is
+    /// emailed like any cancel). 0 (the default) never does it: shops that take orders on account or by invoice, or that record payments by hand
+    /// later, must leave it off. Paid or part-paid orders and orders already in progress are never touched.
+    /// </summary>
+    [Range(0, 8760)]
+    public int UnpaidOrderHours { get; set; }
 }

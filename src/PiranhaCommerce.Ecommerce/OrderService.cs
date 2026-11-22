@@ -40,7 +40,7 @@ public interface IOrderService
     Task<OrderDto?> ChangeStageAsync(Guid id, OrderStage to, string? actor = null, CancellationToken ct = default);
 }
 
-internal sealed class OrderService(
+internal sealed partial class OrderService(
     PiranhaDbContext db, IStockService stock, ICustomerService customers, IOptions<EcommerceOptions> options,
     IEmailSender email, OrderMailer mailer, ILogger<OrderService> logger) : IOrderService
 {
@@ -296,12 +296,17 @@ internal sealed class OrderService(
         return placed;
     }
 
-    public async Task<OrderDto?> ChangeStageAsync(Guid id, OrderStage to, string? actor = null, CancellationToken ct = default)
+    public Task<OrderDto?> ChangeStageAsync(Guid id, OrderStage to, string? actor = null, CancellationToken ct = default) =>
+        ChangeStageCoreAsync(id, to, actor, onlyIfUnpaid: false, ct);
+
+    /// <param name="onlyIfUnpaid">Used by expiry: the order must still be at Placed and have no payment at all, checked after its row is held.</param>
+    private async Task<OrderDto?> ChangeStageCoreAsync(Guid id, OrderStage to, string? actor, bool onlyIfUnpaid, CancellationToken ct)
     {
         var current = await db.Set<Order>().AsNoTracking().Where(o => o.Id == id).Select(o => new { o.Stage, o.Number, o.PromotionId, o.VoucherId, o.VoucherPaid }).FirstOrDefaultAsync(ct);
         if (current is null) return null;
         if (!OrderStages.Next(current.Stage).Contains(to))
             throw new PiranhaConflictException($"An order that is {current.Stage} cannot be moved to {to}.");
+        if (onlyIfUnpaid && current.Stage != OrderStage.Placed) throw new PiranhaConflictException("The order has moved on.");
 
         if (to == OrderStage.Processing && options.Value.RequirePaymentBeforeProcessing)
         {
@@ -332,6 +337,10 @@ internal sealed class OrderService(
                     var moved = await db.Set<Order>().Where(o => o.Id == id && o.Stage == from)
                         .ExecuteUpdateAsync(s => s.SetProperty(o => o.Stage, to).SetProperty(o => o.UpdatedUtc, (DateTimeOffset?)now), token);
                     if (moved == 0) throw new PiranhaConflictException("The order was changed by someone else. Reload it and try again.");
+
+                    // A payment is booked under this same row lock, so it is either seen here (and this rolls back) or is refused as a payment on a cancelled order.
+                    if (onlyIfUnpaid && await db.Set<Payment>().AsNoTracking().AnyAsync(p => p.OrderId == id, token))
+                        throw new PiranhaConflictException("The order has been paid.");
 
                     // Read AFTER the order row is held: a parcel being recorded at the same moment has either finished (and is seen)
                     // or is waiting behind this and will find the order no longer processing.

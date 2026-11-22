@@ -360,6 +360,12 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   their lines by a background job that runs every six hours (first run a minute after start). Any change to a basket (a line, a promo code, a voucher, a
   shopper claiming it) counts as being active. Checked-out baskets are never touched. Baskets hold no stock, so this is housekeeping only. `IBasketHousekeeper`
   does the work if you want to run it from your own scheduler.
+- **Unpaid orders** (off by default): with `Piranha:Ecommerce:UnpaidOrderHours` above 0, an order still at Placed with no payment of any kind after that many
+  hours is cancelled by a background job (every 15 minutes), exactly as if staff had cancelled it: the stock goes back on the shelf, the promo use is given
+  back and the buyer gets the cancellation email. The movement is recorded as done by "system (unpaid order expired)". Part-paid orders, orders already in
+  progress and orders with nothing to pay are never touched, and a payment that lands a moment before is detected inside the cancel and wins. A payment
+  that arrives after is refused like any payment on a cancelled order (a gateway one lands on the unreconciled list). Leave it off if you take orders on
+  account or record payments by hand later. `IUnpaidOrderExpiry` does the work if you want to run it from your own scheduler.
 - **Admin menu badges**: a menu entry can show a count of things waiting for a person (`AdminMenuItem.BadgeKey` plus an `IAdminBadgeProvider`
   registered by the plugin; zero shows nothing and a failing provider is logged and skipped). Orders > Unreconciled payments, Disputes (open) and
   Return requests (waiting) use it; the numbers refresh when you move between pages. Disputes and Return requests also have list pages.
