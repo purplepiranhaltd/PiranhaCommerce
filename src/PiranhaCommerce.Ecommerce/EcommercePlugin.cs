@@ -62,6 +62,8 @@ public sealed class EcommercePlugin : IPiranhaPlugin
         services.AddScoped<IStockAlertService, StockAlertService>();
         services.AddScoped<IStockAlertNotifier, StockAlertNotifier>();
         services.AddHostedService<StockAlertBackgroundService>();
+        services.AddScoped<ILowStockAlerter, LowStockAlerter>();
+        services.AddHostedService<LowStockAlertBackgroundService>();
         services.AddSingleton<IApiEndpointContributor, StockAlertEndpoints>();
         services.AddSingleton<IStorefrontEndpointContributor, StockAlertStorefrontEndpoints>();
         services.AddScoped<PiranhaCommerce.Customers.ICustomerDataContributor, StockAlertCustomerData>();

@@ -151,8 +151,18 @@ public static class SmtpTemplateDefaults
         "alert.return-requested" => new Content("Return requested on order {{ orderReference }}", ReturnRequestedText),
         "return.answered" => new Content("{% if approved %}Your return for order {{ reference }} is approved{% else %}About your return for order {{ reference }}{% endif %}", ReturnAnsweredText),
         "stock.back-in-stock" => new Content("{{ productName }} is back in stock", BackInStockText),
+        "alert.low-stock" => new Content("Low stock: {{ count }} {% if count == 1 %}product{% else %}products{% endif %} at {{ level }} or fewer", LowStockText),
         _ => null,
     };
+
+    private const string LowStockText = """
+        These products on sale have run low (at {{ level }} or fewer on hand across every location):
+
+        {% for p in products -%}
+        {{ p.quantity }} left: {{ p.name }} ({{ p.sku }})
+        {% endfor %}
+        You will not be told about them again until they have been restocked above {{ level }}. The Low stock page in the admin shows the same list at any level.
+        """;
 
     private const string BackInStockText = """
         Good news: {{ productName }} is back in stock.

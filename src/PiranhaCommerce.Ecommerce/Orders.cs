@@ -254,6 +254,17 @@ public sealed class EcommerceOptions
     [Range(0, 86_400)]
     public int StockAlertPollSeconds { get; set; } = 300;
 
+    /// <summary>
+    /// Email the shop's <see cref="AlertEmail"/> address(es) when a product on sale is at or below this much on hand across every location (the same measure as the Low stock page).
+    /// Empty switches it off, and so does an empty alert address. Each product is told about once per dip: it is told about again only after it has been restocked above the level.
+    /// </summary>
+    [Range(0, 1_000_000)]
+    public decimal? LowStockAlertLevel { get; set; }
+
+    /// <summary>How often, in seconds, to check for low stock. 0 switches the check off (a host can then call ILowStockAlerter itself).</summary>
+    [Range(0, 86_400)]
+    public int LowStockAlertPollSeconds { get; set; } = 900;
+
     /// <summary>The shop front's unsubscribe page for back-in-stock emails, with <c>{token}</c> where the secret goes. When empty the email carries only the token.</summary>
     public string? StockAlertUnsubscribeUrlTemplate { get; set; }
 

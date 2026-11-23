@@ -96,6 +96,18 @@ Each product has a quantity (to four decimal places, so goods sold by weight wor
 
 Stock is held per **location**: a warehouse, a shop, a van. A default location always exists and is used whenever a caller names none, so a single-site shop never has to think about locations. Locations are deactivated, never deleted. Each movement records the balance at its own location.
 
+### Low stock alerts
+
+The Low stock page (`GET /stock/low?threshold=`) lists what is at or below a level when someone looks. To be **told**, set `Piranha:Ecommerce:LowStockAlertLevel` (for example `5`) and `Piranha:Ecommerce:AlertEmail` (one or more addresses, comma-separated), with an email package registered. The shop then emails that address one digest of the products that have newly run low.
+
+- "Low" is the same measure as the Low stock page: what is on hand across every location, counting each variant on its own. Stock sent on a transfer and not yet received is not counted.
+- Only products that are on sale are included, so a draft you are still setting up does not nag. Putting it on sale while it is low tells you then.
+- **Once per dip.** A product is told about once. It is told about again only after it has been restocked above the level and then falls to it again, so a slow seller does not send the same email every check.
+- It checks every `LowStockAlertPollSeconds` (default 900; `0` turns it off), or call `ILowStockAlerter.RunOnceAsync` from your own scheduler. Several copies of the shop can run it: each product is claimed once.
+- A send that fails is not forgotten: nothing is marked as told, and the next check tries again.
+- The email is template `alert.low-stock` (editable like the others) with `level`, `count` and `products`, a list where each has `name`, `sku`, `quantity` and `productId`.
+- Not built: a level per product (one level covers the shop), and an email per product.
+
 ### Negative stock report
 
 `GET /stock/negative`, or Catalog > Negative stock in the admin, lists every product and location below zero. It exists for channels such as EPOS that must record a sale even when the system thought it had none. A product drops off the list once a recount brings it back to zero or more.

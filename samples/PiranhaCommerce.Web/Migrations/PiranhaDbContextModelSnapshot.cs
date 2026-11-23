@@ -1613,6 +1613,19 @@ namespace PiranhaCommerce.Web.Migrations
                     b.ToTable("GroupPrice", "ecom");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.LowStockAlertState", b =>
+                {
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("AlertedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("ProductId");
+
+                    b.ToTable("LowStockAlertState", "ecom");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.Order", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3429,6 +3442,15 @@ namespace PiranhaCommerce.Web.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("PiranhaCommerce.Catalog.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.LowStockAlertState", b =>
+                {
                     b.HasOne("PiranhaCommerce.Catalog.Product", null)
                         .WithMany()
                         .HasForeignKey("ProductId")

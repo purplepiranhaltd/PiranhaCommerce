@@ -63,7 +63,7 @@ Its package maps each key from `IEmailTemplateCatalog` to a template id and send
 
 Order update emails go out after the change is saved. Marking an order completed by hand sends no shipped email, because there is no parcel or tracking to tell them. Crediting a gift voucher on cancel is not announced as a refund.
 
-Staff and shoppers also get email for returns, disputes, back-in-stock requests, email verification and unreconciled payments; each is described on the page of the feature that sends it.
+Staff and shoppers also get email for returns, disputes, low stock, back-in-stock requests, email verification and unreconciled payments; each is described on the page of the feature that sends it.
 
 Each email is a template in Email > Email templates (SMTP) with its variables listed there. The variable names are the contract for other senders.
 

@@ -19,6 +19,7 @@ public static class EcommerceEmailTemplates
     public const string ReturnAnswered = "return.answered";
     public const string DisputeOpened = "alert.dispute-opened";
     public const string BackInStock = "stock.back-in-stock";
+    public const string LowStock = "alert.low-stock";
 }
 
 internal sealed class EcommerceEmailContributor : IEmailTemplateContributor
@@ -118,6 +119,17 @@ internal sealed class EcommerceEmailContributor : IEmailTemplateContributor
             new("productId", "The product's id, for building a link to it.", "6f1c0a3e-2a8d-4a43-9a53-0d1f8d5a9b11"),
             new("unsubscribeToken", "The secret that removes this request (DELETE /storefront/stock-alerts/{token}).", "9f2c4b7a1d3e5f60"),
             new("unsubscribeUrl", "A ready-made unsubscribe link, when Piranha:Ecommerce:StockAlertUnsubscribeUrlTemplate is set. Otherwise empty.", "https://shop.example/stock-alerts/unsubscribe?token=9f2c4b7a1d3e5f60"),
+        ]),
+
+        new(EcommerceEmailTemplates.LowStock, "Low stock (to the shop)", "Sent to the shop's alert address when products on sale fall to the low stock level (Piranha:Ecommerce:LowStockAlertLevel). One email lists everything that has newly run low.",
+        [
+            new("level", "The level the shop chose: products at or below this are listed.", "5"),
+            new("count", "How many products are listed.", 2),
+            new("products", "The products: a list where each has name, sku, quantity (on hand across every location) and productId.", new List<object?>
+            {
+                new Dictionary<string, object?> { ["name"] = "Blue mug", ["sku"] = "MUG-BLU", ["quantity"] = "2", ["productId"] = "6f1c0a3e-2a8d-4a43-9a53-0d1f8d5a9b11" },
+                new Dictionary<string, object?> { ["name"] = "Teapot", ["sku"] = "POT-1", ["quantity"] = "0", ["productId"] = "0b8e5c2d-91f4-4a36-8d0b-5f2e7a4c1d63" },
+            }),
         ]),
 
         new(EcommerceEmailTemplates.ReturnRequested, "Return requested (to the shop)", "Sent to the shop's alert address when a buyer asks to send goods back.",
