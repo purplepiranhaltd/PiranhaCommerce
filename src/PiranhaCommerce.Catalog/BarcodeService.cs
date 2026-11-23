@@ -67,7 +67,7 @@ internal sealed class BarcodeService(PiranhaDbContext db) : IBarcodeService
         return await db.Set<ProductBarcode>().AsNoTracking()
             .Where(b => b.NormalizedCode == normalized)
             .Join(db.Set<Product>(), b => b.ProductId, p => p.Id, (_, p) => p)
-            .Select(p => new ProductDto(p.Id, p.Name, p.Sku, p.Description, p.Price, p.CreatedUtc, p.UpdatedUtc))
+            .Select(p => new ProductDto(p.Id, p.Name, p.Sku, p.Description, p.Price, p.CreatedUtc, p.UpdatedUtc, p.Slug, p.MetaTitle, p.MetaDescription))
             .FirstOrDefaultAsync(ct);
     }
 

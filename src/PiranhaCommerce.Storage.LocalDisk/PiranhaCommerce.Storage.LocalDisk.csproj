@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Stores Piranha Commerce files (product images and other uploads) on the local disk.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\PiranhaCommerce.Core\PiranhaCommerce.Core.csproj" />
+  </ItemGroup>
+</Project>

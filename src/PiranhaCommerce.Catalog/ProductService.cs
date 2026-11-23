@@ -10,12 +10,13 @@ public interface IProductService
 {
     Task<PagedResult<ProductDto>> ListAsync(int? page, int? pageSize, string? search, CancellationToken ct = default);
     Task<ProductDto?> GetAsync(Guid id, CancellationToken ct = default);
+    Task<ProductDto?> GetBySlugAsync(string slug, CancellationToken ct = default);
     Task<ProductDto> CreateAsync(ProductInput input, CancellationToken ct = default);
     Task<ProductDto?> UpdateAsync(Guid id, ProductInput input, CancellationToken ct = default);
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 }
 
-internal sealed class ProductService(PiranhaDbContext db) : IProductService
+internal sealed class ProductService(PiranhaDbContext db, PiranhaCommerce.Core.Files.IFileStore files) : IProductService
 {
     public async Task<PagedResult<ProductDto>> ListAsync(int? page, int? pageSize, string? search, CancellationToken ct = default)
     {
@@ -31,15 +32,23 @@ internal sealed class ProductService(PiranhaDbContext db) : IProductService
         var total = await query.CountAsync(ct);
         var items = await query.OrderBy(x => x.Name).ThenBy(x => x.Id) // stable order for paging
             .Skip((p - 1) * size).Take(size)
-            .Select(x => new ProductDto(x.Id, x.Name, x.Sku, x.Description, x.Price, x.CreatedUtc, x.UpdatedUtc))
+            .Select(x => new ProductDto(x.Id, x.Name, x.Sku, x.Description, x.Price, x.CreatedUtc, x.UpdatedUtc, x.Slug, x.MetaTitle, x.MetaDescription))
             .ToListAsync(ct);
         return new PagedResult<ProductDto>(items, p, size, total);
     }
 
     public async Task<ProductDto?> GetAsync(Guid id, CancellationToken ct = default)
         => await db.Set<Product>().AsNoTracking().Where(x => x.Id == id)
-            .Select(x => new ProductDto(x.Id, x.Name, x.Sku, x.Description, x.Price, x.CreatedUtc, x.UpdatedUtc))
+            .Select(x => new ProductDto(x.Id, x.Name, x.Sku, x.Description, x.Price, x.CreatedUtc, x.UpdatedUtc, x.Slug, x.MetaTitle, x.MetaDescription))
             .FirstOrDefaultAsync(ct);
+
+    public async Task<ProductDto?> GetBySlugAsync(string slug, CancellationToken ct = default)
+    {
+        var s = slug.Trim().ToLowerInvariant();
+        return await db.Set<Product>().AsNoTracking().Where(x => x.Slug == s)
+            .Select(x => new ProductDto(x.Id, x.Name, x.Sku, x.Description, x.Price, x.CreatedUtc, x.UpdatedUtc, x.Slug, x.MetaTitle, x.MetaDescription))
+            .FirstOrDefaultAsync(ct);
+    }
 
     public async Task<ProductDto> CreateAsync(ProductInput input, CancellationToken ct = default)
     {
@@ -68,9 +77,12 @@ internal sealed class ProductService(PiranhaDbContext db) : IProductService
             throw new PiranhaConflictException("This product has stock history and cannot be deleted.");
         if (await db.Set<ProductVariant>().AnyAsync(v => v.ParentProductId == id, ct))
             throw new PiranhaConflictException("This product has variants. Delete them first.");
+        var hadImages = await db.Set<ProductImage>().AnyAsync(i => i.ProductId == id, ct);
         try
         {
-            return await db.Set<Product>().Where(x => x.Id == id).ExecuteDeleteAsync(ct) > 0;
+            var deleted = await db.Set<Product>().Where(x => x.Id == id).ExecuteDeleteAsync(ct) > 0;
+            if (deleted && hadImages) await files.DeleteFolderAsync($"products/{id}", ct); // rows went with the product; so do the files
+            return deleted;
         }
         catch (DbUpdateException)
         {
@@ -81,6 +93,8 @@ internal sealed class ProductService(PiranhaDbContext db) : IProductService
     private async Task ValidateAsync(ProductInput input, Guid? existingId, CancellationToken ct)
     {
         ModelValidator.ValidateOrThrow(input);
+        if (Seo.NormalizeSlug(input.Slug) is { } slug && await db.Set<Product>().AnyAsync(x => x.Slug == slug && x.Id != existingId, ct))
+            throw new PiranhaValidationException(nameof(ProductInput.Slug), "A product with this slug already exists.");
         if (!string.IsNullOrWhiteSpace(input.Sku))
         {
             var sku = input.Sku.Trim().ToLower();   // SKUs are case-insensitive on every provider
@@ -95,8 +109,11 @@ internal sealed class ProductService(PiranhaDbContext db) : IProductService
         e.Sku = string.IsNullOrWhiteSpace(i.Sku) ? null : i.Sku.Trim();
         e.Description = i.Description;
         e.Price = i.Price;
+        e.Slug = Seo.NormalizeSlug(i.Slug);
+        e.MetaTitle = string.IsNullOrWhiteSpace(i.MetaTitle) ? null : i.MetaTitle.Trim();
+        e.MetaDescription = string.IsNullOrWhiteSpace(i.MetaDescription) ? null : i.MetaDescription.Trim();
     }
 
     private static ProductDto ToDto(Product x) =>
-        new(x.Id, x.Name, x.Sku, x.Description, x.Price, x.CreatedUtc, x.UpdatedUtc);
+        new(x.Id, x.Name, x.Sku, x.Description, x.Price, x.CreatedUtc, x.UpdatedUtc, x.Slug, x.MetaTitle, x.MetaDescription);
 }

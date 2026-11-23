@@ -18,6 +18,10 @@ internal sealed class CatalogApiEndpoints : IApiEndpointContributor
         products.MapGet("/{id:guid}", async (Guid id, IProductService svc, CancellationToken ct) =>
             await svc.GetAsync(id, ct) is { } p ? Results.Ok(p) : Results.NotFound());
 
+        // Before "/{id:guid}" matters not (the guid constraint keeps them apart); a shop front finds a product by the slug in its address.
+        products.MapGet("/by-slug/{slug}", async (string slug, IProductService svc, CancellationToken ct) =>
+            await svc.GetBySlugAsync(slug, ct) is { } p ? Results.Ok(p) : Results.NotFound());
+
         products.MapPost("/", async (ProductInput input, IProductService svc, CancellationToken ct) =>
             {
                 var created = await svc.CreateAsync(input, ct);

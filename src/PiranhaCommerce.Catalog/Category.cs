@@ -10,6 +10,11 @@ public class Category : AuditableEntity
     public Guid? ParentId { get; set; }
     public int DisplayOrder { get; set; }
     public bool Active { get; set; } = true;
+
+    /// <summary>The address segment a shop front uses for this item (lower case letters, digits and single hyphens). Unique. Empty means none.</summary>
+    public string? Slug { get; set; }
+    public string? MetaTitle { get; set; }
+    public string? MetaDescription { get; set; }
 }
 
 /// <summary>Links a product to a category. A product can be in several categories.</summary>

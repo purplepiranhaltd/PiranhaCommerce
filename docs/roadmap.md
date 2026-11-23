@@ -7,8 +7,9 @@ Things we have agreed need doing but have not built. Each entry records the requ
 A comparison with nopCommerce 4.x (from knowledge of that product, not re-checked against the current release). Piranha is headless (an API and an admin, no storefront
 or themes), so storefront and CMS features are out of scope by design. Order of work, each marked built or open:
 
-1. **Product options and variants: built** (see the README). Open: images per variant, a price as an adjustment to the parent, renaming values.
-2. **Product images and media, with SEO fields (slug, meta title and description): open.** Needs file storage (also needed for dispute evidence files).
+1. **Product options and variants: built** (see the README), with pictures per variant. Open: a price as an adjustment to the parent, renaming values.
+2. **Product images and media, with SEO fields: built** (see the README): a file store plugin point (local disk, Azure Blob), pictures with sizes made by an imaging package (SkiaSharp), slugs and page text.
+   Open: slug history and redirects, bulk upload, video, and dispute evidence files (the file store now exists for them).
 3. **Catalogue import and export** (CSV or Excel, products with variants, categories, stock): open.
 4. **Reports and an audit log of staff changes:** open. Today only the negative-stock report and unreconciled payments exist; wanted: sales by day, product and category,
    bestsellers, low stock, customers, and who changed what.

@@ -16,6 +16,9 @@ internal sealed class CategoryApiEndpoints : IApiEndpointContributor
         categories.MapGet("/{id:guid}", async (Guid id, ICategoryService svc, CancellationToken ct) =>
             await svc.GetAsync(id, ct) is { } c ? Results.Ok(c) : Results.NotFound());
 
+        categories.MapGet("/by-slug/{slug}", async (string slug, ICategoryService svc, CancellationToken ct) =>
+            await svc.GetBySlugAsync(slug, ct) is { } c ? Results.Ok(c) : Results.NotFound());
+
         categories.MapPost("/", async (CategoryInput input, ICategoryService svc, CancellationToken ct) =>
             {
                 var created = await svc.CreateAsync(input, ct);

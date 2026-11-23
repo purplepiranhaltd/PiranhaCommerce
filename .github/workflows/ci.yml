@@ -26,6 +26,7 @@ jobs:
       PIRANHA_TEST_PROVIDER: ${{ matrix.provider }}
       PIRANHA_TEST_SQLSERVER: Server=localhost,1433;User Id=sa;Password=Ci_Passw0rd_for_tests;TrustServerCertificate=True
       PIRANHA_TEST_PG_SERVER: Host=localhost;Port=5432;Username=postgres;Password=Ci_Passw0rd_for_tests
+      PIRANHA_TEST_AZURITE: UseDevelopmentStorage=true
     steps:
       - uses: actions/checkout@v4
 
@@ -52,6 +53,16 @@ jobs:
             sleep 2
           done
           docker logs db; exit 1
+
+      # The Azure Blob store is tested against Azurite, Microsoft's storage emulator.
+      - name: Start Azurite (blob storage emulator)
+        run: |
+          docker run -d --name azurite -p 10000:10000 mcr.microsoft.com/azure-storage/azurite azurite-blob --blobHost 0.0.0.0 --skipApiVersionCheck
+          for i in $(seq 1 20); do
+            (echo > /dev/tcp/127.0.0.1/10000) >/dev/null 2>&1 && exit 0
+            sleep 1
+          done
+          docker logs azurite; exit 1
 
       - name: Build
         run: dotnet build -c Release

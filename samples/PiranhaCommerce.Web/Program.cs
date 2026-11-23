@@ -40,6 +40,8 @@ piranha
     .AddPlugin<EcommerceAdminPlugin>()
     .AddPlugin<PiranhaCommerce.Payments.Stripe.StripePlugin>() // inert until Piranha:Stripe keys are set
     .AddPlugin<PiranhaCommerce.Email.Smtp.Admin.SmtpEmailAdminPlugin>() // SMTP sending (needs Piranha:Email:Smtp settings) and its template editor
+    .AddPlugin<PiranhaCommerce.Storage.LocalDisk.LocalDiskStoragePlugin>() // uploaded files (Piranha:Storage:LocalDisk:Path, default App_Data/files)
+    .AddPlugin<PiranhaCommerce.Imaging.Skia.SkiaImagingPlugin>() // makes sizes of product images
     .AddPlugin<WarrantyPlugin>();
 
 var app = builder.Build();

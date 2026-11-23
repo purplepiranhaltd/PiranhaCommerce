@@ -16,6 +16,10 @@ internal sealed class CatalogModelContributor : IModelContributor
             e.Property(p => p.Sku).HasMaxLength(100);
             e.Property(p => p.Price).HasPrecision(18, 4);
             e.HasIndex(p => p.Sku).IsUnique(); // the guarantee; the service pre-check only gives a friendlier 400
+            e.Property(p => p.Slug).HasMaxLength(200);
+            e.Property(p => p.MetaTitle).HasMaxLength(200);
+            e.Property(p => p.MetaDescription).HasMaxLength(500);
+            e.HasIndex(p => p.Slug).IsUnique();
         });
 
         b.Entity<Category>(e =>
@@ -23,6 +27,10 @@ internal sealed class CatalogModelContributor : IModelContributor
             e.ToTable("Category", Schema);
             e.Property(c => c.Name).HasMaxLength(200).IsRequired();
             e.Property(c => c.Description).HasMaxLength(4000);
+            e.Property(c => c.Slug).HasMaxLength(200);
+            e.Property(c => c.MetaTitle).HasMaxLength(200);
+            e.Property(c => c.MetaDescription).HasMaxLength(500);
+            e.HasIndex(c => c.Slug).IsUnique();
             // Optional self-reference: the database keeps NO ACTION (SQL Server forbids cascading self-references);
             // the service refuses to delete a category that still has children.
             e.HasOne<Category>().WithMany().HasForeignKey(c => c.ParentId);
@@ -44,6 +52,18 @@ internal sealed class CatalogModelContributor : IModelContributor
             e.Property(x => x.NormalizedCode).HasMaxLength(BarcodeNormalizer.MaxLength).IsRequired();
             e.HasIndex(x => x.NormalizedCode).IsUnique(); // a code identifies one product, on every provider
             e.HasIndex(x => x.ProductId);
+            e.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<ProductImage>(e =>
+        {
+            e.ToTable("ProductImage", Schema);
+            e.Property(x => x.ContentType).HasMaxLength(100).IsRequired();
+            e.Property(x => x.FileName).HasMaxLength(200);
+            e.Property(x => x.AltText).HasMaxLength(200);
+            e.Property(x => x.Sizes).HasMaxLength(100).IsRequired();
+            e.Property(x => x.SizeContentType).HasMaxLength(100);
+            e.HasIndex(x => new { x.ProductId, x.Position });
             e.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade);
         });
 

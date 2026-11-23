@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using PiranhaCommerce.Core.Email;
+using PiranhaCommerce.Core.Files;
 using PiranhaCommerce.Core.Plugins;
 
 namespace PiranhaCommerce.Core.DependencyInjection;
@@ -13,6 +14,7 @@ public static class PiranhaCoreServiceCollectionExtensions
         services.TryAddSingleton(builder);
         services.TryAddSingleton<IPluginCatalog, PluginCatalog>();
         services.AddPiranhaEmailDefaults(); // an email plugin registers its own IEmailSender afterwards and wins
+        services.AddPiranhaFileDefaults(); // a storage plugin registers its own IFileStore afterwards and wins
         return builder;
     }
 }

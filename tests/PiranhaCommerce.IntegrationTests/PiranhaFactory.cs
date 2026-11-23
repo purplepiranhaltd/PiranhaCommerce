@@ -58,6 +58,7 @@ public class PiranhaFactory: WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("Piranha:Provider", Provider);
         builder.UseSetting("ConnectionStrings:Piranha", ConnectionString);
         builder.UseSetting("Piranha:RateLimit:SignInAttempts", SignInAttempts.ToString());
+        builder.UseSetting("Piranha:Storage:LocalDisk:Path", FilesFolder);
         if (AlertEmail is { } alert) builder.UseSetting("Piranha:Ecommerce:AlertEmail", alert);
         foreach (var (key, value) in ExtraSettings) builder.UseSetting(key, value);
         // Mail goes to memory so tests can read the links and codes it would have carried.
@@ -69,6 +70,9 @@ public class PiranhaFactory: WebApplicationFactory<Program>, IAsyncLifetime
     /// <summary>Sign-in attempts allowed per minute. High by default so the many sign-ins in the suite never trip it.</summary>
     protected virtual int SignInAttempts => 100_000;
     protected virtual string? AlertEmail => null;
+    /// <summary>Where this factory's uploaded files go (its own folder, so tests never share files).</summary>
+    internal string FilesFolder { get; } = Path.Combine(Path.GetTempPath(), "piranha-test-files-" + Guid.NewGuid().ToString("N"));
+
     protected virtual IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?>();
 
     public Task InitializeAsync() => Task.CompletedTask;

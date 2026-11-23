@@ -9,6 +9,7 @@ public interface ICategoryService
     /// <summary>Every category, flat, with <c>ParentId</c>; ordered by display order, name, id.</summary>
     Task<IReadOnlyList<CategoryDto>> ListAsync(CancellationToken ct = default);
     Task<CategoryDto?> GetAsync(Guid id, CancellationToken ct = default);
+    Task<CategoryDto?> GetBySlugAsync(string slug, CancellationToken ct = default);
     Task<CategoryDto> CreateAsync(CategoryInput input, CancellationToken ct = default);
     Task<CategoryDto?> UpdateAsync(Guid id, CategoryInput input, CancellationToken ct = default);
 
@@ -29,17 +30,26 @@ internal sealed class CategoryService(PiranhaDbContext db) : ICategoryService
     public async Task<IReadOnlyList<CategoryDto>> ListAsync(CancellationToken ct = default)
         => await db.Set<Category>().AsNoTracking()
             .OrderBy(c => c.DisplayOrder).ThenBy(c => c.Name).ThenBy(c => c.Id)
-            .Select(c => new CategoryDto(c.Id, c.Name, c.Description, c.ParentId, c.DisplayOrder, c.Active, c.CreatedUtc, c.UpdatedUtc))
+            .Select(c => new CategoryDto(c.Id, c.Name, c.Description, c.ParentId, c.DisplayOrder, c.Active, c.CreatedUtc, c.UpdatedUtc, c.Slug, c.MetaTitle, c.MetaDescription))
             .ToListAsync(ct);
 
     public async Task<CategoryDto?> GetAsync(Guid id, CancellationToken ct = default)
         => await db.Set<Category>().AsNoTracking().Where(c => c.Id == id)
-            .Select(c => new CategoryDto(c.Id, c.Name, c.Description, c.ParentId, c.DisplayOrder, c.Active, c.CreatedUtc, c.UpdatedUtc))
+            .Select(c => new CategoryDto(c.Id, c.Name, c.Description, c.ParentId, c.DisplayOrder, c.Active, c.CreatedUtc, c.UpdatedUtc, c.Slug, c.MetaTitle, c.MetaDescription))
             .FirstOrDefaultAsync(ct);
+
+    public async Task<CategoryDto?> GetBySlugAsync(string slug, CancellationToken ct = default)
+    {
+        var s = slug.Trim().ToLowerInvariant();
+        return await db.Set<Category>().AsNoTracking().Where(c => c.Slug == s)
+            .Select(c => new CategoryDto(c.Id, c.Name, c.Description, c.ParentId, c.DisplayOrder, c.Active, c.CreatedUtc, c.UpdatedUtc, c.Slug, c.MetaTitle, c.MetaDescription))
+            .FirstOrDefaultAsync(ct);
+    }
 
     public async Task<CategoryDto> CreateAsync(CategoryInput input, CancellationToken ct = default)
     {
         ModelValidator.ValidateOrThrow(input);
+        await ValidateSlugAsync(input, null, ct);
         await ValidateParentAsync(null, input.ParentId, ct);
         var entity = new Category { Name = input.Name.Trim() };
         Apply(entity, input);
@@ -53,6 +63,7 @@ internal sealed class CategoryService(PiranhaDbContext db) : ICategoryService
         var entity = await db.Set<Category>().FirstOrDefaultAsync(c => c.Id == id, ct);
         if (entity is null) return null;
         ModelValidator.ValidateOrThrow(input);
+        await ValidateSlugAsync(input, id, ct);
         await ValidateParentAsync(id, input.ParentId, ct);
         Apply(entity, input);
         await db.SaveChangesAsync(ct);
@@ -119,8 +130,17 @@ internal sealed class CategoryService(PiranhaDbContext db) : ICategoryService
         }
     }
 
+    private async Task ValidateSlugAsync(CategoryInput input, Guid? existingId, CancellationToken ct)
+    {
+        if (Seo.NormalizeSlug(input.Slug) is { } slug && await db.Set<Category>().AnyAsync(c => c.Slug == slug && c.Id != existingId, ct))
+            throw new PiranhaValidationException(nameof(CategoryInput.Slug), "A category with this slug already exists.");
+    }
+
     private static void Apply(Category e, CategoryInput i)
     {
+        e.Slug = Seo.NormalizeSlug(i.Slug);
+        e.MetaTitle = string.IsNullOrWhiteSpace(i.MetaTitle) ? null : i.MetaTitle.Trim();
+        e.MetaDescription = string.IsNullOrWhiteSpace(i.MetaDescription) ? null : i.MetaDescription.Trim();
         e.Name = i.Name.Trim();
         e.Description = i.Description;
         e.ParentId = i.ParentId;
@@ -129,5 +149,5 @@ internal sealed class CategoryService(PiranhaDbContext db) : ICategoryService
     }
 
     private static CategoryDto ToDto(Category c) =>
-        new(c.Id, c.Name, c.Description, c.ParentId, c.DisplayOrder, c.Active, c.CreatedUtc, c.UpdatedUtc);
+        new(c.Id, c.Name, c.Description, c.ParentId, c.DisplayOrder, c.Active, c.CreatedUtc, c.UpdatedUtc, c.Slug, c.MetaTitle, c.MetaDescription);
 }

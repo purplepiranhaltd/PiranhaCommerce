@@ -22,6 +22,9 @@
         </select>
         <input type="number" aria-label="Display order" style="width:6rem" @bind="_input.DisplayOrder" />
         <label><input type="checkbox" @bind="_input.Active" /> Active</label>
+        <input aria-label="Slug" placeholder="Slug, e.g. tees" @bind="_input.Slug" />
+        <input aria-label="Page title" placeholder="Page title" @bind="_input.MetaTitle" />
+        <input aria-label="Page description" placeholder="Page description" @bind="_input.MetaDescription" />
         <button @onclick="SaveAsync" disabled="@_saving">@(_editingId is null ? "Add" : "Save")</button>
         @if (_editingId is not null)
         {
@@ -92,7 +95,7 @@ else
     {
         _editingId = c.Id;
         _blocked = CategoryTree.SelfAndDescendants(_tree.Select(t => t.Category), c.Id); // cannot move under itself
-        _input = new CategoryInput { Name = c.Name, Description = c.Description, ParentId = c.ParentId, DisplayOrder = c.DisplayOrder, Active = c.Active };
+        _input = new CategoryInput { Name = c.Name, Description = c.Description, ParentId = c.ParentId, DisplayOrder = c.DisplayOrder, Active = c.Active, Slug = c.Slug, MetaTitle = c.MetaTitle, MetaDescription = c.MetaDescription };
     }
 
     private void ResetForm() { _editingId = null; _blocked = []; _input = new(); }

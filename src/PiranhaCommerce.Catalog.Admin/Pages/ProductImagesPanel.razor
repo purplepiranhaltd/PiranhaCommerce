@@ -1,0 +1,137 @@
+@* Panel for AdminSlots.ProductEditPanels. Pictures of the product: upload, put in order (the first is the main picture), describe, remove. *@
+@using PiranhaCommerce.Core.Validation
+@using Microsoft.Extensions.Options
+@inject AdminScopeRunner Scope
+@inject IOptions<ImageOptions> Options
+
+<div class="pc-card" style="margin-top:1rem">
+    <h2 style="margin-top:0">Pictures</h2>
+    @if (_loading)
+    {
+        <p class="pc-muted">Loading...</p>
+    }
+    else
+    {
+        @if (_data is { Inherited: true })
+        {
+            <p class="pc-muted">This variant has no pictures of its own, so shoppers see its parent product's. Add one here to give it its own.</p>
+        }
+        @if (_data is { Images.Count: > 0 })
+        {
+            <div class="pc-pictures" style="display:flex;flex-wrap:wrap;gap:1rem">
+                @for (var i = 0; i < _data.Images.Count; i++)
+                {
+                    var image = _data.Images[i];
+                    var index = i;
+                    <figure style="margin:0;width:11rem">
+                        <img src="@image.Url?width=160" alt="@(image.AltText ?? "")" style="width:100%;height:9rem;object-fit:contain;background:#f4f4f4" />
+                        <figcaption>
+                            @if (index == 0 && !_data.Inherited) { <strong>Main picture</strong> }
+                            @if (!_data.Inherited)
+                            {
+                                <input aria-label="Description of picture @(index + 1)" placeholder="Describe it (alt text)" maxlength="200" value="@(_alt.GetValueOrDefault(image.Id) ?? image.AltText)" @onchange="e => _alt[image.Id] = e.Value?.ToString()" />
+                                <div class="actions">
+                                    <button type="button" class="secondary" disabled="@_busy" @onclick="() => SaveAltAsync(image)">Save text</button>
+                                    <button type="button" class="secondary" disabled="@(_busy || index == 0)" aria-label="Move picture @(index + 1) earlier" @onclick="() => MoveAsync(index, -1)">&larr;</button>
+                                    <button type="button" class="secondary" disabled="@(_busy || index == _data.Images.Count - 1)" aria-label="Move picture @(index + 1) later" @onclick="() => MoveAsync(index, 1)">&rarr;</button>
+                                    <button type="button" class="secondary" disabled="@_busy" @onclick="() => DeleteAsync(image)">Delete</button>
+                                </div>
+                            }
+                            <span class="pc-muted">@(image.Width is { } w ? $"{w} x {image.Height}, " : "")@(image.SizeBytes / 1024) KB</span>
+                        </figcaption>
+                    </figure>
+                }
+            </div>
+        }
+        else if (_data is not null)
+        {
+            <p class="pc-muted">No pictures yet.</p>
+        }
+
+        <p>
+            <label>Add a picture (JPEG, PNG, WebP or GIF, up to @(Options.Value.MaxBytes / (1024 * 1024)) MB)
+                <InputFile OnChange="UploadAsync" accept="image/jpeg,image/png,image/webp,image/gif" disabled="@_busy" />
+            </label>
+        </p>
+    }
+    @if (_message is not null)
+    {
+        <p class="@(_failed ? "pc-error" : "pc-muted")" role="status">@_message</p>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Guid ProductId { get; set; }
+
+    private ProductImagesDto? _data;
+    private readonly Dictionary<Guid, string?> _alt = [];
+    private bool _loading = true, _busy, _failed;
+    private string? _message;
+    private Guid _loadedFor;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedFor == ProductId) return;
+        _loadedFor = ProductId;
+        _loading = true;
+        _message = null;
+        await RunAsync(s => s.ListAsync(ProductId));
+        _loading = false;
+    }
+
+    private async Task RunAsync(Func<IProductImageService, Task<ProductImagesDto?>> action, string? done = null)
+    {
+        _busy = true; _failed = false; _message = null;
+        try
+        {
+            _data = await Scope.RunAsync<IProductImageService, ProductImagesDto?>(action);
+            _alt.Clear();
+            _message = done;
+        }
+        catch (PiranhaValidationException ex) { _failed = true; _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _failed = true; _message = "Could not do that: " + ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task UploadAsync(InputFileChangeEventArgs e)
+    {
+        _busy = true; _failed = false; _message = null;
+        try
+        {
+            var max = Options.Value.MaxBytes;
+            // The file is read through a stream that stops one byte over the limit, so a huge file is never held whole.
+            await using var stream = e.File.OpenReadStream(max + 1);
+            var name = e.File.Name;
+            await Scope.RunAsync<IProductImageService, ProductImageDto?>(s => s.AddAsync(ProductId, stream, name, null));
+            _data = await Scope.RunAsync<IProductImageService, ProductImagesDto?>(s => s.ListAsync(ProductId));
+            _message = "Picture added.";
+        }
+        catch (PiranhaValidationException ex) { _failed = true; _message = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
+        catch (IOException) { _failed = true; _message = "That file is too big."; }
+        catch (Exception ex) { _failed = true; _message = "Could not add the picture: " + ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task SaveAltAsync(ProductImageDto image)
+    {
+        var text = _alt.GetValueOrDefault(image.Id) ?? image.AltText;
+        await RunAsync(async s =>
+        {
+            await s.UpdateAsync(ProductId, image.Id, new ProductImageInput { AltText = text });
+            return await s.ListAsync(ProductId);
+        }, "Saved.");
+    }
+
+    private Task MoveAsync(int index, int by)
+    {
+        var ids = _data!.Images.Select(i => i.Id).ToList();
+        (ids[index], ids[index + by]) = (ids[index + by], ids[index]);
+        return RunAsync(s => s.ReorderAsync(ProductId, ids));
+    }
+
+    private Task DeleteAsync(ProductImageDto image) => RunAsync(async s =>
+    {
+        await s.DeleteAsync(ProductId, image.Id);
+        return await s.ListAsync(ProductId);
+    }, "Picture deleted.");
+}

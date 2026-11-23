@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Stores Piranha Commerce files (product images and other uploads) in Azure Blob Storage.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PiranhaCommerce.Core\PiranhaCommerce.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Azure.Identity" Version="1.21.0" />
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.30.2" />
+  </ItemGroup>
+</Project>

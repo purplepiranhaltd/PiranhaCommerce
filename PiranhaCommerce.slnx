@@ -20,6 +20,9 @@
     <Project Path="src/PiranhaCommerce.Email.Smtp/PiranhaCommerce.Email.Smtp.csproj" />
     <Project Path="src/PiranhaCommerce.Ecommerce/PiranhaCommerce.Ecommerce.csproj" />
     <Project Path="src/PiranhaCommerce.Payments.Stripe/PiranhaCommerce.Payments.Stripe.csproj" />
+    <Project Path="src/PiranhaCommerce.Storage.LocalDisk/PiranhaCommerce.Storage.LocalDisk.csproj" />
+    <Project Path="src/PiranhaCommerce.Storage.AzureBlob/PiranhaCommerce.Storage.AzureBlob.csproj" />
+    <Project Path="src/PiranhaCommerce.Imaging.Skia/PiranhaCommerce.Imaging.Skia.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/PiranhaCommerce.Core.Tests/PiranhaCommerce.Core.Tests.csproj" />

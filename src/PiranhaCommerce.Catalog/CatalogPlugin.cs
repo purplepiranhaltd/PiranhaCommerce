@@ -27,6 +27,10 @@ public sealed class CatalogPlugin : IPiranhaPlugin
         services.AddSingleton<IApiEndpointContributor, StockTransferApiEndpoints>();
         services.AddScoped<IBarcodeService, BarcodeService>();
         services.AddScoped<IProductVariantService, ProductVariantService>();
+        services.AddOptions<ImageOptions>().BindConfiguration(ImageOptions.SectionName).ValidateDataAnnotations();
+        services.AddScoped<IProductImageService, ProductImageService>();
+        services.AddSingleton<IApiEndpointContributor, ImageApiEndpoints>();
+        services.AddSingleton<IStorefrontEndpointContributor, ImageStorefrontEndpoints>();
         services.AddSingleton<IApiEndpointContributor, VariantApiEndpoints>();
     }
 }

@@ -38,6 +38,17 @@ else
                 <InputNumber @bind-Value="_input.Price" step="0.01" />
             </label>
             <ValidationMessage For="() => _input.Price" />
+            <h2>For search engines and shop fronts</h2>
+            <label>Slug (the address of the product page, for example blue-cotton-tee)
+                <InputText @bind-Value="_input.Slug" />
+            </label>
+            <ValidationMessage For="() => _input.Slug" />
+            <label>Page title
+                <InputText @bind-Value="_input.MetaTitle" />
+            </label>
+            <label>Page description
+                <InputTextArea @bind-Value="_input.MetaDescription" rows="2" />
+            </label>
 
             <button type="submit" disabled="@_saving">Save</button>
             <a class="pc-button secondary" href="/admin/catalog/products">Cancel</a>
@@ -71,7 +82,7 @@ else
 
         var p = await Scope.RunAsync<IProductService, ProductDto?>(s => s.GetAsync(Id!.Value));
         if (p is null) { _notFound = true; return; }
-        _input = new ProductInput { Name = p.Name, Sku = p.Sku, Description = p.Description, Price = p.Price };
+        _input = new ProductInput { Name = p.Name, Sku = p.Sku, Description = p.Description, Price = p.Price, Slug = p.Slug, MetaTitle = p.MetaTitle, MetaDescription = p.MetaDescription };
     }
 
     private async Task SaveAsync()

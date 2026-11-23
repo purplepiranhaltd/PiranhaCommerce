@@ -16,11 +16,21 @@ public sealed class CategoryInput
     public int DisplayOrder { get; set; }
 
     public bool Active { get; set; } = true;
+
+    /// <summary>Lower case letters, digits and single hyphens, unique among categories (it is lower-cased for you). A PUT replaces it: leave it out to clear it.</summary>
+    [StringLength(200)]
+    public string? Slug { get; set; }
+
+    [StringLength(200)]
+    public string? MetaTitle { get; set; }
+
+    [StringLength(500)]
+    public string? MetaDescription { get; set; }
 }
 
 public sealed record CategoryDto(
     Guid Id, string Name, string? Description, Guid? ParentId, int DisplayOrder, bool Active,
-    DateTimeOffset CreatedUtc, DateTimeOffset? UpdatedUtc);
+    DateTimeOffset CreatedUtc, DateTimeOffset? UpdatedUtc, string? Slug = null, string? MetaTitle = null, string? MetaDescription = null);
 
 /// <summary>Replaces the full set of categories a product belongs to.</summary>
 public sealed class ProductCategoriesInput

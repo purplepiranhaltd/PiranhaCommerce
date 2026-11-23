@@ -14,6 +14,9 @@ A commerce engine for .NET, delivered as NuGet packages. Closed source for now; 
 | `PiranhaCommerce.Admin` | Blazor admin (Razor class library): menu + slots that plugins contribute to. |
 | `PiranhaCommerce.Catalog` | Products shared by every sales channel (name, SKU, price), with API. Channels never add columns to it. |
 | `PiranhaCommerce.Catalog.Admin` | Product list/edit pages. |
+| `PiranhaCommerce.Storage.LocalDisk` | Where uploaded files (product pictures) live: a folder on the server (`Piranha:Storage:LocalDisk:Path`, default `App_Data/files`). Back it up; share it or use Azure Blob when there are several servers. |
+| `PiranhaCommerce.Storage.AzureBlob` | The same, in an Azure storage container (`Piranha:Storage:AzureBlob:ConnectionString`, or `AccountUri` to use the host's Azure identity, and `Container`). Use instead of LocalDisk, not with it. |
+| `PiranhaCommerce.Imaging.Skia` | Reads image sizes and makes smaller copies when a picture is uploaded, with SkiaSharp (MIT licensed). Optional: without it the original is stored as it is. |
 | `PiranhaCommerce.Customers` | Customers and their address books, shared by every sales channel, with API. Customers are not admin users. |
 | `PiranhaCommerce.Customers.Admin` | Customer list/edit pages and an address book panel (contributed through the `customer.edit.panels` slot). |
 | `PiranhaCommerce.Ecommerce` | Online store layered on the catalogue: listings (`ecom.ProductListing`), baskets, checkout and orders. Needs Catalog and Customers. A future `PiranhaCommerce.Epos` is a sibling with its own tables. |
@@ -375,6 +378,18 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   .../{categoryId}` with `{ "percent" }`; admin: Orders > Group category discounts). It covers the category's sub-categories (the nearest category that
   has one set wins), replaces the group's own percentage for products in it, and `0` means no discount there. A product in several categories gets
   the largest percentage. Within one group the most specific thing wins: fixed product price, then category percentage, then the group's own percentage.
+- **Product pictures** (`/products/{id}/images`, admin: Pictures on a product page): needs a storage package (`IFileStore`; the sample host uses local disk). Upload is
+  `multipart/form-data` with `file` and an optional `altText`; the type is decided from the file's own bytes (JPEG, PNG, WebP or GIF; SVG is refused because it can carry script),
+  limited by `Piranha:Images:MaxBytes` (default 10 MB) and `MaxPerProduct` (20). With an imaging package, the picture is read (a file that cannot be read is refused), turned upright from its
+  camera orientation data, and smaller copies are made at upload (`Piranha:Images:Sizes`, default `160,480,1024` longest side; never enlarged). The first picture is the main one:
+  `PUT .../images/order` sets the order, `PUT .../images/{id}` the alt text, `DELETE` removes the picture and its files (deleting a product removes all of its files). A variant with no
+  pictures of its own returns its parent's, marked `inherited`. Shop fronts and browsers fetch a picture, with no sign-in, at the `url` in its description:
+  `GET /api/v1/storefront/guest/product-images/{id}?width=300` gives the smallest made size at least that wide (or the original), with `ETag` and a day of caching. A picture is found
+  by its own unguessable id, so it stays reachable when its product is unpublished: treat the address as the secret. Not built: cropping, watermarks, video, a bulk upload, and
+  resizing for pictures uploaded before an imaging package was added.
+- **Slugs and page text** (products and categories): `slug` (lower case letters, digits and single hyphens; unique; lower-cased for you), `metaTitle` and `metaDescription`, and
+  `GET /products/by-slug/{slug}` and `GET /categories/by-slug/{slug}` for a shop front that routes by address. A PUT replaces them, so leaving one out clears it. Not built: a slug
+  history with redirects when one changes, and translated slugs.
 - **Options and variants** (`/products/{id}/options`, `/products/{id}/variants`, admin: Options and variants on a product page): a product that comes in options
   (Size, Colour) gets those options with their values, then a variant for each combination (`POST .../variants/generate`, or one at a time with `POST .../variants`
   and one value per option). A variant is an **ordinary product**: its own SKU, price, stock, barcodes, listing, and its name is the parent's plus its values
@@ -383,7 +398,7 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   option in use, a parent with variants, and options on a variant are refused (409); a new option cannot be added once variants exist. New variants copy the parent's
   online listing (published, tax class, weight) and its description, but not its categories: a category sale or group category discount reaches variants through the parent's
   categories. A sale or group price naming the parent product does not cover its variants (name the variants, or use a category). `GET /products/{id}/variants` returns
-  a parent's options and variants, or for a variant its parent and values. Not built: per-variant images, price as an adjustment to the parent's price, renaming values,
+  a parent options and variants, or for a variant its parent and values. A variant has its own pictures. Not built: price as an adjustment to the parent's price, renaming values,
   variants updating their name when the parent is renamed, and a storefront endpoint (a shop front reads these with its own API token).
 - **Tax-inclusive display.** Prices are still entered and stored without tax; a shop front can show them with tax added. The price lookups
   (`GET /storefront/guest/prices`, `/storefront/prices`, `/customers/{id}/prices`) take an optional `countryCode` (or use `Piranha:Ecommerce:DefaultCountryCode`,
