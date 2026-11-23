@@ -24,7 +24,8 @@ or themes), so storefront and CMS features are out of scope by design. Order of 
    **Later: the real carriers.** Live rates and labels for the carriers the shop actually uses (Royal Mail, DPD, Evri, Parcelforce, ShipStation and so on): needs the owner's carrier accounts and
    a choice of which first. Never call a carrier from inside the checkout transaction; fetch rates before it and keep the chosen price on the quote.
 8. **Multi-currency and translations:** open, heaviest design work (see the Translations section).
-9. **Reviews, wishlists, related and cross-sell products, brands, specification attributes and tags, back-in-stock and low-stock alerts:** open.
+9. **Reviews and back-in-stock requests: built** (see the README). Open from this item: wishlists, related and cross-sell products, brands, specification attributes and tags, staff low-stock alerts (an email to the
+   shop when stock falls below a level), review replies from the shop, review photos, and a "was this helpful" vote.
 10. **Multi-store and vendors:** open, only if a use case needs them.
 
 Also open from the comparison: other payment gateways (PayPal, Adyen and others), social sign-in and two-factor, reward points, customer-defined attributes, finer

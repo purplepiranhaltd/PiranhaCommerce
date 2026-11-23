@@ -250,6 +250,13 @@ public sealed class EcommerceOptions
     /// </summary>
     public bool ReviewsNeedApproval { get; set; } = true;
 
+    /// <summary>How often, in seconds, to look for sold-out products that can be bought again and email the shoppers waiting for them. 0 switches the check off (a host can then call IStockAlertNotifier itself).</summary>
+    [Range(0, 86_400)]
+    public int StockAlertPollSeconds { get; set; } = 300;
+
+    /// <summary>The shop front's unsubscribe page for back-in-stock emails, with <c>{token}</c> where the secret goes. When empty the email carries only the token.</summary>
+    public string? StockAlertUnsubscribeUrlTemplate { get; set; }
+
     /// <summary>
     /// The shop's home country (two letters, e.g. GB). Price lookups that are not told a destination show tax-inclusive prices for it. Leave empty to show
     /// no tax-inclusive prices unless the caller names a country.

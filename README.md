@@ -545,6 +545,13 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   A new or changed review waits for staff approval (`Piranha:Ecommerce:ReviewsNeedApproval`, on by default); only approved ones are public or counted, and shoppers see a display name (their
   first name and last initial unless they choose one), never an email. A review is marked verified when the shopper has an order on their account for the product or any of its variants that was not
   cancelled. Text is stored as plain text, so the shop front must escape it. Reviews are exported with a customer and deleted when the customer is erased.
+- **Back-in-stock requests** (`POST /storefront/stock-alerts` with a product and an email, open to guests and shoppers; `DELETE /storefront/stock-alerts/{token}` to unsubscribe; staff read
+  `/stock-alerts` and `/stock-alerts/demand`, admin: Orders > Back-in-stock requests): a shopper asks to be emailed when a sold-out product can be bought again, for a simple product or one variant
+  (not a parent that has options). Asking again is a silent success, in any letter case; an address can wait for at most 25 products; asking for something in stock now is refused. A background check
+  (`Piranha:Ecommerce:StockAlertPollSeconds`, default 300, 0 off; or call `IStockAlertNotifier.RunOnceAsync`) emails each waiting person once the product is published and has stock at the
+  location online orders take from (`StockLocationId`), claiming each request first so several running copies never both send; a failed send is retried after ten minutes. The email is template
+  `stock.back-in-stock` with `productName`, `sku`, `productId`, `unsubscribeToken` and `unsubscribeUrl` (from `StockAlertUnsubscribeUrlTemplate`, with `{token}` in it). Requests are exported with a
+  customer and deleted when they are erased, matched by account or by email address.
 - **Shipping zones and carriers** (`/shipping-zones`, `/shipping-carriers`, admin: Orders > Shipping zones and Shipping carriers): a zone groups countries, or
   only some postcode areas of a country (`GB` with `IV, HS, KW` for the Highlands; `GB` with `BT` for Northern Ireland; `*` for everywhere else). A destination is
   in one zone only (a country and postcode start can be in just one) and is resolved by the longest matching postcode start, then the zone holding its whole

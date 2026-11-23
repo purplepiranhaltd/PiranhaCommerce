@@ -246,6 +246,18 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.HasIndex(r => new { r.CountryCode, r.Prefix }).IsUnique(); // a destination is in one zone only
             e.HasOne<ShippingZone>().WithMany().HasForeignKey(r => r.ZoneId).OnDelete(DeleteBehavior.Cascade);
         });
+        b.Entity<StockAlertSubscription>(e =>
+        {
+            e.ToTable("StockAlertSubscription", Schema);
+            e.Property(s => s.Email).HasMaxLength(256).IsRequired();
+            e.Property(s => s.NormalizedEmail).HasMaxLength(256).IsRequired();
+            e.Property(s => s.UnsubscribeToken).HasMaxLength(64).IsRequired();
+            e.HasIndex(s => new { s.ProductId, s.NormalizedEmail }).IsUnique();
+            e.HasIndex(s => s.UnsubscribeToken).IsUnique();
+            e.HasIndex(s => s.NormalizedEmail);
+            e.HasIndex(s => new { s.NotifiedUtc, s.ProductId });
+            e.HasOne<PiranhaCommerce.Catalog.Product>().WithMany().HasForeignKey(s => s.ProductId).OnDelete(DeleteBehavior.Cascade);
+        });
         b.Entity<ProductReview>(e =>
         {
             e.ToTable("ProductReview", Schema);

@@ -59,6 +59,7 @@ public class PiranhaFactory: WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("ConnectionStrings:Piranha", ConnectionString);
         builder.UseSetting("Piranha:RateLimit:SignInAttempts", SignInAttempts.ToString());
         builder.UseSetting("Piranha:Storage:LocalDisk:Path", FilesFolder);
+        builder.UseSetting("Piranha:Ecommerce:StockAlertPollSeconds", "0"); // tests run the notifier themselves
         builder.UseSetting("Piranha:Webhooks:PollSeconds", "0"); // tests drive the sender themselves; the background one must not post anywhere
         if (AlertEmail is { } alert) builder.UseSetting("Piranha:Ecommerce:AlertEmail", alert);
         foreach (var (key, value) in ExtraSettings) builder.UseSetting(key, value);

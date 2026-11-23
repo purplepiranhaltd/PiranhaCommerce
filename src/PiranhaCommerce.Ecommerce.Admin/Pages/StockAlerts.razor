@@ -1,0 +1,51 @@
+@page "/admin/orders/stock-alerts"
+@inject AdminScopeRunner Scope
+
+<PageTitle>Back-in-stock requests - Piranha Commerce</PageTitle>
+<h1>Back-in-stock requests</h1>
+<p class="pc-muted">
+    Shoppers can ask to be emailed when a sold-out product can be bought again. Each person is emailed once, as soon as there is stock where online orders take it from (and the product is on sale).
+    This is what people are waiting for, most wanted first: a good guide to what to reorder.
+</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+@if (_demand is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_demand.Count == 0)
+{
+    <p class="pc-muted" data-testid="no-stock-alerts">Nobody is waiting for anything.</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>Product</th><th>SKU</th><th style="text-align:right">Waiting</th><th style="text-align:right">In stock now</th></tr></thead>
+        <tbody>
+        @foreach (var d in _demand)
+        {
+            <tr>
+                <td>@d.Name</td>
+                <td>@d.Sku</td>
+                <td style="text-align:right">@d.Waiting</td>
+                <td style="text-align:right">@d.InStock.ToString("0.##")</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IReadOnlyList<StockAlertDemandDto>? _demand;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _demand = await Scope.RunAsync<IStockAlertService, IReadOnlyList<StockAlertDemandDto>>(s => s.DemandAsync()); }
+        catch (Exception ex) { _error = "Could not load the requests: " + ex.Message; }
+    }
+}

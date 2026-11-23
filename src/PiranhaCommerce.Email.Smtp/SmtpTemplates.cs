@@ -150,8 +150,18 @@ public static class SmtpTemplateDefaults
         "alert.dispute-opened" => new Content("Payment disputed: {{ amount }} {{ currency }} on order {{ orderReference }}", DisputeOpenedText),
         "alert.return-requested" => new Content("Return requested on order {{ orderReference }}", ReturnRequestedText),
         "return.answered" => new Content("{% if approved %}Your return for order {{ reference }} is approved{% else %}About your return for order {{ reference }}{% endif %}", ReturnAnsweredText),
+        "stock.back-in-stock" => new Content("{{ productName }} is back in stock", BackInStockText),
         _ => null,
     };
+
+    private const string BackInStockText = """
+        Good news: {{ productName }} is back in stock.
+
+        You asked us to tell you when it could be bought again. This is the only email we will send about it, and stock can sell quickly.
+        {% if unsubscribeUrl %}
+        If you no longer want to hear about it, you can cancel your request here: {{ unsubscribeUrl }}
+        {% endif %}
+        """;
 
     private const string DisputeOpenedText = """
         A buyer has disputed a payment with their bank.

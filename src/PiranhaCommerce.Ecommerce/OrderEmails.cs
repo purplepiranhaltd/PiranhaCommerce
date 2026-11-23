@@ -18,6 +18,7 @@ public static class EcommerceEmailTemplates
     public const string ReturnRequested = "alert.return-requested";
     public const string ReturnAnswered = "return.answered";
     public const string DisputeOpened = "alert.dispute-opened";
+    public const string BackInStock = "stock.back-in-stock";
 }
 
 internal sealed class EcommerceEmailContributor : IEmailTemplateContributor
@@ -107,6 +108,16 @@ internal sealed class EcommerceEmailContributor : IEmailTemplateContributor
             new("reason", "The reason the bank gave. May be empty.", "product_not_received"),
             new("respondBy", "The date the shop must answer by, e.g. 2026-12-01. Empty when the provider did not say.", "2026-12-01"),
             new("providerReference", "The provider's id for the dispute.", "dp_1Abc"),
+        ]),
+
+        new(EcommerceEmailTemplates.BackInStock, "Back in stock", "Sent to a shopper who asked to be told when a sold-out product can be bought again. Sent once per request.",
+        [
+            new("email", "The address the request was made with.", "ada@example.com"),
+            new("productName", "The product's name.", "Blue mug"),
+            new("sku", "The product's SKU. May be empty.", "MUG-BLU"),
+            new("productId", "The product's id, for building a link to it.", "6f1c0a3e-2a8d-4a43-9a53-0d1f8d5a9b11"),
+            new("unsubscribeToken", "The secret that removes this request (DELETE /storefront/stock-alerts/{token}).", "9f2c4b7a1d3e5f60"),
+            new("unsubscribeUrl", "A ready-made unsubscribe link, when Piranha:Ecommerce:StockAlertUnsubscribeUrlTemplate is set. Otherwise empty.", "https://shop.example/stock-alerts/unsubscribe?token=9f2c4b7a1d3e5f60"),
         ]),
 
         new(EcommerceEmailTemplates.ReturnRequested, "Return requested (to the shop)", "Sent to the shop's alert address when a buyer asks to send goods back.",
