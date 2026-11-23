@@ -18,7 +18,7 @@ Each package reads one section under `Piranha:`.
 | `Piranha:Jwt` | Api | `SigningKey` (32 or more characters; the API fails closed without it), `LifetimeMinutes` (60). Shopper tokens use a key derived from it. |
 | `Piranha:RateLimit` | Api | Sign-in limits: `SignInAttempts`, `WindowSeconds`, `GuestBasketAttempts`, or `Enabled: false`. See [Hosting requirements](../advanced/hosting.md). |
 | `Piranha:Customers` | Customers | Lockout, `RefreshTokenDays`, `RequireVerifiedEmail`, `ResetUrlTemplate`, `VerifyUrlTemplate` and more. See [Customers and shopper accounts](../guides/shoppers.md). |
-| `Piranha:Ecommerce` | Ecommerce | `Currency` (GBP), `StockLocationId`, `DefaultCountryCode`, `AllowGuestCheckout`, `RequirePaymentBeforeProcessing`, `SendOrderConfirmations`, `SendOrderUpdates`, `AlertEmail`, `AbandonedBasketDays`, `UnpaidOrderHours`, `ReviewsNeedApproval`, `StockAlertPollSeconds`, `StockAlertUnsubscribeUrlTemplate`, `LowStockAlertLevel`, `LowStockAlertPollSeconds`. |
+| `Piranha:Ecommerce` | Ecommerce | `Currency` (GBP), `StockLocationId`, `DefaultCountryCode`, `AllowGuestCheckout`, `RequirePaymentBeforeProcessing`, `SendOrderConfirmations`, `SendOrderUpdates`, `SendReviewReplies`, `AlertEmail`, `AbandonedBasketDays`, `UnpaidOrderHours`, `ReviewsNeedApproval`, `StockAlertPollSeconds`, `StockAlertUnsubscribeUrlTemplate`, `LowStockAlertLevel`, `LowStockAlertPollSeconds`. |
 | `Piranha:Ecommerce:DisputeFiles` | Ecommerce | Size limits for dispute evidence documents. |
 | `Piranha:Catalog:Import` | Catalog | `MaxRows` and `MaxBytes` for catalogue import. |
 | `Piranha:Images` | Catalog | `MaxBytes`, `MaxPerProduct`, and the `Sizes` made at upload. |
@@ -35,7 +35,7 @@ Each package reads one section under `Piranha:`.
 - **Home country** (`Piranha:Ecommerce:DefaultCountryCode`): lets price lookups show tax-inclusive prices.
 - **Where stock comes from** (`StockLocationId`): the built-in location when empty.
 - **Guest checkout** (`AllowGuestCheckout`): on by default.
-- **Order emails and alerts** (`SendOrderConfirmations`, `SendOrderUpdates`, `AlertEmail`, `LowStockAlertLevel`): need an email package.
+- **Order emails and alerts** (`SendOrderConfirmations`, `SendOrderUpdates`, `SendReviewReplies`, `AlertEmail`, `LowStockAlertLevel`): need an email package.
 - **Housekeeping** (`AbandonedBasketDays`, `UnpaidOrderHours`): decide how long open baskets live and whether unpaid orders expire.
 - **Reviews** (`ReviewsNeedApproval`): on by default.
 

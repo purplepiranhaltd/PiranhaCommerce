@@ -26,7 +26,8 @@ This guide covers the features that bring shoppers back and help them buy: revie
 - A reply can be written while the review is waiting, but shoppers see it (as `reply` and `repliedUtc` on the public review) only once the review is approved.
 - If the shopper edits their review it goes back for approval, and the reply is kept for when it returns. Remove it if it no longer fits.
 - A reply is plain text, like a review, so the shop front must escape it. It is exported with the reviewer's data and goes with the review when it is erased.
-- Not built: emailing the reviewer when you reply, and public replies from anyone but the shop.
+- **The reviewer is emailed** the first time the shop replies (template `review.replied`, with `displayName`, `productName`, `productSlug`, `productId`, `rating`, `reviewTitle`, `reply` and `published`; `published` is false while the review still waits for approval, so the email can say the reply will appear later). Changing the reply does not send it again, so fixing a typo does not email them twice; removing it and replying afresh does. Switch it off with `Piranha:Ecommerce:SendReviewReplies` (default on). It needs an email package, and a failed send never stops the reply being saved.
+- Not built: public replies from anyone but the shop.
 
 **Escaping.** Text is stored as plain text, so the shop front must escape it.
 

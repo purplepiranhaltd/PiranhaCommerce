@@ -4,11 +4,13 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PiranhaCommerce.Api;
 using PiranhaCommerce.Catalog;
 using PiranhaCommerce.Core.Audit;
 using PiranhaCommerce.Core.Domain;
+using PiranhaCommerce.Core.Email;
 using PiranhaCommerce.Core.Paging;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Customers;
@@ -124,7 +126,7 @@ public interface IReviewService
     Task<ReviewDto?> DeleteReplyAsync(Guid reviewId, CancellationToken ct = default);
 }
 
-internal sealed class ReviewService(PiranhaDbContext db, IOptions<EcommerceOptions> options) : IReviewService
+internal sealed class ReviewService(PiranhaDbContext db, IOptions<EcommerceOptions> options, IEmailSender email, ILogger<ReviewService> logger) : IReviewService
 {
     /// <summary>The product a review is kept against: the parent of a variant, else the product itself. Null when there is no such product.</summary>
     private async Task<Guid?> ReviewedProductAsync(Guid productId, CancellationToken ct)
@@ -241,9 +243,30 @@ internal sealed class ReviewService(PiranhaDbContext db, IOptions<EcommerceOptio
         ModelValidator.ValidateOrThrow(new ReviewReplyInput { Body = body ?? "" });
         var review = await db.Set<ProductReview>().FirstOrDefaultAsync(r => r.Id == reviewId, ct);
         if (review is null) return null;
+        var first = review.Reply is null;
         review.Reply = body!.Trim(); review.RepliedUtc = DateTimeOffset.UtcNow; review.RepliedBy = actor; review.UpdatedUtc = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
+        if (first) await TellReviewerAsync(review, ct); // a changed reply is not sent again: fixing a typo should not email them twice
         return await ToDtoAsync(reviewId, ct);
+    }
+
+    /// <summary>Emails the reviewer that the shop has replied. Never fails the reply: the reply is already saved.</summary>
+    private async Task TellReviewerAsync(ProductReview review, CancellationToken ct)
+    {
+        if (!options.Value.SendReviewReplies) return;
+        try
+        {
+            var to = await db.Set<Customer>().AsNoTracking().Where(c => c.Id == review.CustomerId).Select(c => c.Email).FirstOrDefaultAsync(ct);
+            var product = await db.Set<Product>().AsNoTracking().Where(p => p.Id == review.ProductId).Select(p => new { p.Name, p.Slug }).FirstOrDefaultAsync(ct);
+            if (string.IsNullOrWhiteSpace(to) || product is null) return;
+            await email.SendAsync(new EmailMessage(to, EcommerceEmailTemplates.ReviewReplied, new Dictionary<string, object?>
+            {
+                ["email"] = to, ["displayName"] = review.DisplayName, ["productName"] = product.Name, ["productSlug"] = product.Slug ?? "", ["productId"] = review.ProductId.ToString(),
+                ["rating"] = review.Rating, ["reviewTitle"] = review.Title ?? "", ["reply"] = review.Reply, ["published"] = review.Status == ReviewStatus.Approved,
+            }), ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex) { logger.LogWarning(ex, "The review reply email for review {ReviewId} could not be sent.", review.Id); } // never the address
     }
 
     public async Task<ReviewDto?> DeleteReplyAsync(Guid reviewId, CancellationToken ct = default)

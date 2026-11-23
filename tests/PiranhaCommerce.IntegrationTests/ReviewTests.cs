@@ -53,9 +53,10 @@ public class ReviewTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
     {
         var staff = await factory.CreateAuthenticatedApiClientAsync();
         var anonymous = factory.CreateClient();
-        var (shopper, _, _) = await ShopperAsync("Ada", "Lovelace");
+        var (shopper, _, shopperEmail) = await ShopperAsync("Ada", "Lovelace");
         var product = await Product(staff);
         var review = await Read<ReviewDto>(await Write(shopper, product.Id, 2, "Arrived late"));
+        List<PiranhaCommerce.Core.Email.EmailMessage> Told() => factory.Email.To(shopperEmail).Where(m => m.TemplateKey == EcommerceEmailTemplates.ReviewReplied).ToList();
 
         // A reply can be written while the review waits, but nobody else sees it until the review is approved.
         var replied = await Read<ReviewDto>(await Reply(staff, review.Id, "  Sorry about that: we have changed courier. <b>Thank you</b>  "));
@@ -63,6 +64,11 @@ public class ReviewTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
         Assert.NotNull(replied.RepliedUtc);
         Assert.Equal(ReviewStatus.Pending, replied.Status);
         Assert.Empty((await Public(anonymous, product.Id)).Reviews.Items);
+
+        // The reviewer is emailed the first time (and told it is not public yet), but not again when the reply is changed.
+        var email = Assert.Single(Told());
+        Assert.Equal(("Ada L.", false, product.Name), (email.Variables["displayName"], email.Variables["published"], email.Variables["productName"]));
+        Assert.Equal(replied.Reply, email.Variables["reply"]);
 
         await Approve(staff, review.Id);
         var shown = (await Public(anonymous, product.Id)).Reviews.Items.Single();
@@ -72,6 +78,7 @@ public class ReviewTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
         Assert.Equal(shown.Reply, (await Read<List<ReviewDto>>(await shopper.GetAsync("/api/v1/storefront/reviews"))).Single().Reply);
         await Reply(staff, review.Id, "Update: it is fixed.");
         Assert.Equal("Update: it is fixed.", (await Public(anonymous, product.Id)).Reviews.Items.Single().Reply);
+        Assert.Single(Told());
 
         // The shopper editing their review sends it back for approval; the reply is kept for when it returns.
         await shopper.PutAsJsonAsync($"/api/v1/storefront/reviews/{review.Id}", new ReviewUpdateInput { Rating = 3, Body = "Better now" }, Json);
@@ -95,6 +102,14 @@ public class ReviewTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
         Assert.Null((await Read<ReviewDto>(await staff.DeleteAsync($"/api/v1/reviews/{review.Id}/reply"))).Reply);
         Assert.Null((await Public(anonymous, product.Id)).Reviews.Items.Single().Reply);
         Assert.Equal(HttpStatusCode.NotFound, (await staff.DeleteAsync($"/api/v1/reviews/{Guid.NewGuid()}/reply")).StatusCode);
+
+        // Answering again after removing it counts as a first reply; and a broken mail server never stops a reply being saved.
+        await Reply(staff, review.Id, "Back again.");
+        Assert.Equal(2, Told().Count);
+        await Reply(staff, review.Id, "x"); await staff.DeleteAsync($"/api/v1/reviews/{review.Id}/reply");
+        factory.Email.Fail = true;
+        try { Assert.Equal("Saved anyway.", (await Read<ReviewDto>(await Reply(staff, review.Id, "Saved anyway."))).Reply); }
+        finally { factory.Email.Fail = false; }
     }
 
     [Fact]

@@ -151,9 +151,23 @@ public static class SmtpTemplateDefaults
         "alert.return-requested" => new Content("Return requested on order {{ orderReference }}", ReturnRequestedText),
         "return.answered" => new Content("{% if approved %}Your return for order {{ reference }} is approved{% else %}About your return for order {{ reference }}{% endif %}", ReturnAnsweredText),
         "stock.back-in-stock" => new Content("{{ productName }} is back in stock", BackInStockText),
+        "review.replied" => new Content("{{ productName }}: the shop replied to your review", ReviewRepliedText),
         "alert.low-stock" => new Content("Low stock: {{ count }} {% if count == 1 %}product{% else %}products{% endif %} at {{ level }} or fewer", LowStockText),
         _ => null,
     };
+
+    private const string ReviewRepliedText = """
+        Hello {{ displayName }},
+
+        Thank you for reviewing {{ productName }}. The shop has replied:
+
+        {{ reply }}
+        {% if published -%}
+        Your review and our reply are on the product page.
+        {%- else -%}
+        Your review and our reply will appear on the product page once your review has been approved.
+        {%- endif %}
+        """;
 
     private const string LowStockText = """
         These products on sale have run low (at {{ level }} or fewer on hand across every location):

@@ -20,6 +20,7 @@ public static class EcommerceEmailTemplates
     public const string DisputeOpened = "alert.dispute-opened";
     public const string BackInStock = "stock.back-in-stock";
     public const string LowStock = "alert.low-stock";
+    public const string ReviewReplied = "review.replied";
 }
 
 internal sealed class EcommerceEmailContributor : IEmailTemplateContributor
@@ -140,6 +141,19 @@ internal sealed class EcommerceEmailContributor : IEmailTemplateContributor
             {
                 new Dictionary<string, object?> { ["name"] = "Blue mug", ["sku"] = "MUG-BLU", ["quantity"] = 1 },
             }),
+        ]),
+
+        new(EcommerceEmailTemplates.ReviewReplied, "Shop replied to your review", "Sent to a shopper the first time the shop replies to their product review. Not sent again when the reply is changed.",
+        [
+            new("email", "The reviewer's email address.", "ada@example.com"),
+            new("displayName", "The name shown with the review.", "Ada L."),
+            new("productName", "The product's name.", "Blue mug"),
+            new("productSlug", "The product's slug, for building a link to it. May be empty.", "blue-mug"),
+            new("productId", "The product's id.", "6f1c0a3e-2a8d-4a43-9a53-0d1f8d5a9b11"),
+            new("rating", "The stars they gave, 1 to 5.", 4),
+            new("reviewTitle", "The review's title. May be empty.", "Lovely colour"),
+            new("reply", "The shop's reply, as plain text.", "Thank you, we are so glad you like it."),
+            new("published", "True when the review is approved and shoppers can see the reply. False while it still waits for approval.", true),
         ]),
 
         new(EcommerceEmailTemplates.ReturnAnswered, "Return request answered", "Sent to the buyer when staff approve or turn down their request to send goods back.",
