@@ -269,6 +269,20 @@ internal static class ShopForms
             catch (PiranhaValidationException e) { return Results.Redirect(session.Back(back, new Flash(Message(e), null, typed))); }
             catch (PiranhaConflictException e) { return Results.Redirect(session.Back(back, new Flash(e.Message))); }
         });
+
+        // "Helpful": one tap, a mark that can be taken back. The button says which; the answer is the same page.
+        shop.MapPost("/reviews/helpful", async (IFormCollection form, ShopSession session, ShopBaskets shopBaskets, IReviewService reviews, CancellationToken ct) =>
+        {
+            var back = form["returnTo"].ToString();
+            if (await shopBaskets.ShopperAsync(ct) is not { } shopper) return SignInFirst(back);
+            try
+            {
+                if (!Guid.TryParse(form["reviewId"], out var reviewId)) throw new PiranhaValidationException("reviewId", "Choose a review.");
+                await reviews.SetHelpfulAsync(shopper.Id, reviewId, form["helpful"] == "true", ct);
+                return Results.Redirect(ShopSession.SafePath(back, "/") + "#reviews");
+            }
+            catch (PiranhaValidationException e) { return Results.Redirect(session.Back(back, new Flash(Message(e)))); }
+        });
     }
 
     private static void MapStockAlerts(RouteGroupBuilder alerts)

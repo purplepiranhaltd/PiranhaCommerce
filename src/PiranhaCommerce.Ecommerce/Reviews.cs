@@ -47,6 +47,14 @@ public class ProductReview : AuditableEntity
     public string? RepliedBy { get; set; }
 }
 
+/// <summary>One shopper's "this review was helpful". A shopper has at most one per review, and none on their own.</summary>
+public class ReviewHelpfulVote
+{
+    public Guid ReviewId { get; set; }
+    public Guid CustomerId { get; set; }
+    public DateTimeOffset CreatedUtc { get; set; }
+}
+
 public sealed class ReviewInput
 {
     /// <summary>The product, or one of its variants (the review is kept against the parent).</summary>
@@ -81,10 +89,13 @@ public sealed class ReviewReplyInput
 }
 
 /// <summary>What shoppers see: no email, no customer id.</summary>
-public sealed record PublicReviewDto(Guid Id, string DisplayName, int Rating, string? Title, string? Body, bool VerifiedPurchase, DateTimeOffset CreatedUtc, string? Reply = null, DateTimeOffset? RepliedUtc = null);
+public sealed record PublicReviewDto(Guid Id, string DisplayName, int Rating, string? Title, string? Body, bool VerifiedPurchase, DateTimeOffset CreatedUtc, string? Reply = null, DateTimeOffset? RepliedUtc = null, int HelpfulCount = 0, bool VotedByMe = false);
 
 /// <param name="Distribution">How many reviews gave 1, 2, 3, 4 and 5 stars (five numbers, in that order).</param>
 public sealed record ReviewSummaryDto(Guid ProductId, int Count, decimal Average, IReadOnlyList<int> Distribution);
+
+/// <param name="VotedByMe">Whether the signed-in shopper asking has marked it helpful (always false for anyone else).</param>
+public sealed record ReviewHelpfulDto(Guid ReviewId, int HelpfulCount, bool VotedByMe);
 
 public sealed record PublicReviewsDto(ReviewSummaryDto Summary, PagedResult<PublicReviewDto> Reviews);
 
@@ -97,6 +108,15 @@ public interface IReviewService
 {
     /// <summary>Approved reviews and the summary. Null when the product does not exist or is not published.</summary>
     Task<PublicReviewsDto?> ListPublicAsync(Guid productId, int? page, int? pageSize, CancellationToken ct = default);
+
+    /// <summary>The same, with <c>VotedByMe</c> filled in for this signed-in shopper.</summary>
+    Task<PublicReviewsDto?> ListPublicAsync(Guid productId, int? page, int? pageSize, Guid? customerId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Marks a review helpful, or takes the mark back. Doing either twice changes nothing and still succeeds. Null when the review is not one shoppers can see
+    /// (it does not exist, is not approved, or its product is not on sale). A validation error for the shopper's own review.
+    /// </summary>
+    Task<ReviewHelpfulDto?> SetHelpfulAsync(Guid customerId, Guid reviewId, bool helpful, CancellationToken ct = default);
 
     Task<ReviewSummaryDto?> SummaryAsync(Guid productId, CancellationToken ct = default);
 
@@ -163,7 +183,9 @@ internal sealed class ReviewService(PiranhaDbContext db, IOptions<EcommerceOptio
         return new ReviewSummaryDto(id, count, average, distribution);
     }
 
-    public async Task<PublicReviewsDto?> ListPublicAsync(Guid productId, int? page, int? pageSize, CancellationToken ct = default)
+    public Task<PublicReviewsDto?> ListPublicAsync(Guid productId, int? page, int? pageSize, CancellationToken ct = default) => ListPublicAsync(productId, page, pageSize, null, ct);
+
+    public async Task<PublicReviewsDto?> ListPublicAsync(Guid productId, int? page, int? pageSize, Guid? customerId, CancellationToken ct = default)
     {
         if (await ReviewedProductAsync(productId, ct) is not { } id || !await IsPublishedAsync(id, ct)) return null;
         var (p, size) = Paging.Normalize(page, pageSize);
@@ -171,7 +193,38 @@ internal sealed class ReviewService(PiranhaDbContext db, IOptions<EcommerceOptio
         var total = await query.CountAsync(ct);
         var items = await query.OrderByDescending(r => r.CreatedUtc).ThenBy(r => r.Id).Skip((p - 1) * size).Take(size)
             .Select(r => new PublicReviewDto(r.Id, r.DisplayName, r.Rating, r.Title, r.Body, r.VerifiedPurchase, r.CreatedUtc, r.Reply, r.RepliedUtc)).ToListAsync(ct);
+        var ids = items.Select(i => i.Id).ToList();
+        var counts = await db.Set<ReviewHelpfulVote>().AsNoTracking().Where(v => ids.Contains(v.ReviewId)).GroupBy(v => v.ReviewId)
+            .Select(g => new { Id = g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Id, x => x.N, ct);
+        var mine = customerId is { } me
+            ? (await db.Set<ReviewHelpfulVote>().AsNoTracking().Where(v => v.CustomerId == me && ids.Contains(v.ReviewId)).Select(v => v.ReviewId).ToListAsync(ct)).ToHashSet()
+            : [];
+        items = items.Select(i => i with { HelpfulCount = counts.GetValueOrDefault(i.Id), VotedByMe = mine.Contains(i.Id) }).ToList();
         return new PublicReviewsDto(await SummaryOfAsync(id, ct), new PagedResult<PublicReviewDto>(items, p, size, total));
+    }
+
+    public async Task<ReviewHelpfulDto?> SetHelpfulAsync(Guid customerId, Guid reviewId, bool helpful, CancellationToken ct = default)
+    {
+        var review = await db.Set<ProductReview>().AsNoTracking().Where(r => r.Id == reviewId && r.Status == ReviewStatus.Approved
+                && db.Set<ProductListing>().Any(l => l.ProductId == r.ProductId && l.Published))
+            .Select(r => new { r.Id, r.CustomerId }).FirstOrDefaultAsync(ct);
+        if (review is null) return null;
+        if (review.CustomerId == customerId) throw new PiranhaValidationException("reviewId", "You cannot mark your own review as helpful.");
+
+        var has = await db.Set<ReviewHelpfulVote>().AnyAsync(v => v.ReviewId == reviewId && v.CustomerId == customerId, ct);
+        if (helpful && !has)
+        {
+            var vote = new ReviewHelpfulVote { ReviewId = reviewId, CustomerId = customerId, CreatedUtc = DateTimeOffset.UtcNow };
+            db.Add(vote);
+            try { await db.SaveChangesAsync(ct); }
+            catch (DbUpdateException) { db.Entry(vote).State = EntityState.Detached; } // two taps at once: the key decided, and the vote is there either way
+        }
+        else if (!helpful && has)
+        {
+            await db.Set<ReviewHelpfulVote>().Where(v => v.ReviewId == reviewId && v.CustomerId == customerId).ExecuteDeleteAsync(ct);
+        }
+        var count = await db.Set<ReviewHelpfulVote>().CountAsync(v => v.ReviewId == reviewId, ct);
+        return new ReviewHelpfulDto(reviewId, count, await db.Set<ReviewHelpfulVote>().AnyAsync(v => v.ReviewId == reviewId && v.CustomerId == customerId, ct));
     }
 
     public async Task<ReviewDto> CreateAsync(Guid customerId, ReviewInput input, CancellationToken ct = default)
@@ -323,11 +376,14 @@ internal sealed class ReviewCustomerData(PiranhaDbContext db) : ICustomerDataCon
     {
         var reviews = await db.Set<ProductReview>().AsNoTracking().Where(r => r.CustomerId == subject.CustomerId).OrderBy(r => r.CreatedUtc)
             .Select(r => new { r.ProductId, r.DisplayName, r.Rating, r.Title, r.Body, Status = r.Status.ToString(), r.VerifiedPurchase, r.CreatedUtc, r.Reply, r.RepliedUtc }).ToListAsync(ct);
-        return reviews.Count == 0 ? null : reviews;
+        var votes = await db.Set<ReviewHelpfulVote>().AsNoTracking().Where(v => v.CustomerId == subject.CustomerId).OrderBy(v => v.CreatedUtc)
+            .Select(v => new { v.ReviewId, v.CreatedUtc }).ToListAsync(ct);
+        return reviews.Count == 0 && votes.Count == 0 ? null : new { Reviews = reviews, HelpfulVotes = votes };
     }
 
     public async Task<int> EraseAsync(CustomerSubject subject, CancellationToken ct = default) =>
-        await db.Set<ProductReview>().Where(r => r.CustomerId == subject.CustomerId).ExecuteDeleteAsync(ct);
+        await db.Set<ReviewHelpfulVote>().Where(v => v.CustomerId == subject.CustomerId).ExecuteDeleteAsync(ct)
+        + await db.Set<ProductReview>().Where(r => r.CustomerId == subject.CustomerId).ExecuteDeleteAsync(ct);
 }
 
 internal sealed class ReviewEndpoints : IApiEndpointContributor
@@ -353,8 +409,8 @@ internal sealed class ReviewStorefrontEndpoints : IStorefrontEndpointContributor
     public void MapEndpoints(IEndpointRouteBuilder storefront)
     {
         // Anyone may read approved reviews.
-        storefront.MapGet("/products/{productId:guid}/reviews", async (Guid productId, int? page, int? pageSize, IReviewService svc, CancellationToken ct) =>
-            await svc.ListPublicAsync(productId, page, pageSize, ct) is { } r ? Results.Ok(r) : Results.NotFound()).AllowAnonymous().WithTags("Storefront reviews");
+        storefront.MapGet("/products/{productId:guid}/reviews", async (Guid productId, int? page, int? pageSize, ClaimsPrincipal user, IReviewService svc, CancellationToken ct) =>
+            await svc.ListPublicAsync(productId, page, pageSize, user.CustomerId(), ct) is { } r ? Results.Ok(r) : Results.NotFound()).AllowAnonymous().WithTags("Storefront reviews");
         storefront.MapGet("/products/{productId:guid}/review-summary", async (Guid productId, IReviewService svc, CancellationToken ct) =>
             await svc.SummaryAsync(productId, ct) is { } r ? Results.Ok(r) : Results.NotFound()).AllowAnonymous().WithTags("Storefront reviews");
 
@@ -368,6 +424,10 @@ internal sealed class ReviewStorefrontEndpoints : IStorefrontEndpointContributor
         });
         mine.MapPut("/{id:guid}", async (Guid id, ReviewUpdateInput input, ClaimsPrincipal user, IReviewService svc, CancellationToken ct) =>
             await svc.UpdateOwnAsync(user.CustomerId()!.Value, id, input, ct) is { } r ? Results.Ok(r) : Results.NotFound());
+        mine.MapPut("/{id:guid}/helpful", async (Guid id, ClaimsPrincipal user, IReviewService svc, CancellationToken ct) =>
+            await svc.SetHelpfulAsync(user.CustomerId()!.Value, id, true, ct) is { } r ? Results.Ok(r) : Results.NotFound());
+        mine.MapDelete("/{id:guid}/helpful", async (Guid id, ClaimsPrincipal user, IReviewService svc, CancellationToken ct) =>
+            await svc.SetHelpfulAsync(user.CustomerId()!.Value, id, false, ct) is { } r ? Results.Ok(r) : Results.NotFound());
         mine.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal user, IReviewService svc, CancellationToken ct) =>
             await svc.DeleteOwnAsync(user.CustomerId()!.Value, id, ct) ? Results.NoContent() : Results.NotFound());
     }

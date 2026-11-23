@@ -279,6 +279,15 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.HasOne<PiranhaCommerce.Catalog.Product>().WithMany().HasForeignKey(r => r.ProductId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<PiranhaCommerce.Customers.Customer>().WithMany().HasForeignKey(r => r.CustomerId).OnDelete(DeleteBehavior.Cascade);
         });
+        b.Entity<ReviewHelpfulVote>(e =>
+        {
+            e.ToTable("ReviewHelpfulVote", Schema);
+            e.HasKey(v => new { v.ReviewId, v.CustomerId });
+            e.HasIndex(v => v.CustomerId);
+            // No foreign key to the customer: a customer already reaches this table through their reviews, and SQL Server allows only one cascade path.
+            // Erasing a customer deletes their votes in the reviews privacy contributor.
+            e.HasOne<ProductReview>().WithMany().HasForeignKey(v => v.ReviewId).OnDelete(DeleteBehavior.Cascade);
+        });
         b.Entity<WishlistItem>(e =>
         {
             e.ToTable("WishlistItem", Schema);

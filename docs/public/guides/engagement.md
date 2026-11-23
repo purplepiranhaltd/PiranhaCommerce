@@ -29,6 +29,13 @@ This guide covers the features that bring shoppers back and help them buy: revie
 - **The reviewer is emailed** the first time the shop replies (template `review.replied`, with `displayName`, `productName`, `productSlug`, `productId`, `rating`, `reviewTitle`, `reply` and `published`; `published` is false while the review still waits for approval, so the email can say the reply will appear later). Changing the reply does not send it again, so fixing a typo does not email them twice; removing it and replying afresh does. Switch it off with `Piranha:Ecommerce:SendReviewReplies` (default on). It needs an email package, and a failed send never stops the reply being saved.
 - Not built: public replies from anyone but the shop.
 
+**"Was this helpful".** A signed-in shopper can mark someone else's review helpful (`PUT /storefront/reviews/{id}/helpful`) and take the mark back (`DELETE` on the same address).
+- A shopper has at most one mark per review; marking twice, or taking back a mark they never made, changes nothing and still succeeds.
+- Only reviews that shoppers can see can be marked: approved, on a product that is on sale. Anything else is `404`. Marking your own review is refused (`400`), and a guest gets `401`.
+- Each public review carries `helpfulCount` and `votedByMe`. `votedByMe` is only ever true for the signed-in shopper asking: send the token with `GET /storefront/products/{id}/reviews`. Nobody can see who else marked a review.
+- A shopper's marks are exported with their data and deleted when they are erased, so the count falls. Deleting a review deletes its marks.
+- Not built: a "not helpful" vote, and sorting reviews by how helpful they are.
+
 **Escaping.** Text is stored as plain text, so the shop front must escape it.
 
 **Privacy.** Reviews are exported with a customer and deleted when the customer is erased.

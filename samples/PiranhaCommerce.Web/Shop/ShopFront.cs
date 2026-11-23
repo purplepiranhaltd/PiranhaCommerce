@@ -114,7 +114,7 @@ public sealed class ShopFront(
         await CustomerIdAsync() is { } id ? await orders.GetForCustomerAsync(id, orderId) : null);
 
     /// <summary>The approved reviews of a product, newest first, with the star totals.</summary>
-    public Task<PublicReviewsDto?> ReviewsAsync(Guid productId) => InTurn(() => reviews.ListPublicAsync(productId, 1, 10));
+    public Task<PublicReviewsDto?> ReviewsAsync(Guid productId) => InTurn(async () => await reviews.ListPublicAsync(productId, 1, 10, await CustomerIdAsync()));
 
     /// <summary>The signed-in shopper's own review of this product (whatever state it is in), or null.</summary>
     public Task<ReviewDto?> OwnReviewAsync(Guid productId) => InTurn(async () =>

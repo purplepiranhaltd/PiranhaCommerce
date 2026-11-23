@@ -144,6 +144,20 @@ else
                             <p class="rating"><span aria-hidden="true">@Money.Stars(r.Rating)</span> <strong>@r.Title</strong></p>
                             @if (!string.IsNullOrWhiteSpace(r.Body)) { <p>@r.Body</p> }
                             <p class="muted">@r.DisplayName, @r.CreatedUtc.ToString("d MMM yyyy")@(r.VerifiedPurchase ? " · Verified purchase" : "")</p>
+                            @if (_shopper is not null && !(_own is not null && _own.Id == r.Id))
+                            {
+                                <form method="post" action="/reviews/helpful" class="inline helpful">
+                                    <AntiforgeryToken />
+                                    <input type="hidden" name="reviewId" value="@r.Id" />
+                                    <input type="hidden" name="returnTo" value="/product/@Slug?variant=@(_selected?.ProductId)" />
+                                    <input type="hidden" name="helpful" value="@(r.VotedByMe ? "false" : "true")" />
+                                    <button type="submit" class="small ghost" aria-pressed="@(r.VotedByMe ? "true" : "false")">@(r.VotedByMe ? "Marked helpful" : "Helpful") (@r.HelpfulCount)</button>
+                                </form>
+                            }
+                            else if (r.HelpfulCount > 0)
+                            {
+                                <p class="muted helpful">@r.HelpfulCount @(r.HelpfulCount == 1 ? "person" : "people") found this helpful</p>
+                            }
                             @if (!string.IsNullOrWhiteSpace(r.Reply))
                             {
                                 <blockquote class="shop-reply"><strong>Reply from the shop</strong>@(r.RepliedUtc is { } at ? " · " + at.ToString("d MMM yyyy") : "")<br />@r.Reply</blockquote>

@@ -48,6 +48,62 @@ public class ReviewTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
     private static Task<HttpResponseMessage> Reply(HttpClient staff, Guid reviewId, string body) =>
         staff.PutAsJsonAsync($"/api/v1/reviews/{reviewId}/reply", new ReviewReplyInput { Body = body }, Json);
 
+    private static async Task<ReviewHelpfulDto> Helpful(HttpClient shopper, Guid reviewId, bool on = true) =>
+        await Read<ReviewHelpfulDto>(on ? await shopper.PutAsync($"/api/v1/storefront/reviews/{reviewId}/helpful", null) : await shopper.DeleteAsync($"/api/v1/storefront/reviews/{reviewId}/helpful"));
+
+    [Fact]
+    public async Task Signed_in_shoppers_mark_other_peoples_approved_reviews_helpful_once_each_and_can_take_it_back()
+    {
+        var staff = await factory.CreateAuthenticatedApiClientAsync();
+        var anonymous = factory.CreateClient();
+        var author = await ShopperAsync("Ada", "Lovelace");
+        var bea = await ShopperAsync("Bea", "Brown");
+        var cal = await ShopperAsync("Cal", "Clark");
+        var product = await Product(staff);
+        var review = await Read<ReviewDto>(await Write(author.Client, product.Id, 4, "Good"));
+
+        // Not until staff approve it.
+        Assert.Equal(HttpStatusCode.NotFound, (await bea.Client.PutAsync($"/api/v1/storefront/reviews/{review.Id}/helpful", null)).StatusCode);
+        await Approve(staff, review.Id);
+        var fresh = (await Public(anonymous, product.Id)).Reviews.Items.Single();
+        Assert.Equal((0, false), (fresh.HelpfulCount, fresh.VotedByMe));
+
+        // One vote each, however many times they tap; the mark is theirs alone to see.
+        Assert.Equal((1, true), await Helpful(bea.Client, review.Id) is { } a ? (a.HelpfulCount, a.VotedByMe) : default);
+        Assert.Equal((1, true), await Helpful(bea.Client, review.Id) is { } b ? (b.HelpfulCount, b.VotedByMe) : default);
+        Assert.Equal((2, true), await Helpful(cal.Client, review.Id) is { } c ? (c.HelpfulCount, c.VotedByMe) : default);
+        var asBea = await Read<PublicReviewsDto>(await bea.Client.GetAsync($"/api/v1/storefront/products/{product.Id}/reviews"));
+        Assert.Equal((2, true), (asBea.Reviews.Items.Single().HelpfulCount, asBea.Reviews.Items.Single().VotedByMe));
+        var asAnonymous = (await Public(anonymous, product.Id)).Reviews.Items.Single();
+        Assert.Equal((2, false), (asAnonymous.HelpfulCount, asAnonymous.VotedByMe));
+        Assert.False((await Read<PublicReviewsDto>(await author.Client.GetAsync($"/api/v1/storefront/products/{product.Id}/reviews"))).Reviews.Items.Single().VotedByMe);
+
+        // Taking it back, twice, is fine.
+        Assert.Equal((1, false), await Helpful(bea.Client, review.Id, on: false) is { } d ? (d.HelpfulCount, d.VotedByMe) : default);
+        Assert.Equal(1, (await Helpful(bea.Client, review.Id, on: false)).HelpfulCount);
+
+        // Not your own, not as a guest, not an unknown review.
+        Assert.Equal(HttpStatusCode.BadRequest, (await author.Client.PutAsync($"/api/v1/storefront/reviews/{review.Id}/helpful", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PutAsync($"/api/v1/storefront/reviews/{review.Id}/helpful", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await bea.Client.PutAsync($"/api/v1/storefront/reviews/{Guid.NewGuid()}/helpful", null)).StatusCode);
+
+        // A review that is withdrawn from view cannot be marked, and a withdrawn product's reviews are gone with it.
+        await Approve(staff, review.Id, ReviewStatus.Rejected);
+        Assert.Equal(HttpStatusCode.NotFound, (await bea.Client.PutAsync($"/api/v1/storefront/reviews/{review.Id}/helpful", null)).StatusCode);
+        await Approve(staff, review.Id);
+        await staff.PutAsJsonAsync($"/api/v1/products/{product.Id}/listing", new ProductListingInput { Published = false });
+        Assert.Equal(HttpStatusCode.NotFound, (await bea.Client.PutAsync($"/api/v1/storefront/reviews/{review.Id}/helpful", null)).StatusCode);
+        await staff.PutAsJsonAsync($"/api/v1/products/{product.Id}/listing", new ProductListingInput { Published = true });
+
+        // The votes follow the person: exported with them, deleted when they are erased (the count falls), and gone with a deleted review.
+        Assert.Contains("helpfulVotes", await (await staff.GetAsync($"/api/v1/customers/{cal.Id}/export")).Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.OK, (await staff.PostAsJsonAsync($"/api/v1/customers/{cal.Id}/erase", new EraseCustomerInput { ConfirmEmail = cal.Email })).StatusCode);
+        Assert.Equal(0, (await Public(anonymous, product.Id)).Reviews.Items.Single().HelpfulCount);
+        await Helpful(bea.Client, review.Id);
+        Assert.Equal(HttpStatusCode.NoContent, (await staff.DeleteAsync($"/api/v1/reviews/{review.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await bea.Client.PutAsync($"/api/v1/storefront/reviews/{review.Id}/helpful", null)).StatusCode);
+    }
+
     [Fact]
     public async Task Staff_reply_to_a_review_and_shoppers_see_the_reply_only_once_the_review_is_approved()
     {

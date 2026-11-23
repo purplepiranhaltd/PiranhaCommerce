@@ -2344,6 +2344,24 @@ namespace PiranhaCommerce.Web.Migrations
                     b.ToTable("ReturnRequestLine", "ecom");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.ReviewHelpfulVote", b =>
+                {
+                    b.Property<Guid>("ReviewId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("ReviewId", "CustomerId");
+
+                    b.HasIndex("CustomerId");
+
+                    b.ToTable("ReviewHelpfulVote", "ecom");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.Sale", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3724,6 +3742,15 @@ namespace PiranhaCommerce.Web.Migrations
                     b.HasOne("PiranhaCommerce.Ecommerce.ReturnRequest", null)
                         .WithMany("Lines")
                         .HasForeignKey("ReturnRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.ReviewHelpfulVote", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Ecommerce.ProductReview", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
