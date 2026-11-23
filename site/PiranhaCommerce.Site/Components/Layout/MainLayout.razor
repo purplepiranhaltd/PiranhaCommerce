@@ -1,0 +1,30 @@
+@inherits LayoutComponentBase
+@inject IOptions<SiteOptions> Options
+
+<header class="site-header">
+    <div class="container bar">
+        <a class="brand" href="@HomeHref"><span class="brand-mark" aria-hidden="true">&#9670;</span> Piranha Commerce</a>
+        <nav aria-label="Main">
+            @if (!OnDocsHost) { <a href="/#features">Features</a> }
+            <a href="@Links.Docs(Context)">Docs</a>
+            @if (!string.IsNullOrWhiteSpace(Options.Value.DemoUrl)) { <a href="@Options.Value.DemoUrl">Demo shop</a> }
+        </nav>
+    </div>
+</header>
+
+<main>@Body</main>
+
+<footer class="site-footer">
+    <div class="container">
+        <p>Piranha Commerce is a commerce engine for .NET, delivered as NuGet packages. Currently in alpha.</p>
+        <p>&copy; Purple Piranha</p>
+    </div>
+</footer>
+
+@code {
+    [CascadingParameter] private HttpContext? Context { get; set; }
+
+    private bool OnDocsHost => Context is not null && SiteHost.IsDocsHost(Context.Request.Host.Host);
+
+    private string HomeHref => OnDocsHost && !string.IsNullOrWhiteSpace(Options.Value.HomeUrl) ? Options.Value.HomeUrl! : "/";
+}

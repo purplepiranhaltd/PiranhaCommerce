@@ -1,0 +1,61 @@
+@page "/docs"
+@page "/docs/{*Slug}"
+@inject DocsLibrary Library
+
+@if (_page is null)
+{
+    <PageTitle>Not found - Piranha Commerce docs</PageTitle>
+    <div class="container docs">
+        <DocsSidebar Prefix="@Prefix" Current="" />
+        <article class="doc">
+            <h1>That page is not in the docs</h1>
+            <p>Try the <a href="@(Prefix + "/")">front page</a> or search.</p>
+        </article>
+    </div>
+}
+else
+{
+    <PageTitle>@(_page.Slug.Length == 0 ? _page.Title : _page.Title + " - Piranha Commerce docs")</PageTitle>
+    <HeadContent><meta name="description" content="@_page.Description" /></HeadContent>
+    <div class="container docs">
+        <DocsSidebar Prefix="@Prefix" Current="@_page.Slug" />
+        <article class="doc">
+            <h1>@_page.Title</h1>
+            @((MarkupString)DocsLibrary.WithPrefix(_page.Html, Prefix))
+            <nav class="pager" aria-label="Previous and next">
+                @if (_neighbours.Previous is { } prev) { <a class="prev" href="@Href(prev)">&larr; @prev.Title</a> }
+                @if (_neighbours.Next is { } next) { <a class="next" href="@Href(next)">@next.Title &rarr;</a> }
+            </nav>
+        </article>
+        @if (_page.Headings.Count > 1)
+        {
+            <aside class="toc" aria-label="On this page">
+                <p>On this page</p>
+                <ul>
+                    @foreach (var h in _page.Headings)
+                    {
+                        <li class="@(h.Level == 3 ? "sub" : null)"><a href="#@h.Id">@h.Text</a></li>
+                    }
+                </ul>
+            </aside>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public string? Slug { get; set; }
+    [CascadingParameter] private HttpContext? Context { get; set; }
+
+    private DocPage? _page;
+    private (DocPage? Previous, DocPage? Next) _neighbours;
+    private string Prefix => Links.DocsPrefix(Context);
+
+    protected override void OnParametersSet()
+    {
+        _page = Library.Find(Slug);
+        _neighbours = _page is null ? (null, null) : Library.Neighbours(_page);
+        if (_page is null && Context is { Response.HasStarted: false }) Context.Response.StatusCode = StatusCodes.Status404NotFound;
+    }
+
+    private string Href(DocPage p) => Prefix + "/" + p.Slug;
+}

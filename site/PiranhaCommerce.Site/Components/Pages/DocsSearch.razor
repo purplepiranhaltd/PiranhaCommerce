@@ -1,0 +1,40 @@
+@page "/docs/search"
+@inject DocsLibrary Library
+
+<PageTitle>Search - Piranha Commerce docs</PageTitle>
+<div class="container docs">
+    <DocsSidebar Prefix="@Prefix" Current="" Query="@Q" />
+    <article class="doc">
+        <h1>Search the docs</h1>
+        @if (string.IsNullOrWhiteSpace(Q))
+        {
+            <p>Type something in the search box.</p>
+        }
+        else if (_hits.Count == 0)
+        {
+            <p data-testid="no-results">Nothing matches &ldquo;@Q&rdquo;.</p>
+        }
+        else
+        {
+            <ul class="results">
+                @foreach (var hit in _hits)
+                {
+                    <li>
+                        <a href="@(Prefix + "/" + hit.Page.Slug + (hit.HeadingId is null ? "" : "#" + hit.HeadingId))">@hit.Page.Title@(hit.HeadingText is null ? "" : " - " + hit.HeadingText)</a>
+                        <p>@hit.Snippet</p>
+                    </li>
+                }
+            </ul>
+        }
+    </article>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
+    [CascadingParameter] private HttpContext? Context { get; set; }
+
+    private IReadOnlyList<DocSearchHit> _hits = [];
+    private string Prefix => Links.DocsPrefix(Context);
+
+    protected override void OnParametersSet() => _hits = Library.Search(Q);
+}

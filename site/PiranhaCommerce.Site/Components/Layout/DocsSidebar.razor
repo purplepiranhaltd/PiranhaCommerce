@@ -1,0 +1,27 @@
+@inject DocsLibrary Library
+
+<nav class="sidebar" aria-label="Documentation">
+    <form method="get" action="@(Prefix + "/search")" role="search">
+        <input type="search" name="q" value="@Query" placeholder="Search the docs" aria-label="Search the docs" />
+    </form>
+    @if (Library.Home is { } home)
+    {
+        <ul><li class="@(Current == "" ? "current" : null)"><a href="@(Prefix + "/")">@home.Title</a></li></ul>
+    }
+    @foreach (var section in Library.Sections)
+    {
+        <h2>@section.Title</h2>
+        <ul>
+            @foreach (var p in section.Pages)
+            {
+                <li class="@(p.Slug == Current ? "current" : null)"><a href="@(Prefix + "/" + p.Slug)">@p.Title</a></li>
+            }
+        </ul>
+    }
+</nav>
+
+@code {
+    [Parameter] public string Prefix { get; set; } = "/docs";
+    [Parameter] public string Current { get; set; } = "";
+    [Parameter] public string? Query { get; set; }
+}
