@@ -552,6 +552,10 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   location online orders take from (`StockLocationId`), claiming each request first so several running copies never both send; a failed send is retried after ten minutes. The email is template
   `stock.back-in-stock` with `productName`, `sku`, `productId`, `unsubscribeToken` and `unsubscribeUrl` (from `StockAlertUnsubscribeUrlTemplate`, with `{token}` in it). Requests are exported with a
   customer and deleted when they are erased, matched by account or by email address.
+- **Wishlists** (`GET/POST /storefront/wishlist`, `DELETE /storefront/wishlist/{productId}` and `DELETE /storefront/wishlist` to empty it; staff read `/wishlists/demand`, admin: Orders > Wishlists):
+  a signed-in shopper saves products (a simple product or one chosen variant) to come back to. Only products on sale can be saved; saving one already saved is a quiet success; a list holds up to 200.
+  Each item shows the current price and the price when it was saved, whether it is still on sale (`published`) and whether it can be bought now (`available`: on sale and in stock where online orders take
+  it from), so a shopper sees changes. A list is private to its owner, exported with the customer and deleted when they are erased.
 - **Shipping zones and carriers** (`/shipping-zones`, `/shipping-carriers`, admin: Orders > Shipping zones and Shipping carriers): a zone groups countries, or
   only some postcode areas of a country (`GB` with `IV, HS, KW` for the Highlands; `GB` with `BT` for Northern Ireland; `*` for everywhere else). A destination is
   in one zone only (a country and postcode start can be in just one) and is resolved by the longest matching postcode start, then the zone holding its whole

@@ -1,0 +1,50 @@
+@page "/admin/orders/wishlists"
+@inject AdminScopeRunner Scope
+
+<PageTitle>Wishlists - Piranha Commerce</PageTitle>
+<h1>Wishlists</h1>
+<p class="pc-muted">
+    Signed-in shoppers can save products to come back to. This is what is saved most often: products people want but have not bought yet.
+    Each person's own list is part of their data export and is deleted if they are erased.
+</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+@if (_demand is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_demand.Count == 0)
+{
+    <p class="pc-muted" data-testid="no-wishlists">Nothing has been saved to a wishlist yet.</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>Product</th><th>SKU</th><th style="text-align:right">On wishlists</th></tr></thead>
+        <tbody>
+        @foreach (var d in _demand)
+        {
+            <tr>
+                <td>@d.Name</td>
+                <td>@d.Sku</td>
+                <td style="text-align:right">@d.Wishlists</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IReadOnlyList<WishlistDemandDto>? _demand;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _demand = await Scope.RunAsync<IWishlistService, IReadOnlyList<WishlistDemandDto>>(s => s.DemandAsync()); }
+        catch (Exception ex) { _error = "Could not load the wishlists: " + ex.Message; }
+    }
+}

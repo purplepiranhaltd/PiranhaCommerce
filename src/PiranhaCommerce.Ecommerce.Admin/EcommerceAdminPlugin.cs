@@ -42,6 +42,7 @@ internal sealed class EcommerceAdminMenu : IAdminMenuContributor
         new("orders.group-discounts", "Group category discounts", "/admin/orders/group-discounts", Order: 19, ParentKey: "orders"),
         new("orders.reviews", "Product reviews", "/admin/orders/reviews", Order: 20, ParentKey: "orders"),
         new("orders.stockalerts", "Back-in-stock requests", "/admin/orders/stock-alerts", Order: 20, ParentKey: "orders"),
+        new("orders.wishlists", "Wishlists", "/admin/orders/wishlists", Order: 20, ParentKey: "orders"),
         new("orders.vouchers", "Gift vouchers", "/admin/orders/vouchers", Order: 20, ParentKey: "orders"),
         new("orders.unreconciled", "Unreconciled payments", "/admin/orders/unreconciled", Order: 21, ParentKey: "orders", BadgeKey: "unreconciled"),
         new("orders.disputes", "Disputes", "/admin/orders/disputes", Order: 22, ParentKey: "orders", BadgeKey: "disputes"),
