@@ -203,6 +203,25 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
             Results.Ok(await svc.ListAsync(status, page, pageSize, ct))).RequireAuthorization(ApiPolicies.Read);
         disputes.MapPost("/{id:guid}/evidence", async (Guid id, DisputeEvidenceInput input, IDisputeService svc, CancellationToken ct) =>
             await svc.SubmitEvidenceAsync(id, input, ct) is { } d ? Results.Ok(d) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+        disputes.MapGet("/{id:guid}/files", async (Guid id, IDisputeService svc, CancellationToken ct) =>
+            await svc.ListFilesAsync(id, ct) is { } list ? Results.Ok(list) : Results.NotFound()).RequireAuthorization(ApiPolicies.Read);
+        // multipart/form-data with a file; kind says what it is evidence of (Receipt, ShippingDocumentation, CustomerCommunication, ...).
+        disputes.MapPost("/{id:guid}/files", async (Guid id, DisputeEvidenceKind kind, IFormFile file, IDisputeService svc, HttpContext http, CancellationToken ct) =>
+            {
+                await using var stream = file.OpenReadStream();
+                var actor = http.User.FindFirst("email")?.Value;
+                return await svc.AddFileAsync(id, kind, stream, file.FileName, actor, ct) is { } f
+                    ? Results.Created($"/api/v1/disputes/{id}/files/{f.Id}", f) : Results.NotFound();
+            }).RequireAuthorization(ApiPolicies.Write).DisableAntiforgery();
+        disputes.MapGet("/{id:guid}/files/{fileId:guid}", async (Guid id, Guid fileId, IDisputeService svc, HttpContext http, CancellationToken ct) =>
+            {
+                var download = await svc.OpenFileAsync(id, fileId, ct);
+                if (download is null) return Results.NotFound();
+                http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+                return Results.File(download.Content, download.ContentType, download.FileName);
+            }).RequireAuthorization(ApiPolicies.Read);
+        disputes.MapDelete("/{id:guid}/files/{fileId:guid}", async (Guid id, Guid fileId, IDisputeService svc, CancellationToken ct) =>
+            await svc.DeleteFileAsync(id, fileId, ct) ? Results.NoContent() : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
         orders.MapGet("/{id:guid}/disputes", async (Guid id, IDisputeService svc, CancellationToken ct) =>
             await svc.ListForOrderAsync(id, ct) is { } list ? Results.Ok(list) : Results.NotFound()).RequireAuthorization(ApiPolicies.Read);
 

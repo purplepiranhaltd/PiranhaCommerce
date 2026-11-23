@@ -489,7 +489,13 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   shop gives (product description, customer name and email, shipping address, carrier, tracking number, shipping date, notes) through the provider when it supports it
   (Stripe does; other gateways opt in with `IDisputeEvidenceGateway`). `submit: false` saves it at the provider and can be repeated; `submit: true` sends it to the bank
   and is final (`evidenceSubmittedUtc`). A decided dispute, one already sent, or an empty form is refused, and so is evidence the provider refuses (409). The
-  Disputes page has an Evidence form. Not built: uploading files (receipts, proof of delivery), as that needs file storage.
+  Disputes page has an Evidence form.
+  **Documents** (a file store plugin is needed): `POST /disputes/{id}/files?kind=` (multipart `file`; write access) attaches a PDF, JPEG or PNG (checked by its contents) to an open dispute whose evidence
+  has not been sent; `kind` is `Receipt`, `ShippingDocumentation`, `CustomerCommunication`, `ServiceDocumentation`, `CancellationPolicy`, `RefundPolicy`, `CustomerSignature` or `Other`, one document per kind.
+  `GET /disputes/{id}/files` lists them, `GET .../files/{fileId}` downloads one and `DELETE` removes it (not once the evidence is sent). Limits: `Piranha:Ecommerce:DisputeFiles:MaxBytes` (5 MB each)
+  and `MaxTotalBytes` (4.5 MB together, Stripe's limit). The documents go to the provider with the next save or send of the evidence (Stripe: each is uploaded to Stripe Files and named in the dispute);
+  documents alone count as evidence. A gateway receives them as `DisputeEvidence.Documents`. The Disputes page's Evidence form has the upload, list, download and remove. The files are not deleted
+  from the store (they are kept as the record of what was sent).
 - **Buyer-requested returns** (storefront `POST|GET /orders/{id}/return-requests`, `DELETE .../{requestId}`; staff `/return-requests`,
   `/return-requests/{id}/approve|reject`, `GET /orders/{id}/return-requests`; admin: Returns on the order page): a signed-in shopper asks to send
   back items of their own order. Only goods that were sent and are not already returned or asked for can be requested (open requests hold their

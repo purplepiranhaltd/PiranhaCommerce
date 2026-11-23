@@ -33,6 +33,9 @@ public sealed class StripeOptions
 
     public string ApiBaseUrl { get; set; } = "https://api.stripe.com";
 
+    /// <summary>Where evidence documents are uploaded.</summary>
+    public string FilesBaseUrl { get; set; } = "https://files.stripe.com";
+
     /// <summary>Pinned so the responses this code reads do not change under it when the account's default version moves.</summary>
     public string? ApiVersion { get; set; } = "2024-06-20";
 
@@ -116,9 +119,36 @@ public sealed class StripeGateway(IHttpClientFactory http, IOptions<StripeOption
         Add("shipping_tracking_number", evidence.TrackingNumber);
         Add("shipping_date", evidence.ShippingDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
         Add("uncategorized_text", evidence.Notes);
+        // Each document is uploaded to Stripe first; the dispute then names the uploaded files.
+        foreach (var doc in evidence.Documents ?? [])
+            Add(DocumentField(doc.Kind), await UploadEvidenceFileAsync(doc, ct));
         form.Add(new("submit", evidence.Submit ? "true" : "false"));
         // Stripe refuses further changes once submitted, so a retry of the same call is the only repeat that matters, and it is harmless.
         using var response = await SendAsync(HttpMethod.Post, $"/v1/disputes/{Uri.EscapeDataString(reference)}", new FormUrlEncodedContent(form), null, ct);
+    }
+
+    private static string DocumentField(DisputeEvidenceKind kind) => kind switch
+    {
+        DisputeEvidenceKind.Receipt => "receipt",
+        DisputeEvidenceKind.ShippingDocumentation => "shipping_documentation",
+        DisputeEvidenceKind.CustomerCommunication => "customer_communication",
+        DisputeEvidenceKind.ServiceDocumentation => "service_documentation",
+        DisputeEvidenceKind.CancellationPolicy => "cancellation_policy",
+        DisputeEvidenceKind.RefundPolicy => "refund_policy",
+        DisputeEvidenceKind.CustomerSignature => "customer_signature",
+        _ => "uncategorized_file",
+    };
+
+    private async Task<string> UploadEvidenceFileAsync(DisputeEvidenceDocument doc, CancellationToken ct)
+    {
+        await using var stream = await doc.OpenAsync(ct);
+        using var form = new MultipartFormDataContent { { new StringContent("dispute_evidence"), "purpose" } };
+        var file = new StreamContent(stream);
+        file.Headers.ContentType = new MediaTypeHeaderValue(doc.ContentType);
+        form.Add(file, "file", doc.FileName);
+        using var response = await SendAsync(HttpMethod.Post, "/v1/files", form, null, ct, Options.FilesBaseUrl);
+        using var body = await ReadAsync(response, ct);
+        return Str(body.RootElement, "id") ?? throw new GatewayException("Stripe did not return an id for the uploaded document.");
     }
 
     public async Task<IReadOnlyList<GatewayEvent>> ReadWebhookAsync(GatewayWebhookRequest request, CancellationToken ct = default)
@@ -252,11 +282,11 @@ public sealed class StripeGateway(IHttpClientFactory http, IOptions<StripeOption
         return await ReadAsync(response, ct);
     }
 
-    private async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, HttpContent? content, string? idempotencyKey, CancellationToken ct)
+    private async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, HttpContent? content, string? idempotencyKey, CancellationToken ct, string? baseUrl = null)
     {
         if (string.IsNullOrWhiteSpace(Options.SecretKey)) throw new GatewayException("Stripe is not configured: Piranha:Stripe:SecretKey is empty.");
         var client = http.CreateClient(HttpClientName);
-        using var message = new HttpRequestMessage(method, Options.ApiBaseUrl.TrimEnd('/') + path) { Content = content };
+        using var message = new HttpRequestMessage(method, (baseUrl ?? Options.ApiBaseUrl).TrimEnd('/') + path) { Content = content };
         message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Options.SecretKey);
         if (!string.IsNullOrWhiteSpace(Options.ApiVersion)) message.Headers.Add("Stripe-Version", Options.ApiVersion);
         if (idempotencyKey is not null) message.Headers.Add("Idempotency-Key", idempotencyKey);

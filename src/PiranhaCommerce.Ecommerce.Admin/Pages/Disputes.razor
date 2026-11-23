@@ -1,6 +1,11 @@
 @page "/admin/orders/disputes"
 @using PiranhaCommerce.Core.Paging
+@using Microsoft.Extensions.Options
+@using Microsoft.JSInterop
 @inject AdminScopeRunner Scope
+@inject IJSRuntime Js
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider Auth
+@inject IOptions<DisputeFileOptions> FileOptions
 
 <PageTitle>Disputes - Piranha Commerce</PageTitle>
 <h1>Disputes</h1>
@@ -55,6 +60,29 @@ else
                         <label>Tracking number <input @bind="_form.TrackingNumber" /></label>
                         <label>Shipped on <input type="date" @bind="_form.ShippingDate" /></label>
                         <label>Anything else that shows they received it <textarea rows="3" @bind="_form.Notes"></textarea></label>
+
+                        <h3>Documents</h3>
+                        <p class="pc-muted">A receipt, proof of delivery, emails with the buyer and so on: PDF, JPEG or PNG, one for each kind, up to @(FileOptions.Value.MaxBytes / (1024 * 1024)) MB each
+                            and @(FileOptions.Value.MaxTotalBytes / 1_000_000.0) MB in all. They are added at once and go to the provider when you save or send.</p>
+                        @if (_files.Count > 0)
+                        {
+                            <ul>
+                            @foreach (var f in _files)
+                            {
+                                <li>
+                                    @f.Kind: <button type="button" class="link" @onclick="() => DownloadAsync(d, f)">@f.FileName</button>
+                                    <span class="pc-muted">(@((f.Length / 1024.0).ToString("N0")) KB)</span>
+                                    <button type="button" class="secondary" disabled="@_busy" @onclick="() => RemoveFileAsync(d, f)">Remove</button>
+                                </li>
+                            }
+                            </ul>
+                        }
+                        <label>This is
+                            <select @bind="_kind">
+                                @foreach (var k in Enum.GetValues<DisputeEvidenceKind>()) { <option value="@k">@k</option> }
+                            </select>
+                        </label>
+                        <InputFile OnChange="e => UploadAsync(d, e)" accept="application/pdf,image/jpeg,image/png" disabled="@_busy" />
                         <button type="button" class="secondary" disabled="@_busy" @onclick="() => SendAsync(d, false)">Save only</button>
                         <button type="button" disabled="@_busy" @onclick="() => SendAsync(d, true)">Send to the bank (final)</button>
                         <button type="button" class="secondary" @onclick="() => _editing = null">Close</button>
@@ -75,7 +103,61 @@ else
     private bool _busy;
     private DisputeEvidenceInput _form = new();
 
-    private void Open(PaymentDisputeDto d) { _editing = d.Id; _form = new(); _message = null; }
+    private IReadOnlyList<DisputeFileDto> _files = [];
+    private DisputeEvidenceKind _kind = DisputeEvidenceKind.Receipt;
+
+    private async Task Open(PaymentDisputeDto d)
+    {
+        _editing = d.Id; _form = new(); _message = null;
+        await LoadFilesAsync(d.Id);
+    }
+
+    private async Task LoadFilesAsync(Guid id) =>
+        _files = await Scope.RunAsync<IDisputeService, IReadOnlyList<DisputeFileDto>?>(s => s.ListFilesAsync(id)) ?? [];
+
+    private async Task UploadAsync(PaymentDisputeDto d, InputFileChangeEventArgs e)
+    {
+        _busy = true; _message = null;
+        try
+        {
+            var id = d.Id; var kind = _kind; var name = e.File.Name; var actor = await Auth.GetActorAsync();
+            // Read through a stream that stops one byte over the limit, so a huge file is never held whole.
+            await using var stream = e.File.OpenReadStream(FileOptions.Value.MaxBytes + 1);
+            await Scope.RunAsync<IDisputeService, DisputeFileDto?>(s => s.AddFileAsync(id, kind, stream, name, actor));
+            await LoadFilesAsync(id);
+            _message = "Document added.";
+        }
+        catch (PiranhaCommerce.Core.Validation.PiranhaValidationException ex) { _message = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
+        catch (IOException) { _message = "That file is too big."; }
+        catch (Exception ex) { _message = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task RemoveFileAsync(PaymentDisputeDto d, DisputeFileDto f)
+    {
+        _busy = true; _message = null;
+        try
+        {
+            var id = d.Id; var fileId = f.Id;
+            await Scope.RunAsync<IDisputeService, bool>(s => s.DeleteFileAsync(id, fileId));
+            await LoadFilesAsync(id);
+        }
+        catch (Exception ex) { _message = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task DownloadAsync(PaymentDisputeDto d, DisputeFileDto f)
+    {
+        try
+        {
+            var id = d.Id; var fileId = f.Id;
+            var download = await Scope.RunAsync<IDisputeService, DisputeFileDownload?>(s => s.OpenFileAsync(id, fileId));
+            if (download is null) { _message = "The file is missing."; return; }
+            using var reference = new DotNetStreamReference(download.Content);
+            await Js.InvokeVoidAsync("piranhaDownload", download.FileName, download.ContentType, reference);
+        }
+        catch (Exception ex) { _message = ex.Message; }
+    }
 
     private async Task SendAsync(PaymentDisputeDto d, bool submit)
     {

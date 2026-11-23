@@ -85,7 +85,10 @@ public interface IDisputeEvidenceGateway : IPaymentGateway
 /// <summary>What the shop tells the bank. Every field is optional; the gateway sends the ones it has a place for.</summary>
 public sealed record DisputeEvidence(
     string? ProductDescription, string? CustomerName, string? CustomerEmail, string? ShippingAddress, string? ShippingCarrier,
-    string? TrackingNumber, DateOnly? ShippingDate, string? Notes, bool Submit);
+    string? TrackingNumber, DateOnly? ShippingDate, string? Notes, bool Submit, IReadOnlyList<DisputeEvidenceDocument>? Documents = null);
+
+/// <summary>A document attached to the evidence (PDF, JPEG or PNG, one per kind). Open it when you send it; the caller of <see cref="OpenAsync"/> disposes the stream.</summary>
+public sealed record DisputeEvidenceDocument(DisputeEvidenceKind Kind, string FileName, string ContentType, long Length, Func<CancellationToken, Task<Stream>> OpenAsync);
 
 /// <param name="PaymentReference">The gateway's id for the payment being refunded, as recorded when the payment was booked.</param>
 public sealed record GatewayRefundRequest(Guid OrderId, string PaymentReference, decimal Amount, string Currency, string IdempotencyKey);

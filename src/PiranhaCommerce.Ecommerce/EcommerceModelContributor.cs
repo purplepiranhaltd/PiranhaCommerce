@@ -248,6 +248,17 @@ internal sealed class EcommerceModelContributor : IModelContributor
 
         b.Entity<Promotion>().HasOne<PiranhaCommerce.Customers.CustomerGroup>().WithMany().HasForeignKey(p => p.CustomerGroupId).OnDelete(DeleteBehavior.Restrict);
 
+        b.Entity<DisputeEvidenceFile>(e =>
+        {
+            e.ToTable("DisputeEvidenceFile", Schema);
+            e.Property(f => f.Kind).HasConversion<string>().HasMaxLength(30);
+            e.Property(f => f.FileName).HasMaxLength(200).IsRequired();
+            e.Property(f => f.ContentType).HasMaxLength(100).IsRequired();
+            e.Property(f => f.Actor).HasMaxLength(256);
+            e.HasIndex(f => new { f.DisputeId, f.Kind }).IsUnique(); // one document per kind
+            e.HasOne<PaymentDispute>().WithMany().HasForeignKey(f => f.DisputeId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         b.Entity<PaymentDispute>(e =>
         {
             e.ToTable("PaymentDispute", Schema);

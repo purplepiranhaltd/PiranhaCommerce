@@ -1,5 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using PiranhaCommerce.Core.Files;
 using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Paging;
 using PiranhaCommerce.Core.Validation;
@@ -67,11 +69,25 @@ public interface IDisputeService
     /// <summary>Newest first. Null when the order does not exist.</summary>
     Task<IReadOnlyList<PaymentDisputeDto>?> ListForOrderAsync(Guid orderId, CancellationToken ct = default);
 
+    /// <summary>The documents attached to a dispute. Null when the dispute does not exist.</summary>
+    Task<IReadOnlyList<DisputeFileDto>?> ListFilesAsync(Guid disputeId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Attaches a PDF, JPEG or PNG document (one per kind) to an open dispute whose evidence has not been sent. It goes to the provider with the next save or send.
+    /// Validation error for a wrong type, an empty or too big file; conflict when the dispute is decided, the evidence has been sent, or there is one of that kind already. Null when the dispute does not exist.
+    /// </summary>
+    Task<DisputeFileDto?> AddFileAsync(Guid disputeId, DisputeEvidenceKind kind, Stream content, string fileName, string? actor, CancellationToken ct = default);
+
+    Task<DisputeFileDownload?> OpenFileAsync(Guid disputeId, Guid fileId, CancellationToken ct = default);
+
+    /// <summary>Removes a document; conflict once the evidence has been sent.</summary>
+    Task<bool> DeleteFileAsync(Guid disputeId, Guid fileId, CancellationToken ct = default);
+
     /// <summary>How many are still open (for a badge).</summary>
     Task<int> OpenCountAsync(CancellationToken ct = default);
 }
 
-internal sealed class DisputeService(PiranhaDbContext db, IEnumerable<IDisputeEvidenceGateway> evidenceGateways) : IDisputeService
+internal sealed partial class DisputeService(PiranhaDbContext db, IEnumerable<IDisputeEvidenceGateway> evidenceGateways, IFileStore files, IOptions<DisputeFileOptions> fileOptions) : IDisputeService
 {
     public async Task<PaymentDisputeDto?> SubmitEvidenceAsync(Guid disputeId, DisputeEvidenceInput input, CancellationToken ct = default)
     {
@@ -80,7 +96,8 @@ internal sealed class DisputeService(PiranhaDbContext db, IEnumerable<IDisputeEv
         if (d is null) return null;
         if (d.Status != DisputeStatus.Open) throw new PiranhaConflictException("This dispute has already been decided.");
         if (d.EvidenceSubmittedUtc is not null) throw new PiranhaConflictException("Evidence has already been sent to the bank for this dispute and cannot be changed.");
-        if (string.IsNullOrWhiteSpace(input.ProductDescription + input.CustomerName + input.CustomerEmail + input.ShippingAddress + input.ShippingCarrier + input.TrackingNumber + input.Notes) && input.ShippingDate is null)
+        var documents = await DocumentsAsync(d.Id, ct);
+        if (documents.Count == 0 && string.IsNullOrWhiteSpace(input.ProductDescription + input.CustomerName + input.CustomerEmail + input.ShippingAddress + input.ShippingCarrier + input.TrackingNumber + input.Notes) && input.ShippingDate is null)
             throw new PiranhaValidationException(nameof(DisputeEvidenceInput.Notes), "Give at least some evidence.");
         var gateway = evidenceGateways.FirstOrDefault(g => string.Equals(g.Name, d.Provider, StringComparison.OrdinalIgnoreCase))
             ?? throw new PiranhaValidationException(nameof(PaymentDisputeDto.Provider), $"Evidence for {d.Provider} disputes has to be sent in the provider's own dashboard.");
@@ -89,7 +106,7 @@ internal sealed class DisputeService(PiranhaDbContext db, IEnumerable<IDisputeEv
         {
             await gateway.SubmitEvidenceAsync(d.Reference, new DisputeEvidence(
                 Clean(input.ProductDescription), Clean(input.CustomerName), Clean(input.CustomerEmail), Clean(input.ShippingAddress), Clean(input.ShippingCarrier),
-                Clean(input.TrackingNumber), input.ShippingDate, Clean(input.Notes), input.Submit), ct);
+                Clean(input.TrackingNumber), input.ShippingDate, Clean(input.Notes), input.Submit, documents), ct);
         }
         catch (GatewayException ex)
         {

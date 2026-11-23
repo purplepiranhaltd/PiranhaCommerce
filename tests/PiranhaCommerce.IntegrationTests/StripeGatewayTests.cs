@@ -155,6 +155,32 @@ public class StripeGatewayTests
     }
 
     [Fact]
+    public async Task Evidence_documents_are_uploaded_to_stripe_files_and_named_in_the_dispute()
+    {
+        var stripe = new FakeStripe(r => (HttpStatusCode.OK, r.RequestUri!.AbsolutePath == "/v1/files" ? "{\"id\":\"file_" + r.Content!.Headers.ContentType!.MediaType!.Length + "\"}" : "{}"));
+        byte[] pdf = "%PDF-1.4 hello"u8.ToArray();
+        var documents = new[]
+        {
+            new DisputeEvidenceDocument(DisputeEvidenceKind.Receipt, "receipt.pdf", "application/pdf", pdf.Length, _ => Task.FromResult<Stream>(new MemoryStream(pdf))),
+            new DisputeEvidenceDocument(DisputeEvidenceKind.Other, "extra.pdf", "application/pdf", pdf.Length, _ => Task.FromResult<Stream>(new MemoryStream(pdf))),
+        };
+        await Gateway(stripe).SubmitEvidenceAsync("dp_1", new DisputeEvidence(null, null, null, null, null, null, null, "x", false, documents));
+
+        var uploads = stripe.Calls.Where(c => c.Request.RequestUri!.AbsolutePath == "/v1/files").ToList();
+        Assert.Equal(2, uploads.Count);
+        Assert.All(uploads, u => Assert.Equal("files.stripe.com", u.Request.RequestUri!.Host));
+        Assert.Contains("dispute_evidence", uploads[0].Body);
+        Assert.Contains("filename=receipt.pdf", uploads[0].Body);
+        Assert.Contains("%PDF-1.4 hello", uploads[0].Body);
+
+        var dispute = stripe.Calls.Single(c => c.Request.RequestUri!.AbsolutePath == "/v1/disputes/dp_1");
+        Assert.Equal("api.stripe.com", dispute.Request.RequestUri!.Host);
+        var form = Uri.UnescapeDataString(dispute.Body.Replace("+", " "));
+        Assert.Contains("evidence[receipt]=file_", form);
+        Assert.Contains("evidence[uncategorized_file]=file_", form);
+    }
+
+    [Fact]
     public async Task Disputes_and_failed_refunds_are_read_with_their_order_amount_reason_and_deadline()
     {
         var order = Guid.NewGuid();

@@ -1203,6 +1203,48 @@ namespace PiranhaCommerce.Web.Migrations
                     b.ToTable("BasketLine", "ecom");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.DisputeEvidenceFile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Actor")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("DisputeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<long>("Length")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("UploadedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DisputeId", "Kind")
+                        .IsUnique();
+
+                    b.ToTable("DisputeEvidenceFile", "ecom");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.GiftVoucher", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2542,6 +2584,15 @@ namespace PiranhaCommerce.Web.Migrations
                     b.HasOne("PiranhaCommerce.Catalog.Product", null)
                         .WithMany()
                         .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.DisputeEvidenceFile", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Ecommerce.PaymentDispute", null)
+                        .WithMany()
+                        .HasForeignKey("DisputeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

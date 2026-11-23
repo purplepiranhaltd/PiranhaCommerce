@@ -97,6 +97,85 @@ public class DisputeTests(AlertFactory factory) : IClassFixture<AlertFactory>
         Assert.Equal(HttpStatusCode.Conflict, (await staff.PostAsJsonAsync(Url(closed.Id), new DisputeEvidenceInput { Notes = "late" })).StatusCode);
     }
 
+    private static MultipartFormDataContent Upload(byte[] bytes, string name)
+    {
+        var form = new MultipartFormDataContent();
+        var file = new ByteArrayContent(bytes);
+        file.Headers.ContentType = new("application/octet-stream");
+        form.Add(file, "file", name);
+        return form;
+    }
+
+    private static readonly byte[] Pdf = "%PDF-1.4\n1 0 obj<<>>endobj\n"u8.ToArray();
+    private static readonly byte[] Png = [0x89, (byte)'P', (byte)'N', (byte)'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0];
+
+    [Fact]
+    public async Task Documents_are_attached_listed_downloaded_sent_with_the_evidence_and_locked_after_it_is_sent()
+    {
+        var staff = await factory.CreateAuthenticatedApiClientAsync();
+        var order = await PaidOrder(staff);
+        var id = "dp_" + Tag();
+        await Hook(new("dispute-opened", order.Id, order.Total, order.Currency, id));
+        var dispute = Assert.Single(await DisputesOf(staff, order));
+        string Files(string tail = "") => $"/api/v1/disputes/{dispute.Id}/files{tail}";
+
+        // Only PDF, JPEG and PNG, by the file's contents rather than its name.
+        Assert.Equal(HttpStatusCode.BadRequest, (await staff.PostAsync(Files("?kind=Receipt"), Upload("<html>hi</html>"u8.ToArray(), "receipt.pdf"))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await staff.PostAsync(Files("?kind=Receipt"), Upload([], "empty.pdf"))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await staff.PostAsync(Files("?kind=Receipt"), Upload([.. Pdf, .. new byte[6 * 1024 * 1024]], "big.pdf"))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await staff.PostAsync($"/api/v1/disputes/{Guid.NewGuid()}/files?kind=Receipt", Upload(Pdf, "r.pdf"))).StatusCode);
+
+        var added = await staff.PostAsync(Files("?kind=Receipt"), Upload(Pdf, "..\\folder/receipt.pdf"));
+        Assert.Equal(HttpStatusCode.Created, added.StatusCode);
+        var receipt = await Read<DisputeFileDto>(added);
+        Assert.Equal(("receipt.pdf", "application/pdf", Pdf.Length), (receipt.FileName, receipt.ContentType, (int)receipt.Length)); // the folder part of the name is dropped
+        Assert.Equal(HttpStatusCode.Conflict, (await staff.PostAsync(Files("?kind=Receipt"), Upload(Pdf, "again.pdf"))).StatusCode); // one per kind
+        var proof = await Read<DisputeFileDto>(await staff.PostAsync(Files("?kind=ShippingDocumentation"), Upload(Png, "proof.png")));
+        Assert.Equal("image/png", proof.ContentType);
+        Assert.Equal(2, (await Read<List<DisputeFileDto>>(await staff.GetAsync(Files()))).Count);
+
+        var download = await staff.GetAsync(Files($"/{receipt.Id}"));
+        Assert.Equal(Pdf, await download.Content.ReadAsByteArrayAsync());
+        Assert.Equal("nosniff", download.Headers.GetValues("X-Content-Type-Options").Single());
+        Assert.Equal(HttpStatusCode.NotFound, (await staff.GetAsync(Files($"/{Guid.NewGuid()}"))).StatusCode);
+
+        // Removing frees the kind; the evidence can be just documents.
+        Assert.Equal(HttpStatusCode.NoContent, (await staff.DeleteAsync(Files($"/{proof.Id}"))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await staff.DeleteAsync(Files($"/{proof.Id}"))).StatusCode);
+        var sent = await staff.PostAsJsonAsync($"/api/v1/disputes/{dispute.Id}/evidence", new DisputeEvidenceInput { Submit = true });
+        Assert.Equal(HttpStatusCode.OK, sent.StatusCode);
+        var (_, evidence) = Assert.Single(TestGateway.Evidence, e => e.Reference == id);
+        var document = Assert.Single(evidence.Documents!);
+        Assert.Equal((DisputeEvidenceKind.Receipt, "receipt.pdf"), (document.Kind, document.FileName));
+        await using (var stream = await document.OpenAsync(default)) { using var copy = new MemoryStream(); await stream.CopyToAsync(copy); Assert.Equal(Pdf, copy.ToArray()); }
+
+        // After it has gone to the bank nothing can be added or removed.
+        Assert.Equal(HttpStatusCode.Conflict, (await staff.PostAsync(Files("?kind=Other"), Upload(Pdf, "late.pdf"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await staff.DeleteAsync(Files($"/{receipt.Id}"))).StatusCode);
+
+        var (email, password) = await factory.CreateReadOnlyUserAsync();
+        var reader = await factory.CreateAuthenticatedApiClientAsync(email, password);
+        Assert.Equal(HttpStatusCode.Forbidden, (await reader.PostAsync(Files("?kind=Other"), Upload(Pdf, "x.pdf"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await reader.DeleteAsync(Files($"/{receipt.Id}"))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await reader.GetAsync(Files())).StatusCode);
+    }
+
+    [Fact]
+    public async Task Documents_alone_count_as_evidence_and_the_total_size_is_limited()
+    {
+        var staff = await factory.CreateAuthenticatedApiClientAsync();
+        var order = await PaidOrder(staff);
+        var id = "dp_" + Tag();
+        await Hook(new("dispute-opened", order.Id, order.Total, order.Currency, id));
+        var dispute = Assert.Single(await DisputesOf(staff, order));
+        var url = $"/api/v1/disputes/{dispute.Id}/evidence";
+        Assert.Equal(HttpStatusCode.BadRequest, (await staff.PostAsJsonAsync(url, new DisputeEvidenceInput())).StatusCode); // nothing at all
+        await staff.PostAsync($"/api/v1/disputes/{dispute.Id}/files?kind=Receipt", Upload([.. Pdf, .. new byte[3_000_000]], "a.pdf"));
+        var tooMuch = await staff.PostAsync($"/api/v1/disputes/{dispute.Id}/files?kind=Other", Upload([.. Pdf, .. new byte[2_000_000]], "b.pdf")); // 5 MB together
+        Assert.Equal(HttpStatusCode.BadRequest, tooMuch.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await staff.PostAsJsonAsync(url, new DisputeEvidenceInput())).StatusCode); // the document is the evidence
+    }
+
     [Fact]
     public async Task Evidence_the_provider_refuses_is_a_conflict_and_does_not_count_as_sent_and_a_reader_cannot_send_any()
     {
