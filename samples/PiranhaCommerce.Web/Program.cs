@@ -53,6 +53,8 @@ builder.Services.Configure<SampleDataOptions>(builder.Configuration.GetSection(S
 builder.Services.AddSingleton<SampleDataSeeder>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ShopSession>();
+builder.Services.AddScoped<ShopBaskets>();
+ShopAuth.Add(builder.Services.AddAuthentication()); // the shopper's own sign-in cookie, separate from the admin's
 builder.Services.AddScoped<ShopFront>();
 builder.Services.AddSingleton<ShopRateLimiter>();
 builder.Services.Configure<ShopOptions>(builder.Configuration.GetSection(ShopOptions.SectionName));

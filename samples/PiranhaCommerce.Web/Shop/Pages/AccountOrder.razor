@@ -1,0 +1,62 @@
+@page "/account/orders/{Id:guid}"
+@inject ShopFront Front
+@inject NavigationManager Nav
+
+<PageTitle>@(_order is null ? "Order not found" : "Order " + _order.Reference)</PageTitle>
+
+<div class="wrap narrow">
+    @if (_order is null)
+    {
+        <h1>Order not found</h1>
+        <p><a href="/account">Back to your account</a></p>
+    }
+    else
+    {
+        <p><a href="/account">&lt; Your orders</a></p>
+        <h1>Order @_order.Reference</h1>
+        <p class="muted">Placed @_order.CreatedUtc.ToString("d MMMM yyyy") · @_order.Stage · @_order.PaymentStatus</p>
+
+        <table class="order">
+            <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Total</th></tr></thead>
+            <tbody>
+                @foreach (var l in _order.Lines)
+                {
+                    <tr><td>@l.Name</td><td class="num">@l.Quantity</td><td class="num">@Money.Format(l.LineTotalIncludingTax, _order.Currency)</td></tr>
+                }
+            </tbody>
+            <tfoot>
+                @if (_order.DiscountTotal > 0) { <tr><td colspan="2">Discount @(_order.PromotionCode is null ? "" : "(" + _order.PromotionCode + ")")</td><td class="num">included above</td></tr> }
+                <tr><td colspan="2">Delivery @(_order.ShippingMethodName is null ? "" : "(" + _order.ShippingMethodName + ")")</td><td class="num">@(_order.ShippingTotal == 0 ? "Free" : Money.Format(_order.ShippingTotal + _order.ShippingTax, _order.Currency))</td></tr>
+                <tr><td colspan="2">Total includes VAT of</td><td class="num">@Money.Format(_order.TaxTotal, _order.Currency)</td></tr>
+                <tr class="grand"><td colspan="2">Total</td><td class="num">@Money.Format(_order.Total, _order.Currency)</td></tr>
+            </tfoot>
+        </table>
+
+        @if (_order.ShippingAddress is { } a)
+        {
+            <h2>Delivered to</h2>
+            <p>@(a.Recipient is null ? "" : a.Recipient + ", ")@a.Line1@(string.IsNullOrEmpty(a.Line2) ? "" : ", " + a.Line2), @a.City@(string.IsNullOrEmpty(a.PostalCode) ? "" : ", " + a.PostalCode), @ShopCountries.NameOf(a.CountryCode)</p>
+        }
+        @if (_order.Shipments is { Count: > 0 })
+        {
+            <h2>Parcels</h2>
+            <ul>
+                @foreach (var s in _order.Shipments) { <li>@s.Carrier @s.TrackingNumber</li> }
+            </ul>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    [CascadingParameter] private HttpContext? Context { get; set; }
+
+    private PiranhaCommerce.Ecommerce.OrderDto? _order;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (await Front.ShopperAsync() is null) { Nav.NavigateTo("/account/sign-in?returnTo=/account"); return; }
+        _order = await Front.OrderAsync(Id);
+        if (_order is null && Context is not null) Context.Response.StatusCode = StatusCodes.Status404NotFound;
+    }
+}

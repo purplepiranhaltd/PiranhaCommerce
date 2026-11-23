@@ -121,3 +121,7 @@ button.link { background: none; color: var(--accent); padding: 0; text-decoratio
 .order th, .order td { padding: .5rem .3rem; border-bottom: 1px solid var(--line); text-align: left; }
 .order .num { text-align: right; }
 .order .grand td { font-weight: 700; font-size: 1.1rem; }
+
+.account-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; }
+@media (max-width: 760px) { .account-grid { grid-template-columns: 1fr; gap: 1.5rem; } }
+form.inline { display: inline; }

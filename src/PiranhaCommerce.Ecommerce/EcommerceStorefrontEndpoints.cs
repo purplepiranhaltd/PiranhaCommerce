@@ -23,6 +23,10 @@ internal sealed class EcommerceStorefrontEndpoints : IStorefrontEndpointContribu
             return Results.Created($"/api/v1/storefront/baskets/{created.Id}", created);
         });
 
+        // The shopper's open basket they used last (404 when they have none): how a basket follows them to a new device.
+        baskets.MapGet("/current", async (ClaimsPrincipal user, IBasketService svc, CancellationToken ct) =>
+            await svc.OpenForCustomerAsync(user.CustomerId()!.Value, ct) is { } b ? Results.Ok(b) : Results.NotFound());
+
         baskets.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, IBasketService svc, CancellationToken ct) =>
             await svc.IsOwnedByAsync(id, user.CustomerId()!.Value, ct) && await svc.GetAsync(id, ct) is { } b ? Results.Ok(b) : Results.NotFound());
 

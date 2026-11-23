@@ -1,0 +1,55 @@
+@page "/account/sign-in"
+@inject ShopFront Front
+@inject ShopSession Session
+@inject NavigationManager Nav
+
+<PageTitle>Sign in</PageTitle>
+
+<div class="wrap">
+    <h1>Sign in or create an account</h1>
+    <FlashNotice Token="@F" />
+
+    <div class="account-grid">
+        <section>
+            <h2>I have an account</h2>
+            <form method="post" action="/account/sign-in" class="stack">
+                <AntiforgeryToken />
+                <input type="hidden" name="returnTo" value="@ReturnTo" />
+                <label>Email <input type="email" name="email" value="@Typed("signInEmail")" required autocomplete="username" /></label>
+                <label>Password <input type="password" name="password" required autocomplete="current-password" /></label>
+                <button type="submit">Sign in</button>
+            </form>
+            <p><a href="/account/forgot">Forgot your password?</a></p>
+        </section>
+
+        <section>
+            <h2>New here? Create an account</h2>
+            <form method="post" action="/account/register" class="stack">
+                <AntiforgeryToken />
+                <div class="two">
+                    <label>First name <input type="text" name="firstName" value="@Typed("firstName")" autocomplete="given-name" /></label>
+                    <label>Last name <input type="text" name="lastName" value="@Typed("lastName")" autocomplete="family-name" /></label>
+                </div>
+                <label>Email <input type="email" name="email" value="@Typed("registerEmail")" required autocomplete="email" /></label>
+                <label>Password <input type="password" name="password" required minlength="10" autocomplete="new-password" /></label>
+                <p class="muted">At least 10 characters. Your basket comes with you.</p>
+                <button type="submit">Create account</button>
+            </form>
+        </section>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "f")] private string? F { get; set; }
+    [SupplyParameterFromQuery(Name = "returnTo")] private string? ReturnTo { get; set; }
+
+    private Flash? _flash;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _flash = Session.Open(F);
+        if (await Front.ShopperAsync() is not null) Nav.NavigateTo(ShopSession.SafePath(ReturnTo, "/account"));
+    }
+
+    private string? Typed(string name) => _flash?.Values is { } v && v.TryGetValue(name, out var value) ? value : null;
+}

@@ -9,6 +9,8 @@
             <input type="search" name="q" placeholder="Search lipstick, mascara, serum..." aria-label="Search the shop" />
             <button type="submit">Search</button>
         </form>
+        @if (_shopper is not null) { <a class="basket-link" href="/account">@(string.IsNullOrWhiteSpace(_shopper.Name) ? "Account" : _shopper.Name)</a> }
+        else { <a class="basket-link" href="/account/sign-in">Sign in</a> }
         <a class="basket-link" href="/basket">Basket@(_count > 0 ? $" ({_count})" : "")</a>
     </div>
     <nav class="wrap cats" aria-label="Categories">
@@ -32,10 +34,12 @@
 @code {
     private IReadOnlyList<ShopCategoryDto> _categories = [];
     private int _count;
+    private Shopper? _shopper;
 
     protected override async Task OnInitializedAsync()
     {
         _categories = await Front.CategoriesAsync();
+        _shopper = await Front.ShopperAsync();
         _count = await Front.BasketCountAsync();
     }
 }

@@ -63,6 +63,7 @@ public class PiranhaFactory: WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("Piranha:RateLimit:SignInAttempts", SignInAttempts.ToString());
         builder.UseSetting("Piranha:Storage:LocalDisk:Path", FilesFolder);
         builder.UseSetting("Piranha:Ecommerce:StockAlertPollSeconds", "0"); // tests run the notifier themselves
+        builder.UseSetting("Piranha:Shop:AccountFormsPerMinute", "1000"); // every test shares one client address; tests of the limit lower it
         builder.UseSetting("Piranha:SampleData:Enabled", "false"); // the tests share one database and count what is in it
         builder.UseSetting("Piranha:Webhooks:PollSeconds", "0"); // tests drive the sender themselves; the background one must not post anywhere
         if (AlertEmail is { } alert) builder.UseSetting("Piranha:Ecommerce:AlertEmail", alert);

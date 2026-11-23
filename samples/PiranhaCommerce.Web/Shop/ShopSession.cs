@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using System.Text.Json;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
 
 namespace PiranhaCommerce.Web.Shop;
@@ -37,6 +39,11 @@ public sealed class ShopSession(IHttpContextAccessor accessor, IDataProtectionPr
         MaxAge = lifetime,
     };
 
+    // Signing in. The shop's cookie is asked for by name; the admin's is a different one.
+    public Task<AuthenticateResult> AuthenticateAsync() => Http.AuthenticateAsync(ShopAuth.Scheme);
+    public Task SignInAsync(ClaimsPrincipal principal) => Http.SignInAsync(ShopAuth.Scheme, principal, new AuthenticationProperties { IsPersistent = true });
+    public Task SignOutAsync() => Http.SignOutAsync(ShopAuth.Scheme);
+
     // The basket.
     public Guid? BasketId => Guid.TryParse(Http.Request.Cookies[BasketCookie], out var id) ? id : null;
     public void SetBasketId(Guid id) => Http.Response.Cookies.Append(BasketCookie, id.ToString(), Options(TimeSpan.FromDays(60)));
@@ -62,12 +69,14 @@ public sealed class ShopSession(IHttpContextAccessor accessor, IDataProtectionPr
     }
 
     /// <summary>The address to go to with a message: only a path on this site is ever used.</summary>
-    public string Back(string? path, Flash flash)
+    public string Back(string? path, Flash flash) => SafePath(path, "/basket") + "?f=" + Uri.EscapeDataString(Protect(flash));
+
+    /// <summary>A path on this site (no query), or the fallback: never an address on another site.</summary>
+    public static string SafePath(string? path, string fallback)
     {
-        var safe = path is { Length: > 0 } && path[0] == '/' && !path.StartsWith("//", StringComparison.Ordinal) && !path.Contains('\\') ? path : "/basket";
+        var safe = path is { Length: > 0 } && path[0] == '/' && !path.StartsWith("//", StringComparison.Ordinal) && !path.Contains('\\') ? path : fallback;
         var cut = safe.IndexOf('?');
-        if (cut >= 0) safe = safe[..cut];
-        return safe + "?f=" + Uri.EscapeDataString(Protect(flash));
+        return cut >= 0 ? safe[..cut] : safe;
     }
 
     private T? Read<T>(string cookie)

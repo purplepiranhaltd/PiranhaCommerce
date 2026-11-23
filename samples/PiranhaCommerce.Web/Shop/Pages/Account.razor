@@ -1,0 +1,64 @@
+@page "/account"
+@inject ShopFront Front
+@inject NavigationManager Nav
+
+<PageTitle>Your account</PageTitle>
+
+<div class="wrap">
+    @if (_profile is not null)
+    {
+        <h1>Your account</h1>
+        <p>Signed in as <strong>@_profile.Email</strong>@(string.IsNullOrWhiteSpace(_profile.FirstName) ? "" : " (" + _profile.FirstName + " " + _profile.LastName + ")").</p>
+        <form method="post" action="/account/sign-out" class="inline">
+            <AntiforgeryToken />
+            <button type="submit" class="small ghost">Sign out</button>
+        </form>
+
+        <h2>Your orders</h2>
+        @if (_orders is null || _orders.Items.Count == 0)
+        {
+            <p class="empty">You have not placed an order yet. <a href="/shop">Browse the shop</a>.</p>
+        }
+        else
+        {
+            <table class="order">
+                <thead><tr><th>Order</th><th>Placed</th><th>Status</th><th class="num">Total</th></tr></thead>
+                <tbody>
+                    @foreach (var o in _orders.Items)
+                    {
+                        <tr>
+                            <td><a href="/account/orders/@o.Id">@o.Reference</a></td>
+                            <td>@o.CreatedUtc.ToString("d MMM yyyy")</td>
+                            <td>@o.Stage</td>
+                            <td class="num">@Money.Format(o.Total, o.Currency)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (_orders.TotalCount > _orders.Items.Count)
+            {
+                <nav class="paging" aria-label="Pages">
+                    @if (CurrentPage > 1) { <a href="/account?page=@(CurrentPage - 1)" rel="prev">Newer</a> }
+                    <span>Page @CurrentPage</span>
+                    @if (CurrentPage * 10 < _orders.TotalCount) { <a href="/account?page=@(CurrentPage + 1)" rel="next">Older</a> }
+                </nav>
+            }
+        }
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "page")] private int? PageNumber { get; set; }
+
+    private PiranhaCommerce.Customers.ProfileDto? _profile;
+    private PiranhaCommerce.Core.Paging.PagedResult<PiranhaCommerce.Ecommerce.OrderSummaryDto>? _orders;
+
+    private int CurrentPage => Math.Max(1, PageNumber ?? 1);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _profile = await Front.ProfileAsync();
+        if (_profile is null) { Nav.NavigateTo("/account/sign-in?returnTo=/account"); return; }
+        _orders = await Front.OrdersAsync(CurrentPage);
+    }
+}

@@ -29,6 +29,12 @@ public interface IBasketService
     /// </summary>
     Task<BasketDto?> SetVoucherAsync(Guid basketId, string? code, CancellationToken ct = default);
 
+    /// <summary>
+    /// The customer's open basket they used most recently, or null when they have none. This is how a shopper finds their basket again on a
+    /// new device or after signing out, since a basket is otherwise known only by its id.
+    /// </summary>
+    Task<BasketDto?> OpenForCustomerAsync(Guid customerId, CancellationToken ct = default);
+
     /// <summary>True only when the basket exists and belongs to that customer.</summary>
     Task<bool> IsOwnedByAsync(Guid basketId, Guid customerId, CancellationToken ct = default);
 
@@ -59,6 +65,13 @@ internal sealed partial class BasketService(PiranhaDbContext db, ICustomerServic
         db.Add(basket);
         await db.SaveChangesAsync(ct);
         return await GetAsync(basket.Id, ct) ?? throw new InvalidOperationException("Basket vanished after creation.");
+    }
+
+    public async Task<BasketDto?> OpenForCustomerAsync(Guid customerId, CancellationToken ct = default)
+    {
+        var id = await db.Set<Basket>().AsNoTracking().Where(b => b.CustomerId == customerId && b.Status == BasketStatus.Open)
+            .OrderByDescending(b => b.UpdatedUtc ?? b.CreatedUtc).Select(b => (Guid?)b.Id).FirstOrDefaultAsync(ct);
+        return id is null ? null : await GetAsync(id.Value, ct);
     }
 
     public async Task<bool> IsOwnedByAsync(Guid basketId, Guid customerId, CancellationToken ct = default)

@@ -33,6 +33,10 @@ default 120 a minute: a shop front on one server address makes one per visitor),
 `Piranha:Ecommerce:AllowGuestCheckout` to `false` to require an account to check out (guests can still build a basket; checkout answers `403`). There is
 no guest order lookup afterwards: the order comes back from the checkout call and by email. Old unowned baskets are cleared like any (`AbandonedBasketDays`).
 
+## Finding a shopper's basket again
+
+`GET /storefront/baskets/current`, signed in, returns the open basket the shopper used most recently, or `404` when they have none. A basket is otherwise known only by its id, so this is how one follows a shopper to a new device or back after signing out. The sample shop uses it when someone signs in: it claims or merges the basket they were using as a guest, or picks up the one they left.
+
 ## Merging baskets
 
 `POST /storefront/baskets/{id}/merge` with `{ "fromBasketId" }`, signed in, moves the lines of a guest basket into the shopper's own

@@ -11,15 +11,16 @@
     <p class="steps"><strong>1. Your details</strong> &gt; <span class="muted">2. Delivery</span> &gt; <span class="muted">3. Done</span></p>
     <FlashNotice Token="@F" />
 
-    @if (!Ecommerce.Value.AllowGuestCheckout)
+    @if (!Ecommerce.Value.AllowGuestCheckout && _shopper is null)
     {
-        <p class="notice error">This shop only takes orders from signed-in customers.</p>
+        <p class="notice error">This shop only takes orders from signed-in customers. <a href="/account/sign-in?returnTo=/checkout">Sign in</a> to carry on.</p>
     }
     else
     {
         <form method="post" action="/checkout/details" class="stack">
             <AntiforgeryToken />
-            <label>Email <input type="email" name="email" value="@Value("email")" required autocomplete="email" /></label>
+            @if (_shopper is not null) { <p>Ordering as <strong>@_shopper.Email</strong>.</p> }
+            else { <label>Email <input type="email" name="email" value="@Value("email")" required autocomplete="email" /></label> }
             <label>Name <input type="text" name="recipient" value="@Value("recipient")" autocomplete="name" /></label>
             <label>Address <input type="text" name="line1" value="@Value("line1")" required autocomplete="address-line1" /></label>
             <label>Address line 2 <input type="text" name="line2" value="@Value("line2")" autocomplete="address-line2" /></label>
@@ -37,7 +38,7 @@
             </div>
             <button type="submit">Continue to delivery</button>
         </form>
-        <p class="muted">No account needed. You can <a href="/basket">go back to your basket</a>.</p>
+        <p class="muted">@(_shopper is null ? "No account needed, or " : "")<a href="@(_shopper is null ? "/account/sign-in?returnTo=/checkout" : "/basket")">@(_shopper is null ? "sign in" : "Back to your basket")</a>.</p>
     }
 </div>
 
@@ -46,12 +47,14 @@
 
     private Flash? _flash;
     private CheckoutDetails? _saved;
+    private Shopper? _shopper;
 
     private string Chosen => Value("countryCode") is { Length: > 0 } c ? c.ToUpperInvariant() : "GB";
 
     protected override async Task OnInitializedAsync()
     {
         if (await Front.BasketCountAsync() == 0) { Nav.NavigateTo("/basket"); return; }
+        _shopper = await Front.ShopperAsync();
         _flash = Session.Open(F);
         _saved = Session.Details;
     }

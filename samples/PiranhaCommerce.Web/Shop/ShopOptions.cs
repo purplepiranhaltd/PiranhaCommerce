@@ -13,4 +13,7 @@ public sealed class ShopOptions
 
     /// <summary>How many form posts (add to basket, checkout and so on) one client may make a minute. Starting a basket costs a database row, so this stops a script filling the table.</summary>
     public int FormsPerMinute { get; set; } = 120;
+
+    /// <summary>How many sign-in, registration and password-reset posts one client may make a minute. Lower than the general limit, because these are what password guessing uses. (Wrong passwords also lock the account, see <c>Piranha:Customers</c>.)</summary>
+    public int AccountFormsPerMinute { get; set; } = 10;
 }
