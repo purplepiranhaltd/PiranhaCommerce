@@ -1,3 +1,4 @@
+using PiranhaCommerce.Core.Events;
 using PiranhaCommerce.Core.Audit;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
@@ -203,7 +204,7 @@ internal static class ShipmentQueries
     public static ShipmentSummaryDto Summary(this ShipmentDto s) => new(s.Id, s.ShippedUtc, s.Carrier, s.TrackingNumber, s.TrackingUrl, s.Lines);
 }
 
-internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock, IOptions<EcommerceOptions> options, OrderMailer mailer, IAuditTrail? trail = null) : IFulfilmentService
+internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock, IOptions<EcommerceOptions> options, OrderMailer mailer, IEventPublisher? events, IAuditTrail? trail = null) : IFulfilmentService
 {
     public async Task<IReadOnlyList<ShipmentDto>?> ListShipmentsAsync(Guid orderId, CancellationToken ct = default)
     {
@@ -251,7 +252,10 @@ internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock
                         if (done == 0) throw new PiranhaConflictException("That is more than is left to send. Reload the order and check what has already gone.");
                     }
 
-                    db.Add(shipment.ToEntity(wanted, now));
+                    var parcel = shipment.ToEntity(wanted, now);
+                    db.Add(parcel);
+                    var orderNumber = await db.Set<Order>().AsNoTracking().Where(o => o.Id == orderId).Select(o => o.Number).FirstAsync(token);
+                    events?.Publish(EcommerceEvents.ShipmentCreated, new { shipmentId = parcel.Id, orderId, number = orderNumber, reference = OrderNumbers.Format(orderNumber), lineCount = wanted.Count });
                     await db.SaveChangesAsync(token);
 
                     // The last item has gone: the order is complete.
@@ -261,6 +265,11 @@ internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock
                             .ExecuteUpdateAsync(s => s.SetProperty(o => o.Stage, OrderStage.Completed).SetProperty(o => o.UpdatedUtc, (DateTimeOffset?)now), token);
                         if (completed > 0 && trail is not null)
                             await trail.RecordUpdateAsync("Order", orderId.ToString(), null, [new AuditChange("Stage", OrderStage.Processing.ToString(), OrderStage.Completed.ToString())], token);
+                        if (completed > 0 && events is not null)
+                        {
+                            events.Publish(EcommerceEvents.OrderStageChanged, new { orderId, number = orderNumber, reference = OrderNumbers.Format(orderNumber), previousStage = OrderStage.Processing, stage = OrderStage.Completed });
+                            await db.SaveChangesAsync(token);
+                        }
                     }
                     return true;
                 },
@@ -357,6 +366,7 @@ internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock
                         suggested += order.ShippingTotal + order.ShippingTax;
                     }
 
+                    events?.Publish(EcommerceEvents.ReturnCreated, new { returnId, orderId, number = order.Number, reference, suggestedRefund = suggested, lineCount = returnLines.Count });
                     db.Add(new OrderReturn
                     {
                         Id = returnId, OrderId = orderId, CreatedUtc = now, Reason = input.Reason.Trim(),

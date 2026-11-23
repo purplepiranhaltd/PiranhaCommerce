@@ -1,3 +1,4 @@
+using PiranhaCommerce.Core.Events;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 using PiranhaCommerce.Core.Domain;
@@ -107,7 +108,7 @@ public interface IPaymentService
     Task<PaymentDto?> RefundToVoucherAsync(Guid orderId, RefundToVoucherInput input, string? actor = null, CancellationToken ct = default);
 }
 
-internal sealed class PaymentService(PiranhaDbContext db, IEnumerable<IPaymentProvider> providers, IEnumerable<IPaymentGateway> gateways, OrderMailer mailer) : IPaymentService
+internal sealed class PaymentService(PiranhaDbContext db, IEnumerable<IPaymentProvider> providers, IEnumerable<IPaymentGateway> gateways, OrderMailer mailer, IEventPublisher? events = null) : IPaymentService
 {
     public IReadOnlyList<PaymentProviderDto> Providers() => providers.Select(p => new PaymentProviderDto(p.Name, p.DisplayName, gateways.Any(g => g.Name == p.Name), gateways.OfType<IRefundingGateway>().Any(g => g.Name == p.Name))).OrderBy(p => p.Name).ToList();
 
@@ -160,6 +161,7 @@ internal sealed class PaymentService(PiranhaDbContext db, IEnumerable<IPaymentPr
                     var reference = OrderNumbers.Format(order.Number);
                     await db.Set<GiftVoucher>().Where(v => v.Id == voucherId).ExecuteUpdateAsync(s => s.SetProperty(v => v.Balance, v => v.Balance + input.Amount), token);
                     db.Add(new VoucherEntry { VoucherId = voucherId, Amount = input.Amount, Kind = VoucherEntryKinds.Returned, OrderId = orderId, Reference = reference, Actor = actor, CreatedUtc = now });
+                    events?.Publish(EcommerceEvents.PaymentRefunded, new { paymentId, orderId, number = order.Number, reference, kind = PaymentKind.Refund, provider = "voucher", amount = input.Amount, currency = order.Currency });
                     db.Add(new Payment
                     {
                         Id = paymentId, OrderId = orderId, Kind = PaymentKind.Refund, Provider = "voucher", Amount = input.Amount, Currency = order.Currency,
@@ -214,7 +216,7 @@ internal sealed class PaymentService(PiranhaDbContext db, IEnumerable<IPaymentPr
                     // Take the order's row lock first, so simultaneous payments for one order are checked one after another.
                     var now = DateTimeOffset.UtcNow;
                     await db.Set<Order>().Where(o => o.Id == orderId).ExecuteUpdateAsync(s => s.SetProperty(o => o.UpdatedUtc, (DateTimeOffset?)now), token);
-                    var order = await db.Set<Order>().AsNoTracking().Where(o => o.Id == orderId).Select(o => new { o.Total, o.Stage, o.Currency }).FirstAsync(token);
+                    var order = await db.Set<Order>().AsNoTracking().Where(o => o.Id == orderId).Select(o => new { o.Number, o.Total, o.Stage, o.Currency }).FirstAsync(token);
 
                     var totals = await db.Set<Payment>().AsNoTracking().Where(p => p.OrderId == orderId)
                         .GroupBy(p => p.Kind).Select(g => new { Kind = g.Key, Sum = g.Sum(p => p.Amount) }).ToListAsync(token);
@@ -233,6 +235,8 @@ internal sealed class PaymentService(PiranhaDbContext db, IEnumerable<IPaymentPr
 
                     payment.Currency = order.Currency;
                     db.Add(payment);
+                    events?.Publish(kind == PaymentKind.Payment ? EcommerceEvents.PaymentReceived : EcommerceEvents.PaymentRefunded,
+                        new { paymentId = payment.Id, orderId, number = order.Number, reference = OrderNumbers.Format(order.Number), kind, provider = payment.Provider, amount = payment.Amount, currency = payment.Currency, paymentReference = payment.Reference });
                     await db.SaveChangesAsync(token);
                     return true;
                 },

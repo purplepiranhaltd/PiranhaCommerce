@@ -38,6 +38,7 @@ piranha
     // (here: Catalog and Catalog.Admin), so only the ones you want are listed.
     .AddPlugin<EcommercePlugin>()
     .AddPlugin<AuditAdminPlugin>()
+    .AddPlugin<PiranhaCommerce.Webhooks.Admin.WebhooksAdminPlugin>() // signed, retried notifications to other systems (Settings > Webhooks)
     .AddPlugin<CustomersAdminPlugin>()
     .AddPlugin<EcommerceAdminPlugin>()
     .AddPlugin<PiranhaCommerce.Payments.Stripe.StripePlugin>() // inert until Piranha:Stripe keys are set

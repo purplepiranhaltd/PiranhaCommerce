@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Outbound webhooks for Piranha Commerce: signed, retried HTTP notifications when orders, payments, shipments and disputes change, with API.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\PiranhaCommerce.Core\PiranhaCommerce.Core.csproj" />
+    <ProjectReference Include="..\PiranhaCommerce.Data\PiranhaCommerce.Data.csproj" />
+    <ProjectReference Include="..\PiranhaCommerce.Api\PiranhaCommerce.Api.csproj" />
+  </ItemGroup>
+</Project>

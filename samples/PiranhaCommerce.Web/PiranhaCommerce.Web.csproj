@@ -23,6 +23,8 @@
     <ProjectReference Include="..\..\src\PiranhaCommerce.Ecommerce.Admin\PiranhaCommerce.Ecommerce.Admin.csproj" />
     <ProjectReference Include="..\..\src\PiranhaCommerce.Audit\PiranhaCommerce.Audit.csproj" />
     <ProjectReference Include="..\..\src\PiranhaCommerce.Audit.Admin\PiranhaCommerce.Audit.Admin.csproj" />
+    <ProjectReference Include="..\..\src\PiranhaCommerce.Webhooks\PiranhaCommerce.Webhooks.csproj" />
+    <ProjectReference Include="..\..\src\PiranhaCommerce.Webhooks.Admin\PiranhaCommerce.Webhooks.Admin.csproj" />
     <ProjectReference Include="..\..\src\PiranhaCommerce.Customers\PiranhaCommerce.Customers.csproj" />
     <ProjectReference Include="..\..\src\PiranhaCommerce.Customers.Admin\PiranhaCommerce.Customers.Admin.csproj" />
     <ProjectReference Include="..\PiranhaCommerce.Example.Warranty\PiranhaCommerce.Example.Warranty.csproj" />

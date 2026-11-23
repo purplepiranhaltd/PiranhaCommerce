@@ -18,7 +18,8 @@ or themes), so storefront and CMS features are out of scope by design. Order of 
 5. **Quantity breaks and minimum or maximum order quantities: built** (see the README). **The discount engine: built** (automatic discounts, free-shipping codes, discounts on chosen products or categories, buy-X-get-Y, per-customer limits, stacking; see the README).
    Open for discounts: a discount on the order total (not goods), tiered spend thresholds, "spend X get a free gift", and gift-with-purchase products. Open for breaks: a variant does not inherit its parent's breaks, breaks cannot be set by catalogue import, quantity steps (multiples of 6) and
    limits per customer.
-6. **Outbound webhooks** (order placed, paid, shipped, product changed, customer created) so a storefront or ERP can react: open.
+6. **Outbound webhooks: built** (order placed and stage changed, payment received and refunded, shipment, return, dispute opened and closed; see the README). Open for webhooks: events for product,
+   customer and stock changes, a per-endpoint rate limit, and blocking addresses that resolve to private networks.
 7. **Shipping zones, rates by basket value, carrier and live rates, labels, pick-up in store, delivery dates:** open.
 8. **Multi-currency and translations:** open, heaviest design work (see the Translations section).
 9. **Reviews, wishlists, related and cross-sell products, brands, specification attributes and tags, back-in-stock and low-stock alerts:** open.

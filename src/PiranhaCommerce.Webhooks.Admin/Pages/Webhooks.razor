@@ -1,0 +1,219 @@
+@page "/admin/webhooks"
+@inject AdminScopeRunner Scope
+
+<PageTitle>Webhooks - Piranha Commerce</PageTitle>
+<h1>Webhooks</h1>
+<p class="pc-muted">
+    A webhook tells another system when something happens here: an order is placed, a payment is taken, a parcel is sent. Each message is a signed POST to your address
+    (the <code>Piranha-Signature</code> header holds <code>t=time,v1=HMAC-SHA256 of "time.body"</code>, made with the endpoint's secret). A 2xx answer means received; anything else is tried again
+    after 1 minute, 5 minutes, 15 minutes, 1, 3, 6 and 12 hours, then given up. A message can arrive more than once and in any order, so ignore an event id you have already handled.
+    The messages carry ids and figures, not personal details: fetch more from the API.
+</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+@if (_secret is not null)
+{
+    <div class="pc-card" role="status" data-testid="new-secret">
+        <strong>Signing secret for @_secretFor</strong>
+        <p class="pc-muted">Copy it now and keep it safe. It is not shown again (you can make a new one, which stops the old one working).</p>
+        <code>@_secret</code>
+        <p><button type="button" class="secondary" @onclick="() => _secret = null">I have copied it</button></p>
+    </div>
+}
+
+<div class="pc-card">
+    <EditForm Model="_input" OnValidSubmit="SaveAsync" FormName="webhook-edit">
+        <DataAnnotationsValidator />
+        <h2 style="margin-top:0">@(_editing is null ? "Add an endpoint" : "Edit endpoint")</h2>
+        <label>Address (https://) <InputText @bind-Value="_input.Url" /></label>
+        <ValidationMessage For="() => _input.Url" />
+        <label>Note (for you, optional) <InputText @bind-Value="_input.Description" /></label>
+        <label><input type="checkbox" checked="@_all" @onchange="e => ToggleAll((bool)e.Value!)" /> Send every kind of event</label>
+        @if (!_all)
+        {
+            <fieldset>
+                <legend>Send only these</legend>
+                @foreach (var t in _types)
+                {
+                    var type = t.Type;
+                    <label><input type="checkbox" checked="@_input.EventTypes.Contains(type)" @onchange="e => Toggle(type, (bool)e.Value!)" /> <code>@t.Type</code> <span class="pc-muted">@t.Description</span></label>
+                }
+            </fieldset>
+        }
+        <label><InputCheckbox @bind-Value="_input.Active" /> Active</label>
+        <button type="submit" disabled="@_busy">Save</button>
+        @if (_editing is not null) { <button type="button" class="secondary" @onclick="Reset">Cancel</button> }
+    </EditForm>
+</div>
+
+@if (_endpoints is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_endpoints.Count == 0)
+{
+    <p class="pc-muted" data-testid="no-webhooks">No endpoints yet.</p>
+}
+else
+{
+    @foreach (var e in _endpoints)
+    {
+        var ep = e;
+        <div class="pc-card">
+            <h3 style="margin-top:0">@ep.Url @(ep.Active ? "" : "(off)")</h3>
+            <p class="pc-muted">@(ep.Description ?? "") Events: @(ep.EventTypes[0] == "*" ? "all" : string.Join(", ", ep.EventTypes)). Secret @ep.SecretHint</p>
+            <p>
+                <button type="button" class="secondary" @onclick="() => Edit(ep)">Edit</button>
+                <button type="button" class="secondary" disabled="@_busy" @onclick="() => TestAsync(ep)">Send a test</button>
+                <button type="button" class="secondary" @onclick="() => ShowDeliveriesAsync(ep.Id)">@(_open == ep.Id ? "Hide deliveries" : "Deliveries")</button>
+                <button type="button" class="secondary" @onclick="() => RotateAsync(ep)">New secret</button>
+                @if (_confirmDelete == ep.Id)
+                {
+                    <button type="button" class="danger" @onclick="() => DeleteAsync(ep.Id)">Confirm delete</button>
+                    <button type="button" class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
+                }
+                else
+                {
+                    <button type="button" class="secondary" @onclick="() => _confirmDelete = ep.Id">Delete</button>
+                }
+            </p>
+            @if (_testResult is { } t && t.EndpointId == ep.Id)
+            {
+                <p class="@(t.Status == WebhookDeliveryStatus.Succeeded ? "pc-muted" : "pc-error")" role="status">
+                    Test: @(t.Status == WebhookDeliveryStatus.Succeeded ? $"the endpoint answered {t.LastStatusCode}." : t.LastError)
+                </p>
+            }
+            @if (_open == ep.Id && _deliveries is not null)
+            {
+                @if (_deliveries.Items.Count == 0) { <p class="pc-muted">Nothing sent yet.</p> }
+                else
+                {
+                    <table class="pc-table">
+                        <thead><tr><th>When</th><th>Event</th><th>Status</th><th>Tries</th><th>Answer</th><th></th></tr></thead>
+                        <tbody>
+                        @foreach (var d in _deliveries.Items)
+                        {
+                            var delivery = d;
+                            <tr>
+                                <td>@delivery.CreatedUtc.ToString("dd MMM HH:mm:ss")</td>
+                                <td><code>@delivery.EventType</code>@(delivery.IsTest ? " (test)" : "")</td>
+                                <td>@delivery.Status@(delivery.Status == WebhookDeliveryStatus.Pending && delivery.Attempts > 0 ? " - next try " + delivery.NextAttemptUtc.ToString("HH:mm:ss") : "")</td>
+                                <td>@delivery.Attempts</td>
+                                <td>@(delivery.LastError ?? (delivery.LastStatusCode is { } c ? c.ToString() : ""))</td>
+                                <td class="actions"><button type="button" class="secondary" @onclick="() => RedeliverAsync(ep.Id, delivery.Id)">Send again</button></td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                }
+            }
+        </div>
+    }
+}
+
+@code {
+    private IReadOnlyList<WebhookEndpointDto>? _endpoints;
+    private IReadOnlyList<WebhookEventTypeDto> _types = [];
+    private WebhookEndpointInput _input = new();
+    private PiranhaCommerce.Core.Paging.PagedResult<WebhookDeliveryDto>? _deliveries;
+    private WebhookDeliveryDto? _testResult;
+    private Guid? _editing, _confirmDelete, _open;
+    private string? _error, _secret, _secretFor;
+    private bool _busy, _all = true;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _endpoints = await Scope.RunAsync<IWebhookService, IReadOnlyList<WebhookEndpointDto>>(s => s.ListAsync());
+            _types = await Scope.RunAsync<IWebhookService, IReadOnlyList<WebhookEventTypeDto>>(s => Task.FromResult(s.EventTypes()));
+        }
+        catch (Exception ex) { _error = "Could not load webhooks: " + ex.Message; }
+    }
+
+    private void ToggleAll(bool on) { _all = on; if (on) _input.EventTypes = []; }
+    private void Toggle(string type, bool on) { _input.EventTypes.Remove(type); if (on) _input.EventTypes.Add(type); }
+
+    private void Edit(WebhookEndpointDto e)
+    {
+        _editing = e.Id;
+        _all = e.EventTypes[0] == "*";
+        _input = new WebhookEndpointInput { Url = e.Url, Description = e.Description, EventTypes = _all ? [] : e.EventTypes.ToList(), Active = e.Active };
+    }
+
+    private void Reset() { _editing = null; _input = new(); _all = true; }
+
+    private async Task SaveAsync()
+    {
+        _busy = true; _error = null;
+        try
+        {
+            var input = _input;
+            if (_editing is { } id) { if (await Scope.RunAsync<IWebhookService, WebhookEndpointDto?>(s => s.UpdateAsync(id, input)) is null) _error = "That endpoint no longer exists."; }
+            else
+            {
+                var created = await Scope.RunAsync<IWebhookService, WebhookEndpointDto>(s => s.CreateAsync(input));
+                _secret = created.Secret; _secretFor = created.Url;
+            }
+            if (_error is null) Reset();
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _error = "Could not save: " + ex.Message; }
+        finally { _busy = false; }
+        await LoadAsync();
+    }
+
+    private async Task RotateAsync(WebhookEndpointDto e)
+    {
+        _error = null;
+        try
+        {
+            var id = e.Id;
+            var changed = await Scope.RunAsync<IWebhookService, WebhookEndpointDto?>(s => s.RotateSecretAsync(id));
+            _secret = changed?.Secret; _secretFor = e.Url;
+        }
+        catch (Exception ex) { _error = "Could not change the secret: " + ex.Message; }
+        await LoadAsync();
+    }
+
+    private async Task TestAsync(WebhookEndpointDto e)
+    {
+        _busy = true; _error = null;
+        try
+        {
+            var id = e.Id;
+            _testResult = await Scope.RunAsync<IWebhookDispatcher, WebhookDeliveryDto?>(s => s.SendTestAsync(id));
+            if (_open == e.Id) await ShowDeliveriesAsync(e.Id, keepOpen: true);
+        }
+        catch (Exception ex) { _error = "Could not send the test: " + ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task ShowDeliveriesAsync(Guid id, bool keepOpen = false)
+    {
+        if (_open == id && !keepOpen) { _open = null; _deliveries = null; return; }
+        _open = id;
+        _deliveries = await Scope.RunAsync<IWebhookService, PiranhaCommerce.Core.Paging.PagedResult<WebhookDeliveryDto>?>(s => s.ListDeliveriesAsync(id, null, 1, 20));
+    }
+
+    private async Task RedeliverAsync(Guid endpointId, Guid deliveryId)
+    {
+        _error = null;
+        try { await Scope.RunAsync<IWebhookService, WebhookDeliveryDto?>(s => s.RedeliverAsync(deliveryId)); }
+        catch (Exception ex) { _error = "Could not queue it again: " + ex.Message; }
+        await ShowDeliveriesAsync(endpointId, keepOpen: true);
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        _confirmDelete = null; _error = null;
+        try { await Scope.RunAsync<IWebhookService, bool>(s => s.DeleteAsync(id)); if (_open == id) { _open = null; _deliveries = null; } }
+        catch (Exception ex) { _error = "Could not delete: " + ex.Message; }
+        await LoadAsync();
+    }
+}

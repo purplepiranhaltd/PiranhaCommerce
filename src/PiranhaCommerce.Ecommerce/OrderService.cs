@@ -1,3 +1,4 @@
+using PiranhaCommerce.Core.Events;
 using PiranhaCommerce.Core.Audit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -43,7 +44,7 @@ public interface IOrderService
 
 internal sealed partial class OrderService(
     PiranhaDbContext db, IStockService stock, ICustomerService customers, IOptions<EcommerceOptions> options,
-    IEmailSender email, OrderMailer mailer, ILogger<OrderService> logger, IAuditTrail? trail = null) : IOrderService
+    IEmailSender email, OrderMailer mailer, ILogger<OrderService> logger, IAuditTrail? trail = null, IEventPublisher? events = null) : IOrderService
 {
     public async Task<PagedResult<OrderSummaryDto>> ListAsync(int? page, int? pageSize, OrderStage? stage, string? search, CancellationToken ct = default)
     {
@@ -255,6 +256,11 @@ internal sealed partial class OrderService(
                     order.ShippingTaxRate = calc.Shipping.Rate;
                     order.Total = calc.Total;
                     db.Add(order);
+                    events?.Publish(EcommerceEvents.OrderPlaced, new
+                    {
+                        orderId, number, reference = OrderNumbers.Format(number), stage = order.Stage, currency, customerId = order.CustomerId, lineCount = lines.Count,
+                        subtotal = order.Subtotal, shippingTotal = order.ShippingTotal, discountTotal = order.DiscountTotal, taxTotal = order.TaxTotal, total = order.Total,
+                    });
 
                     // 4. Take the stock, in the same transaction. Short stock throws and rolls everything back, claim included.
                     var reference = OrderNumbers.Format(number);
@@ -280,6 +286,7 @@ internal sealed partial class OrderService(
                                 .ExecuteUpdateAsync(s => s.SetProperty(v => v.Balance, v => v.Balance - pays), token);
                             if (spent == 0) throw new PiranhaConflictException("The gift voucher balance changed. Check the basket and try again.");
                             db.Add(new VoucherEntry { VoucherId = voucherId, Amount = -pays, Kind = VoucherEntryKinds.Redeemed, OrderId = orderId, Reference = reference, Actor = actor, CreatedUtc = at });
+                            events?.Publish(EcommerceEvents.PaymentReceived, new { orderId, number, reference = OrderNumbers.Format(number), kind = PaymentKind.Payment, provider = "voucher", amount = pays, currency });
                             db.Add(new Payment
                             {
                                 OrderId = orderId, Kind = PaymentKind.Payment, Provider = "voucher", Amount = pays, Currency = currency,
@@ -327,7 +334,7 @@ internal sealed partial class OrderService(
     /// <param name="onlyIfUnpaid">Used by expiry: the order must still be at Placed and have no payment at all, checked after its row is held.</param>
     private async Task<OrderDto?> ChangeStageCoreAsync(Guid id, OrderStage to, string? actor, bool onlyIfUnpaid, CancellationToken ct)
     {
-        var current = await db.Set<Order>().AsNoTracking().Where(o => o.Id == id).Select(o => new { o.Stage, o.Number, o.PromotionId, o.VoucherId, o.VoucherPaid }).FirstOrDefaultAsync(ct);
+        var current = await db.Set<Order>().AsNoTracking().Where(o => o.Id == id).Select(o => new { o.Stage, o.Number, o.Currency, o.PromotionId, o.VoucherId, o.VoucherPaid }).FirstOrDefaultAsync(ct);
         if (current is null) return null;
         if (!OrderStages.Next(current.Stage).Contains(to))
             throw new PiranhaConflictException($"An order that is {current.Stage} cannot be moved to {to}.");
@@ -363,6 +370,11 @@ internal sealed partial class OrderService(
                         .ExecuteUpdateAsync(s => s.SetProperty(o => o.Stage, to).SetProperty(o => o.UpdatedUtc, (DateTimeOffset?)now), token);
                     if (moved == 0) throw new PiranhaConflictException("The order was changed by someone else. Reload it and try again.");
                     if (trail is not null) await trail.RecordUpdateAsync("Order", id.ToString(), current.Number.ToString(), [new AuditChange("Stage", from.ToString(), to.ToString())], token);
+                    if (events is not null)
+                    {
+                        events.Publish(EcommerceEvents.OrderStageChanged, new { orderId = id, number = current.Number, reference = OrderNumbers.Format(current.Number), previousStage = from, stage = to });
+                        await db.SaveChangesAsync(token);
+                    }
 
                     // A payment is booked under this same row lock, so it is either seen here (and this rolls back) or is refused as a payment on a cancelled order.
                     if (onlyIfUnpaid && await db.Set<Payment>().AsNoTracking().AnyAsync(p => p.OrderId == id, token))
@@ -384,6 +396,7 @@ internal sealed partial class OrderService(
                             await db.Set<OrderLine>().Where(l => l.OrderId == id && l.QuantityShipped < l.Quantity)
                                 .ExecuteUpdateAsync(s => s.SetProperty(l => l.QuantityShipped, l => l.Quantity), token);
                             var shipmentId = Guid.NewGuid();
+                            events?.Publish(EcommerceEvents.ShipmentCreated, new { shipmentId, orderId = id, number = current.Number, reference = OrderNumbers.Format(current.Number), lineCount = unsent.Count });
                             db.Add(new Shipment
                             {
                                 Id = shipmentId, OrderId = id, ShippedUtc = now, Actor = actor,
@@ -422,6 +435,7 @@ internal sealed partial class OrderService(
                             await db.Set<GiftVoucher>().Where(v => v.Id == voucherId)
                                 .ExecuteUpdateAsync(s => s.SetProperty(v => v.Balance, v => v.Balance + credit), token);
                             db.Add(new VoucherEntry { VoucherId = voucherId, Amount = credit, Kind = VoucherEntryKinds.Returned, OrderId = id, Reference = reference, Actor = actor, CreatedUtc = at });
+                            events?.Publish(EcommerceEvents.PaymentRefunded, new { orderId = id, number = current.Number, reference = OrderNumbers.Format(current.Number), kind = PaymentKind.Refund, provider = "voucher", amount = credit, currency = current.Currency });
                             db.Add(new Payment
                             {
                                 OrderId = id, Kind = PaymentKind.Refund, Provider = "voucher", Amount = credit,

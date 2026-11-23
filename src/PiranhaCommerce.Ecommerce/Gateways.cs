@@ -1,3 +1,4 @@
+using PiranhaCommerce.Core.Events;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -159,7 +160,7 @@ public interface IGatewayService
 }
 
 internal sealed class GatewayService(
-    PiranhaDbContext db, IEnumerable<IPaymentGateway> gateways, IPaymentService payments, OrderMailer mailer, ILogger<GatewayService> logger) : IGatewayService
+    PiranhaDbContext db, IEnumerable<IPaymentGateway> gateways, IPaymentService payments, OrderMailer mailer, ILogger<GatewayService> logger, IEventPublisher? events = null) : IGatewayService
 {
     private IPaymentGateway? Find(string provider) =>
         gateways.FirstOrDefault(g => string.Equals(g.Name, provider?.Trim(), StringComparison.OrdinalIgnoreCase));
@@ -323,14 +324,30 @@ internal sealed class GatewayService(
                 ClosedUtc = newStatus == DisputeStatus.Open ? null : now, Fee = e.Fee,
             };
             db.Add(dispute);
+            events?.Publish(newStatus == DisputeStatus.Open ? EcommerceEvents.DisputeOpened : EcommerceEvents.DisputeClosed,
+                new { disputeId = dispute.Id, orderId = e.OrderId, provider, providerReference = dispute.Reference, status = newStatus, amount = dispute.Amount, currency = dispute.Currency, respondBy = dispute.RespondByUtc });
             try { await db.SaveChangesAsync(ct); changed = true; opened = newStatus == DisputeStatus.Open; }
             catch (DbUpdateException) { db.ChangeTracker.Clear(); } // a simultaneous replay recorded it first
         }
         else if (newStatus != DisputeStatus.Open && existing.Status == DisputeStatus.Open)
         {
             // One conditional update: only an open dispute can close, and only once.
-            changed = await db.Set<PaymentDispute>().Where(d => d.Id == existing.Id && d.Status == DisputeStatus.Open)
-                .ExecuteUpdateAsync(s => s.SetProperty(d => d.Status, newStatus).SetProperty(d => d.ClosedUtc, (DateTimeOffset?)now), ct) > 0;
+            // The change and its event are one transaction, so a closed dispute always has its event.
+            changed = await db.Database.CreateExecutionStrategy().ExecuteInTransactionAsync(
+                async token =>
+                {
+                    db.ChangeTracker.Clear();
+                    var closed = await db.Set<PaymentDispute>().Where(d => d.Id == existing.Id && d.Status == DisputeStatus.Open)
+                        .ExecuteUpdateAsync(s => s.SetProperty(d => d.Status, newStatus).SetProperty(d => d.ClosedUtc, (DateTimeOffset?)now), token) > 0;
+                    if (closed && events is not null)
+                    {
+                        events.Publish(EcommerceEvents.DisputeClosed, new { disputeId = existing.Id, orderId = e.OrderId, provider, providerReference = e.Reference, status = newStatus });
+                        await db.SaveChangesAsync(token);
+                    }
+                    return closed;
+                },
+                async token => await db.Set<PaymentDispute>().AsNoTracking().AnyAsync(d => d.Id == existing.Id && d.Status == newStatus, token),
+                ct);
         }
 
         // The provider's fee can grow or be returned as the dispute goes on: keep the latest figure it gave.

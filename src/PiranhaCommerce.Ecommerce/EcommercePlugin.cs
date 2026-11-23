@@ -20,6 +20,7 @@ public sealed class EcommercePlugin : IPiranhaPlugin
         services.AddSingleton<IModelContributor, EcommerceModelContributor>();
         services.AddSingleton<PiranhaCommerce.Core.Email.IEmailTemplateContributor, EcommerceEmailContributor>();
         services.AddScoped<IPromotionService, PromotionService>();
+        services.AddSingleton<PiranhaCommerce.Core.Events.IEventTypeContributor, EcommerceEventTypes>();
         services.AddScoped<IDiscountRuleService, DiscountRuleService>();
         services.AddSingleton<IApiEndpointContributor, DiscountRuleEndpoints>();
         services.AddScoped<IVariantCreatedHandler, VariantListingHandler>();

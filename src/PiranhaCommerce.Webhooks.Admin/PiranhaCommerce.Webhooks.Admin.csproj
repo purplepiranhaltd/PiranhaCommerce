@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <Description>Admin page for Piranha Commerce webhooks: endpoints, event choices, delivery log, test and redeliver.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\PiranhaCommerce.Admin\PiranhaCommerce.Admin.csproj" />
+    <ProjectReference Include="..\PiranhaCommerce.Webhooks\PiranhaCommerce.Webhooks.csproj" />
+  </ItemGroup>
+</Project>
