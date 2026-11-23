@@ -10,6 +10,7 @@ using PiranhaCommerce.Ecommerce;
 using PiranhaCommerce.Ecommerce.Admin;
 using PiranhaCommerce.Example.Warranty;
 using PiranhaCommerce.Web.SampleData;
+using PiranhaCommerce.Web.Shop;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -50,6 +51,8 @@ piranha
 
 builder.Services.Configure<SampleDataOptions>(builder.Configuration.GetSection(SampleDataOptions.SectionName));
 builder.Services.AddSingleton<SampleDataSeeder>();
+builder.Services.AddScoped<ShopFront>();
+builder.Services.Configure<ShopOptions>(builder.Configuration.GetSection(ShopOptions.SectionName));
 
 var app = builder.Build();
 
@@ -76,7 +79,8 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapPiranhaApi();
 app.MapPiranhaAdmin();
-app.MapGet("/", () => Results.Redirect("/admin"));
+// The sample shop front: server-rendered pages that call the shop services in-process (no JavaScript needed).
+app.MapRazorComponents<ShopApp>();
 PiranhaCommerce.Web.ReturnPages.Map(app); // where a payment gateway sends the shopper back to
 
 app.Run();

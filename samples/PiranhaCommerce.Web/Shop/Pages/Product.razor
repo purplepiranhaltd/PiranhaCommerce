@@ -1,0 +1,151 @@
+@page "/product/{Slug}"
+@inject ShopFront Front
+@inject Microsoft.Extensions.Options.IOptions<ShopOptions> Shop
+@inject Microsoft.Extensions.Options.IOptions<EcommerceOptions> Ecommerce
+
+@if (_product is null)
+{
+    <PageTitle>Product not found - @Shop.Value.Name</PageTitle>
+    <div class="wrap">
+        <h1>Product not found</h1>
+        <p>We could not find that product. <a href="/shop">Browse the shop</a>.</p>
+    </div>
+}
+else
+{
+    <PageTitle>@(_product.MetaTitle ?? _product.Name)</PageTitle>
+    <HeadContent>
+        @if (_product.MetaDescription is { Length: > 0 } meta) { <meta name="description" content="@meta" /> }
+    </HeadContent>
+
+    <div class="wrap product">
+        <p class="crumbs">
+            <a href="/shop">Shop</a>
+            @foreach (var c in _product.Categories.Take(1)) { <text> / <a href="/shop/@c.Slug">@c.Name</a></text> }
+        </p>
+
+        <div class="product-grid">
+            <div class="gallery">
+                @if (_pictures.Count > 0)
+                {
+                    <img class="main" src="@Money.Image(_pictures[0].Url, 900)" alt="@(_pictures[0].AltText ?? _product.Name)" width="900" height="900" />
+                    @if (_pictures.Count > 1)
+                    {
+                        <ul class="thumbs">
+                            @foreach (var i in _pictures.Skip(1)) { <li><img src="@Money.Image(i.Url, 300)" alt="@(i.AltText ?? _product.Name)" width="300" height="300" loading="lazy" /></li> }
+                        </ul>
+                    }
+                }
+            </div>
+
+            <div class="info">
+                <h1>@_product.Name</h1>
+                @if (_product.Reviews.Count > 0)
+                {
+                    <p class="rating"><span aria-hidden="true">@Money.Stars(_product.Reviews.Average)</span>
+                        <span class="muted">@_product.Reviews.Average.ToString("0.0") (@_product.Reviews.Count @(_product.Reviews.Count == 1 ? "review" : "reviews"))</span></p>
+                }
+
+                <p class="price big">
+                    <strong>@Money.Format(Money.Now(_price), Currency)</strong>
+                    @if (_price.Discounted) { <s class="muted">@Money.Format(Money.Was(_price), Currency)</s> <span class="badge sale">Sale</span> }
+                    @if (_price.PriceIncludingTax is not null) { <span class="muted vat">includes VAT</span> }
+                </p>
+                @if (_price.Breaks is { Count: > 0 } breaks)
+                {
+                    <ul class="breaks">
+                        @foreach (var b in breaks) { <li>Buy @b.MinQuantity or more: @Money.Format(b.UnitPriceIncludingTax ?? b.UnitPrice, Currency) each</li> }
+                    </ul>
+                }
+
+                @if (_product.Options.Count > 0)
+                {
+                    <div class="shades">
+                        <h2>@_product.Options[0].Name: <span class="chosen">@_selected?.Values.FirstOrDefault()?.Value</span></h2>
+                        <ul>
+                            @foreach (var v in _product.Variants)
+                            {
+                                var thumb = v.Images.FirstOrDefault() ?? _product.Images.FirstOrDefault();
+                                var label = v.Values.FirstOrDefault()?.Value;
+                                <li class="@(v.ProductId == _selected?.ProductId ? "on" : "") @(v.Available ? "" : "sold")">
+                                    <a href="/product/@Slug?variant=@v.ProductId" title="@(v.Available ? label : label + " (sold out)")">
+                                        @if (thumb is not null) { <img src="@Money.Image(thumb.Url, 96)" alt="" width="48" height="48" /> }
+                                        <span>@label</span>
+                                    </a>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                <p class="stock @(_available ? "in" : "out")">
+                    @if (!_available) { <text>Sold out</text> }
+                    else if (_left is > 0) { <text>Only @_left left</text> }
+                    else { <text>In stock</text> }
+                </p>
+                @if (_product.MinOrderQuantity is > 1) { <p class="muted">Minimum order: @_product.MinOrderQuantity</p> }
+
+                @foreach (var line in (_product.Description ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries)) { <p>@line</p> }
+                @if (_product.Sku is not null) { <p class="muted">Code: @(_selected?.Sku ?? _product.Sku)</p> }
+            </div>
+        </div>
+
+        @if (_suggestions.Count > 0)
+        {
+            <section>
+                <h2>You may also like</h2>
+                <div class="grid">
+                    @foreach (var s in _suggestions)
+                    {
+                        _suggestionPrices.TryGetValue(s.ProductId, out var p);
+                        <ProductCard Name="@s.Name" Slug="@s.Slug" ImageUrl="@s.Image?.Url" ImageAlt="@(s.Image?.AltText ?? s.Name)"
+                                     Now="@(p is null ? s.Price : Money.Now(p))" Was="@(p is null ? s.RegularPrice : Money.Was(p))" Currency="@Currency" Available="@s.Available" />
+                    }
+                </div>
+            </section>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public string Slug { get; set; } = "";
+    [SupplyParameterFromQuery(Name = "variant")] private Guid? VariantId { get; set; }
+    [CascadingParameter] private HttpContext? Context { get; set; }
+
+    private ShopProductDto? _product;
+    private ShopVariantDto? _selected;
+    private ShopperPriceDto _price = default!;
+    private IReadOnlyList<ShopImageDto> _pictures = [];
+    private bool _available;
+    private int? _left;
+    private IReadOnlyList<SuggestedProductDto> _suggestions = [];
+    private Dictionary<Guid, ShopperPriceDto> _suggestionPrices = [];
+
+    private string Currency => Ecommerce.Value.Currency;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var country = Shop.Value.CountryCode;
+        _product = await Front.ProductAsync(Slug, country);
+        if (_product is null)
+        {
+            if (Context is not null) Context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        // The shade asked for, else the one the link named, else the first that can be bought.
+        var wanted = VariantId ?? _product.SelectedVariantId;
+        _selected = _product.Variants.FirstOrDefault(v => v.ProductId == wanted)
+            ?? _product.Variants.FirstOrDefault(v => v.Available) ?? _product.Variants.FirstOrDefault();
+
+        _price = _selected?.Price ?? _product.Price;
+        _available = _selected?.Available ?? _product.Available;
+        _left = _selected is not null ? _selected.Left : _product.Left;
+        // The shade's own pictures come first, then the product's.
+        _pictures = (_selected?.Images ?? []).Concat(_product.Images).DistinctBy(i => i.Id).ToList();
+
+        _suggestions = await Front.RelatedAsync(_product.Id);
+        _suggestionPrices = _suggestions.Count == 0 ? [] :
+            await Front.PricesAsync(_suggestions.Select(s => s.ProductId).ToList(), country);
+    }
+}

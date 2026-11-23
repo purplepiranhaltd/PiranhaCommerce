@@ -74,7 +74,7 @@ internal sealed class WishlistService(PiranhaDbContext db, IOptions<EcommerceOpt
         var prices = (await pricing.PricesAsync(customerId, ids, null, ct)).ToDictionary(x => x.ProductId);
         var images = await ShopImages.FirstAsync(db, ids, ct);
         var published = (await db.Set<ProductListing>().AsNoTracking().Where(l => ids.Contains(l.ProductId) && l.Published).Select(l => l.ProductId).ToListAsync(ct)).ToHashSet();
-        var inStock = (await db.Set<StockLevel>().AsNoTracking().Where(l => ids.Contains(l.ProductId) && l.LocationId == location && l.Quantity > 0).Select(l => l.ProductId).ToListAsync(ct)).ToHashSet();
+        var inStock = await ShopStock.InStockAsync(db, ids, location, ct);
         return items.Where(i => products.ContainsKey(i.ProductId)).Select(i =>
         {
             var p = products[i.ProductId];

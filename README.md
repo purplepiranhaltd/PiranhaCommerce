@@ -48,7 +48,7 @@ The documentation covers installation, your first store, configuration, every fe
 Requires the .NET 10 SDK and SQL Server LocalDB.
 
 ```
-dotnet run --project samples/PiranhaCommerce.Web      # http://localhost:5280/admin
+dotnet run --project samples/PiranhaCommerce.Web      # http://localhost:5280/ (shop) and /admin
 dotnet build
 dotnet test
 ```

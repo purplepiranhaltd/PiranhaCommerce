@@ -1,0 +1,35 @@
+@inherits LayoutComponentBase
+@inject ShopFront Front
+@inject Microsoft.Extensions.Options.IOptions<ShopOptions> Options
+
+<header class="top">
+    <div class="wrap bar">
+        <a class="brand" href="/">@Options.Value.Name</a>
+        <form class="search" method="get" action="/search" role="search">
+            <input type="search" name="q" placeholder="Search lipstick, mascara, serum..." aria-label="Search the shop" />
+            <button type="submit">Search</button>
+        </form>
+    </div>
+    <nav class="wrap cats" aria-label="Categories">
+        <a href="/shop">All products</a>
+        @foreach (var c in _categories)
+        {
+            <a href="/shop/@c.Slug">@c.Name</a>
+        }
+    </nav>
+</header>
+
+<main>@Body</main>
+
+<footer class="foot">
+    <div class="wrap">
+        <p><strong>@Options.Value.Name</strong> is an invented brand: the sample shop front for
+            <a href="https://piranhacommerce.com">Piranha Commerce</a>. Nothing here is for sale. <a href="/admin">Staff sign-in</a></p>
+    </div>
+</footer>
+
+@code {
+    private IReadOnlyList<ShopCategoryDto> _categories = [];
+
+    protected override async Task OnInitializedAsync() => _categories = await Front.CategoriesAsync();
+}

@@ -1,10 +1,25 @@
 ---
-title: The sample shop and its data
+title: The sample shop
 order: 5
-description: The invented cosmetics catalogue the sample host fills itself with, and how to switch it on or off.
+description: The sample shop front, and the invented cosmetics catalogue the sample host fills itself with.
 ---
 
-The sample host (`samples/PiranhaCommerce.Web`) can fill an empty shop with a small, invented cosmetics catalogue so you have something real to browse, price and buy. The brand, products and reviews are made up for the sample. The pictures are drawn when the data is created, so there are no image files and no one's photographs.
+The sample host (`samples/PiranhaCommerce.Web`) is a working shop as well as an admin and an API: run it and open `http://localhost:5280/`. The shop front is ordinary server-rendered Blazor pages in the `Shop` folder (no JavaScript is needed), and the admin is at `/admin` (the footer links to it).
+
+## What the shop front does today
+
+| Page | Address | Shows |
+|---|---|---|
+| Home | `/` | Categories, what is on sale, newest products |
+| Listing | `/shop`, `/shop/{category}` | A category with its sub-categories, sorted, filtered to what is in stock, paged |
+| Search | `/search?q=...` | Products matching every word |
+| Product | `/product/{slug}` | Pictures, price with VAT, sale and quantity prices, a picker for shades or sizes (`?variant=...`), stock, reviews total and suggestions |
+
+Each page gets its data from the same services the storefront API uses (`IShopCatalogueService`, `IProductRelationService`, `IGroupPricingService`), so what the shop shows is exactly what [the API returns](../guides/storefront.md). Prices are shown with VAT for the country in `Piranha:Shop:CountryCode` (default `GB`). The basket, checkout and account pages are the next part of the shop front and are not built yet.
+
+## The sample data
+
+The sample host can fill an empty shop with a small, invented cosmetics catalogue so you have something real to browse, price and buy. The brand, products and reviews are made up for the sample. The pictures are drawn when the data is created, so there are no image files and no one's photographs.
 
 ## Switching it on
 

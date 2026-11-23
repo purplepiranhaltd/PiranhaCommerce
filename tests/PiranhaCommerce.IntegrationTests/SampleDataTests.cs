@@ -37,6 +37,10 @@ public class SampleDataTests(PiranhaFactory factory) : IClassFixture<PiranhaFact
         Assert.Single(lipstick.Variants, v => !v.Available);
         Assert.All(lipstick.Variants, v => Assert.NotEmpty(v.Images));
 
+        // A product that comes in shades is suggested as available while any shade is in stock.
+        var suggested = await shop.GetFromJsonAsync<SuggestionsDto>($"/api/v1/storefront/products/{lipstick.Id}/suggestions", Json);
+        Assert.Contains(suggested!.Related, r => r.Name == "Satin Cream Lipstick" && r.Available);
+
         // The eye make-up sale and VAT show up in prices.
         var mascara = await shop.GetFromJsonAsync<ShopProductDto>("/api/v1/storefront/products/by-slug/lash-lift-mascara?countryCode=GB", Json);
         Assert.Equal((12.50m, 10.00m, true, 20m), (mascara!.Price.RegularPrice, mascara.Price.Price, mascara.Price.Discounted, mascara.Price.TaxRate));

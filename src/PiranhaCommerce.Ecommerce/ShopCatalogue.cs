@@ -83,6 +83,22 @@ public interface IShopCatalogueService
     Task<ShopProductDto?> GetBySlugAsync(string slug, Guid? customerId, string? countryCode = null, CancellationToken ct = default);
 }
 
+internal static class ShopStock
+{
+    /// <summary>
+    /// Which of these products can be bought now: they have stock where online orders take it from, or (for a product that comes in options,
+    /// which holds no stock itself) any of their variants does.
+    /// </summary>
+    public static async Task<HashSet<Guid>> InStockAsync(PiranhaDbContext db, IReadOnlyCollection<Guid> ids, Guid location, CancellationToken ct)
+    {
+        var own = await db.Set<StockLevel>().AsNoTracking().Where(l => ids.Contains(l.ProductId) && l.LocationId == location && l.Quantity > 0).Select(l => l.ProductId).ToListAsync(ct);
+        var viaVariants = await db.Set<ProductVariant>().AsNoTracking().Where(v => ids.Contains(v.ParentProductId)
+                && db.Set<StockLevel>().Any(l => l.ProductId == v.ProductId && l.LocationId == location && l.Quantity > 0))
+            .Select(v => v.ParentProductId).ToListAsync(ct);
+        return [.. own, .. viaVariants];
+    }
+}
+
 internal static class ShopImages
 {
     /// <summary>Each product's main picture, in one query.</summary>

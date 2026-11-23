@@ -1,0 +1,14 @@
+<Router AppAssembly="typeof(ShopApp).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="routeData" DefaultLayout="typeof(ShopLayout)" />
+    </Found>
+    <NotFound>
+        <ShopLayout>
+            <PageTitle>Page not found</PageTitle>
+            <div class="wrap narrow">
+                <h1>Page not found</h1>
+                <p>There is nothing at this address. <a href="/shop">Browse the shop</a>.</p>
+            </div>
+        </ShopLayout>
+    </NotFound>
+</Router>

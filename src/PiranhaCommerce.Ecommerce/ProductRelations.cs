@@ -171,7 +171,7 @@ internal sealed class ProductRelationService(PiranhaDbContext db, IOptions<Ecomm
         if (ids.Count == 0) return [];
         var location = options.Value.StockLocationId ?? StockLocations.DefaultId;
         var published = (await db.Set<ProductListing>().AsNoTracking().Where(l => ids.Contains(l.ProductId) && l.Published).Select(l => l.ProductId).ToListAsync(ct)).ToHashSet();
-        var inStock = (await db.Set<StockLevel>().AsNoTracking().Where(l => ids.Contains(l.ProductId) && l.LocationId == location && l.Quantity > 0).Select(l => l.ProductId).ToListAsync(ct)).ToHashSet();
+        var inStock = await ShopStock.InStockAsync(db, ids, location, ct);
         var products = (await db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).Select(p => new { p.Id, p.Name, p.Sku, p.Slug }).ToListAsync(ct)).Where(p => published.Contains(p.Id)).ToList();
         var shownIds = products.Select(p => p.Id).ToList();
         var prices = (await pricing.PricesAsync(customerId, shownIds, null, ct)).ToDictionary(x => x.ProductId);

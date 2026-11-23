@@ -1,0 +1,90 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Microsoft.Extensions.DependencyInjection;
+using PiranhaCommerce.Ecommerce;
+using PiranhaCommerce.Web.SampleData;
+
+namespace PiranhaCommerce.IntegrationTests;
+
+/// <summary>The sample shop front's browse pages, fetched as a browser would.</summary>
+public class ShopPagesTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+{
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
+
+    private async Task<HttpClient> SeededShopAsync()
+    {
+        await factory.Services.GetRequiredService<SampleDataSeeder>().SeedAsync();
+        return factory.CreateClient();
+    }
+
+    /// <summary>The page as text. Blazor writes characters such as the pound sign as entities.</summary>
+    private static async Task<string> Page(HttpClient shop, string url) => WebUtility.HtmlDecode(await shop.GetStringAsync(url));
+
+    [Fact]
+    public async Task Home_category_search_and_paging_pages_show_the_catalogue()
+    {
+        if (PiranhaFactory.UsesSharedDatabase) return;
+        var shop = await SeededShopAsync();
+
+        var home = await Page(shop, "/");
+        Assert.Contains("Colour you can count on", home);
+        Assert.Contains("On offer now", home);            // the eye sale
+        Assert.Contains("Lash Lift Mascara", home);
+
+        var lips = await Page(shop, "/shop/lips");
+        Assert.Contains("Velvet Matte Lipstick", lips);
+        Assert.Contains("Hydra Shine Lip Gloss", lips);   // sub-categories are included
+        Assert.DoesNotContain("Lash Lift Mascara", lips);
+        Assert.Contains("/shop/lip-gloss", lips);         // and linked as pills
+
+        var found = await Page(shop, "/search?q=serum");
+        Assert.Contains("Vitamin C Serum 30ml", found);
+        Assert.DoesNotContain("Velvet Matte Lipstick", found);
+        Assert.Contains("Nothing found", await Page(shop, "/search?q=zzzz"));
+
+        var firstPage = await Page(shop, "/shop?sort=PriceHighToLow");
+        Assert.Contains("Page 1 of 2", firstPage);
+        Assert.Contains("page=2", firstPage);
+        Assert.Contains("Page 2 of 2", await Page(shop, "/shop?sort=PriceHighToLow&page=2"));
+
+        Assert.Equal(HttpStatusCode.NotFound, (await shop.GetAsync("/shop/not-a-category")).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_product_page_shows_shades_the_chosen_shade_its_price_with_vat_and_what_is_sold_out()
+    {
+        if (PiranhaFactory.UsesSharedDatabase) return;
+        var shop = await SeededShopAsync();
+
+        var page = await Page(shop, "/product/velvet-matte-lipstick");
+        Assert.Contains("Velvet Matte Lipstick | Petalwick", page);   // page title text from the product
+        Assert.Contains("£16.80", page);                              // 14.00 + 20% VAT
+        Assert.Contains("includes VAT", page);
+        Assert.Contains("Shade: <span class=\"chosen\">Ruby Red</span>", page);   // the first shade in stock is chosen
+        Assert.Contains("(3 reviews)", page);
+        Assert.Contains("You may also like", page);
+        Assert.Contains("Satin Cream Lipstick", page);
+        Assert.DoesNotContain("Sold out</span>", page.Split("You may also like")[1]); // a suggestion with shades in stock is not "sold out"
+
+        // A link to a shade opens that shade: the one almost gone, and the one that is sold out.
+        var product = await shop.GetFromJsonAsync<ShopProductDto>("/api/v1/storefront/products/by-slug/velvet-matte-lipstick", Json);
+        var low = product!.Variants.Single(v => v.Left is > 0);
+        Assert.Contains($"Only {low.Left} left", await Page(shop, $"/product/velvet-matte-lipstick?variant={low.ProductId}"));
+        var gone = product.Variants.Single(v => !v.Available);
+        var soldOut = await Page(shop, $"/product/velvet-matte-lipstick?variant={gone.ProductId}");
+        Assert.Contains("<p class=\"stock out\">", soldOut);
+
+        // A sale shows the old price, and quantity prices are listed.
+        var mascara = await Page(shop, "/product/lash-lift-mascara");
+        Assert.Contains("£12.00", mascara);
+        Assert.Contains("£15.00", mascara);
+        var liner = await Page(shop, "/product/precision-lip-liner");
+        Assert.Contains("Buy 3 or more", liner);
+
+        // A product with no shades; and one that does not exist.
+        Assert.Contains("In stock", await Page(shop, "/product/gentle-cream-cleanser"));
+        Assert.Equal(HttpStatusCode.NotFound, (await shop.GetAsync("/product/nothing-here")).StatusCode);
+    }
+}

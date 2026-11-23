@@ -1,0 +1,64 @@
+@page "/"
+@inject ShopFront Front
+@inject Microsoft.Extensions.Options.IOptions<ShopOptions> Shop
+@inject Microsoft.Extensions.Options.IOptions<EcommerceOptions> Ecommerce
+
+<PageTitle>@Shop.Value.Name - make-up and skincare</PageTitle>
+
+<section class="hero">
+    <div class="wrap">
+        <h1>Colour you can count on</h1>
+        <p>Lipsticks in every shade, foundation in eight, and gentle skincare. An invented brand for the Piranha Commerce sample shop.</p>
+        <a class="button" href="/shop/lips">Shop lips</a>
+        <a class="button ghost" href="/shop">Shop everything</a>
+    </div>
+</section>
+
+<section class="wrap">
+    <h2>Shop by category</h2>
+    <ul class="tiles">
+        @foreach (var c in _categories)
+        {
+            <li><a href="/shop/@c.Slug"><strong>@c.Name</strong><span class="muted">@c.ProductCount @(c.ProductCount == 1 ? "product" : "products")</span></a></li>
+        }
+    </ul>
+</section>
+
+@if (_offers.Count > 0)
+{
+    <section class="wrap">
+        <h2>On offer now</h2>
+        <div class="grid">
+            @foreach (var p in _offers)
+            {
+                <ProductCard Name="@p.Name" Slug="@p.Slug" ImageUrl="@p.Image?.Url" ImageAlt="@(p.Image?.AltText ?? p.Name)" Now="@Money.Now(p.Price)" Was="@Money.Was(p.Price)"
+                             Currency="@Ecommerce.Value.Currency" From="@p.HasVariants" Available="@p.Available" Left="@p.Left" ReviewCount="@p.ReviewCount" ReviewAverage="@p.ReviewAverage" />
+            }
+        </div>
+    </section>
+}
+
+<section class="wrap">
+    <h2>New in</h2>
+    <div class="grid">
+        @foreach (var p in _newest)
+        {
+            <ProductCard Name="@p.Name" Slug="@p.Slug" ImageUrl="@p.Image?.Url" ImageAlt="@(p.Image?.AltText ?? p.Name)" Now="@Money.Now(p.Price)" Was="@Money.Was(p.Price)"
+                         Currency="@Ecommerce.Value.Currency" From="@p.HasVariants" Available="@p.Available" Left="@p.Left" ReviewCount="@p.ReviewCount" ReviewAverage="@p.ReviewAverage" />
+        }
+    </div>
+</section>
+
+@code {
+    private IReadOnlyList<ShopCategoryDto> _categories = [];
+    private IReadOnlyList<ShopProductSummaryDto> _newest = [];
+    private List<ShopProductSummaryDto> _offers = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var country = Shop.Value.CountryCode;
+        _categories = await Front.CategoriesAsync();
+        _newest = (await Front.ListAsync(new ShopProductQuery { Sort = ShopSort.Newest, PageSize = 8, CountryCode = country })).Items;
+        _offers = (await Front.ListAsync(new ShopProductQuery { PageSize = 50, CountryCode = country })).Items.Where(p => p.Price.Discounted).Take(4).ToList();
+    }
+}

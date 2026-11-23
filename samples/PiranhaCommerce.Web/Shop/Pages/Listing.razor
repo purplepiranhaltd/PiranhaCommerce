@@ -1,0 +1,140 @@
+@page "/shop"
+@page "/shop/{Category}"
+@page "/search"
+@inject ShopFront Front
+@inject Microsoft.Extensions.Options.IOptions<ShopOptions> Shop
+@inject Microsoft.Extensions.Options.IOptions<EcommerceOptions> Ecommerce
+@inject NavigationManager Nav
+
+<PageTitle>@Heading - @Shop.Value.Name</PageTitle>
+<HeadContent>
+    @if (_current?.MetaDescription is { Length: > 0 } meta) { <meta name="description" content="@meta" /> }
+</HeadContent>
+
+<div class="wrap">
+    @if (_missing)
+    {
+        <h1>Category not found</h1>
+        <p>There is no such category. <a href="/shop">Browse everything</a>.</p>
+    }
+    else
+    {
+        <h1>@Heading</h1>
+        @if (_current?.Description is { Length: > 0 } d) { <p class="lead">@d</p> }
+        @if (_current is { Children.Count: > 0 })
+        {
+            <ul class="pills">
+                @foreach (var c in _current.Children) { <li><a href="/shop/@c.Slug">@c.Name <span class="muted">(@c.ProductCount)</span></a></li> }
+            </ul>
+        }
+
+        <form class="filters" method="get" action="@Path">
+            @if (!string.IsNullOrWhiteSpace(Q)) { <input type="hidden" name="q" value="@Q" /> }
+            <label>Sort by
+                <select name="sort">
+                    <option value="Name" selected="@(SortKey == ShopSort.Name)">Name</option>
+                    <option value="PriceLowToHigh" selected="@(SortKey == ShopSort.PriceLowToHigh)">Price: low to high</option>
+                    <option value="PriceHighToLow" selected="@(SortKey == ShopSort.PriceHighToLow)">Price: high to low</option>
+                    <option value="Newest" selected="@(SortKey == ShopSort.Newest)">Newest</option>
+                </select>
+            </label>
+            <label class="check"><input type="checkbox" name="stock" value="true" checked="@InStock" /> In stock only</label>
+            <button type="submit">Apply</button>
+            @if (_result is not null) { <span class="muted count">@_result.TotalCount @(_result.TotalCount == 1 ? "product" : "products")</span> }
+        </form>
+
+        @if (_result is { Items.Count: 0 })
+        {
+            <p class="empty">Nothing found. Try fewer words, or <a href="/shop">browse everything</a>.</p>
+        }
+        else if (_result is not null)
+        {
+            <div class="grid">
+                @foreach (var p in _result.Items)
+                {
+                    <ProductCard Name="@p.Name" Slug="@p.Slug" ImageUrl="@p.Image?.Url" ImageAlt="@(p.Image?.AltText ?? p.Name)" Now="@Money.Now(p.Price)" Was="@Money.Was(p.Price)"
+                                 Currency="@Ecommerce.Value.Currency" From="@p.HasVariants" Available="@p.Available" Left="@p.Left" ReviewCount="@p.ReviewCount" ReviewAverage="@p.ReviewAverage" />
+                }
+            </div>
+
+            @if (Pages > 1)
+            {
+                <nav class="paging" aria-label="Pages">
+                    @if (CurrentPage > 1) { <a href="@PageLink(CurrentPage - 1)" rel="prev">Previous</a> }
+                    <span>Page @CurrentPage of @Pages</span>
+                    @if (CurrentPage < Pages) { <a href="@PageLink(CurrentPage + 1)" rel="next">Next</a> }
+                </nav>
+            }
+        }
+    }
+</div>
+
+@code {
+    private const int PageSize = 12;
+
+    [Parameter] public string? Category { get; set; }
+    [SupplyParameterFromQuery(Name = "q")] private string? Q { get; set; }
+    [SupplyParameterFromQuery(Name = "sort")] private string? Sort { get; set; }
+    [SupplyParameterFromQuery(Name = "stock")] private bool InStock { get; set; }
+    [SupplyParameterFromQuery(Name = "page")] private int? PageNumber { get; set; }
+
+    [CascadingParameter] private HttpContext? Context { get; set; }
+
+    private PiranhaCommerce.Core.Paging.PagedResult<ShopProductSummaryDto>? _result;
+    private ShopCategoryDto? _current;
+    private bool _missing;
+
+    private ShopSort SortKey => Enum.TryParse<ShopSort>(Sort, true, out var s) ? s : ShopSort.Name;
+    private int CurrentPage => Math.Max(1, PageNumber ?? 1);
+    private int Pages => _result is null ? 1 : (int)Math.Ceiling(_result.TotalCount / (double)PageSize);
+    private string Path => Category is not null ? "/shop/" + Uri.EscapeDataString(Category)
+        : Nav.ToBaseRelativePath(Nav.Uri).StartsWith("search", StringComparison.OrdinalIgnoreCase) ? "/search" : "/shop";
+    private string Heading => _current?.Name ?? (string.IsNullOrWhiteSpace(Q) ? "All products" : $"Search: {Q}");
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _missing = false;
+        _current = null;
+        if (Category is not null)
+        {
+            _current = Find(await Front.CategoriesAsync(), Category);
+            if (_current is null)
+            {
+                _missing = true;
+                if (Context is not null) Context.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+        }
+
+        _result = await Front.ListAsync(new ShopProductQuery
+        {
+            CategorySlug = Category,
+            Search = Q,
+            Sort = SortKey,
+            InStockOnly = InStock,
+            Page = CurrentPage,
+            PageSize = PageSize,
+            CountryCode = Shop.Value.CountryCode,
+        });
+    }
+
+    private static ShopCategoryDto? Find(IEnumerable<ShopCategoryDto> tree, string slug)
+    {
+        foreach (var c in tree)
+        {
+            if (string.Equals(c.Slug, slug, StringComparison.OrdinalIgnoreCase)) return c;
+            if (Find(c.Children, slug) is { } inner) return inner;
+        }
+        return null;
+    }
+
+    private string PageLink(int page)
+    {
+        var query = new List<string>();
+        if (!string.IsNullOrWhiteSpace(Q)) query.Add("q=" + Uri.EscapeDataString(Q));
+        if (!string.IsNullOrWhiteSpace(Sort)) query.Add("sort=" + Uri.EscapeDataString(Sort));
+        if (InStock) query.Add("stock=true");
+        query.Add("page=" + page);
+        return Path + "?" + string.Join('&', query);
+    }
+}

@@ -4,7 +4,7 @@ order: 5
 description: The storefront API a shop front uses to browse the catalogue, show prices and suggest products.
 ---
 
-A shop front is the part shoppers see. You build it with whatever you like; Piranha Commerce gives it an API under `/api/v1/storefront`, and the same services are available in-process if your shop front runs in the same application (the sample shop does this).
+A shop front is the part shoppers see. You build it with whatever you like; Piranha Commerce gives it an API under `/api/v1/storefront`, and the same services are available in-process if your shop front runs in the same application (the sample shop does this: see [The sample shop](../getting-started/sample-shop.md)).
 
 Everything in this page is open to anyone, signed in or not. A shopper who sends their token also gets **their own prices** (customer groups). Anything else a shopper does (baskets, checkout, account, wishlist, reviews) is described in the other guides: [baskets and orders](baskets-orders.md), [customers and shopper accounts](shoppers.md) and [reviews, wishlists and suggestions](engagement.md).
 
@@ -58,7 +58,7 @@ Prices are stored without tax. A basket adds tax per line, so a total built from
 
 ## Suggestions
 
-`GET /storefront/products/{id}/suggestions` returns the related and cross-sell products staff chose for a product, and `GET /storefront/cross-sell?productIds=...` returns cross-sell suggestions for a whole basket. Both show only products on sale, priced for the shopper. See [Reviews, wishlists and suggestions](engagement.md).
+`GET /storefront/products/{id}/suggestions` returns the related and cross-sell products staff chose for a product, and `GET /storefront/cross-sell?productIds=...` returns cross-sell suggestions for a whole basket. Both show only products on sale, priced for the shopper. A product that comes in options counts as available while any of its options is in stock. See [Reviews, wishlists and suggestions](engagement.md).
 
 ## Pictures
 
