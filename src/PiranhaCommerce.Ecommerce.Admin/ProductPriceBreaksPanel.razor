@@ -1,0 +1,93 @@
+@* Panel for AdminSlots.ProductEditPanels; the slot supplies ProductId. Saves independently of the product form. *@
+@using PiranhaCommerce.Core.Validation
+@using PiranhaCommerce.Customers
+<div class="pc-card" style="margin-top:1rem">
+    <h2 style="margin-top:0">Quantity prices</h2>
+    <p class="pc-muted">
+        A cheaper price each when someone buys more: from a quantity, either a price each or a percentage off the normal price, for everyone or for one customer group.
+        They pay the lowest price that applies to them (the normal price, a sale, their group's price or a quantity price), so a quantity price never makes anything dearer.
+    </p>
+    @if (_loading)
+    {
+        <p class="pc-muted">Loading...</p>
+    }
+    else if (_rows is null)
+    {
+        <p class="pc-error">Could not load the quantity prices for this product.</p>
+    }
+    else
+    {
+        @if (_rows.Count == 0) { <p class="pc-muted" data-testid="no-breaks">None yet.</p> }
+        else
+        {
+            <table class="pc-table">
+                <thead><tr><th style="width:8rem">From quantity</th><th style="width:9rem">Price each</th><th style="width:8rem">or % off</th><th>For</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var r in _rows)
+                {
+                    var row = r;
+                    <tr>
+                        <td><input type="number" min="2" aria-label="From quantity" @bind="row.MinQuantity" /></td>
+                        <td><input type="number" step="0.01" min="0" aria-label="Price each" @bind="row.Price" @bind:after="() => row.Percent = null" /></td>
+                        <td><input type="number" step="0.01" min="0.01" max="100" aria-label="Percent off" @bind="row.Percent" @bind:after="() => row.Price = null" /></td>
+                        <td>
+                            <select aria-label="For" @bind="row.GroupId">
+                                <option value="">Everyone</option>
+                                @foreach (var g in _groups) { <option value="@g.Id">@g.Name</option> }
+                            </select>
+                        </td>
+                        <td class="actions"><button type="button" class="secondary" @onclick="() => _rows.Remove(row)">Remove</button></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+        <button type="button" class="secondary" disabled="@(_rows.Count >= 20)" @onclick="Add">Add a quantity price</button>
+        <button type="button" disabled="@_busy" @onclick="SaveAsync">Save quantity prices</button>
+        @if (_message is not null) { <p class="@(_failed ? "pc-error" : "pc-muted")" role="status">@_message</p> }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Guid ProductId { get; set; }
+    [Inject] private AdminScopeRunner Scope { get; set; } = default!;
+
+    private sealed class Row { public int MinQuantity { get; set; } = 10; public decimal? Price { get; set; } public decimal? Percent { get; set; } public Guid? GroupId { get; set; } }
+
+    private List<Row>? _rows;
+    private IReadOnlyList<CustomerGroupDto> _groups = [];
+    private bool _loading = true, _busy, _failed;
+    private string? _message;
+    private Guid _loadedFor;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedFor == ProductId) return;
+        _loadedFor = ProductId;
+        _loading = true; _message = null;
+        var id = ProductId;
+        var list = await Scope.RunAsync<IPriceBreakService, IReadOnlyList<PriceBreakDto>?>(s => s.ListAsync(id));
+        _rows = list?.Select(b => new Row { MinQuantity = b.MinQuantity, Price = b.Price, Percent = b.Percent, GroupId = b.GroupId }).ToList();
+        _groups = await Scope.RunAsync<ICustomerGroupService, IReadOnlyList<CustomerGroupDto>>(s => s.ListAsync());
+        _loading = false;
+    }
+
+    private void Add() => _rows!.Add(new Row { MinQuantity = (_rows.Count == 0 ? 5 : _rows.Max(r => r.MinQuantity) * 2) });
+
+    private async Task SaveAsync()
+    {
+        _busy = true; _message = null; _failed = false;
+        try
+        {
+            var id = ProductId;
+            var input = new PriceBreaksInput { Breaks = _rows!.Select(r => new PriceBreakInput { MinQuantity = r.MinQuantity, Price = r.Price, Percent = r.Percent, GroupId = r.GroupId }).ToList() };
+            var saved = await Scope.RunAsync<IPriceBreakService, IReadOnlyList<PriceBreakDto>?>(s => s.SetAsync(id, input));
+            if (saved is null) { _failed = true; _message = "The product no longer exists."; return; }
+            _rows = saved.Select(b => new Row { MinQuantity = b.MinQuantity, Price = b.Price, Percent = b.Percent, GroupId = b.GroupId }).ToList();
+            _message = "Saved.";
+        }
+        catch (PiranhaValidationException ex) { _failed = true; _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _failed = true; _message = "Could not save: " + ex.Message; }
+        finally { _busy = false; }
+    }
+}

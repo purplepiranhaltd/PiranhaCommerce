@@ -54,7 +54,8 @@ public sealed record ProductGroupPriceDto(Guid GroupId, string GroupName, decima
 /// <param name="TaxRate">The rate that applies to this product there (0 when it is not taxed). The tax-inclusive prices are the price plus that rate, rounded to the penny. A basket or quote adds tax per line, so a total can differ from unit price times quantity by a penny: the quote is what is charged.</param>
 public sealed record ShopperPriceDto(
     Guid ProductId, decimal RegularPrice, decimal Price, bool Discounted, DateTimeOffset? SaleEndsUtc = null,
-    string? TaxCountry = null, decimal? TaxRate = null, decimal? PriceIncludingTax = null, decimal? RegularPriceIncludingTax = null);
+    string? TaxCountry = null, decimal? TaxRate = null, decimal? PriceIncludingTax = null, decimal? RegularPriceIncludingTax = null,
+    IReadOnlyList<ShopperPriceBreakDto>? Breaks = null);
 
 public interface IGroupPricingService
 {
@@ -112,11 +113,19 @@ internal static class GroupPricing
     }
 
     /// <summary>What the customer pays: the lowest of the regular price, any running sale's price, and what their groups give. A null customer gets the sale price at most.</summary>
-    public static async Task<Dictionary<Guid, decimal>> EffectiveAsync(PiranhaDbContext db, Guid? customerId, IReadOnlyCollection<(Guid ProductId, decimal Price)> items, CancellationToken ct)
+    public static async Task<Dictionary<Guid, decimal>> EffectiveAsync(PiranhaDbContext db, Guid? customerId, IReadOnlyCollection<(Guid ProductId, decimal Price)> items, CancellationToken ct,
+        IReadOnlyDictionary<Guid, int>? quantities = null)
     {
         var result = await ForGroupsAsync(db, customerId, items, ct);
         foreach (var (id, sale) in await SalePricing.ActiveAsync(db, items, ct))
             if (sale.Price < result[id]) result[id] = sale.Price;
+        // A quantity break is one more price to choose from: they pay the lowest.
+        if (quantities is not null)
+        {
+            var regular = new Dictionary<Guid, decimal>();
+            foreach (var (id, price) in items) regular[id] = price;
+            await PriceBreaks.ApplyAsync(db, customerId, regular, quantities, result, ct);
+        }
         return result;
     }
 
@@ -276,11 +285,13 @@ internal sealed class GroupPricingService(PiranhaDbContext db, Microsoft.Extensi
             var classes = await TaxLookup.ClassesAsync(db, regular.Select(r => r.Id).ToList(), ct);
             foreach (var r in regular) rates[r.Id] = OrderPricing.RuleFor(rules, classes.GetValueOrDefault(r.Id) ?? defaultClass, country)?.Rate ?? 0m;
         }
+        var breaks = await PriceBreaks.ForShopperAsync(db, customerId, regular.ToDictionary(r => r.Id, r => r.Price), effective, ct);
         return regular.Select(r => new ShopperPriceDto(r.Id, r.Price, effective[r.Id], effective[r.Id] < r.Price,
             sales.TryGetValue(r.Id, out var sale) && sale.Price <= effective[r.Id] ? sale.EndsUtc : null,
             country, country is null ? null : rates[r.Id],
             country is null ? null : OrderPricing.IncludingTax(effective[r.Id], rates[r.Id]),
-            country is null ? null : OrderPricing.IncludingTax(r.Price, rates[r.Id]))).OrderBy(r => r.ProductId).ToList();
+            country is null ? null : OrderPricing.IncludingTax(r.Price, rates[r.Id]),
+            breaks.TryGetValue(r.Id, out var steps) ? steps.Select(b => new ShopperPriceBreakDto(b.MinQuantity, b.UnitPrice, country is null ? null : OrderPricing.IncludingTax(b.UnitPrice, rates[r.Id]))).ToList() : null)).OrderBy(r => r.ProductId).ToList();
     }
 }
 

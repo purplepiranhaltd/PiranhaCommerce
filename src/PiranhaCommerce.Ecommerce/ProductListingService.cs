@@ -20,8 +20,8 @@ internal sealed class ProductListingService(PiranhaDbContext db) : IProductListi
     {
         if (!await db.Set<Product>().AnyAsync(p => p.Id == productId, ct)) return null;
         var listing = await db.Set<ProductListing>().AsNoTracking()
-            .Where(l => l.ProductId == productId).Select(l => new { l.Published, l.TaxClassId, l.WeightGrams }).FirstOrDefaultAsync(ct);
-        return new ProductListingDto(productId, listing?.Published ?? false, listing?.TaxClassId, listing?.WeightGrams);
+            .Where(l => l.ProductId == productId).Select(l => new { l.Published, l.TaxClassId, l.WeightGrams, l.MinOrderQuantity, l.MaxOrderQuantity }).FirstOrDefaultAsync(ct);
+        return new ProductListingDto(productId, listing?.Published ?? false, listing?.TaxClassId, listing?.WeightGrams, listing?.MinOrderQuantity, listing?.MaxOrderQuantity);
     }
 
     public async Task<ProductListingDto?> SetAsync(Guid productId, ProductListingInput input, CancellationToken ct = default)
@@ -32,13 +32,18 @@ internal sealed class ProductListingService(PiranhaDbContext db) : IProductListi
         if (input.TaxClassId is { } classId && !await db.Set<TaxClass>().AnyAsync(c => c.Id == classId, ct))
             throw new PiranhaValidationException(nameof(ProductListingInput.TaxClassId), "That tax class does not exist.");
 
+        if (input.MinOrderQuantity is { } lo && input.MaxOrderQuantity is { } hi && lo > hi)
+            throw new PiranhaValidationException(nameof(ProductListingInput.MaxOrderQuantity), "The maximum cannot be less than the minimum.");
+
         var listing = await db.Set<ProductListing>().FirstOrDefaultAsync(l => l.ProductId == productId, ct);
         if (listing is null)
             db.Add(listing = new ProductListing { ProductId = productId });
         listing.Published = input.Published;
         listing.TaxClassId = input.TaxClassId;
         listing.WeightGrams = input.WeightGrams;
+        listing.MinOrderQuantity = input.MinOrderQuantity;
+        listing.MaxOrderQuantity = input.MaxOrderQuantity;
         await db.SaveChangesAsync(ct);
-        return new ProductListingDto(productId, listing.Published, listing.TaxClassId, listing.WeightGrams);
+        return new ProductListingDto(productId, listing.Published, listing.TaxClassId, listing.WeightGrams, listing.MinOrderQuantity, listing.MaxOrderQuantity);
     }
 }

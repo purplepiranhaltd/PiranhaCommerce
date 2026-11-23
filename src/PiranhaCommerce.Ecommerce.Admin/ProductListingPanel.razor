@@ -26,6 +26,12 @@
         <label>Weight in grams (for shipping rates by weight; leave empty if you do not use them)
             <InputNumber @bind-Value="_weightGrams" />
         </label>
+        <label>Fewest that can be bought at once (leave empty for no minimum)
+            <InputNumber @bind-Value="_minQuantity" />
+        </label>
+        <label>Most that can be bought at once (leave empty for no maximum)
+            <InputNumber @bind-Value="_maxQuantity" />
+        </label>
         <button type="button" @onclick="SaveAsync" disabled="@_saving">Save online settings</button>
         @if (_message is not null)
         {
@@ -41,7 +47,7 @@
     private ProductListingDto? _listing;
     private IReadOnlyList<TaxClassDto> _classes = [];
     private Guid? _taxClassId;
-    private int? _weightGrams;
+    private int? _weightGrams, _minQuantity, _maxQuantity;
     private bool _published, _loading = true, _saving;
     private string? _message;
     private Guid _loadedFor;
@@ -56,6 +62,8 @@
         _published = _listing?.Published ?? false;
         _taxClassId = _listing?.TaxClassId;
         _weightGrams = _listing?.WeightGrams;
+        _minQuantity = _listing?.MinOrderQuantity;
+        _maxQuantity = _listing?.MaxOrderQuantity;
         _classes = await Scope.RunAsync<ITaxService, IReadOnlyList<TaxClassDto>>(s => s.ListClassesAsync());
         _loading = false;
     }
@@ -66,9 +74,10 @@
         try
         {
             _listing = await Scope.RunAsync<IProductListingService, ProductListingDto?>(
-                s => s.SetAsync(ProductId, new ProductListingInput { Published = _published, TaxClassId = _taxClassId, WeightGrams = _weightGrams }));
+                s => s.SetAsync(ProductId, new ProductListingInput { Published = _published, TaxClassId = _taxClassId, WeightGrams = _weightGrams, MinOrderQuantity = _minQuantity, MaxOrderQuantity = _maxQuantity }));
             _message = _listing is null ? "Product no longer exists." : "Saved.";
         }
+        catch (PiranhaCommerce.Core.Validation.PiranhaValidationException ex) { _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
         finally { _saving = false; }
     }
 }

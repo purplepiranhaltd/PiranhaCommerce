@@ -1720,6 +1720,12 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.Property<Guid>("ProductId")
                         .HasColumnType("uuid");
 
+                    b.Property<int?>("MaxOrderQuantity")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("MinOrderQuantity")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("Published")
                         .HasColumnType("boolean");
 
@@ -1734,6 +1740,39 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.HasIndex("TaxClassId");
 
                     b.ToTable("ProductListing", "ecom");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.ProductPriceBreak", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("GroupId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("MinQuantity")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("Percent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<decimal?>("Price")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GroupId");
+
+                    b.HasIndex("ProductId", "GroupId", "MinQuantity")
+                        .IsUnique();
+
+                    b.ToTable("ProductPriceBreak", "ecom");
                 });
 
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.Promotion", b =>
@@ -2799,6 +2838,20 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                         .WithMany()
                         .HasForeignKey("TaxClassId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.ProductPriceBreak", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Customers.CustomerGroup", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("PiranhaCommerce.Catalog.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.Promotion", b =>

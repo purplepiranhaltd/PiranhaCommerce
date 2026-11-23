@@ -87,7 +87,7 @@ internal sealed partial class BasketService(PiranhaDbContext db, ICustomerServic
             .Select(l => l.ProductId).ToListAsync(ct)).ToHashSet();
 
         // What this customer pays: the regular price, or less when one of their groups gives a better one.
-        var pay = await GroupPricing.EffectiveAsync(db, basket.CustomerId, lines.Select(x => (x.Id, x.Price)).ToList(), ct);
+        var pay = await GroupPricing.EffectiveAsync(db, basket.CustomerId, lines.Select(x => (x.Id, x.Price)).ToList(), ct, lines.ToDictionary(x => x.Id, x => x.Quantity));
         var dtos = lines.Select(x => new BasketLineDto(x.Id, x.Name, x.Sku, pay[x.Id], x.Quantity, pay[x.Id] * x.Quantity, published.Contains(x.Id), pay[x.Id] < x.Price ? x.Price : null)).ToList();
         return new BasketDto(basket.Id, basket.Status, basket.CustomerId, basket.OrderId, options.Value.Currency.ToUpperInvariant(),
             dtos.Sum(d => d.LineTotal), dtos, basket.PromotionCode,
@@ -162,6 +162,9 @@ internal sealed partial class BasketService(PiranhaDbContext db, ICustomerServic
             throw new PiranhaValidationException("productId", "This product comes in options (such as size or colour): add one of its variants instead.");
 
         var quantity = input.Quantity;
+        var limits = await db.Set<ProductListing>().AsNoTracking().Where(l => l.ProductId == productId).Select(l => new { l.MinOrderQuantity, l.MaxOrderQuantity }).FirstOrDefaultAsync(ct);
+        if (limits is not null && OrderQuantityRules.Problem(await db.Set<Product>().Where(p => p.Id == productId).Select(p => p.Name).FirstAsync(ct), quantity, limits.MinOrderQuantity, limits.MaxOrderQuantity) is { } tooFewOrMany)
+            throw new PiranhaValidationException(nameof(BasketLineInput.Quantity), tooFewOrMany);
         var updated = await SetQuantityAsync(basketId, productId, quantity, ct);
         if (updated == 0)
         {

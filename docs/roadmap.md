@@ -15,8 +15,9 @@ or themes), so storefront and CMS features are out of scope by design. Order of 
 4. **Reports and the audit log: built.** Reports (API `/reports/sales|products|categories|customers|tax`, `GET /stock/low`; admin Orders > Reports and Catalog > Low stock) cover sales by day, week or month,
    best sellers (optionally variants under their parent), sales by category, top customers, tax by rate and low stock, each as JSON or CSV. Orders that were not cancelled count on the day placed (UTC).
    The audit log (package `PiranhaCommerce.Audit`, admin page Audit log) records who created, changed or deleted catalogue, price, promotion, tax, shipping, customer-group, customer and order records. Open: profit (no cost price held), reports by sales channel, charts, and for the log: entries for other record types, history panels on the product and order pages, and keeping it to a set number of days.
-5. **Quantity breaks and minimum or maximum order quantities, then a fuller discount engine** (automatic discounts, free-shipping codes, discounts on chosen products
-   or categories, buy-one-get-one, per-customer limits, stacking): open.
+5. **Quantity breaks and minimum or maximum order quantities: built** (see the README). **A fuller discount engine** (automatic discounts, free-shipping codes, discounts on chosen products
+   or categories, buy-one-get-one, per-customer limits, stacking): open. Open for breaks: a variant does not inherit its parent's breaks, breaks cannot be set by catalogue import, quantity steps (multiples of 6) and
+   limits per customer.
 6. **Outbound webhooks** (order placed, paid, shipped, product changed, customer created) so a storefront or ERP can react: open.
 7. **Shipping zones, rates by basket value, carrier and live rates, labels, pick-up in store, delivery dates:** open.
 8. **Multi-currency and translations:** open, heaviest design work (see the Translations section).

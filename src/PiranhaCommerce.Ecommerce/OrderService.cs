@@ -152,7 +152,12 @@ internal sealed partial class OrderService(
                     if (lines.Count == 0) throw new PiranhaConflictException("The basket is empty.");
                     // The buyer's group prices, decided here in the transaction exactly as the basket and quote show them.
                     var buyer = input.CustomerId ?? await db.Set<Basket>().AsNoTracking().Where(b => b.Id == basketId).Select(b => b.CustomerId).FirstAsync(token);
-                    var pay = await GroupPricing.EffectiveAsync(db, buyer, lines.Select(l => (l.Id, l.Price)).ToList(), token);
+                    var lineIds = lines.Select(l => l.Id).ToList();
+                    var limits = await db.Set<ProductListing>().AsNoTracking().Where(l => lineIds.Contains(l.ProductId)).Select(l => new { l.ProductId, l.MinOrderQuantity, l.MaxOrderQuantity }).ToDictionaryAsync(l => l.ProductId, token);
+                    foreach (var l in lines)
+                        if (limits.TryGetValue(l.Id, out var lim) && OrderQuantityRules.Problem(l.Name, l.Quantity, lim.MinOrderQuantity, lim.MaxOrderQuantity) is { } outOfRange)
+                            throw new PiranhaConflictException(outOfRange + " Change the quantity in the basket to continue.");
+                    var pay = await GroupPricing.EffectiveAsync(db, buyer, lines.Select(l => (l.Id, l.Price)).ToList(), token, lines.ToDictionary(l => l.Id, l => l.Quantity));
                     lines = lines.Select(l => new { l.Id, l.Name, l.Sku, Price = pay[l.Id], l.Quantity }).ToList();
                     var productIdsInBasket = lines.Select(x => x.Id).ToList();
                     var published = (await db.Set<ProductListing>().AsNoTracking().Where(l => l.Published && productIdsInBasket.Contains(l.ProductId))
