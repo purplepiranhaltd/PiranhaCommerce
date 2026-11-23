@@ -1,5 +1,6 @@
 @page "/product/{Slug}"
 @inject ShopFront Front
+@inject ShopSession Session
 @inject Microsoft.Extensions.Options.IOptions<ShopOptions> Shop
 @inject Microsoft.Extensions.Options.IOptions<EcommerceOptions> Ecommerce
 
@@ -95,12 +96,80 @@ else
                     else if (_left is > 0) { <text>Only @_left left</text> }
                     else { <text>In stock</text> }
                 </p>
+
+                @if (!_available)
+                {
+                    <form method="post" action="/stock-alert/subscribe" class="alert-me stack">
+                        <AntiforgeryToken />
+                        <input type="hidden" name="productId" value="@(_selected?.ProductId ?? _product.Id)" />
+                        <input type="hidden" name="returnTo" value="/product/@Slug?variant=@(_selected?.ProductId)" />
+                        <p><strong>Tell me when it is back</strong></p>
+                        @if (_shopper is null) { <label>Email <input type="email" name="email" value="@AlertEmail" required autocomplete="email" /></label> }
+                        else { <p class="muted">We will email @_shopper.Email, once.</p> }
+                        <button type="submit" class="small">Email me</button>
+                    </form>
+                }
+
+                <form method="post" action="/wishlist/add" class="wish">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="productId" value="@_product.Id" />
+                    <input type="hidden" name="returnTo" value="/product/@Slug?variant=@(_selected?.ProductId)" />
+                    @if (_saved) { <span class="muted">On your <a href="/account/wishlist">wishlist</a></span> }
+                    else { <button type="submit" class="small ghost">@(_shopper is null ? "Sign in to save to your wishlist" : "Save to wishlist")</button> }
+                </form>
                 @if (_product.MinOrderQuantity is > 1) { <p class="muted">Minimum order: @_product.MinOrderQuantity</p> }
 
                 @foreach (var line in (_product.Description ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries)) { <p>@line</p> }
                 @if (_product.Sku is not null) { <p class="muted">Code: @(_selected?.Sku ?? _product.Sku)</p> }
             </div>
         </div>
+
+        <section id="reviews" class="reviews">
+            <h2>Reviews</h2>
+            @if (_reviews is { Reviews.Items.Count: > 0 })
+            {
+                <p class="rating"><span aria-hidden="true">@Money.Stars(_reviews.Summary.Average)</span>
+                    @_reviews.Summary.Average.ToString("0.0") out of 5 from @_reviews.Summary.Count @(_reviews.Summary.Count == 1 ? "review" : "reviews")</p>
+                <ul class="review-list">
+                    @foreach (var r in _reviews.Reviews.Items)
+                    {
+                        <li>
+                            <p class="rating"><span aria-hidden="true">@Money.Stars(r.Rating)</span> <strong>@r.Title</strong></p>
+                            @if (!string.IsNullOrWhiteSpace(r.Body)) { <p>@r.Body</p> }
+                            <p class="muted">@r.DisplayName, @r.CreatedUtc.ToString("d MMM yyyy")@(r.VerifiedPurchase ? " · Verified purchase" : "")</p>
+                        </li>
+                    }
+                </ul>
+            }
+            else { <p class="muted">No reviews yet.</p> }
+
+            @if (_shopper is null)
+            {
+                <p><a href="/account/sign-in?returnTo=/product/@Slug">Sign in</a> to write a review.</p>
+            }
+            else if (_own is not null)
+            {
+                <p class="notice info">Your review: @Money.Stars(_own.Rating) @_own.Title (@(_own.Status == PiranhaCommerce.Ecommerce.ReviewStatus.Approved ? "published" : _own.Status.ToString().ToLowerInvariant()))</p>
+            }
+            else
+            {
+                <form method="post" action="/reviews/save" class="stack review-form">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="productId" value="@_product.Id" />
+                    <input type="hidden" name="returnTo" value="/product/@Slug?variant=@(_selected?.ProductId)" />
+                    <h3>Write a review</h3>
+                    <label>Rating
+                        <select name="rating" required>
+                            <option value="">Choose...</option>
+                            @for (var n = 5; n >= 1; n--) { <option value="@n" selected="@(TypedReview("rating") == n.ToString())">@n @(n == 1 ? "star" : "stars")</option> }
+                        </select>
+                    </label>
+                    <label>Title <input type="text" name="title" maxlength="100" value="@TypedReview("title")" /></label>
+                    <label>Your review <textarea name="body" rows="4" maxlength="4000">@TypedReview("body")</textarea></label>
+                    <button type="submit">Send review</button>
+                </form>
+            }
+        </section>
 
         @if (_suggestions.Count > 0)
         {
@@ -133,8 +202,15 @@ else
     private int? _left;
     private IReadOnlyList<SuggestedProductDto> _suggestions = [];
     private Dictionary<Guid, ShopperPriceDto> _suggestionPrices = [];
+    private Shopper? _shopper;
+    private bool _saved;
+    private PublicReviewsDto? _reviews;
+    private ReviewDto? _own;
+    private Flash? _flash;
 
     private string Currency => Ecommerce.Value.Currency;
+    private string? AlertEmail => _flash?.Values is { } v && v.TryGetValue("alertEmail", out var e) ? e : null;
+    private string? TypedReview(string name) => _flash?.Values is { } v && v.TryGetValue(name, out var t) ? t : null;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -156,6 +232,12 @@ else
         _left = _selected is not null ? _selected.Left : _product.Left;
         // The shade's own pictures come first, then the product's.
         _pictures = (_selected?.Images ?? []).Concat(_product.Images).DistinctBy(i => i.Id).ToList();
+
+        _flash = Session.Open(F);
+        _shopper = await Front.ShopperAsync();
+        _saved = _shopper is not null && (await Front.WishlistAsync()).Any(w => w.ProductId == _product.Id);
+        _reviews = await Front.ReviewsAsync(_product.Id);
+        _own = await Front.OwnReviewAsync(_product.Id);
 
         _suggestions = await Front.RelatedAsync(_product.Id);
         _suggestionPrices = _suggestions.Count == 0 ? [] :

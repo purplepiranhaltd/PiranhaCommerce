@@ -18,6 +18,8 @@ internal static class ShopForms
         MapBasket(app.MapGroup("/basket").AddEndpointFilter(Limit(account: false)));
         MapCheckout(app.MapGroup("/checkout").AddEndpointFilter(Limit(account: false)));
         MapAccount(app.MapGroup("/account").AddEndpointFilter(Limit(account: true)));
+        MapEngagement(app.MapGroup("").AddEndpointFilter(Limit(account: false)));
+        MapStockAlerts(app.MapGroup("/stock-alert").AddEndpointFilter(Limit(account: true))); // an open form that sends email: kept to the strict limit
     }
 
     private static Func<EndpointFilterInvocationContext, EndpointFilterDelegate, ValueTask<object?>> Limit(bool account) => async (context, next) =>
@@ -217,6 +219,83 @@ internal static class ShopForms
                 var back = "/account/reset?email=" + Uri.EscapeDataString(input.Email) + "&token=" + Uri.EscapeDataString(input.Token);
                 return Results.Redirect(back + "&f=" + Uri.EscapeDataString(session.Protect(new Flash(Message(e)))));
             }
+        });
+    }
+
+    private static void MapEngagement(RouteGroupBuilder shop)
+    {
+        // The wishlist and reviews belong to a signed-in shopper; anyone else is sent to sign in and back.
+        static IResult SignInFirst(string back) => Results.Redirect("/account/sign-in?returnTo=" + Uri.EscapeDataString(ShopSession.SafePath(back, "/account")));
+
+        shop.MapPost("/wishlist/add", async (IFormCollection form, ShopSession session, ShopBaskets shopBaskets, IWishlistService wishlists, CancellationToken ct) =>
+        {
+            var back = form["returnTo"].ToString();
+            if (await shopBaskets.ShopperAsync(ct) is not { } shopper) return SignInFirst(back);
+            try
+            {
+                if (!Guid.TryParse(form["productId"], out var productId)) throw new PiranhaValidationException("productId", "Choose a product.");
+                await wishlists.AddAsync(shopper.Id, productId, ct);
+                return Results.Redirect(session.Back(back, new Flash(null, "Saved to your wishlist.")));
+            }
+            catch (PiranhaValidationException e) { return Results.Redirect(session.Back(back, new Flash(Message(e)))); }
+            catch (PiranhaConflictException e) { return Results.Redirect(session.Back(back, new Flash(e.Message))); }
+        });
+
+        shop.MapPost("/wishlist/remove", async (IFormCollection form, ShopBaskets shopBaskets, IWishlistService wishlists, CancellationToken ct) =>
+        {
+            var back = form["returnTo"].ToString();
+            if (await shopBaskets.ShopperAsync(ct) is not { } shopper) return SignInFirst(back);
+            if (Guid.TryParse(form["productId"], out var productId)) await wishlists.RemoveAsync(shopper.Id, productId, ct);
+            return Results.Redirect(ShopSession.SafePath(back, "/account/wishlist"));
+        });
+
+        shop.MapPost("/reviews/save", async (IFormCollection form, ShopSession session, ShopBaskets shopBaskets, IReviewService reviews,
+            Microsoft.Extensions.Options.IOptions<EcommerceOptions> options, CancellationToken ct) =>
+        {
+            var back = form["returnTo"].ToString();
+            if (await shopBaskets.ShopperAsync(ct) is not { } shopper) return SignInFirst(back);
+            var typed = new Dictionary<string, string> { ["rating"] = form["rating"].ToString(), ["title"] = form["title"].ToString().Trim(), ["body"] = form["body"].ToString().Trim() };
+            try
+            {
+                if (!Guid.TryParse(form["productId"], out var productId)) throw new PiranhaValidationException("productId", "Choose a product.");
+                if (!int.TryParse(typed["rating"], out var rating) || rating is < 1 or > 5) throw new PiranhaValidationException("rating", "Choose a rating from 1 to 5 stars.");
+                var input = new ReviewInput { ProductId = productId, Rating = rating, Title = Blank(typed["title"]), Body = Blank(typed["body"]) };
+                ModelValidator.ValidateOrThrow(input);
+                await reviews.CreateAsync(shopper.Id, input, ct);
+                return Results.Redirect(session.Back(back, new Flash(null, options.Value.ReviewsNeedApproval
+                    ? "Thank you. Your review will appear once we have read it."
+                    : "Thank you. Your review is up.")));
+            }
+            catch (PiranhaValidationException e) { return Results.Redirect(session.Back(back, new Flash(Message(e), null, typed))); }
+            catch (PiranhaConflictException e) { return Results.Redirect(session.Back(back, new Flash(e.Message))); }
+        });
+    }
+
+    private static void MapStockAlerts(RouteGroupBuilder alerts)
+    {
+        // "Tell me when it is back": anyone may ask, with an email address. The answer never says whether the address was already known.
+        alerts.MapPost("/subscribe", async (IFormCollection form, ShopSession session, ShopBaskets shopBaskets, IStockAlertService stockAlerts, CancellationToken ct) =>
+        {
+            var back = form["returnTo"].ToString();
+            var shopper = await shopBaskets.ShopperAsync(ct);
+            var email = shopper?.Email ?? form["email"].ToString().Trim();
+            try
+            {
+                if (!Guid.TryParse(form["productId"], out var productId)) throw new PiranhaValidationException("productId", "Choose a product.");
+                await stockAlerts.SubscribeAsync(new StockAlertInput { ProductId = productId, Email = email }, shopper?.Id, ct);
+                return Results.Redirect(session.Back(back, new Flash(null, "Thank you. We will email you once, when it is back in stock.")));
+            }
+            catch (PiranhaValidationException e) { return Results.Redirect(session.Back(back, new Flash(Message(e), null, new() { ["alertEmail"] = email }))); }
+            catch (PiranhaConflictException e) { return Results.Redirect(session.Back(back, new Flash(e.Message))); }
+        });
+
+        // The link in the email opens a page that asks first (mail scanners open links too, so opening one must change nothing); this does the removal.
+        alerts.MapPost("/unsubscribe", async (IFormCollection form, ShopSession session, IStockAlertService stockAlerts, CancellationToken ct) =>
+        {
+            var removed = await stockAlerts.UnsubscribeAsync(form["token"].ToString().Trim(), ct);
+            return Results.Redirect(session.Back("/shop", removed
+                ? new Flash(null, "Done. We will not email you about that product.")
+                : new Flash("That link has already been used, or is not valid.")));
         });
     }
 

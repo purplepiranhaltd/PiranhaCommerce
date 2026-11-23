@@ -65,6 +65,20 @@
                 <p><a href="/shop">Keep shopping</a></p>
             </aside>
         </div>
+
+        @if (_alsoLike.Count > 0)
+        {
+            <section>
+                <h2>Goes well with</h2>
+                <div class="grid">
+                    @foreach (var c in _alsoLike)
+                    {
+                        <ProductCard Name="@c.Product.Name" Slug="@c.Product.Slug" ImageUrl="@c.Product.Image?.Url" ImageAlt="@(c.Product.Image?.AltText ?? c.Product.Name)"
+                                     Now="@(c.Price is null ? c.Product.Price : Money.Now(c.Price))" Was="@(c.Price is null ? c.Product.RegularPrice : Money.Was(c.Price))" Currency="@Currency" Available="@c.Product.Available" />
+                    }
+                </div>
+            </section>
+        }
     }
 </div>
 
@@ -73,6 +87,7 @@
 
     private BasketView? _view;
     private decimal _goods, _saving;
+    private IReadOnlyList<CrossSellItem> _alsoLike = [];
 
     private string Currency => Ecommerce.Value.Currency;
 
@@ -82,5 +97,6 @@
         if (_view is null) return;
         _goods = _view.Lines.Sum(l => l.Priced?.LineTotalIncludingTax ?? l.Line.LineTotal);
         _saving = _view.Lines.Sum(l => l.Priced is { } p ? p.DiscountAmount * (1 + p.TaxRate / 100m) : 0m);
+        _alsoLike = await Front.CrossSellAsync(_view.Lines.Select(l => l.Line.ProductId).ToList());
     }
 }

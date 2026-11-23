@@ -69,7 +69,8 @@ public sealed class ShopSession(IHttpContextAccessor accessor, IDataProtectionPr
     }
 
     /// <summary>The address to go to with a message: only a path on this site is ever used.</summary>
-    public string Back(string? path, Flash flash) => SafePath(path, "/basket") + "?f=" + Uri.EscapeDataString(Protect(flash));
+    public string Back(string? path, Flash flash, string? anchor = null) =>
+        SafePath(path, "/basket") + "?f=" + Uri.EscapeDataString(Protect(flash)) + (anchor is null ? "" : "#" + anchor);
 
     /// <summary>A path on this site (no query), or the fallback: never an address on another site.</summary>
     public static string SafePath(string? path, string fallback)

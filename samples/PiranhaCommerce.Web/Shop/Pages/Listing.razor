@@ -19,6 +19,7 @@
     }
     else
     {
+        <FlashNotice Token="@F" />
         <h1>@Heading</h1>
         @if (_current?.Description is { Length: > 0 } d) { <p class="lead">@d</p> }
         @if (_current is { Children.Count: > 0 })
@@ -73,6 +74,7 @@
     private const int PageSize = 12;
 
     [Parameter] public string? Category { get; set; }
+    [SupplyParameterFromQuery(Name = "f")] private string? F { get; set; }
     [SupplyParameterFromQuery(Name = "q")] private string? Q { get; set; }
     [SupplyParameterFromQuery(Name = "sort")] private string? Sort { get; set; }
     [SupplyParameterFromQuery(Name = "stock")] private bool InStock { get; set; }

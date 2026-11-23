@@ -1,0 +1,56 @@
+@page "/account/wishlist"
+@inject ShopFront Front
+@inject NavigationManager Nav
+@inject Microsoft.Extensions.Options.IOptions<EcommerceOptions> Ecommerce
+
+<PageTitle>Your wishlist</PageTitle>
+
+<div class="wrap">
+    <p><a href="/account">&lt; Your account</a></p>
+    <h1>Your wishlist</h1>
+
+    @if (_items is not null && _items.Count == 0)
+    {
+        <p class="empty">Nothing saved yet. Use "Save to wishlist" on a product page. <a href="/shop">Browse the shop</a>.</p>
+    }
+    else if (_items is not null)
+    {
+        <ul class="lines wishes">
+            @foreach (var w in _items)
+            {
+                <li>
+                    <a class="thumb" href="/product/@w.Slug">
+                        @if (w.Image is not null) { <img src="@Money.Image(w.Image.Url, 160)" alt="" width="80" height="80" /> }
+                    </a>
+                    <div class="what">
+                        <a href="/product/@w.Slug"><strong>@w.Name</strong></a>
+                        @if (!w.Published) { <span class="muted">No longer on sale</span> }
+                        else if (!w.Available) { <span class="notice error">Sold out at the moment</span> }
+                        @if (w.Published && w.Price < w.PriceWhenAdded) { <span class="save">Cheaper than when you saved it (was @Money.Format(w.PriceWhenAdded, Currency))</span> }
+                        else if (w.Published && w.Price > w.PriceWhenAdded) { <span class="muted">Price has gone up since you saved it (was @Money.Format(w.PriceWhenAdded, Currency))</span> }
+                        <form method="post" action="/wishlist/remove" class="qty">
+                            <AntiforgeryToken />
+                            <input type="hidden" name="productId" value="@w.ProductId" />
+                            <input type="hidden" name="returnTo" value="/account/wishlist" />
+                            <button type="submit" class="small ghost">Remove</button>
+                        </form>
+                    </div>
+                    <div class="total">@(w.Published ? Money.Format(w.Price, Currency) : "")</div>
+                </li>
+            }
+        </ul>
+        <p class="muted">Prices here are before VAT; the product page shows the price you pay.</p>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<WishlistItemDto>? _items;
+
+    private string Currency => Ecommerce.Value.Currency;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (await Front.ShopperAsync() is null) { Nav.NavigateTo("/account/sign-in?returnTo=/account/wishlist"); return; }
+        _items = await Front.WishlistAsync();
+    }
+}

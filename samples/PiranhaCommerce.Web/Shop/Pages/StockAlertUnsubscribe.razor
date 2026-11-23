@@ -1,0 +1,24 @@
+@page "/stock-alert/unsubscribe"
+
+<PageTitle>Stop back-in-stock emails</PageTitle>
+
+<div class="wrap narrow">
+    <h1>Stop emailing me</h1>
+    @if (string.IsNullOrWhiteSpace(Token))
+    {
+        <p>This link is not complete. Use the link in the email we sent you.</p>
+    }
+    else
+    {
+        <p>We will not email you when this product is back in stock.</p>
+        <form method="post" action="/stock-alert/unsubscribe" class="stack">
+            <AntiforgeryToken />
+            <input type="hidden" name="token" value="@Token" />
+            <button type="submit">Yes, stop the email</button>
+        </form>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "token")] private string? Token { get; set; }
+}

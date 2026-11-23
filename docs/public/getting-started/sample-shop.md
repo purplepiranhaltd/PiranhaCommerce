@@ -13,17 +13,26 @@ The sample host (`samples/PiranhaCommerce.Web`) is a working shop as well as an 
 | Home | `/` | Categories, what is on sale, newest products |
 | Listing | `/shop`, `/shop/{category}` | A category with its sub-categories, sorted, filtered to what is in stock, paged |
 | Search | `/search?q=...` | Products matching every word |
-| Product | `/product/{slug}` | Pictures, price with VAT, sale and quantity prices, a picker for shades or sizes (`?variant=...`), stock, reviews total, suggestions and an Add to basket form |
+| Product | `/product/{slug}` | Pictures, price with VAT, sale and quantity prices, a picker for shades or sizes (`?variant=...`), stock, reviews and a form to write one, a wishlist button, "Tell me when it is back" on a sold-out shade, suggestions and an Add to basket form |
 | Basket | `/basket` | Lines with their prices (VAT and any code included), quantity changes, removal and a promo code |
 | Checkout | `/checkout`, `/checkout/delivery` | A guest's email and address, then the delivery methods that serve that address, each with the order total it gives, then Place order |
 | Sign in | `/account/sign-in` | Sign in, or create an account (the basket comes with you) |
 | Password | `/account/forgot`, `/account/reset` | Ask for an emailed link, then choose a new password |
 | Account | `/account`, `/account/orders/{id}` | The shopper's details, their orders and each order in full |
+| Wishlist | `/account/wishlist` | Saved products, with a note when one is sold out, withdrawn or has changed price |
+| Stop emails | `/stock-alert/unsubscribe?token=...` | The link in a back-in-stock email; it asks before it removes the request |
 | Confirmation | `/order/confirmed` | The order just placed, with its reference, lines, delivery, VAT and total |
 
-Each page gets its data from the same services the storefront API uses (`IShopCatalogueService`, `IProductRelationService`, `IGroupPricingService`), so what the shop shows is exactly what [the API returns](../guides/storefront.md). Prices are shown with VAT for the country in `Piranha:Shop:CountryCode` (default `GB`). Wishlists, reviews and back-in-stock sign-up are the next part of the shop front and are not built yet. No payment is taken: an order is placed unpaid and appears in the admin. Set up [payments](../guides/payments.md) to take cards.
+Each page gets its data from the same services the storefront API uses (`IShopCatalogueService`, `IProductRelationService`, `IGroupPricingService`), so what the shop shows is exactly what [the API returns](../guides/storefront.md). Prices are shown with VAT for the country in `Piranha:Shop:CountryCode` (default `GB`). No payment is taken: an order is placed unpaid and appears in the admin. Set up [payments](../guides/payments.md) to take cards.
 
 ## How the shop front works
+
+### Wishlist, reviews, back-in-stock and basket suggestions
+
+- **Wishlist and reviews need a sign-in.** A guest who presses the button is sent to sign in and returned to the product. Saving a product twice keeps one.
+- **Reviews wait for approval** when `ReviewsNeedApproval` is on (the default): the writer sees their own review at once, marked as waiting, and nobody else does until staff approve it in the admin. Each shopper can review a product once. The name shown is a first name and the first letter of the surname, never the email address. A review from someone who bought the product is marked "Verified purchase".
+- **Back-in-stock requests need no account**, only an email address, and the answer is the same whether or not that address was already waiting. They are on the strict account-form limit because the form sends email. The notifier emails once; its unsubscribe link needs `Piranha:Ecommerce:StockAlertUnsubscribeUrlTemplate` to point at `/stock-alert/unsubscribe?token={token}` (the Development settings do). The page asks before removing the request, because mail scanners open links.
+- **"Goes well with"** on the basket comes from the cross-sell suggestions staff set on each product. It never offers something already in the basket, and prices are the shopper's own, with VAT.
 
 It shows one way to build a shop front on the packages. Take what suits you.
 

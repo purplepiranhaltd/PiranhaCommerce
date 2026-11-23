@@ -15,12 +15,15 @@ public sealed record BasketLineView(BasketLineDto Line, QuoteLineDto? Priced, st
 /// <summary>The basket as the shopper sees it: the lines and what they will cost (tax and any code included), before delivery is chosen.</summary>
 public sealed record BasketView(BasketDto Basket, QuoteDto? Quote, IReadOnlyList<BasketLineView> Lines);
 
+/// <summary>A product suggested for the basket, with its price for this shopper (tax included when a country is known).</summary>
+public sealed record CrossSellItem(SuggestedProductDto Product, ShopperPriceDto? Price);
+
 /// <summary>A way of delivering this basket to the address given, with what the whole order would then cost.</summary>
 public sealed record DeliveryChoice(ShippingOptionDto Option, QuoteDto Quote);
 
 public sealed class ShopFront(
     IShopCatalogueService catalogue, IProductRelationService relations, IGroupPricingService pricing, IBasketService baskets, ShopBaskets shopBaskets,
-    IOrderService orders, ICustomerAccountService accounts, ShopSession session, IOptions<ShopOptions> shop)
+    IOrderService orders, ICustomerAccountService accounts, IWishlistService wishlists, IReviewService reviews, ShopSession session, IOptions<ShopOptions> shop)
 {
     private readonly SemaphoreSlim _turn = new(1, 1);
     private IReadOnlyList<ShopCategoryDto>? _categories;
@@ -103,4 +106,25 @@ public sealed class ShopFront(
     /// <summary>One of the signed-in shopper's own orders. Anyone else's, or one that does not exist, is null.</summary>
     public Task<OrderDto?> OrderAsync(Guid orderId) => InTurn(async () =>
         await CustomerIdAsync() is { } id ? await orders.GetForCustomerAsync(id, orderId) : null);
+
+    /// <summary>The approved reviews of a product, newest first, with the star totals.</summary>
+    public Task<PublicReviewsDto?> ReviewsAsync(Guid productId) => InTurn(() => reviews.ListPublicAsync(productId, 1, 10));
+
+    /// <summary>The signed-in shopper's own review of this product (whatever state it is in), or null.</summary>
+    public Task<ReviewDto?> OwnReviewAsync(Guid productId) => InTurn(async () =>
+        await CustomerIdAsync() is { } id ? (await reviews.ListOwnAsync(id)).FirstOrDefault(r => r.ProductId == productId) : null);
+
+    /// <summary>The signed-in shopper's wishlist, newest first (empty when not signed in).</summary>
+    public Task<IReadOnlyList<WishlistItemDto>> WishlistAsync() => InTurn<IReadOnlyList<WishlistItemDto>>(async () =>
+        await CustomerIdAsync() is { } id ? await wishlists.ListAsync(id) : []);
+
+    /// <summary>What goes well with what is in the basket, priced for this shopper with tax.</summary>
+    public Task<IReadOnlyList<CrossSellItem>> CrossSellAsync(IReadOnlyCollection<Guid> productIds) => InTurn<IReadOnlyList<CrossSellItem>>(async () =>
+    {
+        var customerId = await CustomerIdAsync();
+        var found = await relations.CrossSellForBasketAsync(productIds, customerId);
+        if (found.Count == 0) return [];
+        var prices = (await pricing.PricesAsync(customerId, found.Select(f => f.ProductId).ToList(), shop.Value.CountryCode)).ToDictionary(p => p.ProductId);
+        return found.Select(f => new CrossSellItem(f, prices.GetValueOrDefault(f.ProductId))).ToList();
+    });
 }
