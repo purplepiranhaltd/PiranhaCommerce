@@ -37,8 +37,8 @@ rule, so they cannot disagree; the basket line shows the `regularPrice` when a g
 promo code then discounts the group price (10% off a 100 product at 20% group price is 8, not 10). The price follows membership: join or leave a group
 and an open basket re-prices. Only identified customers get group prices: a guest basket pays the regular price. Prices are tax-exclusive, like all
 prices here. To show a shopper their prices, call `GET /storefront/prices?productIds=...` (their own token) or, from a shop front acting for them,
-`GET /customers/{id}/prices?productIds=...`: each answer is `{ productId, regularPrice, price, discounted }`. (There is no shopper-facing catalogue
-endpoint, so this is the way to price a list of products for a signed-in shopper.)
+`GET /customers/{id}/prices?productIds=...`: each answer is `{ productId, regularPrice, price, discounted }`. (The shop front's catalogue endpoints, described in [Building a shop front](storefront.md), already carry
+each product's price for the shopper.)
 **By category:** a group can also have a percentage for a whole category (`GET /customer-groups/{id}/category-discounts`, `PUT|DELETE
 .../{categoryId}` with `{ "percent" }`; admin: Orders > Group category discounts). It covers the category's sub-categories (the nearest category that
 has one set wins), replaces the group's own percentage for products in it, and `0` means no discount there. A product in several categories gets

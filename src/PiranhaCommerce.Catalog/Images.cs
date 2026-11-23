@@ -73,6 +73,12 @@ public sealed record ProductImageDto(
 /// <param name="Inherited">True when the product is a variant with no pictures of its own, so these are its parent's.</param>
 public sealed record ProductImagesDto(Guid ProductId, bool Inherited, IReadOnlyList<ProductImageDto> Images);
 
+/// <summary>Where product pictures are fetched from (add the picture id, and optionally <c>?width=</c>).</summary>
+public static class ProductImageUrls
+{
+    public const string Prefix = "/api/v1/storefront/guest/product-images/";
+}
+
 /// <summary>A picture ready to send. The caller disposes <see cref="Content"/>.</summary>
 public sealed record ImageFile(Stream Content, string ContentType, string ETag);
 
@@ -94,7 +100,7 @@ public interface IProductImageService
 
 internal sealed class ProductImageService(PiranhaDbContext db, IFileStore store, IOptions<ImageOptions> options, IImageProcessor? processor = null) : IProductImageService
 {
-    public const string UrlPrefix = "/api/v1/storefront/guest/product-images/";
+    public const string UrlPrefix = ProductImageUrls.Prefix;
 
     private static string Folder(Guid productId, Guid imageId) => $"products/{productId}/{imageId}";
 

@@ -86,6 +86,9 @@ public interface IReviewService
 
     Task<ReviewSummaryDto?> SummaryAsync(Guid productId, CancellationToken ct = default);
 
+    /// <summary>The number of approved reviews and their average for each of the given products (parent products: that is where reviews are kept). A product with none is left out.</summary>
+    Task<IReadOnlyDictionary<Guid, (int Count, decimal Average)>> SummariesAsync(IReadOnlyCollection<Guid> productIds, CancellationToken ct = default);
+
     /// <summary>
     /// Adds the customer's review. Conflict when they have already reviewed this product; validation error when the product is not published.
     /// Pending until staff approve it, unless the shop has switched approval off.
@@ -120,6 +123,14 @@ internal sealed class ReviewService(PiranhaDbContext db, IOptions<EcommerceOptio
     {
         if (await ReviewedProductAsync(productId, ct) is not { } id || !await IsPublishedAsync(id, ct)) return null;
         return await SummaryOfAsync(id, ct);
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, (int Count, decimal Average)>> SummariesAsync(IReadOnlyCollection<Guid> productIds, CancellationToken ct = default)
+    {
+        if (productIds.Count == 0) return new Dictionary<Guid, (int, decimal)>();
+        var rows = await db.Set<ProductReview>().AsNoTracking().Where(r => productIds.Contains(r.ProductId) && r.Status == ReviewStatus.Approved)
+            .GroupBy(r => r.ProductId).Select(g => new { Id = g.Key, N = g.Count(), Sum = g.Sum(r => r.Rating) }).ToListAsync(ct);
+        return rows.ToDictionary(r => r.Id, r => (r.N, Math.Round((decimal)r.Sum / r.N, 2)));
     }
 
     private async Task<ReviewSummaryDto> SummaryOfAsync(Guid id, CancellationToken ct)

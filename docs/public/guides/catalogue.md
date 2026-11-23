@@ -68,7 +68,7 @@ option in use, a parent with variants, and options on a variant are refused (409
 online listing (published, tax class, weight) and its description, but not its categories: a category sale or group category discount reaches variants through the parent's
 categories. A sale or group price naming the parent product does not cover its variants (name the variants, or use a category). `GET /products/{id}/variants` returns
 a parent's options and variants, or for a variant its parent and values. A variant has its own pictures. Not built: price as an adjustment to the parent's price, renaming values,
-variants updating their name when the parent is renamed, and a storefront endpoint (a shop front reads these with its own API token).
+and variants updating their name when the parent is renamed. A shop front reads variants through the catalogue endpoints in [Building a shop front](storefront.md).
 
 ## Catalogue import and export
 

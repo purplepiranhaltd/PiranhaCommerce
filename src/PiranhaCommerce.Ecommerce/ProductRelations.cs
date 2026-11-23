@@ -8,6 +8,7 @@ using PiranhaCommerce.Api;
 using PiranhaCommerce.Catalog;
 using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Validation;
+using PiranhaCommerce.Customers;
 using PiranhaCommerce.Data;
 
 namespace PiranhaCommerce.Ecommerce;
@@ -47,8 +48,9 @@ public sealed record ProductRelationDto(Guid ProductId, string Name, string? Sku
 /// <summary>What staff see: every suggestion, including products that are not on sale.</summary>
 public sealed record ProductRelationsDto(IReadOnlyList<ProductRelationDto> Related, IReadOnlyList<ProductRelationDto> CrossSell);
 
+/// <param name="Price">What this shopper pays now (a sale, their group price and so on); <paramref name="RegularPrice"/> is the usual price.</param>
 /// <param name="Available">True while the product can be bought now: in stock where online orders take it from.</param>
-public sealed record SuggestedProductDto(Guid ProductId, string Name, string? Sku, decimal Price, bool Available);
+public sealed record SuggestedProductDto(Guid ProductId, string Name, string? Sku, string? Slug, decimal Price, decimal RegularPrice, bool Available, ShopImageDto? Image);
 
 /// <summary>What shoppers see: only products on sale.</summary>
 public sealed record SuggestionsDto(IReadOnlyList<SuggestedProductDto> Related, IReadOnlyList<SuggestedProductDto> CrossSell);
@@ -65,16 +67,16 @@ public interface IProductRelationService
     Task<ProductRelationsDto?> SetAsync(Guid productId, ProductRelationsInput input, CancellationToken ct = default);
 
     /// <summary>What to show shoppers on a product's page. Null when the product does not exist or is not on sale.</summary>
-    Task<SuggestionsDto?> ForProductAsync(Guid productId, CancellationToken ct = default);
+    Task<SuggestionsDto?> ForProductAsync(Guid productId, Guid? customerId = null, CancellationToken ct = default);
 
     /// <summary>
     /// Cross-sell suggestions for a basket: the cross-sell products of the given products that are on sale, leaving out anything already in the basket,
     /// those suggested by the most products first. At most 12.
     /// </summary>
-    Task<IReadOnlyList<SuggestedProductDto>> CrossSellForBasketAsync(IReadOnlyCollection<Guid> productIds, CancellationToken ct = default);
+    Task<IReadOnlyList<SuggestedProductDto>> CrossSellForBasketAsync(IReadOnlyCollection<Guid> productIds, Guid? customerId = null, CancellationToken ct = default);
 }
 
-internal sealed class ProductRelationService(PiranhaDbContext db, IOptions<EcommerceOptions> options) : IProductRelationService
+internal sealed class ProductRelationService(PiranhaDbContext db, IOptions<EcommerceOptions> options, IGroupPricingService pricing) : IProductRelationService
 {
     public const int MaxPerKind = 20;
     public const int MaxBasketSuggestions = 12;
@@ -135,17 +137,17 @@ internal sealed class ProductRelationService(PiranhaDbContext db, IOptions<Ecomm
         return await GetAsync(productId, ct);
     }
 
-    public async Task<SuggestionsDto?> ForProductAsync(Guid productId, CancellationToken ct = default)
+    public async Task<SuggestionsDto?> ForProductAsync(Guid productId, Guid? customerId = null, CancellationToken ct = default)
     {
         var id = await ParentAsync(productId, ct);
         if (!await db.Set<ProductListing>().AsNoTracking().AnyAsync(l => l.ProductId == id && l.Published, ct)) return null;
         var rows = await db.Set<ProductRelation>().AsNoTracking().Where(r => r.ProductId == id).OrderBy(r => r.SortOrder).ToListAsync(ct);
-        var shown = await ShownAsync(rows.Select(r => r.RelatedProductId).Distinct().ToList(), ct);
+        var shown = await ShownAsync(rows.Select(r => r.RelatedProductId).Distinct().ToList(), customerId, ct);
         IReadOnlyList<SuggestedProductDto> Of(ProductRelationKind kind) => rows.Where(r => r.Kind == kind && shown.ContainsKey(r.RelatedProductId)).Select(r => shown[r.RelatedProductId]).ToList();
         return new SuggestionsDto(Of(ProductRelationKind.Related), Of(ProductRelationKind.CrossSell));
     }
 
-    public async Task<IReadOnlyList<SuggestedProductDto>> CrossSellForBasketAsync(IReadOnlyCollection<Guid> productIds, CancellationToken ct = default)
+    public async Task<IReadOnlyList<SuggestedProductDto>> CrossSellForBasketAsync(IReadOnlyCollection<Guid> productIds, Guid? customerId = null, CancellationToken ct = default)
     {
         if (productIds.Count == 0) return [];
         // A variant in the basket counts as its parent: that is where the suggestions are kept.
@@ -159,19 +161,22 @@ internal sealed class ProductRelationService(PiranhaDbContext db, IOptions<Ecomm
         var wanted = rows.Where(r => !inBasket.Contains(r.RelatedProductId)).GroupBy(r => r.RelatedProductId)
             .Select(g => new { Id = g.Key, Votes = g.Select(r => r.ProductId).Distinct().Count(), Best = g.Min(r => r.SortOrder) })
             .OrderByDescending(x => x.Votes).ThenBy(x => x.Best).ThenBy(x => x.Id).ToList();
-        var shown = await ShownAsync(wanted.Select(w => w.Id).ToList(), ct);
+        var shown = await ShownAsync(wanted.Select(w => w.Id).ToList(), customerId, ct);
         return wanted.Where(w => shown.ContainsKey(w.Id)).Select(w => shown[w.Id]).Take(MaxBasketSuggestions).ToList();
     }
 
     /// <summary>The products in <paramref name="ids"/> that are on sale, with whether each can be bought now.</summary>
-    private async Task<Dictionary<Guid, SuggestedProductDto>> ShownAsync(List<Guid> ids, CancellationToken ct)
+    private async Task<Dictionary<Guid, SuggestedProductDto>> ShownAsync(List<Guid> ids, Guid? customerId, CancellationToken ct)
     {
         if (ids.Count == 0) return [];
         var location = options.Value.StockLocationId ?? StockLocations.DefaultId;
         var published = (await db.Set<ProductListing>().AsNoTracking().Where(l => ids.Contains(l.ProductId) && l.Published).Select(l => l.ProductId).ToListAsync(ct)).ToHashSet();
         var inStock = (await db.Set<StockLevel>().AsNoTracking().Where(l => ids.Contains(l.ProductId) && l.LocationId == location && l.Quantity > 0).Select(l => l.ProductId).ToListAsync(ct)).ToHashSet();
-        return (await db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).Select(p => new { p.Id, p.Name, p.Sku, p.Price }).ToListAsync(ct))
-            .Where(p => published.Contains(p.Id)).ToDictionary(p => p.Id, p => new SuggestedProductDto(p.Id, p.Name, p.Sku, p.Price, inStock.Contains(p.Id)));
+        var products = (await db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).Select(p => new { p.Id, p.Name, p.Sku, p.Slug }).ToListAsync(ct)).Where(p => published.Contains(p.Id)).ToList();
+        var shownIds = products.Select(p => p.Id).ToList();
+        var prices = (await pricing.PricesAsync(customerId, shownIds, null, ct)).ToDictionary(x => x.ProductId);
+        var images = await ShopImages.FirstAsync(db, shownIds, ct);
+        return products.ToDictionary(p => p.Id, p => new SuggestedProductDto(p.Id, p.Name, p.Sku, p.Slug, prices[p.Id].Price, prices[p.Id].RegularPrice, inStock.Contains(p.Id), images.GetValueOrDefault(p.Id)));
     }
 }
 
@@ -191,11 +196,11 @@ internal sealed class ProductRelationStorefrontEndpoints : IStorefrontEndpointCo
 {
     public void MapEndpoints(IEndpointRouteBuilder storefront)
     {
-        storefront.MapGet("/products/{productId:guid}/suggestions", async (Guid productId, IProductRelationService svc, CancellationToken ct) =>
-            await svc.ForProductAsync(productId, ct) is { } r ? Results.Ok(r) : Results.NotFound()).AllowAnonymous().WithTags("Storefront suggestions");
+        storefront.MapGet("/products/{productId:guid}/suggestions", async (Guid productId, System.Security.Claims.ClaimsPrincipal user, IProductRelationService svc, CancellationToken ct) =>
+            await svc.ForProductAsync(productId, user.CustomerId(), ct) is { } r ? Results.Ok(r) : Results.NotFound()).AllowAnonymous().WithTags("Storefront suggestions");
 
         // For a basket: the product ids come from the caller (the shop front knows what is in the basket), so this works for guest baskets and signed-in ones alike.
-        storefront.MapGet("/cross-sell", async (Guid[]? productIds, IProductRelationService svc, CancellationToken ct) =>
-            Results.Ok(await svc.CrossSellForBasketAsync((productIds ?? []).Take(100).ToList(), ct))).AllowAnonymous().WithTags("Storefront suggestions");
+        storefront.MapGet("/cross-sell", async (Guid[]? productIds, System.Security.Claims.ClaimsPrincipal user, IProductRelationService svc, CancellationToken ct) =>
+            Results.Ok(await svc.CrossSellForBasketAsync((productIds ?? []).Take(100).ToList(), user.CustomerId(), ct))).AllowAnonymous().WithTags("Storefront suggestions");
     }
 }

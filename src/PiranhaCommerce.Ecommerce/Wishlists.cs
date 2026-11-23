@@ -32,10 +32,11 @@ public sealed class WishlistAddInput
     public Guid ProductId { get; set; }
 }
 
+/// <param name="Price">What this shopper pays now (a sale, their group price and so on); <paramref name="PriceWhenAdded"/> is what they would have paid when they saved it.</param>
 /// <param name="Available">True while the product is on sale and in stock where online orders take it from.</param>
 /// <param name="Published">False when the product has been taken off sale since it was saved.</param>
 public sealed record WishlistItemDto(
-    Guid ProductId, string Name, string? Sku, decimal Price, decimal PriceWhenAdded, bool Published, bool Available, DateTimeOffset AddedUtc);
+    Guid ProductId, string Name, string? Sku, string? Slug, decimal Price, decimal RegularPrice, decimal PriceWhenAdded, bool Published, bool Available, DateTimeOffset AddedUtc, ShopImageDto? Image);
 
 /// <summary>For staff: how many wishlists a product is on.</summary>
 public sealed record WishlistDemandDto(Guid ProductId, string Name, string? Sku, int Wishlists);
@@ -58,7 +59,7 @@ public interface IWishlistService
     Task<IReadOnlyList<WishlistDemandDto>> DemandAsync(CancellationToken ct = default);
 }
 
-internal sealed class WishlistService(PiranhaDbContext db, IOptions<EcommerceOptions> options) : IWishlistService
+internal sealed class WishlistService(PiranhaDbContext db, IOptions<EcommerceOptions> options, IGroupPricingService pricing) : IWishlistService
 {
     /// <summary>The most products one wishlist holds.</summary>
     public const int MaxItems = 200;
@@ -69,20 +70,23 @@ internal sealed class WishlistService(PiranhaDbContext db, IOptions<EcommerceOpt
         if (items.Count == 0) return [];
         var ids = items.Select(i => i.ProductId).ToList();
         var location = options.Value.StockLocationId ?? StockLocations.DefaultId;
-        var products = await db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).Select(p => new { p.Id, p.Name, p.Sku, p.Price }).ToDictionaryAsync(p => p.Id, ct);
+        var products = await db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).Select(p => new { p.Id, p.Name, p.Sku, p.Slug }).ToDictionaryAsync(p => p.Id, ct);
+        var prices = (await pricing.PricesAsync(customerId, ids, null, ct)).ToDictionary(x => x.ProductId);
+        var images = await ShopImages.FirstAsync(db, ids, ct);
         var published = (await db.Set<ProductListing>().AsNoTracking().Where(l => ids.Contains(l.ProductId) && l.Published).Select(l => l.ProductId).ToListAsync(ct)).ToHashSet();
         var inStock = (await db.Set<StockLevel>().AsNoTracking().Where(l => ids.Contains(l.ProductId) && l.LocationId == location && l.Quantity > 0).Select(l => l.ProductId).ToListAsync(ct)).ToHashSet();
         return items.Where(i => products.ContainsKey(i.ProductId)).Select(i =>
         {
             var p = products[i.ProductId];
             var isPublished = published.Contains(i.ProductId);
-            return new WishlistItemDto(i.ProductId, p.Name, p.Sku, p.Price, i.PriceWhenAdded, isPublished, isPublished && inStock.Contains(i.ProductId), i.AddedUtc);
+            var price = prices[i.ProductId];
+            return new WishlistItemDto(i.ProductId, p.Name, p.Sku, p.Slug, price.Price, price.RegularPrice, i.PriceWhenAdded, isPublished, isPublished && inStock.Contains(i.ProductId), i.AddedUtc, images.GetValueOrDefault(i.ProductId));
         }).ToList();
     }
 
     public async Task<WishlistItemDto> AddAsync(Guid customerId, Guid productId, CancellationToken ct = default)
     {
-        var product = await db.Set<Product>().AsNoTracking().Where(p => p.Id == productId).Select(p => new { p.Price }).FirstOrDefaultAsync(ct);
+        var product = await db.Set<Product>().AsNoTracking().Where(p => p.Id == productId).Select(p => new { p.Id }).FirstOrDefaultAsync(ct);
         if (product is null || !await db.Set<ProductListing>().AsNoTracking().AnyAsync(l => l.ProductId == productId && l.Published, ct))
             throw new PiranhaValidationException(nameof(WishlistAddInput.ProductId), "That product cannot be added to a wishlist.");
 
@@ -90,7 +94,7 @@ internal sealed class WishlistService(PiranhaDbContext db, IOptions<EcommerceOpt
         {
             if (await db.Set<WishlistItem>().CountAsync(i => i.CustomerId == customerId, ct) >= MaxItems)
                 throw new PiranhaConflictException($"A wishlist holds up to {MaxItems} products. Remove some first.");
-            db.Add(new WishlistItem { CustomerId = customerId, ProductId = productId, AddedUtc = DateTimeOffset.UtcNow, PriceWhenAdded = product.Price });
+            db.Add(new WishlistItem { CustomerId = customerId, ProductId = productId, AddedUtc = DateTimeOffset.UtcNow, PriceWhenAdded = (await pricing.PricesAsync(customerId, [productId], null, ct)).First().Price });
             try { await db.SaveChangesAsync(ct); }
             catch (DbUpdateException) { db.ChangeTracker.Clear(); } // the same product added twice at once: the unique index keeps one
         }

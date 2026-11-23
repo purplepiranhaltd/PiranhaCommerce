@@ -13,6 +13,7 @@ Piranha Commerce is a commerce engine for .NET, delivered as NuGet packages. You
 - **New here?** Read [What Piranha Commerce is](getting-started/overview.md), then [Installation](getting-started/installation.md) to run the sample shop on your machine.
 - **Want to see it work?** Follow [Your first store](getting-started/first-store.md) to create a product and place an order with the API.
 - **Setting up for real?** See [Configuration](getting-started/configuration.md), [Migrations](advanced/migrations.md) and [Hosting requirements](advanced/hosting.md).
+- **Building a shop front?** [Building a shop front](guides/storefront.md) shows how to browse the catalogue, show prices and suggest products through the API.
 - **Looking for a feature?** The guides cover each area: [catalogue and stock](guides/catalogue.md), [customers](guides/shoppers.md), [baskets and orders](guides/baskets-orders.md), [prices and discounts](guides/pricing.md), [shipping](guides/shipping.md), [payments](guides/payments.md), [email](guides/email.md), [reviews, wishlists and suggestions](guides/engagement.md) and [reports, webhooks and audit](guides/operations.md).
 - **Extending it?** [Writing a plugin](advanced/plugins.md) shows how your own package adds tables, API endpoints and admin pages.
 

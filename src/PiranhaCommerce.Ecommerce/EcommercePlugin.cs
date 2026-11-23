@@ -68,6 +68,8 @@ public sealed class EcommercePlugin : IPiranhaPlugin
         services.AddSingleton<IApiEndpointContributor, ReviewEndpoints>();
         services.AddSingleton<IStorefrontEndpointContributor, ReviewStorefrontEndpoints>();
         services.AddScoped<PiranhaCommerce.Customers.ICustomerDataContributor, ReviewCustomerData>();
+        services.AddScoped<IShopCatalogueService, ShopCatalogueService>();
+        services.AddSingleton<IStorefrontEndpointContributor, ShopCatalogueEndpoints>();
         services.AddScoped<IProductRelationService, ProductRelationService>();
         services.AddSingleton<IApiEndpointContributor, ProductRelationEndpoints>();
         services.AddSingleton<IStorefrontEndpointContributor, ProductRelationStorefrontEndpoints>();
