@@ -14,6 +14,16 @@ Categories form a tree: each has an optional parent (`ParentId`). A product can 
 - A category that has sub-categories cannot be deleted (`409`).
 - `PUT /products/{id}/categories` replaces the product's whole set of categories.
 
+## Brands
+
+A brand is a label a product carries, such as the maker or the house range. A product has at most one. Staff manage them in Catalog > Brands (`/brands` in the API) and choose one on the product's edit page (`GET` or `PUT /products/{id}/brand`).
+
+- A brand has a `name`, `description`, `displayOrder`, an `active` switch and the usual `slug`, `metaTitle` and `metaDescription`.
+- Names are unique whatever their letter case ("Fern & Ash" and "FERN & ASH" are the same brand), and slugs are unique.
+- A brand that products carry cannot be deleted (`409`). Move the products first, or switch the brand off. A switched-off brand is hidden from shoppers; its products stay on sale.
+- A variant has no brand of its own. It shows its parent's, and setting one on a variant is refused.
+- `GET /brands/by-slug/{slug}` finds one by address. Each brand reports its `productCount` (main products only).
+
 ## Slugs and page text
 
 Products and categories have a **slug** (lower-case letters, digits and single hyphens; unique; lower-cased for you), a `metaTitle` and a `metaDescription`. A shop front that routes by address uses `GET /products/by-slug/{slug}` and `GET /categories/by-slug/{slug}`.
@@ -100,9 +110,11 @@ Catalogue data moves in and out as CSV: `GET /products/export?search=` and `POST
 
 One row per product. The columns are:
 
-`id, sku, parent_id, parent_sku, name, description, price, slug, meta_title, meta_description, categories, barcodes, stock, option1_name, option1_value`, and the same pair for options 2 and 3.
+`id, sku, parent_id, parent_sku, name, description, price, slug, meta_title, meta_description, categories, brand, barcodes, stock, option1_name, option1_value`, and the same pair for options 2 and 3.
 
 The online store adds `published, tax_class, weight_grams`. A package adds its own columns with `IProductImportExtension`. A column the importer does not know refuses the file.
+
+The `brand` cell holds a brand's name. A name that matches an existing brand in any letter case uses it; a new name makes the brand. A blank cell leaves the product's brand alone and `[clear]` removes it. A variant row must leave it blank, because a variant uses its parent's brand.
 
 ### How rows are read
 

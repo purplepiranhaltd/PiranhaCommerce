@@ -51,6 +51,7 @@ public sealed class SampleDataSeeder(
             created++;
         }
 
+        await SeedBrandsAsync(sp, productIds, ct);
         await SeedRelationsAsync(sp, productIds, ct);
         await SeedStoreSettingsAsync(sp, categoryIds, ct);
         await SeedShoppersAndReviewsAsync(sp, productIds, ct);
@@ -109,6 +110,24 @@ public sealed class SampleDataSeeder(
             await Picture(product.Id, p.Kind, p.Colours ?? [], p.Name);
         }
         return product.Id;
+    }
+
+    /// <summary>Makes the labels and gives each product its label, unless it already has one (so staff changes, and a second run, are left alone).</summary>
+    private static async Task SeedBrandsAsync(IServiceProvider sp, Dictionary<string, Guid> ids, CancellationToken ct)
+    {
+        var brands = sp.GetRequiredService<IBrandService>();
+        var brandIds = new Dictionary<string, Guid>();
+        var order = 0;
+        foreach (var b in SampleCatalogue.Brands)
+        {
+            var existing = await brands.GetBySlugAsync(b.Slug, ct)
+                ?? await brands.CreateAsync(new BrandInput { Name = b.Name, Slug = b.Slug, Description = b.Description, DisplayOrder = order, MetaTitle = $"{b.Name} | {SampleCatalogue.Brand}", MetaDescription = b.Description }, ct);
+            brandIds[b.Slug] = existing.Id;
+            order++;
+        }
+        foreach (var (productSlug, brandSlug) in SampleCatalogue.BrandOf)
+            if (ids.TryGetValue(productSlug, out var productId) && (await brands.GetProductBrandAsync(productId, ct))?.BrandId is null)
+                await brands.SetProductBrandAsync(productId, brandIds[brandSlug], ct);
     }
 
     private static async Task SeedRelationsAsync(IServiceProvider sp, Dictionary<string, Guid> ids, CancellationToken ct)

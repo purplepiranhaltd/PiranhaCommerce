@@ -72,6 +72,7 @@ internal sealed class CatalogTransferService(
     PiranhaDbContext db,
     IProductService products,
     ICategoryService categories,
+    IBrandService brands,
     IBarcodeService barcodes,
     IProductVariantService variants,
     IStockService stock,
@@ -82,7 +83,7 @@ internal sealed class CatalogTransferService(
     private const string Clear = "[clear]";
     private static readonly string[] CoreColumns =
     [
-        "id", "sku", "parent_id", "parent_sku", "name", "description", "price", "slug", "meta_title", "meta_description", "categories", "barcodes", "stock",
+        "id", "sku", "parent_id", "parent_sku", "name", "description", "price", "slug", "meta_title", "meta_description", "categories", "brand", "barcodes", "stock",
         "option1_name", "option1_value", "option2_name", "option2_value", "option3_name", "option3_value",
     ];
 
@@ -130,6 +131,7 @@ internal sealed class CatalogTransferService(
             var rows = await db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
             var cats = (await db.Set<ProductCategory>().AsNoTracking().Where(c => ids.Contains(c.ProductId)).ToListAsync(ct))
                 .GroupBy(c => c.ProductId).ToDictionary(g => g.Key, g => g.Select(c => PathOf(c.CategoryId)).Where(p => p.Length > 0).Order().ToList());
+            var brandNames = await brands.NamesForProductsAsync(ids.Where(i => !parentOf.ContainsKey(i)).ToList(), ct); // a variant row leaves it blank: it shows its parent's
             var codes = (await db.Set<ProductBarcode>().AsNoTracking().Where(b => ids.Contains(b.ProductId)).ToListAsync(ct))
                 .GroupBy(b => b.ProductId).ToDictionary(g => g.Key, g => g.Select(b => b.Code).Order().ToList());
             var levels = await db.Set<StockLevel>().AsNoTracking().Where(l => ids.Contains(l.ProductId) && l.LocationId == StockLocations.DefaultId).ToDictionaryAsync(l => l.ProductId, l => l.Quantity, ct);
@@ -152,7 +154,7 @@ internal sealed class CatalogTransferService(
                 {
                     p.Id.ToString(), Csv.Protect(p.Sku), variantOf.TryGetValue(id, out var parent) ? parent.ToString() : null, parents.GetValueOrDefault(parent) is { } ps ? Csv.Protect(ps) : null,
                     Csv.Protect(p.Name), Csv.Protect(p.Description), p.Price.ToString("0.####", CultureInfo.InvariantCulture), p.Slug, Csv.Protect(p.MetaTitle), Csv.Protect(p.MetaDescription),
-                    Csv.Protect(string.Join(" | ", cats.GetValueOrDefault(id) ?? [])), Csv.Protect(string.Join(" | ", codes.GetValueOrDefault(id) ?? [])),
+                    Csv.Protect(string.Join(" | ", cats.GetValueOrDefault(id) ?? [])), Csv.Protect(brandNames.GetValueOrDefault(id)), Csv.Protect(string.Join(" | ", codes.GetValueOrDefault(id) ?? [])),
                     levels.TryGetValue(id, out var q) ? q.ToString("0.####", CultureInfo.InvariantCulture) : null,
                 };
                 var values = perVariant.GetValueOrDefault(id) ?? [];
@@ -378,6 +380,13 @@ internal sealed class CatalogTransferService(
             if (row.IsVariant || await variants.GetAsync(productId, ct) is { ParentProductId: not null })
                 throw new RowProblem("A variant has no categories of its own: it uses its parent's.");
             await SetCategoriesAsync(productId, row.Get("categories"), ct);
+        }
+        if (row.Has("brand"))
+        {
+            if (row.IsVariant || await variants.GetAsync(productId, ct) is { ParentProductId: not null })
+                throw new RowProblem("A variant has no brand of its own: it uses its parent's.");
+            var brandName = row.Get("brand");
+            await brands.SetProductBrandAsync(productId, brandName is null ? null : await brands.GetOrCreateByNameAsync(brandName, ct), ct); // a brand the file names is made when missing
         }
         if (row.Has("barcodes"))
         {

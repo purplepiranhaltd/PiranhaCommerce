@@ -1,0 +1,130 @@
+@page "/admin/catalog/brands"
+@inject AdminScopeRunner Scope
+
+<PageTitle>Brands - Piranha Commerce</PageTitle>
+<h1>Brands</h1>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+<div class="pc-card">
+    <h2 style="margin-top:0">@(_editingId is null ? "New brand" : "Edit brand")</h2>
+    <div class="pc-toolbar">
+        <input aria-label="Brand name" placeholder="Name" @bind="_input.Name" />
+        <input type="number" aria-label="Display order" style="width:6rem" @bind="_input.DisplayOrder" />
+        <label><input type="checkbox" @bind="_input.Active" /> Active</label>
+        <input aria-label="Slug" placeholder="Slug, e.g. rosewater" @bind="_input.Slug" />
+        <input aria-label="Description" placeholder="Description" @bind="_input.Description" />
+        <input aria-label="Page title" placeholder="Page title" @bind="_input.MetaTitle" />
+        <input aria-label="Page description" placeholder="Page description" @bind="_input.MetaDescription" />
+        <button @onclick="SaveAsync" disabled="@_saving">@(_editingId is null ? "Add" : "Save")</button>
+        @if (_editingId is not null)
+        {
+            <button class="secondary" @onclick="ResetForm">Cancel</button>
+        }
+    </div>
+    <p class="pc-muted">A switched-off brand is hidden from shoppers; its products stay on sale. A brand that products carry cannot be deleted.</p>
+</div>
+
+@if (_loading)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_brands.Count == 0)
+{
+    <p class="pc-muted">No brands yet.</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>Name</th><th>Slug</th><th class="num">Order</th><th class="num">Products</th><th>Active</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var b in _brands)
+        {
+            <tr>
+                <td>@b.Name</td>
+                <td>@b.Slug</td>
+                <td class="num">@b.DisplayOrder</td>
+                <td class="num">@b.ProductCount</td>
+                <td>@(b.Active ? "Yes" : "No")</td>
+                <td class="actions">
+                    <button class="secondary" @onclick="() => Edit(b)">Edit</button>
+                    @if (_confirmDelete == b.Id)
+                    {
+                        <button class="danger" @onclick="() => DeleteAsync(b.Id)">Confirm delete</button>
+                        <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
+                    }
+                    else
+                    {
+                        <button class="secondary" @onclick="() => _confirmDelete = b.Id">Delete</button>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IReadOnlyList<BrandDto> _brands = [];
+    private BrandInput _input = new();
+    private Guid? _editingId, _confirmDelete;
+    private bool _loading = true, _saving;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try { _brands = await Scope.RunAsync<IBrandService, IReadOnlyList<BrandDto>>(s => s.ListAsync()); }
+        catch (Exception ex) { _error = "Could not load brands: " + ex.Message; }
+        _loading = false;
+    }
+
+    private void Edit(BrandDto b)
+    {
+        _editingId = b.Id;
+        _input = new BrandInput { Name = b.Name, Description = b.Description, DisplayOrder = b.DisplayOrder, Active = b.Active, Slug = b.Slug, MetaTitle = b.MetaTitle, MetaDescription = b.MetaDescription };
+    }
+
+    private void ResetForm() { _editingId = null; _input = new(); }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            if (_editingId is { } id)
+            {
+                var updated = await Scope.RunAsync<IBrandService, BrandDto?>(s => s.UpdateAsync(id, _input));
+                if (updated is null) _error = "That brand no longer exists.";
+            }
+            else
+            {
+                await Scope.RunAsync<IBrandService, BrandDto>(s => s.CreateAsync(_input));
+            }
+            if (_error is null) ResetForm();
+            await LoadAsync();
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _error = "Could not save: " + ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        _confirmDelete = null;
+        _error = null;
+        try
+        {
+            await Scope.RunAsync<IBrandService, bool>(s => s.DeleteAsync(id));
+            if (_editingId == id) ResetForm();
+            await LoadAsync();
+        }
+        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (Exception ex) { _error = "Could not delete: " + ex.Message; }
+    }
+}

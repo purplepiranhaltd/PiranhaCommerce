@@ -16,6 +16,12 @@ Only categories that are switched on and products that are **published** appear.
 
 `GET /storefront/categories` returns the category tree. Each category has its `name`, `slug`, `description`, page-title text, the number of products on sale in it and below it (`productCount`) and its `children`.
 
+## Brands and filters
+
+`GET /storefront/brands` lists the brands that are switched on and have something on sale, with `name`, `slug`, `description` and `productCount`.
+
+`GET /storefront/products/facets` takes the same query as the product list and returns the filters a shopper can still use, each with its values and counts. Today there is one, `brand`. Every value is counted with all the *other* filters applied but not its own, so choosing one brand still shows how many each alternative would give. Within one filter a shopper's choices are "any of"; across filters they are "all of". A chosen value stays in the list even when its count is 0, so it can be unticked.
+
 ## Products
 
 `GET /storefront/products` lists products. All the query values are optional:
@@ -27,6 +33,7 @@ Only categories that are switched on and products that are **published** appear.
 | `sort` | `Name` (default), `PriceLowToHigh`, `PriceHighToLow` or `Newest`. Price sorting uses the regular price. |
 | `minPrice`, `maxPrice` | Limits on the regular price. |
 | `inStock` | `true` for only products that can be bought now. |
+| `brand` | A brand slug. Repeat it for several brands: a product matching any of them is listed. A name nobody stocks matches nothing. |
 | `page`, `pageSize` | Paging. The answer has `items`, `page`, `pageSize`, `totalCount`. |
 | `countryCode` | The destination, for tax-inclusive prices. The shop's home country is used when empty. |
 

@@ -36,6 +36,23 @@ internal sealed class CatalogModelContributor : IModelContributor
             e.HasOne<Category>().WithMany().HasForeignKey(c => c.ParentId);
         });
 
+        b.Entity<Brand>(e =>
+        {
+            e.ToTable("Brand", Schema);
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.NormalizedName).HasMaxLength(200).IsRequired();
+            e.HasIndex(x => x.NormalizedName).IsUnique(); // names are unique whatever their letter case
+            e.Property(x => x.Description).HasMaxLength(4000);
+            e.Property(x => x.Slug).HasMaxLength(200);
+            e.Property(x => x.MetaTitle).HasMaxLength(200);
+            e.Property(x => x.MetaDescription).HasMaxLength(500);
+            e.HasIndex(x => x.Slug).IsUnique();
+        });
+
+        // A brand that products carry cannot be deleted: the service says so first, and the database refuses too.
+        b.Entity<Product>().HasOne<Brand>().WithMany().HasForeignKey(p => p.BrandId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<Product>().HasIndex(p => p.BrandId);
+
         b.Entity<ProductCategory>(e =>
         {
             e.ToTable("ProductCategory", Schema);

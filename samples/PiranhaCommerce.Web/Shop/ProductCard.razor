@@ -7,6 +7,7 @@
         @if (!Available) { <span class="badge out">Sold out</span> }
         else if (Sale) { <span class="badge sale">Sale</span> }
     </div>
+    @if (!string.IsNullOrWhiteSpace(Brand)) { <p class="brand">@Brand</p> }
     <h3>@Name</h3>
     @if (ReviewCount > 0)
     {
@@ -31,6 +32,7 @@
     [Parameter] public bool From { get; set; }
     [Parameter] public bool Available { get; set; } = true;
     [Parameter] public int? Left { get; set; }
+    [Parameter] public string? Brand { get; set; }
     [Parameter] public int ReviewCount { get; set; }
     [Parameter] public decimal ReviewAverage { get; set; }
 

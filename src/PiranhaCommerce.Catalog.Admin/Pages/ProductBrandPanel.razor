@@ -1,0 +1,73 @@
+@* Panel for AdminSlots.ProductEditPanels. Saves independently of the product form. *@
+@inject AdminScopeRunner Scope
+
+<div class="pc-card" style="margin-top:1rem">
+    <h2 style="margin-top:0">Brand</h2>
+    @if (_loading)
+    {
+        <p class="pc-muted">Loading...</p>
+    }
+    else if (_inherited)
+    {
+        <p class="pc-muted">This is a variant, so it shows its parent product's brand@(_current?.BrandName is { } n ? ": " + n : " (none)"). Change it on the parent.</p>
+    }
+    else if (_brands.Count == 0)
+    {
+        <p class="pc-muted">No brands exist yet. <a href="/admin/catalog/brands">Create some</a>.</p>
+    }
+    else
+    {
+        <div class="pc-toolbar">
+            <select aria-label="Brand" @bind="_selected">
+                <option value="">(none)</option>
+                @foreach (var b in _brands)
+                {
+                    <option value="@b.Id">@b.Name@(b.Active ? "" : " (switched off)")</option>
+                }
+            </select>
+            <button type="button" @onclick="SaveAsync" disabled="@_saving">Save brand</button>
+            @if (_message is not null)
+            {
+                <span class="pc-muted" role="status">@_message</span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Guid ProductId { get; set; }
+
+    private IReadOnlyList<BrandDto> _brands = [];
+    private ProductBrandDto? _current;
+    private Guid? _selected;
+    private bool _loading = true, _saving, _inherited;
+    private string? _message;
+    private Guid _loadedFor;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedFor == ProductId) return;
+        _loadedFor = ProductId;
+        _loading = true;
+        _message = null;
+        _brands = await Scope.RunAsync<IBrandService, IReadOnlyList<BrandDto>>(s => s.ListAsync());
+        _current = await Scope.RunAsync<IBrandService, ProductBrandDto?>(s => s.GetProductBrandAsync(ProductId));
+        _inherited = _current?.Inherited == true;
+        _selected = _current?.BrandId;
+        _loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            var id = _selected;
+            var r = await Scope.RunAsync<IBrandService, ProductBrandDto?>(s => s.SetProductBrandAsync(ProductId, id));
+            _message = r is null ? "Product no longer exists." : "Saved.";
+        }
+        catch (PiranhaValidationException ex) { _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _message = "Could not save: " + ex.Message; }
+        finally { _saving = false; }
+    }
+}

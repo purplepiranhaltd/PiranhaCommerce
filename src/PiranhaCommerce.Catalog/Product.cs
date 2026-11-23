@@ -19,4 +19,7 @@ public class Product : AuditableEntity
     public string? Slug { get; set; }
     public string? MetaTitle { get; set; }
     public string? MetaDescription { get; set; }
+
+    /// <summary>The product's brand, if any. Variants have none of their own: they show their parent's.</summary>
+    public Guid? BrandId { get; set; }
 }

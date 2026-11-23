@@ -99,6 +99,29 @@ internal static class SampleCatalogue
         ("daily-moisture-cream", ["vitamin-c-serum", "spf-30-daily-fluid"], ["spf-30-daily-fluid", "vitamin-c-serum"]),
     ];
 
+    /// <summary>The labels the shop stocks. All invented for this sample; none is a real company or product line.</summary>
+    public sealed record SampleBrand(string Slug, string Name, string Description);
+
+    public static readonly IReadOnlyList<SampleBrand> Brands =
+    [
+        new("petalwick", "Petalwick", "Our own range: lipsticks, glosses and everyday colour."),
+        new("marlowe-and-finch", "Marlowe & Finch", "Eye makeup made for long days: mascara and blendable palettes."),
+        new("juniper-row", "Juniper Row", "Skin-first face makeup."),
+        new("fern-and-ash", "Fern & Ash", "Gentle, simple skincare."),
+    ];
+
+    /// <summary>Which label each product belongs to, by product slug then brand slug.</summary>
+    public static readonly IReadOnlyDictionary<string, string> BrandOf = new Dictionary<string, string>
+    {
+        ["velvet-matte-lipstick"] = "petalwick", ["satin-cream-lipstick"] = "petalwick", ["hydra-shine-lip-gloss"] = "petalwick",
+        ["precision-lip-liner"] = "petalwick", ["everyday-lip-trio-gift-set"] = "petalwick", ["cheek-bloom-blush"] = "petalwick",
+        ["lash-lift-mascara"] = "marlowe-and-finch", ["sunset-eyeshadow-palette"] = "marlowe-and-finch",
+        ["smoky-nights-eyeshadow-palette"] = "marlowe-and-finch", ["rose-quartz-eyeshadow-palette"] = "marlowe-and-finch",
+        ["skin-glow-foundation"] = "juniper-row", ["luminous-highlighter"] = "juniper-row",
+        ["gentle-cream-cleanser"] = "fern-and-ash", ["daily-moisture-cream"] = "fern-and-ash",
+        ["vitamin-c-serum"] = "fern-and-ash", ["spf-30-daily-fluid"] = "fern-and-ash",
+    };
+
     public sealed record SampleShopper(string Email, string FirstName, string LastName);
 
     public static readonly IReadOnlyList<SampleShopper> Shoppers =

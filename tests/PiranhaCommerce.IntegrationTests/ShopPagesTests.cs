@@ -53,6 +53,41 @@ public class ShopPagesTests(PiranhaFactory factory) : IClassFixture<PiranhaFacto
     }
 
     [Fact]
+    public async Task The_shop_filters_by_brand_with_counts_and_keeps_the_filter_while_paging_and_the_brand_shows_on_cards_and_product_pages()
+    {
+        if (PiranhaFactory.UsesSharedDatabase) return;
+        var shop = await SeededShopAsync();
+
+        var all = await Page(shop, "/shop");
+        Assert.Contains("name=\"brand\" value=\"petalwick\"", all);          // the filter form offers each brand
+        Assert.Contains("Marlowe &amp; Finch", await shop.GetStringAsync("/shop")); // encoded in the markup
+        Assert.Contains("Fern & Ash", all);
+
+        var eyes = await Page(shop, "/shop?brand=marlowe-and-finch");
+        Assert.Contains("Lash Lift Mascara", eyes);
+        Assert.DoesNotContain("Velvet Matte Lipstick", eyes);
+        Assert.Contains("checked", eyes);
+        Assert.Contains("Eye makeup made for long days", eyes);               // one brand: its own heading and description
+
+        var two = await Page(shop, "/shop?brand=marlowe-and-finch&brand=fern-and-ash");
+        Assert.Contains("Lash Lift Mascara", two);
+        Assert.Contains("Vitamin C Serum 30ml", two);
+        Assert.DoesNotContain("Velvet Matte Lipstick", two);
+
+        // The filter survives the page links.
+        var paged = await Page(shop, "/shop?brand=petalwick&brand=juniper-row&brand=fern-and-ash&brand=marlowe-and-finch&sort=PriceHighToLow");
+        Assert.Contains("Page 1 of 2", paged);
+        Assert.Contains("brand=petalwick&brand=juniper-row&brand=fern-and-ash&brand=marlowe-and-finch&page=2", paged);
+
+        // On the product page the brand links back to its listing.
+        var product = await Page(shop, "/product/velvet-matte-lipstick");
+        Assert.Contains("/shop?brand=petalwick", product);
+        Assert.Contains("Petalwick", product);
+
+        Assert.Contains("Nothing found", await Page(shop, "/shop?brand=no-such-brand"));
+    }
+
+    [Fact]
     public async Task A_product_page_shows_shades_the_chosen_shade_its_price_with_vat_and_what_is_sold_out()
     {
         if (PiranhaFactory.UsesSharedDatabase) return;
