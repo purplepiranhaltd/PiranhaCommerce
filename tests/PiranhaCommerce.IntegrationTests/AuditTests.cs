@@ -71,13 +71,14 @@ public class AuditTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
             form.Add(file, "file", "p.csv");
             Assert.Equal(HttpStatusCode.OK, (await c.PostAsync("/api/v1/products/import" + query, form)).StatusCode);
         }
-        async Task<int> Count() => (await c.GetFromJsonAsync<PagedResult<AuditEntryDto>>($"/api/v1/audit?actor={PiranhaFactory.AdminEmail}&entityType=Product&pageSize=1", Json))!.TotalCount;
+        // Looked up by this import's own SKU, so other tests creating products as the same user at the same time cannot change the answer.
+        async Task<List<ProductDto>> Found() => (await c.GetFromJsonAsync<PagedResult<ProductDto>>($"/api/v1/products?search={sku}", Json))!.Items.Where(p => p.Sku == sku).ToList();
 
-        var start = await Count();
         await Import("?dryRun=true");
-        Assert.Equal(start, await Count());
+        Assert.Empty(await Found());
         await Import("");
-        Assert.Equal(start + 1, await Count());
+        var product = Assert.Single(await Found());
+        Assert.Contains(await Log(c, "Product", product.Id), e => e.Action == AuditAction.Created);
     }
 
     [Fact]
