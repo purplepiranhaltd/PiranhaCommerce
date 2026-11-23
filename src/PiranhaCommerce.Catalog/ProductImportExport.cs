@@ -73,6 +73,7 @@ internal sealed class CatalogTransferService(
     IProductService products,
     ICategoryService categories,
     IBrandService brands,
+    ISpecificationService specifications,
     IBarcodeService barcodes,
     IProductVariantService variants,
     IStockService stock,
@@ -81,9 +82,33 @@ internal sealed class CatalogTransferService(
     ILogger<CatalogTransferService> logger) : ICatalogTransferService
 {
     private const string Clear = "[clear]";
+
+    /// <summary>
+    /// Reads a specs cell: entries joined by <c>|</c>, each <c>Attribute: Value</c> (the first colon splits them), names matched in any letter case.
+    /// Attributes and values are a fixed list, so an unknown one is a problem with the row, not something the import makes. A null cell is <c>[clear]</c>: none.
+    /// </summary>
+    private async Task<List<Guid>> SpecValueIdsAsync(string? cell, CancellationToken ct)
+    {
+        var ids = new List<Guid>();
+        if (cell is null) return ids;
+        var attributes = await specifications.ListAsync(ct);
+        foreach (var entry in cell.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var colon = entry.IndexOf(':');
+            if (colon <= 0 || colon == entry.Length - 1) throw new RowProblem($"\"{entry}\" is not in the form Attribute: Value.");
+            var name = entry[..colon].Trim();
+            var value = entry[(colon + 1)..].Trim();
+            var attribute = attributes.FirstOrDefault(a => string.Equals(a.Name, name, StringComparison.OrdinalIgnoreCase))
+                ?? throw new RowProblem($"There is no specification called \"{name}\". Create it first (Catalog > Specifications).");
+            var match = attribute.Values.FirstOrDefault(v => string.Equals(v.Value, value, StringComparison.OrdinalIgnoreCase))
+                ?? throw new RowProblem($"\"{name}\" has no value \"{value}\". Add it first (Catalog > Specifications).");
+            if (!ids.Contains(match.Id)) ids.Add(match.Id);
+        }
+        return ids;
+    }
     private static readonly string[] CoreColumns =
     [
-        "id", "sku", "parent_id", "parent_sku", "name", "description", "price", "slug", "meta_title", "meta_description", "categories", "brand", "barcodes", "stock",
+        "id", "sku", "parent_id", "parent_sku", "name", "description", "price", "slug", "meta_title", "meta_description", "categories", "brand", "specs", "barcodes", "stock",
         "option1_name", "option1_value", "option2_name", "option2_value", "option3_name", "option3_value",
     ];
 
@@ -132,6 +157,7 @@ internal sealed class CatalogTransferService(
             var cats = (await db.Set<ProductCategory>().AsNoTracking().Where(c => ids.Contains(c.ProductId)).ToListAsync(ct))
                 .GroupBy(c => c.ProductId).ToDictionary(g => g.Key, g => g.Select(c => PathOf(c.CategoryId)).Where(p => p.Length > 0).Order().ToList());
             var brandNames = await brands.NamesForProductsAsync(ids.Where(i => !parentOf.ContainsKey(i)).ToList(), ct); // a variant row leaves it blank: it shows its parent's
+            var specLabels = await specifications.LabelsForProductsAsync(ids.Where(i => !parentOf.ContainsKey(i)).ToList(), ct); // blank on a variant row too
             var codes = (await db.Set<ProductBarcode>().AsNoTracking().Where(b => ids.Contains(b.ProductId)).ToListAsync(ct))
                 .GroupBy(b => b.ProductId).ToDictionary(g => g.Key, g => g.Select(b => b.Code).Order().ToList());
             var levels = await db.Set<StockLevel>().AsNoTracking().Where(l => ids.Contains(l.ProductId) && l.LocationId == StockLocations.DefaultId).ToDictionaryAsync(l => l.ProductId, l => l.Quantity, ct);
@@ -154,7 +180,7 @@ internal sealed class CatalogTransferService(
                 {
                     p.Id.ToString(), Csv.Protect(p.Sku), variantOf.TryGetValue(id, out var parent) ? parent.ToString() : null, parents.GetValueOrDefault(parent) is { } ps ? Csv.Protect(ps) : null,
                     Csv.Protect(p.Name), Csv.Protect(p.Description), p.Price.ToString("0.####", CultureInfo.InvariantCulture), p.Slug, Csv.Protect(p.MetaTitle), Csv.Protect(p.MetaDescription),
-                    Csv.Protect(string.Join(" | ", cats.GetValueOrDefault(id) ?? [])), Csv.Protect(brandNames.GetValueOrDefault(id)), Csv.Protect(string.Join(" | ", codes.GetValueOrDefault(id) ?? [])),
+                    Csv.Protect(string.Join(" | ", cats.GetValueOrDefault(id) ?? [])), Csv.Protect(brandNames.GetValueOrDefault(id)), Csv.Protect(string.Join(" | ", specLabels.GetValueOrDefault(id) ?? [])), Csv.Protect(string.Join(" | ", codes.GetValueOrDefault(id) ?? [])),
                     levels.TryGetValue(id, out var q) ? q.ToString("0.####", CultureInfo.InvariantCulture) : null,
                 };
                 var values = perVariant.GetValueOrDefault(id) ?? [];
@@ -387,6 +413,12 @@ internal sealed class CatalogTransferService(
                 throw new RowProblem("A variant has no brand of its own: it uses its parent's.");
             var brandName = row.Get("brand");
             await brands.SetProductBrandAsync(productId, brandName is null ? null : await brands.GetOrCreateByNameAsync(brandName, ct), ct); // a brand the file names is made when missing
+        }
+        if (row.Has("specs"))
+        {
+            if (row.IsVariant || await variants.GetAsync(productId, ct) is { ParentProductId: not null })
+                throw new RowProblem("A variant has no specifications of its own: it uses its parent's.");
+            await specifications.SetProductAsync(productId, await SpecValueIdsAsync(row.Get("specs"), ct), ct);
         }
         if (row.Has("barcodes"))
         {

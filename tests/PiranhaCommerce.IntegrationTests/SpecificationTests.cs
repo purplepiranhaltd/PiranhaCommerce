@@ -1,5 +1,7 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using PiranhaCommerce.Catalog;
@@ -120,6 +122,61 @@ public class SpecificationTests(PiranhaFactory factory) : IClassFixture<PiranhaF
         Assert.Equal(HttpStatusCode.NoContent, (await staff.DeleteAsync($"/api/v1/specifications/{finish.Id}/values/{matte.Id}")).StatusCode);   // nobody has it now
         await SetSpecs(staff, product.Id);
         Assert.Equal(HttpStatusCode.NoContent, (await staff.DeleteAsync($"/api/v1/specifications/{vegan.Id}")).StatusCode);
+    }
+
+    private static async Task<ProductImportResultDto> Import(HttpClient staff, string csv)
+    {
+        using var form = new MultipartFormDataContent();
+        var file = new ByteArrayContent(Encoding.UTF8.GetBytes(csv));
+        file.Headers.ContentType = new MediaTypeHeaderValue("text/csv");
+        form.Add(file, "file", "products.csv");
+        return await Read<ProductImportResultDto>(await staff.PostAsync("/api/v1/products/import", form));
+    }
+
+    private static async Task<List<Guid>> SpecIds(HttpClient staff, Guid productId) =>
+        (await Read<ProductSpecsDto>(await staff.GetAsync($"/api/v1/products/{productId}/specifications"))).ValueIds.ToList();
+
+    [Fact]
+    public async Task The_catalogue_import_and_export_carry_specifications_as_attribute_colon_value_entries_and_never_invent_them()
+    {
+        var staff = await factory.CreateAuthenticatedApiClientAsync();
+        var tag = Tag();
+        var finish = await NewAttribute(staff, "Finish " + tag);
+        var matte = await NewValue(staff, finish.Id, "Matte");
+        var satin = await NewValue(staff, finish.Id, "Satin");
+        var skin = await NewAttribute(staff, "Skin " + tag);
+        var dry = await NewValue(staff, skin.Id, "Dry");
+        var sku = "IS-" + Tag();
+
+        var done = await Import(staff, $"sku,name,price,specs\n{sku},Imported {tag},5,\"{finish.Name.ToUpperInvariant()}: matte | {finish.Name}: Satin | {skin.Name}: Dry\"\n");
+        Assert.Equal((1, 0), (done.Created, done.Failed));
+        var product = (await Read<PagedResult<ProductDto>>(await staff.GetAsync($"/api/v1/products?search={sku}"))).Items.Single();
+        Assert.Equal(new[] { matte.Id, satin.Id, dry.Id }.Order(), (await SpecIds(staff, product.Id)).Order());   // names matched in any letter case
+
+        // It comes out the same way.
+        var export = await (await staff.GetAsync($"/api/v1/products/export?search={sku}")).Content.ReadAsStringAsync();
+        Assert.Contains("specs", export.Split('\n')[0].Split(','));
+        Assert.Contains($"{finish.Name}: Matte | {finish.Name}: Satin | {skin.Name}: Dry", export);
+
+        // A blank cell leaves them alone, a list replaces the set, and [clear] removes them all.
+        await Import(staff, $"sku,price,specs\n{sku},6,\n");
+        Assert.Equal(3, (await SpecIds(staff, product.Id)).Count);
+        await Import(staff, $"sku,specs\n{sku},{skin.Name}: Dry\n");
+        Assert.Equal([dry.Id], await SpecIds(staff, product.Id));
+        await Import(staff, $"sku,specs\n{sku},[clear]\n");
+        Assert.Empty(await SpecIds(staff, product.Id));
+
+        // The lists are fixed: an unknown attribute or value, or a malformed entry, fails the row, and nothing is made.
+        await Import(staff, $"sku,specs\n{sku},{skin.Name}: Dry\n");
+        foreach (var bad in new[] { $"Nope {tag}: Matte", $"{finish.Name}: Velvet", "no colon here" })
+            Assert.Equal(1, (await Import(staff, $"sku,specs\n{sku},\"{bad}\"\n")).Failed);
+        Assert.Equal([dry.Id], await SpecIds(staff, product.Id));                                                  // the failed rows changed nothing
+        Assert.DoesNotContain((await Read<SpecAttributeDto>(await staff.GetAsync($"/api/v1/specifications/{finish.Id}"))).Values, v => v.Value == "Velvet");
+
+        // A variant row cannot carry them.
+        var variant = await Import(staff, $"sku,parent_sku,name,price,option1_name,option1_value,specs\n{sku}-S,{sku},Imported S,5,Size,S,\"{finish.Name}: Matte\"\n");
+        Assert.Equal(1, variant.Failed);
+        Assert.Contains("specification", string.Join(" ", variant.Results.Single().Errors), StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task<PagedResult<ShopProductSummaryDto>> Shop(HttpClient c, string query) =>

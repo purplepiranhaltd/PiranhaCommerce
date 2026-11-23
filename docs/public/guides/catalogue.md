@@ -34,7 +34,7 @@ A specification is a fact about a product with a fixed list of answers: **Finish
 - **A slug is never empty.** Unlike a brand's, leave it out (or on a `PUT`) and it is made from the name: "Skin type" becomes `skin-type`. A name with no letters or digits needs a slug given.
 - An attribute or value that products have cannot be deleted (`409`). Remove it from the products first. An attribute nobody uses goes with all its values.
 - A variant has no specifications of its own. It shows its parent's, and setting some on a variant is refused.
-- Not in the CSV import and export yet. Set them in the admin or the API.
+- They are in the CSV import and export as the `specs` column (see Import and export).
 
 ## Slugs and page text
 
@@ -122,13 +122,13 @@ Catalogue data moves in and out as CSV: `GET /products/export?search=` and `POST
 
 One row per product. The columns are:
 
-`id, sku, parent_id, parent_sku, name, description, price, slug, meta_title, meta_description, categories, brand, barcodes, stock, option1_name, option1_value`, and the same pair for options 2 and 3.
+`id, sku, parent_id, parent_sku, name, description, price, slug, meta_title, meta_description, categories, brand, specs, barcodes, stock, option1_name, option1_value`, and the same pair for options 2 and 3.
 
 The online store adds `published, tax_class, weight_grams`. A package adds its own columns with `IProductImportExtension`. A column the importer does not know refuses the file.
 
 The `brand` cell holds a brand's name. A name that matches an existing brand in any letter case uses it; a new name makes the brand. A blank cell leaves the product's brand alone and `[clear]` removes it. A variant row must leave it blank, because a variant uses its parent's brand.
 
-Specifications have no column yet: the file neither exports nor imports them, and a file that has them in some column the importer does not know is refused as usual.
+The `specs` cell lists a product's answers as `Attribute: Value` entries joined by `|`, for example `Finish: Matte | Finish: Satin | Skin type: Dry` (names in any letter case; the first colon splits attribute from value). A blank cell leaves them alone, a list replaces the product's whole set and `[clear]` removes them all. Unlike brands, **the import never makes a specification**: attributes and values are a fixed list, so an unknown one fails that row. Create them first in Catalog > Specifications. A variant row must leave the cell blank, because a variant uses its parent's.
 
 ### How rows are read
 

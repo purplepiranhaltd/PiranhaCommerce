@@ -124,6 +124,9 @@ public interface ISpecificationService
 
     /// <summary>Null when the product does not exist. A validation error for an unknown value, or for a variant.</summary>
     Task<ProductSpecsDto?> SetProductAsync(Guid productId, IReadOnlyCollection<Guid> valueIds, CancellationToken ct = default);
+
+    /// <summary>Each product's values as "Attribute: Value" labels, attributes in display order (a variant shows its parent's). Products with none are left out. Used by the catalogue export.</summary>
+    Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> LabelsForProductsAsync(IReadOnlyCollection<Guid> productIds, CancellationToken ct = default);
 }
 
 internal sealed class SpecificationService(PiranhaDbContext db) : ISpecificationService
@@ -287,6 +290,24 @@ internal sealed class SpecificationService(PiranhaDbContext db) : ISpecification
             .Select(g => new ProductSpecGroupDto(g.Key.Id, g.Key.Name, g.Key.Slug,
                 g.OrderBy(r => r.ValueOrder).ThenBy(r => r.Value).Select(r => new SpecValueRefDto(r.ValueId, r.Value, r.ValueSlug)).ToList())).ToList();
         return new ProductSpecsDto(productId, parentId is not null, groups.SelectMany(g => g.Values.Select(v => v.Id)).ToList(), groups);
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> LabelsForProductsAsync(IReadOnlyCollection<Guid> productIds, CancellationToken ct = default)
+    {
+        var result = new Dictionary<Guid, IReadOnlyList<string>>();
+        if (productIds.Count == 0) return result;
+        var parents = await db.Set<ProductVariant>().AsNoTracking().Where(v => productIds.Contains(v.ProductId))
+            .Select(v => new { v.ProductId, v.ParentProductId }).ToDictionaryAsync(v => v.ProductId, v => v.ParentProductId, ct);
+        var holders = productIds.Select(i => parents.GetValueOrDefault(i, i)).Distinct().ToList();
+        var rows = await db.Set<ProductSpecValue>().AsNoTracking().Where(l => holders.Contains(l.ProductId))
+            .Join(db.Set<SpecValue>(), l => l.ValueId, v => v.Id, (l, v) => new { l.ProductId, v.AttributeId, v.Value, ValueOrder = v.DisplayOrder })
+            .Join(db.Set<SpecAttribute>(), x => x.AttributeId, a => a.Id, (x, a) => new { x.ProductId, a.Name, AttributeOrder = a.DisplayOrder, x.Value, x.ValueOrder })
+            .ToListAsync(ct);
+        var byHolder = rows.GroupBy(r => r.ProductId).ToDictionary(g => g.Key, g => (IReadOnlyList<string>)g
+            .OrderBy(r => r.AttributeOrder).ThenBy(r => r.Name).ThenBy(r => r.ValueOrder).ThenBy(r => r.Value).Select(r => $"{r.Name}: {r.Value}").ToList());
+        foreach (var id in productIds)
+            if (byHolder.TryGetValue(parents.GetValueOrDefault(id, id), out var labels)) result[id] = labels;
+        return result;
     }
 
     public async Task<ProductSpecsDto?> SetProductAsync(Guid productId, IReadOnlyCollection<Guid> valueIds, CancellationToken ct = default)
