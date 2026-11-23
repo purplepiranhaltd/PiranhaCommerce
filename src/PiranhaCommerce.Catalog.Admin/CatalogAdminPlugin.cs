@@ -40,6 +40,7 @@ internal sealed class CatalogSlotItems : IAdminSlotContributor
 {
     public IEnumerable<AdminSlotItem> GetItems() =>
         [
+            new(AdminSlots.ProductEditPanels, typeof(ProductVariantsPanel), Order: 4),
             new(AdminSlots.ProductEditPanels, typeof(ProductCategoriesPanel), Order: 5),
             new(AdminSlots.ProductEditPanels, typeof(ProductBarcodesPanel), Order: 6),
             new(AdminSlots.ProductEditPanels, typeof(ProductStockPanel), Order: 7),

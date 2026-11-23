@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using PiranhaCommerce.Catalog;
 
 namespace PiranhaCommerce.Ecommerce;
@@ -31,3 +32,16 @@ public sealed class ProductListingInput
 }
 
 public sealed record ProductListingDto(Guid ProductId, bool Published, Guid? TaxClassId = null, int? WeightGrams = null);
+
+/// <summary>New variants start with their parent's online listing (published or not, tax class, weight), so they can be bought straight away.</summary>
+internal sealed class VariantListingHandler(PiranhaCommerce.Data.PiranhaDbContext db) : IVariantCreatedHandler
+{
+    public async Task OnCreatedAsync(Guid parentProductId, IReadOnlyCollection<Guid> variantProductIds, CancellationToken ct = default)
+    {
+        var parent = await db.Set<ProductListing>().AsNoTracking().FirstOrDefaultAsync(l => l.ProductId == parentProductId, ct);
+        if (parent is null) return;
+        foreach (var id in variantProductIds)
+            db.Add(new ProductListing { ProductId = id, Published = parent.Published, TaxClassId = parent.TaxClassId, WeightGrams = parent.WeightGrams });
+        await db.SaveChangesAsync(ct);
+    }
+}

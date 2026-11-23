@@ -66,6 +66,8 @@ internal sealed class ProductService(PiranhaDbContext db) : IProductService
         // Stock movements are an audit ledger; a product with history cannot be deleted (barcodes, categories and the level cascade).
         if (await db.Set<StockMovement>().AnyAsync(m => m.ProductId == id, ct))
             throw new PiranhaConflictException("This product has stock history and cannot be deleted.");
+        if (await db.Set<ProductVariant>().AnyAsync(v => v.ParentProductId == id, ct))
+            throw new PiranhaConflictException("This product has variants. Delete them first.");
         try
         {
             return await db.Set<Product>().Where(x => x.Id == id).ExecuteDeleteAsync(ct) > 0;

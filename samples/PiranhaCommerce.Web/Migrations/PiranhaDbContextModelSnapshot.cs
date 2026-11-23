@@ -243,6 +243,87 @@ namespace PiranhaCommerce.Web.Migrations
                     b.ToTable("ProductCategory", "catalog");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Catalog.ProductOption", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("ProductOption", "catalog");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Catalog.ProductOptionValue", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("OptionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OptionId");
+
+                    b.ToTable("ProductOptionValue", "catalog");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Catalog.ProductVariant", b =>
+                {
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ParentProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("ProductId");
+
+                    b.HasIndex("ParentProductId");
+
+                    b.ToTable("ProductVariant", "catalog");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Catalog.ProductVariantValue", b =>
+                {
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("OptionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("OptionValueId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("ProductId", "OptionId");
+
+                    b.HasIndex("OptionValueId");
+
+                    b.ToTable("ProductVariantValue", "catalog");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Catalog.StaffLocation", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -2120,6 +2201,54 @@ namespace PiranhaCommerce.Web.Migrations
                         .IsRequired();
 
                     b.HasOne("PiranhaCommerce.Catalog.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Catalog.ProductOption", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Catalog.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Catalog.ProductOptionValue", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Catalog.ProductOption", null)
+                        .WithMany()
+                        .HasForeignKey("OptionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Catalog.ProductVariant", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Catalog.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ParentProductId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("PiranhaCommerce.Catalog.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Catalog.ProductVariantValue", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Catalog.ProductOptionValue", null)
+                        .WithMany()
+                        .HasForeignKey("OptionValueId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("PiranhaCommerce.Catalog.ProductVariant", null)
                         .WithMany()
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)

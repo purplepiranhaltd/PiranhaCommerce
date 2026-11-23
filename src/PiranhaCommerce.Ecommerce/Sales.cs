@@ -119,8 +119,7 @@ internal static class SalePricing
         if (saleCategories.Count > 0)
         {
             parents = await db.Set<Category>().AsNoTracking().ToDictionaryAsync(c => c.Id, c => c.ParentId, ct);
-            foreach (var pc in await db.Set<ProductCategory>().AsNoTracking().Where(x => productIds.Contains(x.ProductId)).ToListAsync(ct))
-                (inCategories.TryGetValue(pc.ProductId, out var list) ? list : inCategories[pc.ProductId] = []).Add(pc.CategoryId);
+            inCategories = await ProductVariants.CategoriesAsync(db, productIds, ct);
         }
 
         foreach (var (productId, regular) in items)

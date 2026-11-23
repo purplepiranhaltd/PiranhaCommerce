@@ -142,8 +142,7 @@ internal static class GroupPricing
         if (discounts.Count > 0)
         {
             parents = await db.Set<Category>().AsNoTracking().ToDictionaryAsync(c => c.Id, c => c.ParentId, ct);
-            foreach (var pc in await db.Set<ProductCategory>().AsNoTracking().Where(x => productIds.Contains(x.ProductId)).ToListAsync(ct))
-                (inCategories.TryGetValue(pc.ProductId, out var list) ? list : inCategories[pc.ProductId] = []).Add(pc.CategoryId);
+            inCategories = await ProductVariants.CategoriesAsync(db, productIds, ct);
         }
 
         foreach (var productId in productIds)
@@ -175,7 +174,7 @@ internal sealed class GroupPricingService(PiranhaDbContext db, Microsoft.Extensi
         var fixedPrices = await db.Set<GroupPrice>().AsNoTracking().Where(p => p.ProductId == productId).ToDictionaryAsync(p => p.GroupId, p => p.Price, ct);
         var discounts = (await db.Set<GroupCategoryDiscount>().AsNoTracking().ToListAsync(ct)).GroupBy(d => d.GroupId).ToDictionary(g => g.Key, g => g.ToDictionary(d => d.CategoryId, d => d.Percent));
         var parents = discounts.Count > 0 ? await db.Set<Category>().AsNoTracking().ToDictionaryAsync(c => c.Id, c => c.ParentId, ct) : [];
-        var mine = discounts.Count > 0 ? await db.Set<ProductCategory>().AsNoTracking().Where(x => x.ProductId == productId).Select(x => x.CategoryId).ToListAsync(ct) : [];
+        var mine = discounts.Count > 0 ? (await ProductVariants.CategoriesAsync(db, [productId], ct)).GetValueOrDefault(productId) ?? [] : [];
         return groups.Select(g =>
         {
             decimal? fixedPrice = fixedPrices.TryGetValue(g.Id, out var f) ? f : null;

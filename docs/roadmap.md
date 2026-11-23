@@ -2,6 +2,30 @@
 
 Things we have agreed need doing but have not built. Each entry records the requirement as stated, so the design starts from it.
 
+## Gaps compared with nopCommerce (the order we plan to close them)
+
+A comparison with nopCommerce 4.x (from knowledge of that product, not re-checked against the current release). Piranha is headless (an API and an admin, no storefront
+or themes), so storefront and CMS features are out of scope by design. Order of work, each marked built or open:
+
+1. **Product options and variants: built** (see the README). Open: images per variant, a price as an adjustment to the parent, renaming values.
+2. **Product images and media, with SEO fields (slug, meta title and description): open.** Needs file storage (also needed for dispute evidence files).
+3. **Catalogue import and export** (CSV or Excel, products with variants, categories, stock): open.
+4. **Reports and an audit log of staff changes:** open. Today only the negative-stock report and unreconciled payments exist; wanted: sales by day, product and category,
+   bestsellers, low stock, customers, and who changed what.
+5. **Quantity breaks and minimum or maximum order quantities, then a fuller discount engine** (automatic discounts, free-shipping codes, discounts on chosen products
+   or categories, buy-one-get-one, per-customer limits, stacking): open.
+6. **Outbound webhooks** (order placed, paid, shipped, product changed, customer created) so a storefront or ERP can react: open.
+7. **Shipping zones, rates by basket value, carrier and live rates, labels, pick-up in store, delivery dates:** open.
+8. **Multi-currency and translations:** open, heaviest design work (see the Translations section).
+9. **Reviews, wishlists, related and cross-sell products, brands, specification attributes and tags, back-in-stock and low-stock alerts:** open.
+10. **Multi-store and vendors:** open, only if a use case needs them.
+
+Also open from the comparison: other payment gateways (PayPal, Adyen and others), social sign-in and two-factor, reward points, customer-defined attributes, finer
+staff permissions, message queueing with retries, a newsletter list, a scheduled task view, search-engine integration, and a shared (Redis) rate limiter.
+
+Where Piranha is ahead: weighed and fractional stock, locations and transfers with a ledger, payment reconciliation and disputes, shopper and staff privacy tools,
+an API for everything, and plugins as NuGet packages rather than uploaded DLLs.
+
 ## Stock transfers and staff locations
 
 Built (see the README): a transfer is sent by one person and received by another, in transit between, with every step in the stock ledger; a

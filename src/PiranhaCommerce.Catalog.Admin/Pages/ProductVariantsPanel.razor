@@ -1,0 +1,141 @@
+@* Panel for AdminSlots.ProductEditPanels. Options (size, colour) and the variants made from them; each variant is a product of its own, edited on its own page. *@
+@using PiranhaCommerce.Core.Validation
+@inject AdminScopeRunner Scope
+
+<div class="pc-card" style="margin-top:1rem">
+    <h2 style="margin-top:0">Options and variants</h2>
+    @if (_loading)
+    {
+        <p class="pc-muted">Loading...</p>
+    }
+    else if (_data?.ParentProductId is { } parent)
+    {
+        <p>This product is a variant of <a href="/admin/catalog/products/@parent">its parent product</a>:
+            @string.Join(", ", _data.Values.Select(v => $"{v.Option} {v.Value}")). Its SKU, price, stock, barcodes and listing are its own; change them here.</p>
+    }
+    else if (_data is not null)
+    {
+        <p class="pc-muted">
+            If this product comes in options such as size or colour, add them here and make a variant for each combination. The product you are editing then becomes the
+            parent (name, description and categories); it can no longer be bought itself, only its variants can. Every variant has its own SKU, price and stock.
+        </p>
+
+        @foreach (var o in _data.Options)
+        {
+            var option = o;
+            <div style="margin-bottom:.5rem">
+                <strong>@o.Name</strong>:
+                @foreach (var v in o.Values)
+                {
+                    var value = v;
+                    <span class="pc-chip">@v.Value <button type="button" class="secondary" aria-label="Remove @v.Value from @o.Name" disabled="@_busy" @onclick="() => RunAsync(s => s.DeleteValueAsync(ProductId, option.Id, value.Id))">x</button></span>
+                }
+                <input aria-label="New @o.Name value" placeholder="Add a value" style="width:10rem" @bind="_newValue[option.Id]" />
+                <button type="button" class="secondary" disabled="@_busy" @onclick="() => AddValueAsync(option)">Add</button>
+                <button type="button" class="secondary" disabled="@_busy" @onclick="() => RunAsync(s => s.DeleteOptionAsync(ProductId, option.Id))">Delete option</button>
+            </div>
+        }
+
+        <div>
+            <input aria-label="New option name" placeholder="Option name, for example Size" @bind="_optionName" />
+            <input aria-label="New option values" placeholder="Values, separated by commas" style="width:16rem" @bind="_optionValues" />
+            <button type="button" class="secondary" disabled="@_busy" @onclick="AddOptionAsync">Add option</button>
+        </div>
+
+        @if (_data.Options.Count > 0)
+        {
+            <p style="margin-top:.75rem">
+                <label>Price for new variants <input type="number" step="0.01" min="0" style="width:8rem" placeholder="this product's" @bind="_price" /></label>
+                <button type="button" disabled="@_busy" @onclick="GenerateAsync">Make a variant for every combination</button>
+            </p>
+        }
+
+        @if (_data.Variants.Count > 0)
+        {
+            <table class="pc-table">
+                <thead><tr><th>Variant</th><th>SKU</th><th style="text-align:right">Price</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var v in _data.Variants)
+                {
+                    <tr>
+                        <td>@string.Join(" / ", v.Values.Select(x => x.Value))</td>
+                        <td>@v.Sku</td>
+                        <td style="text-align:right">@v.Price.ToString("N2")</td>
+                        <td class="actions"><a class="pc-button secondary" href="/admin/catalog/products/@v.ProductId">Edit</a></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    }
+    @if (_message is not null)
+    {
+        <p class="@(_failed ? "pc-error" : "pc-muted")" role="status">@_message</p>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Guid ProductId { get; set; }
+
+    private ProductVariantsDto? _data;
+    private readonly Dictionary<Guid, string?> _newValue = [];
+    private string? _optionName, _optionValues, _message;
+    private decimal? _price;
+    private bool _loading = true, _busy, _failed;
+    private Guid _loadedFor;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedFor == ProductId) return;
+        _loadedFor = ProductId;
+        _loading = true;
+        _message = null;
+        Show(await Scope.RunAsync<IProductVariantService, ProductVariantsDto?>(s => s.GetAsync(ProductId)));
+        _loading = false;
+    }
+
+    private void Show(ProductVariantsDto? data)
+    {
+        _data = data;
+        foreach (var o in data?.Options ?? []) _newValue.TryAdd(o.Id, null);
+    }
+
+    private async Task RunAsync(Func<IProductVariantService, Task<ProductVariantsDto?>> action, string? done = null)
+    {
+        _busy = true; _failed = false; _message = null;
+        try
+        {
+            var result = await Scope.RunAsync<IProductVariantService, ProductVariantsDto?>(action);
+            if (result is null) { _failed = true; _message = "That no longer exists."; }
+            else { Show(result); _message = done; }
+        }
+        catch (PiranhaValidationException ex) { _failed = true; _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaConflictException ex) { _failed = true; _message = ex.Message; }
+        catch (Exception ex) { _failed = true; _message = "Could not save: " + ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private Task AddValueAsync(ProductOptionDto option)
+    {
+        var value = _newValue.GetValueOrDefault(option.Id) ?? "";
+        _newValue[option.Id] = null;
+        return RunAsync(s => s.AddValueAsync(ProductId, option.Id, new ProductOptionValueInput { Value = value }));
+    }
+
+    private Task AddOptionAsync()
+    {
+        var input = new ProductOptionInput
+        {
+            Name = _optionName ?? "",
+            Values = (_optionValues ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
+        };
+        _optionName = null; _optionValues = null;
+        return RunAsync(s => s.AddOptionAsync(ProductId, input));
+    }
+
+    private Task GenerateAsync()
+    {
+        var price = _price;
+        return RunAsync(s => s.GenerateAsync(ProductId, new GenerateVariantsInput { Price = price }), "Variants made. Set each one's SKU, stock and barcodes on its own page.");
+    }
+}

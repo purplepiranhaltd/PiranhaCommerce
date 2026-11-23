@@ -158,6 +158,8 @@ internal sealed partial class BasketService(PiranhaDbContext db, ICustomerServic
                        && await db.Set<Product>().AnyAsync(p => p.Id == productId, ct);
         if (!sellable)
             throw new PiranhaValidationException("productId", "That product is not available to buy.");
+        if (await ProductVariants.HasOptionsAsync(db, productId, ct))
+            throw new PiranhaValidationException("productId", "This product comes in options (such as size or colour): add one of its variants instead.");
 
         var quantity = input.Quantity;
         var updated = await SetQuantityAsync(basketId, productId, quantity, ct);

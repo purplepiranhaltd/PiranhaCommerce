@@ -375,6 +375,16 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   .../{categoryId}` with `{ "percent" }`; admin: Orders > Group category discounts). It covers the category's sub-categories (the nearest category that
   has one set wins), replaces the group's own percentage for products in it, and `0` means no discount there. A product in several categories gets
   the largest percentage. Within one group the most specific thing wins: fixed product price, then category percentage, then the group's own percentage.
+- **Options and variants** (`/products/{id}/options`, `/products/{id}/variants`, admin: Options and variants on a product page): a product that comes in options
+  (Size, Colour) gets those options with their values, then a variant for each combination (`POST .../variants/generate`, or one at a time with `POST .../variants`
+  and one value per option). A variant is an **ordinary product**: its own SKU, price, stock, barcodes, listing, and its name is the parent's plus its values
+  ("Tee - M / Blue"). So stock, baskets, orders, sales and group prices need no special cases. The product with the options is the **parent**: it holds the shared name, description
+  and categories and **cannot be bought itself** (adding it to a basket is refused: add a variant). Rules: at most 3 options, 50 values each and 200 variants; a value or
+  option in use, a parent with variants, and options on a variant are refused (409); a new option cannot be added once variants exist. New variants copy the parent's
+  online listing (published, tax class, weight) and its description, but not its categories: a category sale or group category discount reaches variants through the parent's
+  categories. A sale or group price naming the parent product does not cover its variants (name the variants, or use a category). `GET /products/{id}/variants` returns
+  a parent's options and variants, or for a variant its parent and values. Not built: per-variant images, price as an adjustment to the parent's price, renaming values,
+  variants updating their name when the parent is renamed, and a storefront endpoint (a shop front reads these with its own API token).
 - **Tax-inclusive display.** Prices are still entered and stored without tax; a shop front can show them with tax added. The price lookups
   (`GET /storefront/guest/prices`, `/storefront/prices`, `/customers/{id}/prices`) take an optional `countryCode` (or use `Piranha:Ecommerce:DefaultCountryCode`,
   the shop's home country) and then also return `taxCountry`, `taxRate`, `priceIncludingTax` and `regularPriceIncludingTax`, by the rate of that product's tax class in that

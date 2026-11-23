@@ -47,6 +47,41 @@ internal sealed class CatalogModelContributor : IModelContributor
             e.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        b.Entity<ProductOption>(e =>
+        {
+            e.ToTable("ProductOption", Schema);
+            e.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            e.HasIndex(x => x.ProductId);
+            e.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<ProductOptionValue>(e =>
+        {
+            e.ToTable("ProductOptionValue", Schema);
+            e.Property(x => x.Value).HasMaxLength(100).IsRequired();
+            e.HasIndex(x => x.OptionId);
+            e.HasOne<ProductOption>().WithMany().HasForeignKey(x => x.OptionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<ProductVariant>(e =>
+        {
+            e.ToTable("ProductVariant", Schema);
+            e.HasKey(x => x.ProductId);
+            e.HasIndex(x => x.ParentProductId);
+            e.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade);
+            // No cascade from the parent: a parent with variants cannot be deleted (the service says so), and SQL Server forbids a second cascade path.
+            e.HasOne<Product>().WithMany().HasForeignKey(x => x.ParentProductId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        b.Entity<ProductVariantValue>(e =>
+        {
+            e.ToTable("ProductVariantValue", Schema);
+            e.HasKey(x => new { x.ProductId, x.OptionId });
+            e.HasIndex(x => x.OptionValueId);
+            e.HasOne<ProductVariant>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<ProductOptionValue>().WithMany().HasForeignKey(x => x.OptionValueId).OnDelete(DeleteBehavior.NoAction);
+        });
+
         b.Entity<StockLocation>(e =>
         {
             e.ToTable("StockLocation", Schema);
