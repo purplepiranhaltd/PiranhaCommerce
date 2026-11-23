@@ -204,7 +204,7 @@ internal static class ShipmentQueries
     public static ShipmentSummaryDto Summary(this ShipmentDto s) => new(s.Id, s.ShippedUtc, s.Carrier, s.TrackingNumber, s.TrackingUrl, s.Lines);
 }
 
-internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock, IOptions<EcommerceOptions> options, OrderMailer mailer, IEventPublisher? events, IAuditTrail? trail = null) : IFulfilmentService
+internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock, IOptions<EcommerceOptions> options, OrderMailer mailer, IAuditTrail? trail = null, IEventPublisher? events = null) : IFulfilmentService
 {
     public async Task<IReadOnlyList<ShipmentDto>?> ListShipmentsAsync(Guid orderId, CancellationToken ct = default)
     {

@@ -36,6 +36,7 @@ public sealed class WebhookDispatcher(PiranhaDbContext db, IHttpClientFactory ht
     public const string HttpClientName = "PiranhaCommerce.Webhooks";
     internal const string TestType = "webhook.test";
     private const int Batch = 50;
+    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan Lease = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan[] Backoff = [TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(15), TimeSpan.FromHours(1), TimeSpan.FromHours(3), TimeSpan.FromHours(6), TimeSpan.FromHours(12)];
 
@@ -128,9 +129,9 @@ public sealed class WebhookDispatcher(PiranhaDbContext db, IHttpClientFactory ht
                 if (!ok) error = status is null ? "No answer." : $"The endpoint answered {status}.";
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException)
+            catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or InvalidOperationException)
             {
-                error = Truncate(ex is TaskCanceledException ? "No answer within the time allowed." : ex.Message, 500);
+                error = Truncate(ex is OperationCanceledException ? "No answer within the time allowed." : ex.Message, 500);
             }
         }
 
@@ -164,9 +165,12 @@ public sealed class WebhookDispatcher(PiranhaDbContext db, IHttpClientFactory ht
         request.Headers.TryAddWithoutValidation("Piranha-Delivery-Attempt", attempt.ToString());
         request.Headers.TryAddWithoutValidation("Piranha-Signature", $"t={t},v1={mac}");
 
-        using var response = await http.CreateClient(HttpClientName).SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        // One deadline for the whole exchange, the reply body included (HttpClient.Timeout stops at the headers).
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(Timeout);
+        using var response = await http.CreateClient(HttpClientName).SendAsync(request, HttpCompletionOption.ResponseHeadersRead, limit.Token);
         var code = (int)response.StatusCode;
-        var text = await ReadStartAsync(response, ct);
+        var text = await ReadStartAsync(response, limit.Token);
         return (code, text, code is >= 200 and < 300);
     }
 
