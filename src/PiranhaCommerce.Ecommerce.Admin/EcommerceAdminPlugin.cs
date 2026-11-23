@@ -40,6 +40,7 @@ internal sealed class EcommerceAdminMenu : IAdminMenuContributor
         new("orders.discounts", "Discounts", "/admin/orders/discounts", Order: 19, ParentKey: "orders"),
         new("orders.sales", "Sales", "/admin/orders/sales", Order: 19, ParentKey: "orders"),
         new("orders.group-discounts", "Group category discounts", "/admin/orders/group-discounts", Order: 19, ParentKey: "orders"),
+        new("orders.reviews", "Product reviews", "/admin/orders/reviews", Order: 20, ParentKey: "orders"),
         new("orders.vouchers", "Gift vouchers", "/admin/orders/vouchers", Order: 20, ParentKey: "orders"),
         new("orders.unreconciled", "Unreconciled payments", "/admin/orders/unreconciled", Order: 21, ParentKey: "orders", BadgeKey: "unreconciled"),
         new("orders.disputes", "Disputes", "/admin/orders/disputes", Order: 22, ParentKey: "orders", BadgeKey: "disputes"),

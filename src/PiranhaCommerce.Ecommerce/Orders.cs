@@ -246,6 +246,11 @@ public sealed class EcommerceOptions
     public bool AllowGuestCheckout { get; set; } = true;
 
     /// <summary>
+    /// Whether a new or changed review waits for staff to approve it before shoppers see it. On by default; when off, reviews show at once and staff can still reject or delete them.
+    /// </summary>
+    public bool ReviewsNeedApproval { get; set; } = true;
+
+    /// <summary>
     /// The shop's home country (two letters, e.g. GB). Price lookups that are not told a destination show tax-inclusive prices for it. Leave empty to show
     /// no tax-inclusive prices unless the caller names a country.
     /// </summary>

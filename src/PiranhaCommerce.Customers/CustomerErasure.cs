@@ -143,7 +143,7 @@ internal sealed class CustomerErasureService(PiranhaDbContext db, IEnumerable<IC
                     db.Add(new CustomerErasure
                     {
                         CustomerId = customerId, ErasedUtc = erasedUtc, Actor = actor,
-                        Details = string.Join(", ", changed.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => $"{kv.Key}: {kv.Value}")),
+                        Details = string.Join(", ", changed.Where(kv => kv.Value > 0).OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => $"{kv.Key}: {kv.Value}")), // only what held something, so adding a package does not change old wording
                     });
                     await db.SaveChangesAsync(token);
                     return true;

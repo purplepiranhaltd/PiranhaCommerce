@@ -1,0 +1,113 @@
+@page "/admin/orders/reviews"
+@inject AdminScopeRunner Scope
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider Auth
+
+<PageTitle>Product reviews - Piranha Commerce</PageTitle>
+<h1>Product reviews</h1>
+<p class="pc-muted">
+    Shoppers who are signed in can rate and review a product. Unless approval is switched off (Piranha:Ecommerce:ReviewsNeedApproval), a new or changed review waits here until you approve it.
+    Only approved reviews are shown to shoppers or counted in the average. The text is plain text exactly as the shopper wrote it. A review marked Verified was written by someone with a paid-for or open order for the product.
+</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+<div class="pc-card">
+    <label>Show
+        <select @bind="_filter" @bind:after="LoadAsync" aria-label="Status filter">
+            <option value="">All reviews</option>
+            <option value="Pending">Waiting for approval</option>
+            <option value="Approved">Approved</option>
+            <option value="Rejected">Rejected</option>
+        </select>
+    </label>
+</div>
+
+@if (_reviews is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_reviews.Items.Count == 0)
+{
+    <p class="pc-muted" data-testid="no-reviews">No reviews to show.</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>Product</th><th>Rating</th><th>Review</th><th>By</th><th>State</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var r in _reviews.Items)
+        {
+            <tr>
+                <td>@r.ProductName</td>
+                <td>@r.Rating / 5</td>
+                <td>
+                    @if (!string.IsNullOrWhiteSpace(r.Title)) { <strong>@r.Title</strong><br /> }
+                    @r.Body
+                </td>
+                <td>@r.DisplayName @(r.VerifiedPurchase ? "(Verified)" : "")</td>
+                <td>@r.Status</td>
+                <td class="actions">
+                    @if (r.Status != ReviewStatus.Approved) { <button class="secondary" @onclick="() => SetAsync(r.Id, ReviewStatus.Approved)">Approve</button> }
+                    @if (r.Status != ReviewStatus.Rejected) { <button class="secondary" @onclick="() => SetAsync(r.Id, ReviewStatus.Rejected)">Reject</button> }
+                    @if (_confirmDelete == r.Id)
+                    {
+                        <button class="danger" @onclick="() => DeleteAsync(r.Id)">Confirm delete</button>
+                        <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
+                    }
+                    else
+                    {
+                        <button class="secondary" @onclick="() => _confirmDelete = r.Id">Delete</button>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    <p class="pc-muted">
+        Page @_reviews.Page of @Math.Max(_reviews.TotalPages, 1) (@_reviews.TotalCount reviews)
+        <button class="secondary" disabled="@(_reviews.Page <= 1)" @onclick="() => GoAsync(_reviews.Page - 1)">Previous</button>
+        <button class="secondary" disabled="@(_reviews.Page >= _reviews.TotalPages)" @onclick="() => GoAsync(_reviews.Page + 1)">Next</button>
+    </p>
+}
+
+@code {
+    private PagedResult<ReviewDto>? _reviews;
+    private string _filter = "Pending";
+    private Guid? _confirmDelete;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private Task GoAsync(int page) => LoadAsync(page);
+
+    private async Task LoadAsync() => await LoadAsync(1);
+
+    private async Task LoadAsync(int page)
+    {
+        try
+        {
+            ReviewStatus? status = Enum.TryParse<ReviewStatus>(_filter, out var s) ? s : null;
+            _reviews = await Scope.RunAsync<IReviewService, PagedResult<ReviewDto>>(svc => svc.ListAsync(status, null, page, 20));
+        }
+        catch (Exception ex) { _error = "Could not load reviews: " + ex.Message; }
+    }
+
+    private async Task SetAsync(Guid id, ReviewStatus status)
+    {
+        _error = null;
+        try { var actor = await Auth.GetActorAsync(); await Scope.RunAsync<IReviewService, ReviewDto?>(svc => svc.SetStatusAsync(id, status, actor)); }
+        catch (Exception ex) { _error = "Could not change the review: " + ex.Message; }
+        await LoadAsync(_reviews?.Page ?? 1);
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        _confirmDelete = null; _error = null;
+        try { await Scope.RunAsync<IReviewService, bool>(svc => svc.DeleteAsync(id)); }
+        catch (Exception ex) { _error = "Could not delete: " + ex.Message; }
+        await LoadAsync(_reviews?.Page ?? 1);
+    }
+}

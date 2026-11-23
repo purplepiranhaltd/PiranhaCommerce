@@ -540,6 +540,11 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   `GET /baskets/{id}/shipping-options?countryCode=GB` (also under `/storefront/baskets`), which lists what a basket can use with what each costs now. A
   method's "free when the basket reaches" still applies on top of a rate. Rates are replaced as a whole set (a PUT; an empty list goes back to the flat
   price) and bands for one country may not overlap. A product's weight is part of its listing, so a PUT of the listing without it clears it.
+- **Product reviews** (`/storefront/products/{id}/reviews` and `/review-summary` for anyone; `/storefront/reviews` for the signed-in shopper's own; `/reviews` for staff, admin: Orders > Product
+  reviews): a signed-in shopper rates a product 1 to 5 with an optional title and text, one review per shopper per product, kept against the parent when the product has variants (give any variant's id).
+  A new or changed review waits for staff approval (`Piranha:Ecommerce:ReviewsNeedApproval`, on by default); only approved ones are public or counted, and shoppers see a display name (their
+  first name and last initial unless they choose one), never an email. A review is marked verified when the shopper has an order on their account for the product or any of its variants that was not
+  cancelled. Text is stored as plain text, so the shop front must escape it. Reviews are exported with a customer and deleted when the customer is erased.
 - **Shipping zones and carriers** (`/shipping-zones`, `/shipping-carriers`, admin: Orders > Shipping zones and Shipping carriers): a zone groups countries, or
   only some postcode areas of a country (`GB` with `IV, HS, KW` for the Highlands; `GB` with `BT` for Northern Ireland; `*` for everywhere else). A destination is
   in one zone only (a country and postcode start can be in just one) and is resolved by the longest matching postcode start, then the zone holding its whole

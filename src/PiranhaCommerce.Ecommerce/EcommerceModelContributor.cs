@@ -246,6 +246,19 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.HasIndex(r => new { r.CountryCode, r.Prefix }).IsUnique(); // a destination is in one zone only
             e.HasOne<ShippingZone>().WithMany().HasForeignKey(r => r.ZoneId).OnDelete(DeleteBehavior.Cascade);
         });
+        b.Entity<ProductReview>(e =>
+        {
+            e.ToTable("ProductReview", Schema);
+            e.Property(r => r.DisplayName).HasMaxLength(50).IsRequired();
+            e.Property(r => r.Title).HasMaxLength(100);
+            e.Property(r => r.Body).HasMaxLength(4000);
+            e.Property(r => r.ModeratedBy).HasMaxLength(256);
+            e.HasIndex(r => new { r.ProductId, r.CustomerId }).IsUnique(); // one review per customer per product
+            e.HasIndex(r => new { r.ProductId, r.Status });
+            e.HasIndex(r => r.Status);
+            e.HasOne<PiranhaCommerce.Catalog.Product>().WithMany().HasForeignKey(r => r.ProductId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<PiranhaCommerce.Customers.Customer>().WithMany().HasForeignKey(r => r.CustomerId).OnDelete(DeleteBehavior.Cascade);
+        });
         b.Entity<ShippingCarrier>(e =>
         {
             e.ToTable("ShippingCarrier", Schema);
