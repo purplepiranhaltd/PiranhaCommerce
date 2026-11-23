@@ -1,0 +1,235 @@
+@page "/admin/orders/discounts"
+@using PiranhaCommerce.Catalog
+@using PiranhaCommerce.Core.Validation
+@inject AdminScopeRunner Scope
+
+<PageTitle>Discounts - Piranha Commerce</PageTitle>
+<h1>Discounts</h1>
+<p class="pc-muted">
+    A discount takes money off chosen goods, or waives delivery. With no code it applies by itself to any basket that qualifies; with a code the shopper enters it.
+    It works on the price they already have (sale, group price or quantity price) and comes off before shipping and tax are worked out.
+    Combinable discounts add up in priority order, each on what is left; an exclusive one applies alone, and only when it is worth more than all the combinable ones together.
+    Promo codes (Promotions) are a separate, simpler tool and still work.
+</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+<div class="pc-card">
+    <EditForm Model="_input" OnValidSubmit="SaveAsync" FormName="discount-edit">
+        <DataAnnotationsValidator />
+        <h2 style="margin-top:0">@(_editing is null ? "Add a discount" : "Edit discount")</h2>
+        <label>Name <InputText @bind-Value="_input.Name" /></label>
+        <ValidationMessage For="() => _input.Name" />
+        <label>Code (leave empty to apply automatically) <InputText @bind-Value="_input.Code" /></label>
+        <ValidationMessage For="() => _input.Code" />
+        <label>What it does
+            <InputSelect @bind-Value="_input.Kind">
+                <option value="@DiscountKind.PercentOff">Percent off</option>
+                <option value="@DiscountKind.AmountOff">Fixed amount off</option>
+                <option value="@DiscountKind.BuyXGetY">Buy some, get some cheaper or free</option>
+                <option value="@DiscountKind.FreeShipping">Free shipping</option>
+            </InputSelect>
+        </label>
+        @if (_input.Kind != DiscountKind.FreeShipping)
+        {
+            <label>@(_input.Kind == DiscountKind.AmountOff ? "Amount off" : _input.Kind == DiscountKind.BuyXGetY ? "Percent off the ones you get (100 is free)" : "Percent off") <InputNumber @bind-Value="_input.Value" /></label>
+            <ValidationMessage For="() => _input.Value" />
+        }
+        @if (_input.Kind == DiscountKind.BuyXGetY)
+        {
+            <label>Buy (how many) <InputNumber TValue="int?" @bind-Value="_input.BuyQuantity" /></label>
+            <label>Get (how many, the cheapest ones) <InputNumber TValue="int?" @bind-Value="_input.GetQuantity" /></label>
+        }
+        @if (_input.Kind != DiscountKind.FreeShipping)
+        {
+            <label><InputCheckbox @bind-Value="_input.AllProducts" /> Everything in the shop</label>
+            @if (!_input.AllProducts)
+            {
+                <fieldset>
+                    <legend>Categories (including their sub-categories)</legend>
+                    @foreach (var c in _categories)
+                    {
+                        var id = c.Id;
+                        <label><input type="checkbox" checked="@_input.CategoryIds.Contains(id)" @onchange="e => Toggle(_input.CategoryIds, id, (bool)e.Value!)" /> @c.Name</label>
+                    }
+                    @if (_categories.Count == 0) { <span class="pc-muted">No categories yet.</span> }
+                </fieldset>
+                <fieldset>
+                    <legend>Products</legend>
+                    @foreach (var p in _chosen)
+                    {
+                        var id = p.Id;
+                        <span class="pc-tag">@p.Name <button type="button" class="secondary" aria-label="Remove @p.Name" @onclick="() => RemoveProduct(id)">x</button></span>
+                    }
+                    <input type="search" placeholder="Search products to add" aria-label="Search products" @bind="_search" @bind:event="oninput" @bind:after="SearchAsync" />
+                    @foreach (var p in _found)
+                    {
+                        var found = p;
+                        <div><button type="button" class="secondary" @onclick="() => AddProduct(found)">Add</button> @p.Name <span class="pc-muted">@p.Sku</span></div>
+                    }
+                </fieldset>
+            }
+        }
+        <label>Minimum spend on the goods it covers (optional) <InputNumber @bind-Value="_input.MinSubtotal" /></label>
+        <label>Starts (optional) <InputDate TValue="DateTimeOffset?" @bind-Value="_input.StartsUtc" /></label>
+        <label>Ends (optional) <InputDate TValue="DateTimeOffset?" @bind-Value="_input.EndsUtc" /></label>
+        <label>Priority (lower is applied first) <InputNumber @bind-Value="_input.Priority" /></label>
+        <label>Combining
+            <InputSelect @bind-Value="_input.Stacking">
+                <option value="@DiscountStacking.Combinable">Combinable with other discounts</option>
+                <option value="@DiscountStacking.Exclusive">Exclusive: alone, when worth more than the rest together</option>
+            </InputSelect>
+        </label>
+        <label>Most orders overall (optional) <InputNumber TValue="int?" @bind-Value="_input.MaxRedemptions" /></label>
+        <label>Most orders per customer (optional; guests cannot use a discount with this limit) <InputNumber TValue="int?" @bind-Value="_input.MaxPerCustomer" /></label>
+        <label>Only for a customer group (optional)
+            <InputSelect TValue="Guid?" @bind-Value="_input.CustomerGroupId">
+                <option value="">Anyone</option>
+                @foreach (var g in _groups) { <option value="@g.Id">@g.Name</option> }
+            </InputSelect>
+        </label>
+        <label><InputCheckbox @bind-Value="_input.Active" /> Active</label>
+        <button type="submit" disabled="@_busy">Save</button>
+        @if (_editing is not null) { <button type="button" class="secondary" @onclick="Reset">Cancel</button> }
+    </EditForm>
+</div>
+
+@if (_rules is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_rules.Count == 0)
+{
+    <p class="pc-muted" data-testid="no-discounts">No discounts yet.</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>Name</th><th>Code</th><th>What</th><th>Applies to</th><th>Used</th><th>Active</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var r in _rules)
+        {
+            <tr>
+                <td>@r.Name@(r.Stacking == DiscountStacking.Exclusive ? " (exclusive)" : "")</td>
+                <td>@(r.Code ?? "automatic")</td>
+                <td>@Describe(r)</td>
+                <td>@(r.Kind == DiscountKind.FreeShipping && !r.AllProducts && r.Products.Count == 0 && r.Categories.Count == 0 ? "the whole basket"
+                    : r.AllProducts ? "everything" : string.Join(", ", r.Categories.Select(c => c.Name).Concat(r.Products.Select(p => p.Name))))@(r.CustomerGroupName is null ? "" : " (group: " + r.CustomerGroupName + ")")</td>
+                <td>@r.Redeemed@(r.MaxRedemptions is { } max ? " of " + max : "")</td>
+                <td>@(r.Active ? "Yes" : "No")</td>
+                <td class="actions">
+                    <button class="secondary" @onclick="() => Edit(r)">Edit</button>
+                    @if (_confirmDelete == r.Id)
+                    {
+                        <button class="danger" @onclick="() => DeleteAsync(r.Id)">Confirm delete</button>
+                        <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
+                    }
+                    else
+                    {
+                        <button class="secondary" @onclick="() => _confirmDelete = r.Id">Delete</button>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IReadOnlyList<DiscountRuleDto>? _rules;
+    private IReadOnlyList<PiranhaCommerce.Customers.CustomerGroupDto> _groups = [];
+    private IReadOnlyList<CategoryDto> _categories = [];
+    private DiscountRuleInput _input = new();
+    private readonly List<DiscountTargetDto> _chosen = [];
+    private IReadOnlyList<ProductDto> _found = [];
+    private string _search = "";
+    private Guid? _editing, _confirmDelete;
+    private string? _error;
+    private bool _busy;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _rules = await Scope.RunAsync<IDiscountRuleService, IReadOnlyList<DiscountRuleDto>>(s => s.ListAsync());
+            _groups = await Scope.RunAsync<PiranhaCommerce.Customers.ICustomerGroupService, IReadOnlyList<PiranhaCommerce.Customers.CustomerGroupDto>>(s => s.ListAsync());
+            _categories = await Scope.RunAsync<ICategoryService, IReadOnlyList<CategoryDto>>(s => s.ListAsync());
+        }
+        catch (Exception ex) { _error = "Could not load discounts: " + ex.Message; }
+    }
+
+    private static string Describe(DiscountRuleDto r) => r.Kind switch
+    {
+        DiscountKind.PercentOff => r.Value.ToString("0.##") + "% off",
+        DiscountKind.AmountOff => r.Value.ToString("N2") + " off",
+        DiscountKind.BuyXGetY => $"Buy {r.BuyQuantity}, get {r.GetQuantity} at {(r.Value >= 100 ? "no charge" : r.Value.ToString("0.##") + "% off")}",
+        _ => "Free shipping",
+    } + (r.MinSubtotal is { } min ? $" over {min:N2}" : "");
+
+    private static void Toggle(List<Guid> list, Guid id, bool on) { list.Remove(id); if (on) list.Add(id); }
+
+    private async Task SearchAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_search)) { _found = []; return; }
+        var term = _search.Trim();
+        var page = await Scope.RunAsync<IProductService, PiranhaCommerce.Core.Paging.PagedResult<ProductDto>>(s => s.ListAsync(1, 8, term));
+        _found = page.Items.Where(p => _chosen.All(c => c.Id != p.Id)).ToList();
+    }
+
+    private void AddProduct(ProductDto p)
+    {
+        _chosen.Add(new DiscountTargetDto(p.Id, p.Name, p.Sku));
+        _input.ProductIds = _chosen.Select(c => c.Id).ToList();
+        _found = _found.Where(f => f.Id != p.Id).ToList();
+    }
+
+    private void RemoveProduct(Guid id)
+    {
+        _chosen.RemoveAll(c => c.Id == id);
+        _input.ProductIds = _chosen.Select(c => c.Id).ToList();
+    }
+
+    private void Edit(DiscountRuleDto r)
+    {
+        _editing = r.Id;
+        _chosen.Clear(); _chosen.AddRange(r.Products); _found = []; _search = "";
+        _input = new DiscountRuleInput
+        {
+            Name = r.Name, Code = r.Code, Kind = r.Kind, Value = r.Value, BuyQuantity = r.BuyQuantity, GetQuantity = r.GetQuantity, AllProducts = r.AllProducts,
+            ProductIds = r.Products.Select(p => p.Id).ToList(), CategoryIds = r.Categories.Select(c => c.Id).ToList(), MinSubtotal = r.MinSubtotal,
+            StartsUtc = r.StartsUtc, EndsUtc = r.EndsUtc, Priority = r.Priority, Stacking = r.Stacking, MaxRedemptions = r.MaxRedemptions,
+            MaxPerCustomer = r.MaxPerCustomer, CustomerGroupId = r.CustomerGroupId, Active = r.Active,
+        };
+    }
+
+    private void Reset() { _editing = null; _input = new(); _chosen.Clear(); _found = []; _search = ""; }
+
+    private async Task SaveAsync()
+    {
+        _busy = true; _error = null;
+        try
+        {
+            var input = _input;
+            if (_editing is { } id) { if (await Scope.RunAsync<IDiscountRuleService, DiscountRuleDto?>(s => s.UpdateAsync(id, input)) is null) _error = "That discount no longer exists."; }
+            else await Scope.RunAsync<IDiscountRuleService, DiscountRuleDto>(s => s.CreateAsync(input));
+            if (_error is null) Reset();
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _error = "Could not save: " + ex.Message; }
+        finally { _busy = false; }
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        _confirmDelete = null; _error = null;
+        try { await Scope.RunAsync<IDiscountRuleService, bool>(s => s.DeleteAsync(id)); }
+        catch (Exception ex) { _error = "Could not delete: " + ex.Message; }
+        await LoadAsync();
+    }
+}

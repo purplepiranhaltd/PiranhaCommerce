@@ -320,6 +320,7 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
         Assert.Contains("<h1>Shipping methods</h1>", await (await browser.GetAsync("/admin/orders/shipping")).Content.ReadAsStringAsync());
         Assert.Contains("<h1>Tax</h1>", await (await browser.GetAsync("/admin/orders/tax")).Content.ReadAsStringAsync());
         Assert.Contains("<h1>Promotions</h1>", await (await browser.GetAsync("/admin/orders/promotions")).Content.ReadAsStringAsync());
+        Assert.Contains("<h1>Discounts</h1>", await (await browser.GetAsync("/admin/orders/discounts")).Content.ReadAsStringAsync());
         Assert.Contains("<h1>Gift vouchers</h1>", await (await browser.GetAsync("/admin/orders/vouchers")).Content.ReadAsStringAsync());
         Assert.Contains("<h1>Unreconciled payments</h1>", await (await browser.GetAsync("/admin/orders/unreconciled")).Content.ReadAsStringAsync());
         Assert.Contains("<h1>Email templates</h1>", await (await browser.GetAsync("/admin/email/templates")).Content.ReadAsStringAsync());

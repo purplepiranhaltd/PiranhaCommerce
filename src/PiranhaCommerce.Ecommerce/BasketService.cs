@@ -122,10 +122,19 @@ internal sealed partial class BasketService(PiranhaDbContext db, ICustomerServic
         if (!string.IsNullOrWhiteSpace(code))
         {
             normalized = PromotionRules.Normalize(code);
-            var promo = await db.Set<Promotion>().AsNoTracking().FirstOrDefaultAsync(p => p.Code == normalized, ct);
-            var owner = await db.Set<Basket>().AsNoTracking().Where(b => b.Id == basketId).Select(b => b.CustomerId).FirstOrDefaultAsync(ct);
-            if (PromotionRules.Problem(promo, decimal.MaxValue, DateTimeOffset.UtcNow, await PromotionEligibility.Async(db, promo, owner, ct)) is { } problem)
-                throw new PiranhaValidationException(nameof(CodeInput.Code), problem);
+            var rule = await db.Set<DiscountRule>().AsNoTracking().FirstOrDefaultAsync(r => r.Code == normalized, ct);
+            if (rule is not null)
+            {
+                // Whether it gives anything depends on the basket, so the quote says; here it only has to be a code that is switched on.
+                if (!rule.Active) throw new PiranhaValidationException(nameof(CodeInput.Code), PromotionRules.NotValid);
+            }
+            else
+            {
+                var promo = await db.Set<Promotion>().AsNoTracking().FirstOrDefaultAsync(p => p.Code == normalized, ct);
+                var owner = await db.Set<Basket>().AsNoTracking().Where(b => b.Id == basketId).Select(b => b.CustomerId).FirstOrDefaultAsync(ct);
+                if (PromotionRules.Problem(promo, decimal.MaxValue, DateTimeOffset.UtcNow, await PromotionEligibility.Async(db, promo, owner, ct)) is { } problem)
+                    throw new PiranhaValidationException(nameof(CodeInput.Code), problem);
+            }
         }
 
         // Only an open basket can change: once checked out it is read-only, and the update says so atomically.
@@ -236,20 +245,23 @@ internal sealed partial class BasketService(PiranhaDbContext db, ICustomerServic
         }
 
         // A code that cannot be used right now is reported and left out of the price; checkout would refuse it.
+        // Discount rules (automatic ones, and the one whose code was entered) come first; a promo code then takes what it takes from what is left.
+        var plan = await DiscountEngine.PlanAsync(db, basket.CustomerId,  basket.PromotionCode,
+            basket.Lines.Select(l => new EngineLine(l.ProductId, l.Quantity, l.UnitPrice, l.LineTotal)).ToList(), DateTimeOffset.UtcNow, ct);
         var discount = 0m;
-        string? problem = null;
-        if (basket.PromotionCode is { } code)
+        string? problem = plan.CodeProblem;
+        if (basket.PromotionCode is { } code && !plan.CodeIsDiscount)
         {
             var promo = await db.Set<Promotion>().AsNoTracking().FirstOrDefaultAsync(p => p.Code == code, ct);
             problem = PromotionRules.Problem(promo, basket.Subtotal, DateTimeOffset.UtcNow, await PromotionEligibility.Async(db, promo, basket.CustomerId, ct));
-            if (problem is null) discount = PromotionRules.Discount(promo!, basket.Subtotal);
+            if (problem is null) discount = PromotionRules.Discount(promo!, basket.Subtotal - plan.Total);
         }
 
         var (rules, defaultClass) = await TaxLookup.LoadAsync(db, ct);
         var classes = await TaxLookup.ClassesAsync(db, basket.Lines.Select(l => l.ProductId).ToList(), ct);
         var calc = OrderPricing.Calculate(
             basket.Lines.Select(l => (l.LineTotal, classes.GetValueOrDefault(l.ProductId))).ToList(),
-            discount, method, rules, defaultClass, input.CountryCode.ToUpperInvariant(), shippingPrice);
+            discount, method, rules, defaultClass, input.CountryCode.ToUpperInvariant(), shippingPrice, plan.LineDiscounts, plan.FreeShipping);
 
         // A gift voucher pays part of the total; it never changes the price or the tax.
         var applied = 0m;
@@ -265,7 +277,8 @@ internal sealed partial class BasketService(PiranhaDbContext db, ICustomerServic
         return new QuoteDto(basket.Currency, basket.Subtotal, calc.ShippingTotal, calc.SummaryName, calc.SummaryRate, calc.Tax, calc.Total,
             calc.Breakdown, calc.Discount, basket.PromotionCode, problem, applied, calc.Total - applied, basket.VoucherLast4, voucherProblem,
             basket.Lines.Select((l, i) => new QuoteLineDto(l.ProductId, l.Name, l.Quantity, l.UnitPrice, l.LineTotal, calc.LineDiscounts[i], calc.Lines[i].Name, calc.Lines[i].Rate,
-                calc.Lines[i].Amount, l.LineTotal - calc.LineDiscounts[i] + calc.Lines[i].Amount)).ToList(), calc.Shipping.Amount);
+                calc.Lines[i].Amount, l.LineTotal - calc.LineDiscounts[i] + calc.Lines[i].Amount)).ToList(), calc.Shipping.Amount,
+            plan.Applied.Select(a => new AppliedDiscountDto(a.Name, a.Code, a.Amount, a.FreeShipping)).ToList());
     }
 
     private Task<int> SetQuantityAsync(Guid basketId, Guid productId, int quantity, CancellationToken ct)

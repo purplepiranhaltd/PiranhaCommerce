@@ -70,7 +70,7 @@ internal sealed partial class OrderService(
     }
 
     public async Task<OrderDto?> GetForCustomerAsync(Guid customerId, Guid id, CancellationToken ct = default)
-        => await WithPaymentsAsync(await db.Set<Order>().AsNoTracking().Include(o => o.Lines).AsSplitQuery()
+        => await WithPaymentsAsync(await db.Set<Order>().AsNoTracking().Include(o => o.Lines).Include(o => o.Discounts).AsSplitQuery()
             .FirstOrDefaultAsync(o => o.Id == id && o.CustomerId == customerId, ct), ct);
 
     private async Task<PagedResult<OrderSummaryDto>> PageAsync(IQueryable<Order> query, int p, int size, CancellationToken ct)
@@ -91,10 +91,10 @@ internal sealed partial class OrderService(
     }
 
     public async Task<OrderDto?> GetAsync(Guid id, CancellationToken ct = default)
-        => await WithPaymentsAsync(await db.Set<Order>().AsNoTracking().Include(o => o.Lines).AsSplitQuery().FirstOrDefaultAsync(o => o.Id == id, ct), ct);
+        => await WithPaymentsAsync(await db.Set<Order>().AsNoTracking().Include(o => o.Lines).Include(o => o.Discounts).AsSplitQuery().FirstOrDefaultAsync(o => o.Id == id, ct), ct);
 
     public async Task<OrderDto?> GetByNumberAsync(long number, CancellationToken ct = default)
-        => await WithPaymentsAsync(await db.Set<Order>().AsNoTracking().Include(o => o.Lines).AsSplitQuery().FirstOrDefaultAsync(o => o.Number == number, ct), ct);
+        => await WithPaymentsAsync(await db.Set<Order>().AsNoTracking().Include(o => o.Lines).Include(o => o.Discounts).AsSplitQuery().FirstOrDefaultAsync(o => o.Number == number, ct), ct);
 
     private async Task<(decimal Paid, decimal Refunded)> PaymentSumsAsync(Guid orderId, CancellationToken ct)
     {
@@ -183,9 +183,22 @@ internal sealed partial class OrderService(
                     // rather than quietly charging full price.
                     Promotion? promo = null;
                     var discount = 0m;
+                    var plan = DiscountPlan.None(lines.Count);
                     var held = await db.Set<Basket>().AsNoTracking().Where(b => b.Id == basketId).Select(b => new { b.PromotionCode, b.VoucherId, b.CustomerId }).FirstAsync(token);
                     var promoCode = held.PromotionCode;
-                    if (promoCode is not null)
+                    plan = await DiscountEngine.PlanAsync(db, input.CustomerId ?? held.CustomerId, promoCode,
+                        lines.Select(l => new EngineLine(l.Id, l.Quantity, l.Price, l.Price * l.Quantity)).ToList(), DateTimeOffset.UtcNow, token);
+                    if (plan.CodeProblem is { } codeProblem)
+                        throw new PiranhaConflictException($"The discount code on this basket cannot be used: {codeProblem} Remove it to continue.");
+                    foreach (var applied in plan.Applied)
+                    {
+                        // One use spent per discount that applied, with a conditional update so a limited discount cannot be over-used by simultaneous orders.
+                        var spent = await db.Set<DiscountRule>()
+                            .Where(r => r.Id == applied.RuleId && r.Active && (r.MaxRedemptions == null || r.Redeemed < r.MaxRedemptions))
+                            .ExecuteUpdateAsync(s => s.SetProperty(r => r.Redeemed, r => r.Redeemed + 1), token);
+                        if (spent == 0) throw new PiranhaConflictException($"The discount \"{applied.Name}\" has been used up. Try again.");
+                    }
+                    if (promoCode is not null && !plan.CodeIsDiscount)
                     {
                         promo = await db.Set<Promotion>().AsNoTracking().FirstOrDefaultAsync(p => p.Code == promoCode, token);
                         if (PromotionRules.Problem(promo, subtotal, DateTimeOffset.UtcNow, await PromotionEligibility.Async(db, promo, input.CustomerId ?? held.CustomerId, token)) is { } problem)
@@ -194,13 +207,13 @@ internal sealed partial class OrderService(
                             .Where(p => p.Id == promo!.Id && p.Active && (p.MaxRedemptions == null || p.Redeemed < p.MaxRedemptions))
                             .ExecuteUpdateAsync(s => s.SetProperty(p => p.Redeemed, p => p.Redeemed + 1), token);
                         if (used == 0) throw new PiranhaConflictException("That promotion code has been used up. Remove it to continue.");
-                        discount = PromotionRules.Discount(promo!, subtotal);
+                        discount = PromotionRules.Discount(promo!, subtotal - plan.Total);
                     }
 
                     var (rules, defaultClass) = await TaxLookup.LoadAsync(db, token);
                     var classes = await TaxLookup.ClassesAsync(db, productIdsInBasket, token);
                     var calc = OrderPricing.Calculate(
-                        lines.Select(l => (l.Price * l.Quantity, classes.GetValueOrDefault(l.Id))).ToList(), discount, method, rules, defaultClass, country, shippingPrice);
+                        lines.Select(l => (l.Price * l.Quantity, classes.GetValueOrDefault(l.Id))).ToList(), discount, method, rules, defaultClass, country, shippingPrice, plan.LineDiscounts, plan.FreeShipping);
 
                     // 3. Next order number. The UPDATE takes the counter row's lock, which is held to commit, so numbers are never shared.
                     await db.Set<OrderCounter>().Where(c => c.Id == 1)
@@ -232,6 +245,8 @@ internal sealed partial class OrderService(
                     order.PromotionId = promo?.Id;
                     order.PromotionCode = promo?.Code;
                     order.DiscountTotal = calc.Discount;
+                    foreach (var applied in plan.Applied)
+                        order.Discounts.Add(new OrderDiscount { OrderId = orderId, RuleId = applied.RuleId, Name = applied.Name, Code = applied.Code, Amount = applied.Amount, FreeShipping = applied.FreeShipping });
                     order.TaxName = calc.SummaryName;
                     order.TaxRate = calc.SummaryRate;
                     order.TaxTotal = calc.Tax;
@@ -383,6 +398,15 @@ internal sealed partial class OrderService(
                         await db.Set<Promotion>().Where(p => p.Id == promoId && p.Redeemed > 0)
                             .ExecuteUpdateAsync(s => s.SetProperty(p => p.Redeemed, p => p.Redeemed - 1), token);
 
+                    // The discount rules it used get their use back too.
+                    if (to == OrderStage.Cancelled)
+                    {
+                        var used = await db.Set<OrderDiscount>().AsNoTracking().Where(d => d.OrderId == id && d.RuleId != null).Select(d => d.RuleId!.Value).ToListAsync(token);
+                        if (used.Count > 0)
+                            await db.Set<DiscountRule>().Where(r => used.Contains(r.Id) && r.Redeemed > 0)
+                                .ExecuteUpdateAsync(s => s.SetProperty(r => r.Redeemed, r => r.Redeemed - 1), token);
+                    }
+
                     // Money paid with a gift voucher goes back onto the voucher: only what the order still holds (a manual refund already
                     // given is not given twice), in the voucher's ledger and as a refund on the order, in this same transaction.
                     if (to == OrderStage.Cancelled && current.VoucherId is { } voucherId && current.VoucherPaid > 0)
@@ -461,7 +485,8 @@ internal sealed partial class OrderService(
         o.Lines.OrderBy(l => l.Position).Select(l => new OrderLineDto(l.ProductId, l.Name, l.Sku, l.UnitPrice, l.Quantity, l.LineTotal, l.TaxName, l.TaxRate, l.TaxAmount, l.DiscountAmount, l.Id, l.QuantityShipped, l.QuantityReturned)).ToList(),
         // Once anything has left, cancelling is no longer offered: what was sent comes back as a return instead.
         OrderStages.Next(o.Stage).Where(s => s != OrderStage.Cancelled || o.Lines.All(l => l.QuantityShipped == 0)).ToList(),
-        o.CreatedUtc, o.UpdatedUtc, o.ShippingTax, TaxBreakdown(o), o.DiscountTotal, o.PromotionCode, shipments);
+        o.CreatedUtc, o.UpdatedUtc, o.ShippingTax, TaxBreakdown(o), o.DiscountTotal, o.PromotionCode, shipments,
+        o.Discounts.OrderBy(d => d.Name).Select(d => new AppliedDiscountDto(d.Name, d.Code, d.Amount, d.FreeShipping)).ToList());
 
     /// <summary>The tax summary for display: one row per named rate, from the order's own copies. Orders placed before per-line tax have one flat row.</summary>
     private static IReadOnlyList<TaxLineDto> TaxBreakdown(Order o)

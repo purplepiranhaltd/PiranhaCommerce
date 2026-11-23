@@ -1203,6 +1203,119 @@ namespace PiranhaCommerce.Web.Migrations
                     b.ToTable("BasketLine", "ecom");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.DiscountRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AllProducts")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("BuyQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Code")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CustomerGroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("EndsUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int?>("GetQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int?>("MaxPerCustomer")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("MaxRedemptions")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("MinSubtotal")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Redeemed")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Stacking")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTimeOffset?>("StartsUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("UpdatedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<decimal>("Value")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasFilter("[Code] IS NOT NULL");
+
+                    b.HasIndex("CustomerGroupId");
+
+                    b.ToTable("DiscountRule", "ecom");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.DiscountRuleCategory", b =>
+                {
+                    b.Property<Guid>("RuleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("RuleId", "CategoryId");
+
+                    b.HasIndex("CategoryId");
+
+                    b.ToTable("DiscountRuleCategory", "ecom");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.DiscountRuleProduct", b =>
+                {
+                    b.Property<Guid>("RuleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("RuleId", "ProductId");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("DiscountRuleProduct", "ecom");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.DisputeEvidenceFile", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1464,6 +1577,43 @@ namespace PiranhaCommerce.Web.Migrations
                             Id = 1,
                             LastNumber = 1000L
                         });
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.OrderDiscount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Code")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<bool>("FreeShipping")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("RuleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId");
+
+                    b.HasIndex("RuleId");
+
+                    b.ToTable("OrderDiscount", "ecom");
                 });
 
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.OrderLine", b =>
@@ -2628,6 +2778,44 @@ namespace PiranhaCommerce.Web.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.DiscountRule", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Customers.CustomerGroup", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerGroupId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.DiscountRuleCategory", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Catalog.Category", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PiranhaCommerce.Ecommerce.DiscountRule", null)
+                        .WithMany()
+                        .HasForeignKey("RuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.DiscountRuleProduct", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Catalog.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PiranhaCommerce.Ecommerce.DiscountRule", null)
+                        .WithMany()
+                        .HasForeignKey("RuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.DisputeEvidenceFile", b =>
                 {
                     b.HasOne("PiranhaCommerce.Ecommerce.PaymentDispute", null)
@@ -2774,6 +2962,15 @@ namespace PiranhaCommerce.Web.Migrations
                     b.Navigation("BillingAddress");
 
                     b.Navigation("ShippingAddress");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.OrderDiscount", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Ecommerce.Order", null)
+                        .WithMany("Discounts")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.OrderLine", b =>
@@ -2995,6 +3192,8 @@ namespace PiranhaCommerce.Web.Migrations
 
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.Order", b =>
                 {
+                    b.Navigation("Discounts");
+
                     b.Navigation("Lines");
                 });
 

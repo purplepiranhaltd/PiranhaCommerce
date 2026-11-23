@@ -241,6 +241,43 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.Property(p => p.MinSubtotal).HasPrecision(18, 4);
         });
 
+        b.Entity<DiscountRule>(e =>
+        {
+            e.ToTable("DiscountRule", Schema);
+            e.Property(r => r.Name).HasMaxLength(100);
+            e.Property(r => r.Code).HasMaxLength(40);
+            e.HasIndex(r => r.Code).IsUnique();
+            e.Property(r => r.Kind).HasConversion<string>().HasMaxLength(20);
+            e.Property(r => r.Stacking).HasConversion<string>().HasMaxLength(20);
+            e.Property(r => r.Value).HasPrecision(18, 4);
+            e.Property(r => r.MinSubtotal).HasPrecision(18, 4);
+            e.HasOne<PiranhaCommerce.Customers.CustomerGroup>().WithMany().HasForeignKey(r => r.CustomerGroupId).OnDelete(DeleteBehavior.Restrict);
+        });
+        b.Entity<DiscountRuleProduct>(e =>
+        {
+            e.ToTable("DiscountRuleProduct", Schema);
+            e.HasKey(t => new { t.RuleId, t.ProductId });
+            e.HasOne<DiscountRule>().WithMany().HasForeignKey(t => t.RuleId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Product>().WithMany().HasForeignKey(t => t.ProductId).OnDelete(DeleteBehavior.Cascade);
+        });
+        b.Entity<DiscountRuleCategory>(e =>
+        {
+            e.ToTable("DiscountRuleCategory", Schema);
+            e.HasKey(t => new { t.RuleId, t.CategoryId });
+            e.HasOne<DiscountRule>().WithMany().HasForeignKey(t => t.RuleId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Category>().WithMany().HasForeignKey(t => t.CategoryId).OnDelete(DeleteBehavior.Cascade);
+        });
+        b.Entity<OrderDiscount>(e =>
+        {
+            e.ToTable("OrderDiscount", Schema);
+            e.Property(d => d.Name).HasMaxLength(100);
+            e.Property(d => d.Code).HasMaxLength(40);
+            e.Property(d => d.Amount).HasPrecision(18, 4);
+            e.HasIndex(d => d.OrderId);
+            e.HasIndex(d => d.RuleId);
+            e.HasOne<Order>().WithMany(o => o.Discounts).HasForeignKey(d => d.OrderId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         b.Entity<UnreconciledPayment>(e =>
         {
             e.ToTable("UnreconciledPayment", Schema);

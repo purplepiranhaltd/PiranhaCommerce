@@ -195,7 +195,7 @@ public sealed record QuoteDto(
     string Currency, decimal Subtotal, decimal ShippingTotal, string? TaxName, decimal TaxRate, decimal TaxTotal, decimal Total,
     IReadOnlyList<TaxLineDto> Taxes, decimal DiscountTotal = 0m, string? PromotionCode = null, string? PromotionProblem = null,
     decimal VoucherApplied = 0m, decimal AmountDue = 0m, string? VoucherLast4 = null, string? VoucherProblem = null,
-    IReadOnlyList<QuoteLineDto>? Lines = null, decimal ShippingTax = 0m);
+    IReadOnlyList<QuoteLineDto>? Lines = null, decimal ShippingTax = 0m, IReadOnlyList<AppliedDiscountDto>? Discounts = null);
 
 /// <summary>One basket line as it will be charged: the goods after its share of any discount, its tax, and the two added together, so a shop can show tax-inclusive line prices.</summary>
 public sealed record QuoteLineDto(
@@ -218,7 +218,8 @@ public static class OrderPricing
     /// <param name="discount">What the promo code takes off the goods; limited here to the goods total.</param>
     public static TaxCalculation Calculate(
         IReadOnlyList<(decimal LineTotal, Guid? TaxClassId)> lines, decimal discount, ShippingMethod? method,
-        IReadOnlyList<TaxRule> rules, Guid defaultClassId, string countryCode, decimal? shippingPrice = null)
+        IReadOnlyList<TaxRule> rules, Guid defaultClassId, string countryCode, decimal? shippingPrice = null,
+        IReadOnlyList<decimal>? ruleShares = null, bool freeShipping = false)
     {
         static decimal Round(decimal v) => Math.Round(v, 2, MidpointRounding.AwayFromZero);
         TaxedAmount Apply(decimal net, Guid classId)
@@ -227,9 +228,12 @@ public static class OrderPricing
             return rule is null ? new TaxedAmount(0m, null, 0m) : new TaxedAmount(Round(net * rule.Rate / 100m), rule.Name, rule.Rate);
         }
 
-        var shares = PromotionRules.Allocate(lines.Select(l => l.LineTotal).ToList(), discount);
+        // Discount rules come off first (already shared across the lines); the promo code then takes its share of what is left.
+        var first = ruleShares ?? new decimal[lines.Count];
+        var promo = PromotionRules.Allocate(lines.Select((l, i) => l.LineTotal - first[i]).ToList(), discount);
+        var shares = first.Select((s, i) => s + promo[i]).ToArray();
         var goodsAfterDiscount = lines.Sum(l => l.LineTotal) - shares.Sum();
-        var shipping = ShippingFor(method, goodsAfterDiscount, shippingPrice);
+        var shipping = freeShipping ? 0m : ShippingFor(method, goodsAfterDiscount, shippingPrice);
 
         var perLine = lines.Select((l, i) => Apply(l.LineTotal - shares[i], l.TaxClassId ?? defaultClassId)).ToList();
         var forShipping = Apply(shipping, defaultClassId);

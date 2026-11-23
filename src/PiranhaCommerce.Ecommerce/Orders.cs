@@ -64,6 +64,8 @@ public class Order : AuditableEntity
     public Guid? PromotionId { get; set; }
     public string? PromotionCode { get; set; }
     public decimal DiscountTotal { get; set; }
+    /// <summary>The discount rules applied (copies), besides the promo code.</summary>
+    public List<OrderDiscount> Discounts { get; set; } = [];
     /// <summary>The gift voucher paid with, and how much of the total it paid (also recorded as a payment). Given back if the order is cancelled.</summary>
     public Guid? VoucherId { get; set; }
     public decimal VoucherPaid { get; set; }
@@ -201,7 +203,7 @@ public sealed record OrderDto(
     string? Notes, OrderAddressDto? ShippingAddress, OrderAddressDto? BillingAddress, IReadOnlyList<OrderLineDto> Lines,
     IReadOnlyList<OrderStage> NextStages, DateTimeOffset CreatedUtc, DateTimeOffset? UpdatedUtc,
     decimal ShippingTax = 0m, IReadOnlyList<TaxLineDto>? Taxes = null, decimal DiscountTotal = 0m, string? PromotionCode = null,
-    IReadOnlyList<ShipmentSummaryDto>? Shipments = null);
+    IReadOnlyList<ShipmentSummaryDto>? Shipments = null, IReadOnlyList<AppliedDiscountDto>? Discounts = null);
 
 public sealed class EcommerceOptions
 {
