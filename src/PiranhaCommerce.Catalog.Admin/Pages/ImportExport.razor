@@ -1,0 +1,124 @@
+@page "/admin/catalog/import-export"
+@using Microsoft.JSInterop
+@using PiranhaCommerce.Core.Validation
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Options
+@inject AdminScopeRunner Scope
+@inject IJSRuntime Js
+@inject AuthenticationStateProvider Auth
+@inject IOptions<CatalogImportOptions> Options
+
+<PageTitle>Import and export - Piranha Commerce</PageTitle>
+<h1>Import and export</h1>
+
+<div class="pc-card">
+    <h2 style="margin-top:0">Export</h2>
+    <p class="pc-muted">Every product and variant as a CSV file you can open in Excel, change, and import back. Variants follow their parent.</p>
+    <label>Only products whose name or SKU contains <input @bind="_search" placeholder="(everything)" /></label>
+    <button type="button" disabled="@_busy" @onclick="ExportAsync">Download CSV</button>
+</div>
+
+<div class="pc-card" style="margin-top:1rem">
+    <h2 style="margin-top:0">Import</h2>
+    <p class="pc-muted">
+        Start from an export so the columns are right. Each row is a product, matched by <code>id</code> or else <code>sku</code>: a product that exists is updated, otherwise it is created
+        (a new product needs <code>name</code> and <code>price</code>). A blank cell leaves that field alone, and <code>[clear]</code> empties it. A variant row names its parent in
+        <code>parent_sku</code> (or <code>parent_id</code>) and gives its options in <code>option1_name</code>, <code>option1_value</code> and so on; the parent's options and values are made if they are missing.
+        <code>categories</code> are paths such as <code>Clothing &gt; Tees</code>, several separated by <code>|</code>, and missing categories are made. <code>stock</code> is the quantity wanted at the default
+        location (the difference goes in the stock history as "Import"). Use a full stop for decimals. Up to @Options.Value.MaxRows rows.
+    </p>
+    <p>
+        <label>CSV file
+            <InputFile OnChange="PickAsync" accept=".csv,text/csv" disabled="@_busy" />
+        </label>
+        @if (_fileName is not null) { <span class="pc-muted">@_fileName (@(_bytes!.Length / 1024) KB)</span> }
+    </p>
+    <label><input type="checkbox" @bind="_skipInvalid" /> If some rows are wrong, still save the rows that are fine</label>
+    <p>
+        <button type="button" class="secondary" disabled="@(_busy || _bytes is null)" @onclick="() => RunAsync(dryRun: true)">Check the file (saves nothing)</button>
+        <button type="button" disabled="@(_busy || _bytes is null)" @onclick="() => RunAsync(dryRun: false)">Import</button>
+    </p>
+    @if (_error is not null)
+    {
+        <p class="pc-error" role="alert">@_error</p>
+    }
+    @if (_result is not null)
+    {
+        <p role="status">
+            @if (_result.DryRun) { <strong>Checked, nothing saved.</strong> }
+            else if (_result.Applied) { <strong>Imported.</strong> }
+            else { <strong>Nothing was saved</strong> <span>because some rows are wrong. Fix them, or tick the box above to save the rows that are fine.</span> }
+            @_result.Rows rows: @_result.Created @(_result.DryRun || !_result.Applied ? "would be " : "")created, @_result.Updated @(_result.DryRun || !_result.Applied ? "would be " : "")updated, @_result.Failed with problems.
+        </p>
+        @if (_result.Failed > 0)
+        {
+            <table class="pc-table">
+                <thead><tr><th>Row</th><th>SKU</th><th>Problem</th></tr></thead>
+                <tbody>
+                @foreach (var r in _result.Results.Where(r => r.Action == "failed").Take(200))
+                {
+                    <tr><td>@r.Row</td><td>@r.Sku</td><td class="pc-error">@string.Join(" ", r.Errors)</td></tr>
+                }
+                </tbody>
+            </table>
+            @if (_result.Failed > 200) { <p class="pc-muted">Showing the first 200 of @_result.Failed.</p> }
+        }
+    }
+</div>
+
+@code {
+    private string? _search, _fileName, _error;
+    private byte[]? _bytes;
+    private bool _busy, _skipInvalid;
+    private ProductImportResultDto? _result;
+
+    private async Task ExportAsync()
+    {
+        _busy = true; _error = null;
+        try
+        {
+            var search = _search;
+            var bytes = await Scope.RunAsync<ICatalogTransferService, byte[]>(async s =>
+            {
+                using var buffer = new MemoryStream();
+                await s.ExportProductsAsync(buffer, search);
+                return buffer.ToArray();
+            });
+            using var reference = new DotNetStreamReference(new MemoryStream(bytes));
+            await Js.InvokeVoidAsync("piranhaDownload", $"products-{DateTime.UtcNow:yyyyMMdd-HHmm}.csv", "text/csv;charset=utf-8", reference);
+        }
+        catch (Exception ex) { _error = "Could not export: " + ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task PickAsync(InputFileChangeEventArgs e)
+    {
+        _error = null; _result = null; _bytes = null; _fileName = null;
+        try
+        {
+            var max = Options.Value.MaxBytes;
+            await using var stream = e.File.OpenReadStream(max + 1);
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer);
+            _bytes = buffer.ToArray();
+            _fileName = e.File.Name;
+        }
+        catch (IOException) { _error = "That file is too big."; }
+        catch (Exception ex) { _error = "Could not read the file: " + ex.Message; }
+    }
+
+    private async Task RunAsync(bool dryRun)
+    {
+        _busy = true; _error = null; _result = null;
+        try
+        {
+            var state = await Auth.GetAuthenticationStateAsync();
+            var request = new ProductImportRequest(dryRun, _skipInvalid, state.User.Identity?.Name);
+            var bytes = _bytes!;
+            _result = await Scope.RunAsync<ICatalogTransferService, ProductImportResultDto>(s => s.ImportProductsAsync(new MemoryStream(bytes), request));
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
+        catch (Exception ex) { _error = "Could not import: " + ex.Message; }
+        finally { _busy = false; }
+    }
+}

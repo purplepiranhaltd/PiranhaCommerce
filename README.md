@@ -378,6 +378,19 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   .../{categoryId}` with `{ "percent" }`; admin: Orders > Group category discounts). It covers the category's sub-categories (the nearest category that
   has one set wins), replaces the group's own percentage for products in it, and `0` means no discount there. A product in several categories gets
   the largest percentage. Within one group the most specific thing wins: fixed product price, then category percentage, then the group's own percentage.
+- **Catalogue import and export** (CSV; `GET /products/export?search=`, `POST /products/import` with a `file`, admin: Catalog > Import and export). One row per product, with the columns
+  `id, sku, parent_id, parent_sku, name, description, price, slug, meta_title, meta_description, categories, barcodes, stock, option1_name, option1_value` (and 2, 3), plus what other packages add:
+  the online store adds `published, tax_class, weight_grams` (a package adds columns with `IProductImportExtension`). **Start from an export.** A row is matched by `id`, else `sku`: it is updated if it
+  exists, otherwise created (a new product needs a name and a price). A **blank cell leaves the field alone** and **`[clear]` empties it**; a column that is not in the file is not touched; an unknown
+  column refuses the file. **Variants** are rows with `parent_sku` (or `parent_id`) and their `optionN_name` and `optionN_value`: the parent's options and values are made when missing, and the
+  variant's own price, SKU and so on are set; a file may list variants before their parent. `categories` are paths (`Clothing > Tees`) separated by `|`, and missing categories are made; variants
+  take their parent's. `barcodes` are separated by `|`. `stock` is the quantity wanted at the default location: the difference is recorded as an "Import" movement, so importing the same file again
+  moves nothing. Decimals use a full stop; the reader copes with Excel's semicolon separator, a byte order mark and quoted line breaks; the export writes UTF-8 with a byte order mark and guards
+  free text that starts with `=`, `+`, `-` or `@` (written with a leading apostrophe, taken off on import) so a spreadsheet never runs it as a formula. **Checking before saving:** every import first
+  runs all its rows in a transaction that is rolled back, so what it reports (`created`, `updated`, or `failed` with the reason, by spreadsheet row) is what would happen. By default one bad row means
+  **nothing is saved**; `skipInvalid=true` saves the good rows, and `dryRun=true` only checks. A saved row is applied on its own, so a failure that appears only then (the data changed meanwhile) leaves the rest
+  done and is reported. Limits: `Piranha:Catalog:Import:MaxRows` (5000) and `MaxBytes` (10 MB). The stock column needs access to the default location (a user limited to other locations is refused). Not built:
+  stock at other locations, pictures, prices for customer groups, Excel (.xlsx) files, and an import that runs in the background for very large files. Names with `>` or `|` in a category cannot be written as a path.
 - **Product pictures** (`/products/{id}/images`, admin: Pictures on a product page): needs a storage package (`IFileStore`; the sample host uses local disk). Upload is
   `multipart/form-data` with `file` and an optional `altText`; the type is decided from the file's own bytes (JPEG, PNG, WebP or GIF; SVG is refused because it can carry script),
   limited by `Piranha:Images:MaxBytes` (default 10 MB) and `MaxPerProduct` (20). With an imaging package, the picture is read (a file that cannot be read is refused), turned upright from its

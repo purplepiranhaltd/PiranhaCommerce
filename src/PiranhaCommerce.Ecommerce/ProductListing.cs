@@ -45,3 +45,51 @@ internal sealed class VariantListingHandler(PiranhaCommerce.Data.PiranhaDbContex
         await db.SaveChangesAsync(ct);
     }
 }
+
+/// <summary>Adds the online listing to the catalogue import and export: <c>published</c> (true or false), <c>tax_class</c> (by name) and <c>weight_grams</c>.</summary>
+internal sealed class ProductListingImportExtension(PiranhaCommerce.Data.PiranhaDbContext db, IProductListingService listings) : IProductImportExtension
+{
+    public IReadOnlyList<string> Columns { get; } = ["published", "tax_class", "weight_grams"];
+
+    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<string?>>> ExportAsync(IReadOnlyCollection<Guid> productIds, CancellationToken ct = default)
+    {
+        var ids = productIds.ToList();
+        var classes = await db.Set<TaxClass>().AsNoTracking().ToDictionaryAsync(c => c.Id, c => c.Name, ct);
+        var rows = await db.Set<ProductListing>().AsNoTracking().Where(l => ids.Contains(l.ProductId)).ToListAsync(ct);
+        return rows.ToDictionary(l => l.ProductId, l => (IReadOnlyList<string?>)
+            [l.Published ? "true" : "false", l.TaxClassId is { } c ? classes.GetValueOrDefault(c) : null, l.WeightGrams?.ToString(System.Globalization.CultureInfo.InvariantCulture)]);
+    }
+
+    public async Task ImportAsync(Guid productId, IReadOnlyDictionary<string, string?> cells, bool created, CancellationToken ct = default)
+    {
+        var current = await listings.GetAsync(productId, ct) ?? throw new PiranhaCommerce.Core.Validation.PiranhaValidationException("published", "That product no longer exists.");
+        var input = new ProductListingInput { Published = current.Published, TaxClassId = current.TaxClassId, WeightGrams = current.WeightGrams };
+
+        if (cells.TryGetValue("published", out var published))
+        {
+            input.Published = published?.ToLowerInvariant() switch
+            {
+                "true" or "yes" or "1" => true,
+                "false" or "no" or "0" or null => false,
+                _ => throw new PiranhaCommerce.Core.Validation.PiranhaValidationException("published", "Use true or false."),
+            };
+        }
+        if (cells.TryGetValue("tax_class", out var taxClass))
+        {
+            if (taxClass is null) input.TaxClassId = null; // back to the store's default class
+            else
+            {
+                var name = taxClass.ToLower();
+                input.TaxClassId = await db.Set<TaxClass>().AsNoTracking().Where(c => c.Name.ToLower() == name).Select(c => (Guid?)c.Id).FirstOrDefaultAsync(ct)
+                    ?? throw new PiranhaCommerce.Core.Validation.PiranhaValidationException("tax_class", $"There is no tax class called {taxClass}.");
+            }
+        }
+        if (cells.TryGetValue("weight_grams", out var weight))
+        {
+            if (weight is null) input.WeightGrams = null;
+            else if (int.TryParse(weight, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var grams)) input.WeightGrams = grams;
+            else throw new PiranhaCommerce.Core.Validation.PiranhaValidationException("weight_grams", "Use a whole number of grams.");
+        }
+        await listings.SetAsync(productId, input, ct);
+    }
+}

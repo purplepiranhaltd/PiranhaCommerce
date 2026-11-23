@@ -10,7 +10,8 @@ or themes), so storefront and CMS features are out of scope by design. Order of 
 1. **Product options and variants: built** (see the README), with pictures per variant. Open: a price as an adjustment to the parent, renaming values.
 2. **Product images and media, with SEO fields: built** (see the README): a file store plugin point (local disk, Azure Blob), pictures with sizes made by an imaging package (SkiaSharp), slugs and page text.
    Open: slug history and redirects, bulk upload, video, and dispute evidence files (the file store now exists for them).
-3. **Catalogue import and export** (CSV or Excel, products with variants, categories, stock): open.
+3. **Catalogue import and export: built** (see the README), as CSV with variants, categories, barcodes, stock and the online listing, checked before anything is saved.
+   Open: Excel files, stock at other locations, group prices, pictures by address, and large files imported in the background.
 4. **Reports and an audit log of staff changes:** open. Today only the negative-stock report and unreconciled payments exist; wanted: sales by day, product and category,
    bestsellers, low stock, customers, and who changed what.
 5. **Quantity breaks and minimum or maximum order quantities, then a fuller discount engine** (automatic discounts, free-shipping codes, discounts on chosen products

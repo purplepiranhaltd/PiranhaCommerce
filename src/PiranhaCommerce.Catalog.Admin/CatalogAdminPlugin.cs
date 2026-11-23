@@ -33,6 +33,7 @@ internal sealed class CatalogAdminMenu : IAdminMenuContributor
         new("catalog.stock-locations", "Stock locations", "/admin/catalog/stock-locations", Order: 14, ParentKey: "catalog"),
         new("catalog.stock-transfers", "Stock transfers", "/admin/catalog/stock-transfers", Order: 15, ParentKey: "catalog", BadgeKey: "stock-transfers"),
         new("catalog.staff-locations", "Staff locations", "/admin/catalog/staff-locations", Order: 16, ParentKey: "catalog"),
+        new("catalog.import-export", "Import and export", "/admin/catalog/import-export", Order: 17, ParentKey: "catalog"),
     ];
 }
 
