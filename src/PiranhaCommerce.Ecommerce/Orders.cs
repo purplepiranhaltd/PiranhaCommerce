@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using PiranhaCommerce.Core.Audit;
 using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Customers;
 
@@ -47,12 +48,13 @@ public static class OrderStages
 /// A purchase. Everything on it is a copy taken at checkout (names, prices, addresses, email), so later edits to products or
 /// customers - or erasing a customer - never change what was sold. <see cref="CustomerId"/> is a plain reference, not a foreign key.
 /// </summary>
+[Audited]
 public class Order : AuditableEntity
 {
     public long Number { get; set; }
     public OrderStage Stage { get; set; }
     public Guid? CustomerId { get; set; }
-    public required string Email { get; set; }
+    [AuditMask] public required string Email { get; set; }
     public required string Currency { get; set; }
     public decimal Subtotal { get; set; }
     /// <summary>Copies of the chosen method's name and the price charged; later edits to the method never change the order.</summary>
@@ -74,7 +76,7 @@ public class Order : AuditableEntity
     public string? ShippingTaxName { get; set; }
     public decimal ShippingTaxRate { get; set; }
     public decimal Total { get; set; }
-    public string? Notes { get; set; }
+    [AuditMask] public string? Notes { get; set; }
     /// <summary>Set when the buyer's personal data was erased. The order itself is kept for the shop's accounts; its email is an undeliverable placeholder.</summary>
     public DateTimeOffset? ErasedUtc { get; set; }
     public OrderAddress? ShippingAddress { get; set; }

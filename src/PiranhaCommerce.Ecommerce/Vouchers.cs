@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using PiranhaCommerce.Core.Audit;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +16,7 @@ namespace PiranhaCommerce.Ecommerce;
 /// the total is still owed. The code is worth money to whoever holds it, so only a hash of it is stored: the full code is shown once,
 /// when the voucher is issued.
 /// </summary>
+[Audited]
 public class GiftVoucher : AuditableEntity
 {
     /// <summary>SHA-256 (hex) of the code with dashes and spaces removed, upper-case.</summary>
@@ -31,7 +33,7 @@ public class GiftVoucher : AuditableEntity
     public required string Currency { get; set; }
     public DateTimeOffset? ExpiresUtc { get; set; }
     public bool Active { get; set; } = true;
-    public string? Note { get; set; }
+    [AuditMask] public string? Note { get; set; }
 }
 
 public static class VoucherEntryKinds

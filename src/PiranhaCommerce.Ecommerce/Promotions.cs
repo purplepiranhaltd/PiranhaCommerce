@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using PiranhaCommerce.Core.Audit;
 using Microsoft.EntityFrameworkCore;
 using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Validation;
@@ -12,6 +13,7 @@ public enum PromotionKind { Percent, Amount }
 /// A promo code: a discount on the goods in a basket, taken off BEFORE shipping and tax are worked out. It never reduces shipping or
 /// tax directly (tax falls only because the goods it is charged on cost less).
 /// </summary>
+[Audited]
 public class Promotion : AuditableEntity
 {
     /// <summary>Upper-case. Fixed once created: orders and usage counts refer to it.</summary>
@@ -188,7 +190,7 @@ internal sealed class PromotionService(PiranhaDbContext db) : IPromotionService
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
-        => await db.Set<Promotion>().Where(p => p.Id == id).ExecuteDeleteAsync(ct) > 0;
+        => await db.DeleteTrackedAsync<Promotion>(p => p.Id == id, ct) > 0;
 
     private static void Validate(PromotionInput input)
     {

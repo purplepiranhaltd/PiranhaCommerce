@@ -1,4 +1,5 @@
 using PiranhaCommerce.Core.Domain;
+using PiranhaCommerce.Core.Audit;
 
 namespace PiranhaCommerce.Catalog;
 
@@ -6,6 +7,7 @@ namespace PiranhaCommerce.Catalog;
 /// A sellable item, independent of sales channel. Channel-specific data (online listing, EPOS till settings)
 /// lives in the channel's own package in a table keyed by <see cref="Entity.Id"/>.
 /// </summary>
+[Audited]
 public class Product : AuditableEntity
 {
     public required string Name { get; set; }

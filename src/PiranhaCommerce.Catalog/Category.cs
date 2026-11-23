@@ -1,8 +1,10 @@
 using PiranhaCommerce.Core.Domain;
+using PiranhaCommerce.Core.Audit;
 
 namespace PiranhaCommerce.Catalog;
 
 /// <summary>A node in the product category tree (shared by every sales channel). Top-level categories have no parent.</summary>
+[Audited]
 public class Category : AuditableEntity
 {
     public required string Name { get; set; }

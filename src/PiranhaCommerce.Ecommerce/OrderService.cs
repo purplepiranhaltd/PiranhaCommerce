@@ -1,3 +1,4 @@
+using PiranhaCommerce.Core.Audit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -42,7 +43,7 @@ public interface IOrderService
 
 internal sealed partial class OrderService(
     PiranhaDbContext db, IStockService stock, ICustomerService customers, IOptions<EcommerceOptions> options,
-    IEmailSender email, OrderMailer mailer, ILogger<OrderService> logger) : IOrderService
+    IEmailSender email, OrderMailer mailer, ILogger<OrderService> logger, IAuditTrail? trail = null) : IOrderService
 {
     public async Task<PagedResult<OrderSummaryDto>> ListAsync(int? page, int? pageSize, OrderStage? stage, string? search, CancellationToken ct = default)
     {
@@ -341,6 +342,7 @@ internal sealed partial class OrderService(
                     var moved = await db.Set<Order>().Where(o => o.Id == id && o.Stage == from)
                         .ExecuteUpdateAsync(s => s.SetProperty(o => o.Stage, to).SetProperty(o => o.UpdatedUtc, (DateTimeOffset?)now), token);
                     if (moved == 0) throw new PiranhaConflictException("The order was changed by someone else. Reload it and try again.");
+                    if (trail is not null) await trail.RecordUpdateAsync("Order", id.ToString(), current.Number.ToString(), [new AuditChange("Stage", from.ToString(), to.ToString())], token);
 
                     // A payment is booked under this same row lock, so it is either seen here (and this rolls back) or is refused as a payment on a cancelled order.
                     if (onlyIfUnpaid && await db.Set<Payment>().AsNoTracking().AnyAsync(p => p.OrderId == id, token))

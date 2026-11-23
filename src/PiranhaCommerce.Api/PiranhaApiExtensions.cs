@@ -94,12 +94,12 @@ public static class PiranhaApiExtensions
                 await tokens.IssueAsync(request) is { } t ? Results.Ok(t) : Results.Unauthorized())
             .AllowAnonymous().WithTags("Auth");
 
-        var api = root.MapGroup("").RequireAuthorization(ApiPolicies.Read).AddEndpointFilter<PiranhaExceptionFilter>();
+        var api = root.MapGroup("").RequireAuthorization(ApiPolicies.Read).AddEndpointFilter<AuditActorFilter>().AddEndpointFilter<PiranhaExceptionFilter>();
         foreach (var c in app.ServiceProvider.GetServices<IApiEndpointContributor>())
             c.MapEndpoints(api);
 
         // Shopper endpoints: closed unless a shopper token is presented; anonymous ones (register, sign in) opt out one by one.
-        var storefront = root.MapGroup("/storefront").RequireAuthorization(ApiPolicies.Customer).AddEndpointFilter<PiranhaExceptionFilter>();
+        var storefront = root.MapGroup("/storefront").RequireAuthorization(ApiPolicies.Customer).AddEndpointFilter<AuditActorFilter>().AddEndpointFilter<PiranhaExceptionFilter>();
         foreach (var c in app.ServiceProvider.GetServices<IStorefrontEndpointContributor>())
             c.MapEndpoints(storefront);
 

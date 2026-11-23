@@ -1,3 +1,4 @@
+using PiranhaCommerce.Core.Audit;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -202,7 +203,7 @@ internal static class ShipmentQueries
     public static ShipmentSummaryDto Summary(this ShipmentDto s) => new(s.Id, s.ShippedUtc, s.Carrier, s.TrackingNumber, s.TrackingUrl, s.Lines);
 }
 
-internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock, IOptions<EcommerceOptions> options, OrderMailer mailer) : IFulfilmentService
+internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock, IOptions<EcommerceOptions> options, OrderMailer mailer, IAuditTrail? trail = null) : IFulfilmentService
 {
     public async Task<IReadOnlyList<ShipmentDto>?> ListShipmentsAsync(Guid orderId, CancellationToken ct = default)
     {
@@ -255,8 +256,12 @@ internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock
 
                     // The last item has gone: the order is complete.
                     if (!await db.Set<OrderLine>().AsNoTracking().AnyAsync(l => l.OrderId == orderId && l.QuantityShipped < l.Quantity, token))
-                        await db.Set<Order>().Where(o => o.Id == orderId && o.Stage == OrderStage.Processing)
+                    {
+                        var completed = await db.Set<Order>().Where(o => o.Id == orderId && o.Stage == OrderStage.Processing)
                             .ExecuteUpdateAsync(s => s.SetProperty(o => o.Stage, OrderStage.Completed).SetProperty(o => o.UpdatedUtc, (DateTimeOffset?)now), token);
+                        if (completed > 0 && trail is not null)
+                            await trail.RecordUpdateAsync("Order", orderId.ToString(), null, [new AuditChange("Stage", OrderStage.Processing.ToString(), OrderStage.Completed.ToString())], token);
+                    }
                     return true;
                 },
                 async token => await db.Set<Shipment>().AsNoTracking().AnyAsync(s => s.Id == shipmentId, token),

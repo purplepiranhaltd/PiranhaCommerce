@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using PiranhaCommerce.Core.Audit;
 using Microsoft.EntityFrameworkCore;
 using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Validation;
@@ -7,6 +8,7 @@ using PiranhaCommerce.Data;
 namespace PiranhaCommerce.Ecommerce;
 
 /// <summary>A way of getting an order to the buyer, at a fixed price (optionally free above a spend).</summary>
+[Audited]
 public class ShippingMethod : AuditableEntity
 {
     public required string Name { get; set; }
@@ -21,6 +23,7 @@ public class ShippingMethod : AuditableEntity
 /// A kind of goods taxed alike (Standard, Reduced, Zero ...). Each product has one (the default class when none is chosen) and
 /// each <see cref="TaxRule"/> belongs to one, so the same country can charge different rates on different goods.
 /// </summary>
+[Audited]
 public class TaxClass : AuditableEntity
 {
     public required string Name { get; set; }
@@ -40,6 +43,7 @@ public static class TaxClasses
 /// <see cref="CountryCode"/> "*" is the fallback for countries without a rule of their own for that class. A class with no rule
 /// for the country (and no fallback) is not taxed there.
 /// </summary>
+[Audited]
 public class TaxRule : AuditableEntity
 {
     public const string Fallback = "*";
@@ -68,6 +72,7 @@ public sealed record ShippingMethodDto(Guid Id, string Name, decimal Price, deci
 /// <see cref="MinWeightGrams"/> (inclusive) up to <see cref="MaxWeightGrams"/> (exclusive; null for no upper limit).
 /// A method with no rate rows charges its flat price everywhere. With rate rows, a destination or weight no row covers is not served by the method.
 /// </summary>
+[Audited]
 public class ShippingRate : Entity
 {
     public Guid ShippingMethodId { get; set; }
@@ -337,7 +342,7 @@ internal sealed class ShippingService(PiranhaDbContext db) : IShippingService
                 // Touch the method row first: two simultaneous replacements then run one after the other instead of mixing their rows.
                 var touched = await db.Set<ShippingMethod>().Where(m => m.Id == id).ExecuteUpdateAsync(s => s.SetProperty(m => m.UpdatedUtc, (DateTimeOffset?)DateTimeOffset.UtcNow), token);
                 if (touched == 0) return false;
-                await db.Set<ShippingRate>().Where(r => r.ShippingMethodId == id).ExecuteDeleteAsync(token);
+                await db.DeleteTrackedAsync<ShippingRate>(r => r.ShippingMethodId == id, token);
                 foreach (var r in input.Rates)
                     db.Add(new ShippingRate
                     {
@@ -353,7 +358,7 @@ internal sealed class ShippingService(PiranhaDbContext db) : IShippingService
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
-        => await db.Set<ShippingMethod>().Where(m => m.Id == id).ExecuteDeleteAsync(ct) > 0;
+        => await db.DeleteTrackedAsync<ShippingMethod>(m => m.Id == id, ct) > 0;
 
     private static void Apply(ShippingMethod m, ShippingMethodInput i)
     {
@@ -415,7 +420,7 @@ internal sealed class TaxService(PiranhaDbContext db) : ITaxService
         if (c.IsDefault) throw new PiranhaConflictException("The default tax class cannot be deleted. Make another class the default first.");
         if (await db.Set<TaxRule>().AnyAsync(r => r.TaxClassId == id, ct) || await db.Set<ProductListing>().AnyAsync(l => l.TaxClassId == id, ct))
             throw new PiranhaConflictException("This tax class is still used by tax rules or products. Remove or move them first.");
-        try { return await db.Set<TaxClass>().Where(x => x.Id == id).ExecuteDeleteAsync(ct) > 0; }
+        try { return await db.DeleteTrackedAsync<TaxClass>(x => x.Id == id, ct) > 0; }
         catch (DbUpdateException) { throw new PiranhaConflictException("This tax class is still used by tax rules or products. Remove or move them first."); }
     }
 
@@ -426,8 +431,8 @@ internal sealed class TaxService(PiranhaDbContext db) : ITaxService
         await strategy.ExecuteInTransactionAsync(
             async token =>
             {
-                await db.Set<TaxClass>().Where(c => c.Id != id && c.IsDefault).ExecuteUpdateAsync(s => s.SetProperty(c => c.IsDefault, false), token);
-                await db.Set<TaxClass>().Where(c => c.Id == id).ExecuteUpdateAsync(s => s.SetProperty(c => c.IsDefault, true), token);
+                await db.UpdateTrackedAsync<TaxClass>(c => c.Id != id && c.IsDefault, c => c.IsDefault = false, token);
+                await db.UpdateTrackedAsync<TaxClass>(c => c.Id == id, c => c.IsDefault = true, token);
                 return true;
             },
             async token => await db.Set<TaxClass>().AsNoTracking().AnyAsync(c => c.Id == id && c.IsDefault, token),
@@ -475,7 +480,7 @@ internal sealed class TaxService(PiranhaDbContext db) : ITaxService
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
-        => await db.Set<TaxRule>().Where(r => r.Id == id).ExecuteDeleteAsync(ct) > 0;
+        => await db.DeleteTrackedAsync<TaxRule>(r => r.Id == id, ct) > 0;
 
     /// <summary>A given class must exist; none means the default class.</summary>
     private async Task<Guid> ResolveClassAsync(Guid? requested, CancellationToken ct)

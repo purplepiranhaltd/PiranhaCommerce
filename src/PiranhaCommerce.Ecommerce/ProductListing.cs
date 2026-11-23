@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PiranhaCommerce.Core.Audit;
 using PiranhaCommerce.Catalog;
 
 namespace PiranhaCommerce.Ecommerce;
@@ -7,6 +8,7 @@ namespace PiranhaCommerce.Ecommerce;
 /// Online-store data for a catalogue <see cref="Product"/> (one row per product that has been configured).
 /// A product with no row is not listed online. EPOS would keep its own equivalent table.
 /// </summary>
+[Audited]
 public class ProductListing
 {
     public Guid ProductId { get; set; }

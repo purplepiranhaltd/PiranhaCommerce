@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using PiranhaCommerce.Core.Audit;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -12,6 +13,7 @@ using PiranhaCommerce.Data;
 namespace PiranhaCommerce.Ecommerce;
 
 /// <summary>A fixed price for one product for the members of one customer group. It beats the group's percentage for that product.</summary>
+[Audited]
 public class GroupPrice
 {
     public Guid GroupId { get; set; }
@@ -20,6 +22,7 @@ public class GroupPrice
 }
 
 /// <summary>A percentage off, for the members of one group, on every product in a category (and its sub-categories). Overrides the group's own percentage there.</summary>
+[Audited]
 public class GroupCategoryDiscount
 {
     public Guid GroupId { get; set; }
@@ -199,8 +202,7 @@ internal sealed class GroupPricingService(PiranhaDbContext db, Microsoft.Extensi
         if (regular is null || !await db.Set<CustomerGroup>().AnyAsync(g => g.Id == groupId, ct)) return null;
 
         // Update first, then insert if there was nothing to update; a concurrent insert of the same pair shows as a key clash and is retried as an update.
-        var updated = await db.Set<GroupPrice>().Where(p => p.GroupId == groupId && p.ProductId == productId)
-            .ExecuteUpdateAsync(s => s.SetProperty(p => p.Price, input.Price), ct);
+        var updated = await db.UpdateTrackedAsync<GroupPrice>(p => p.GroupId == groupId && p.ProductId == productId, p => p.Price = input.Price, ct);
         if (updated == 0)
         {
             try
@@ -211,7 +213,7 @@ internal sealed class GroupPricingService(PiranhaDbContext db, Microsoft.Extensi
             catch (DbUpdateException)
             {
                 db.ChangeTracker.Clear();
-                await db.Set<GroupPrice>().Where(p => p.GroupId == groupId && p.ProductId == productId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Price, input.Price), ct);
+                await db.UpdateTrackedAsync<GroupPrice>(p => p.GroupId == groupId && p.ProductId == productId, p => p.Price = input.Price, ct);
             }
         }
         return (await RowsAsync(productId, regular.Value, ct)).First(r => r.GroupId == groupId);
@@ -234,8 +236,7 @@ internal sealed class GroupPricingService(PiranhaDbContext db, Microsoft.Extensi
         var category = await db.Set<Category>().AsNoTracking().Where(c => c.Id == categoryId).Select(c => new { c.Name, c.ParentId }).FirstOrDefaultAsync(ct);
         if (category is null || !await db.Set<CustomerGroup>().AnyAsync(g => g.Id == groupId, ct)) return null;
 
-        var updated = await db.Set<GroupCategoryDiscount>().Where(d => d.GroupId == groupId && d.CategoryId == categoryId)
-            .ExecuteUpdateAsync(s => s.SetProperty(d => d.Percent, input.Percent), ct);
+        var updated = await db.UpdateTrackedAsync<GroupCategoryDiscount>(d => d.GroupId == groupId && d.CategoryId == categoryId, d => d.Percent = input.Percent, ct);
         if (updated == 0)
         {
             try
@@ -246,17 +247,17 @@ internal sealed class GroupPricingService(PiranhaDbContext db, Microsoft.Extensi
             catch (DbUpdateException)
             {
                 db.ChangeTracker.Clear();
-                await db.Set<GroupCategoryDiscount>().Where(d => d.GroupId == groupId && d.CategoryId == categoryId).ExecuteUpdateAsync(s => s.SetProperty(d => d.Percent, input.Percent), ct);
+                await db.UpdateTrackedAsync<GroupCategoryDiscount>(d => d.GroupId == groupId && d.CategoryId == categoryId, d => d.Percent = input.Percent, ct);
             }
         }
         return new GroupCategoryDiscountDto(categoryId, category.Name, category.ParentId, input.Percent);
     }
 
     public async Task<bool> RemoveCategoryDiscountAsync(Guid groupId, Guid categoryId, CancellationToken ct = default) =>
-        await db.Set<GroupCategoryDiscount>().Where(d => d.GroupId == groupId && d.CategoryId == categoryId).ExecuteDeleteAsync(ct) > 0;
+        await db.DeleteTrackedAsync<GroupCategoryDiscount>(d => d.GroupId == groupId && d.CategoryId == categoryId, ct) > 0;
 
     public async Task<bool> RemoveAsync(Guid productId, Guid groupId, CancellationToken ct = default) =>
-        await db.Set<GroupPrice>().Where(p => p.GroupId == groupId && p.ProductId == productId).ExecuteDeleteAsync(ct) > 0;
+        await db.DeleteTrackedAsync<GroupPrice>(p => p.GroupId == groupId && p.ProductId == productId, ct) > 0;
 
     public async Task<IReadOnlyList<ShopperPriceDto>> PricesAsync(Guid? customerId, IReadOnlyCollection<Guid> productIds, string? countryCode = null, CancellationToken ct = default)
     {

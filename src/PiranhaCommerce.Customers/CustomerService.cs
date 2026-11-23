@@ -105,7 +105,7 @@ internal sealed class CustomerService(PiranhaDbContext db) : ICustomerService
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
-        => await db.Set<Customer>().Where(c => c.Id == id).ExecuteDeleteAsync(ct) > 0; // addresses cascade in the database
+        => await db.DeleteTrackedAsync<Customer>(c => c.Id == id, ct) > 0; // addresses cascade in the database
 
     public async Task<IReadOnlyList<AddressDto>?> ListAddressesAsync(Guid customerId, CancellationToken ct = default)
     {
@@ -141,7 +141,7 @@ internal sealed class CustomerService(PiranhaDbContext db) : ICustomerService
     }
 
     public async Task<bool> DeleteAddressAsync(Guid customerId, Guid addressId, CancellationToken ct = default)
-        => await db.Set<CustomerAddress>().Where(a => a.Id == addressId && a.CustomerId == customerId).ExecuteDeleteAsync(ct) > 0;
+        => await db.DeleteTrackedAsync<CustomerAddress>(a => a.Id == addressId && a.CustomerId == customerId, ct) > 0;
 
     private static string Normalize(string email) => email.Trim().ToUpperInvariant();
 

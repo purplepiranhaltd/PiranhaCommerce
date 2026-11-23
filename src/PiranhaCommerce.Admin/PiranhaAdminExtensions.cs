@@ -38,7 +38,7 @@ public static class PiranhaAdminExtensions
         new IdentityBuilder(typeof(PiranhaUser), typeof(PiranhaRole), services).AddSignInManager();
 
         services.AddScoped<AdminMenuService>();
-        services.AddSingleton<AdminScopeRunner>();
+        services.AddScoped<AdminScopeRunner>();
         return builder;
     }
 

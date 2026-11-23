@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using PiranhaCommerce.Core.Audit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using PiranhaCommerce.Core.Domain;
@@ -9,6 +10,7 @@ using PiranhaCommerce.Data;
 namespace PiranhaCommerce.Catalog;
 
 /// <summary>A picture of a product (or of a variant). The bytes live in the <see cref="IFileStore"/>; this row says what they are and where they sit in the gallery.</summary>
+[Audited]
 public class ProductImage : Entity
 {
     public Guid ProductId { get; set; }
@@ -189,7 +191,7 @@ internal sealed class ProductImageService(PiranhaDbContext db, IFileStore store,
     {
         var image = await db.Set<ProductImage>().FirstOrDefaultAsync(i => i.Id == imageId && i.ProductId == productId, ct);
         if (image is null) return false;
-        var removed = await db.Set<ProductImage>().Where(i => i.Id == imageId).ExecuteDeleteAsync(ct) > 0;
+        var removed = await db.DeleteTrackedAsync<ProductImage>(i => i.Id == imageId, ct) > 0;
         // The row goes first: a failure here leaves a stray file, never a picture that points at nothing.
         if (removed) await store.DeleteFolderAsync(Folder(productId, imageId), ct);
         return removed;

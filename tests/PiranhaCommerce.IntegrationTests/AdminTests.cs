@@ -148,6 +148,9 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
         var transfer = await (await browser.GetAsync("/admin/catalog/import-export")).Content.ReadAsStringAsync();
         Assert.Contains("Download CSV", transfer);
         Assert.Contains("Check the file", transfer);
+        Assert.Contains("Audit log", await (await browser.GetAsync("/admin/audit")).Content.ReadAsStringAsync());
+        Assert.Contains("Reports", await (await browser.GetAsync("/admin/orders/reports")).Content.ReadAsStringAsync());
+        Assert.Contains("Low stock", await (await browser.GetAsync("/admin/catalog/low-stock")).Content.ReadAsStringAsync());
         Assert.Contains("<h2 style=\"margin-top:0\">Stock</h2>", existing);
         Assert.Contains("<h2 style=\"margin-top:0\">Warranty</h2>", existing); // third-party plugin panel in a core page
         Assert.Contains("Published on the online store", existing);

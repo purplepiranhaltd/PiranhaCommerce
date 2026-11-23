@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using PiranhaCommerce.Core.Audit;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -14,6 +15,7 @@ namespace PiranhaCommerce.Ecommerce;
 /// <summary>
 /// A sale: between two dates, a percentage off some or all products, or a fixed sale price on named ones. Everyone gets the sale price, signed in or not.
 /// </summary>
+[Audited]
 public class Sale : AuditableEntity
 {
     public required string Name { get; set; }
@@ -28,6 +30,7 @@ public class Sale : AuditableEntity
 }
 
 /// <summary>A product named in a sale, with a fixed sale price or none (then the sale's percentage applies to it).</summary>
+[Audited]
 public class SaleProduct
 {
     public Guid SaleId { get; set; }
@@ -36,6 +39,7 @@ public class SaleProduct
 }
 
 /// <summary>A category in a sale: covers its products and those of its sub-categories.</summary>
+[Audited]
 public class SaleCategory
 {
     public Guid SaleId { get; set; }
@@ -183,14 +187,15 @@ internal sealed class SaleService(PiranhaDbContext db) : ISaleService
     public async Task<SaleDto?> UpdateAsync(Guid id, SaleInput input, CancellationToken ct = default)
     {
         Check(input);
-        var changed = await db.Set<Sale>().Where(s => s.Id == id).ExecuteUpdateAsync(u => u
-            .SetProperty(s => s.Name, input.Name.Trim()).SetProperty(s => s.StartsUtc, input.StartsUtc).SetProperty(s => s.EndsUtc, input.EndsUtc)
-            .SetProperty(s => s.Enabled, input.Enabled).SetProperty(s => s.Percent, input.Percent).SetProperty(s => s.AllProducts, input.AllProducts)
-            .SetProperty(s => s.UpdatedUtc, (DateTimeOffset?)DateTimeOffset.UtcNow), ct);
+        var changed = await db.UpdateTrackedAsync<Sale>(s => s.Id == id, s =>
+        {
+            s.Name = input.Name.Trim(); s.StartsUtc = input.StartsUtc; s.EndsUtc = input.EndsUtc;
+            s.Enabled = input.Enabled; s.Percent = input.Percent; s.AllProducts = input.AllProducts;
+        }, ct);
         return changed == 0 ? null : await GetAsync(id, ct);
     }
 
-    public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default) => await db.Set<Sale>().Where(s => s.Id == id).ExecuteDeleteAsync(ct) > 0;
+    public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default) => await db.DeleteTrackedAsync<Sale>(s => s.Id == id, ct) > 0;
 
     public async Task<SaleDto?> SetProductAsync(Guid saleId, Guid productId, SaleProductInput input, CancellationToken ct = default)
     {
@@ -198,7 +203,7 @@ internal sealed class SaleService(PiranhaDbContext db) : ISaleService
         if (input.Price is { } p && decimal.Round(p, 4) != p) throw new PiranhaValidationException(nameof(SaleProductInput.Price), "A price can have at most 4 decimal places.");
         if (!await db.Set<Sale>().AnyAsync(s => s.Id == saleId, ct) || !await db.Set<Product>().AnyAsync(x => x.Id == productId, ct)) return null;
 
-        var updated = await db.Set<SaleProduct>().Where(x => x.SaleId == saleId && x.ProductId == productId).ExecuteUpdateAsync(s => s.SetProperty(x => x.Price, input.Price), ct);
+        var updated = await db.UpdateTrackedAsync<SaleProduct>(x => x.SaleId == saleId && x.ProductId == productId, x => x.Price = input.Price, ct);
         if (updated == 0)
         {
             try
@@ -209,7 +214,7 @@ internal sealed class SaleService(PiranhaDbContext db) : ISaleService
             catch (DbUpdateException)
             {
                 db.ChangeTracker.Clear();
-                await db.Set<SaleProduct>().Where(x => x.SaleId == saleId && x.ProductId == productId).ExecuteUpdateAsync(s => s.SetProperty(x => x.Price, input.Price), ct);
+                await db.UpdateTrackedAsync<SaleProduct>(x => x.SaleId == saleId && x.ProductId == productId, x => x.Price = input.Price, ct);
             }
         }
         return await GetAsync(saleId, ct);
@@ -217,7 +222,7 @@ internal sealed class SaleService(PiranhaDbContext db) : ISaleService
 
     public async Task<SaleDto?> RemoveProductAsync(Guid saleId, Guid productId, CancellationToken ct = default)
     {
-        await db.Set<SaleProduct>().Where(x => x.SaleId == saleId && x.ProductId == productId).ExecuteDeleteAsync(ct);
+        await db.DeleteTrackedAsync<SaleProduct>(x => x.SaleId == saleId && x.ProductId == productId, ct);
         return await GetAsync(saleId, ct);
     }
 
@@ -238,7 +243,7 @@ internal sealed class SaleService(PiranhaDbContext db) : ISaleService
 
     public async Task<SaleDto?> RemoveCategoryAsync(Guid saleId, Guid categoryId, CancellationToken ct = default)
     {
-        await db.Set<SaleCategory>().Where(c => c.SaleId == saleId && c.CategoryId == categoryId).ExecuteDeleteAsync(ct);
+        await db.DeleteTrackedAsync<SaleCategory>(c => c.SaleId == saleId && c.CategoryId == categoryId, ct);
         return await GetAsync(saleId, ct);
     }
 

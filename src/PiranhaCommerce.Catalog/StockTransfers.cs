@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using PiranhaCommerce.Core.Audit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using PiranhaCommerce.Core.Domain;
@@ -17,6 +18,7 @@ public enum StockTransferStatus { InTransit = 0, Received = 1, Cancelled = 2 }
 /// Stock moved from one location to another by two people: one sends it (and the stock leaves the sending level at once), another receives it
 /// (and it joins the receiving level). Between the two it is "in transit": counted on neither shelf, but listed here so it is never lost.
 /// </summary>
+[Audited]
 public class StockTransfer : Entity
 {
     public long Number { get; set; }

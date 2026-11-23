@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using PiranhaCommerce.Core.Audit;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -15,6 +16,7 @@ namespace PiranhaCommerce.Customers;
 /// A named set of customers (trade, staff, VIP...). Staff put customers in and take them out; other packages use membership to decide who may
 /// have something (a promotion limited to a group today). A group carries a percentage off for its members; fixed prices per product live with the product (see Ecommerce group prices).
 /// </summary>
+[Audited]
 public class CustomerGroup : AuditableEntity
 {
     public required string Name { get; set; }
@@ -27,6 +29,7 @@ public class CustomerGroup : AuditableEntity
     public decimal DiscountPercent { get; set; }
 }
 
+[Audited]
 public class CustomerGroupMember : Entity
 {
     public Guid GroupId { get; set; }
@@ -141,7 +144,7 @@ internal sealed class CustomerGroupService(PiranhaDbContext db) : ICustomerGroup
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
     {
         if (!await db.Set<CustomerGroup>().AnyAsync(g => g.Id == id, ct)) return false;
-        try { return await db.Set<CustomerGroup>().Where(g => g.Id == id).ExecuteDeleteAsync(ct) > 0; } // memberships go with it (cascade)
+        try { return await db.DeleteTrackedAsync<CustomerGroup>(g => g.Id == id, ct) > 0; } // memberships go with it (cascade)
         catch (Exception ex) when (ex is DbUpdateException or System.Data.Common.DbException) // a set-based delete reports the foreign key as the provider's own exception
         {
             db.ChangeTracker.Clear();
@@ -189,7 +192,7 @@ internal sealed class CustomerGroupService(PiranhaDbContext db) : ICustomerGroup
     public async Task<bool> RemoveMemberAsync(Guid groupId, Guid customerId, CancellationToken ct = default)
     {
         if (!await db.Set<CustomerGroup>().AnyAsync(g => g.Id == groupId, ct)) return false;
-        await db.Set<CustomerGroupMember>().Where(m => m.GroupId == groupId && m.CustomerId == customerId).ExecuteDeleteAsync(ct);
+        await db.DeleteTrackedAsync<CustomerGroupMember>(m => m.GroupId == groupId && m.CustomerId == customerId, ct);
         return true;
     }
 

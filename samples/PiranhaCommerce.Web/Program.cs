@@ -1,6 +1,7 @@
 using PiranhaCommerce.Admin;
 using PiranhaCommerce.Api;
 using PiranhaCommerce.Core.DependencyInjection;
+using PiranhaCommerce.Audit.Admin;
 using PiranhaCommerce.Customers.Admin;
 using PiranhaCommerce.Data;
 using PiranhaCommerce.Data.PostgreSql;
@@ -36,6 +37,7 @@ piranha
     // Plugins are compiled in via NuGet, never uploaded. Each plugin registers the plugins it requires
     // (here: Catalog and Catalog.Admin), so only the ones you want are listed.
     .AddPlugin<EcommercePlugin>()
+    .AddPlugin<AuditAdminPlugin>()
     .AddPlugin<CustomersAdminPlugin>()
     .AddPlugin<EcommerceAdminPlugin>()
     .AddPlugin<PiranhaCommerce.Payments.Stripe.StripePlugin>() // inert until Piranha:Stripe keys are set

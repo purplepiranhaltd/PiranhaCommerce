@@ -76,7 +76,7 @@ internal sealed class CategoryService(PiranhaDbContext db) : ICategoryService
         if (await db.Set<Category>().AnyAsync(c => c.ParentId == id, ct))
             throw new PiranhaConflictException("This category has sub-categories. Move or delete them first.");
         // Links to products are removed by the database (cascade).
-        return await db.Set<Category>().Where(c => c.Id == id).ExecuteDeleteAsync(ct) > 0;
+        return await db.DeleteTrackedAsync<Category>(c => c.Id == id, ct) > 0;
     }
 
     public async Task<ProductCategoriesDto?> GetProductCategoriesAsync(Guid productId, CancellationToken ct = default)

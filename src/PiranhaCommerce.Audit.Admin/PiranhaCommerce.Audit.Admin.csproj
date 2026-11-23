@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <Description>Admin page for the Piranha Commerce audit log.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\PiranhaCommerce.Admin\PiranhaCommerce.Admin.csproj" />
+    <ProjectReference Include="..\PiranhaCommerce.Audit\PiranhaCommerce.Audit.csproj" />
+  </ItemGroup>
+</Project>

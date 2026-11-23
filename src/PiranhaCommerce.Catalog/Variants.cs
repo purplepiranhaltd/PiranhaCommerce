@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using PiranhaCommerce.Core.Audit;
 using Microsoft.EntityFrameworkCore;
 using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Validation;
@@ -11,6 +12,7 @@ namespace PiranhaCommerce.Catalog;
 /// never bought itself. Each combination of values is a variant, which is an ordinary <see cref="Product"/> (own SKU, price, stock, barcodes, listing),
 /// so stock, baskets, orders, sales and group prices all work on variants with no special cases.
 /// </summary>
+[Audited]
 public class ProductOption : Entity
 {
     public Guid ProductId { get; set; }
@@ -18,6 +20,7 @@ public class ProductOption : Entity
     public int Position { get; set; }
 }
 
+[Audited]
 public class ProductOptionValue : Entity
 {
     public Guid OptionId { get; set; }
@@ -26,6 +29,7 @@ public class ProductOptionValue : Entity
 }
 
 /// <summary>Marks a product as a variant of a parent. The primary key is the variant product itself.</summary>
+[Audited]
 public class ProductVariant
 {
     public Guid ProductId { get; set; }
@@ -206,7 +210,7 @@ internal sealed class ProductVariantService(PiranhaDbContext db, IEnumerable<IVa
         if (!await db.Set<ProductOption>().AnyAsync(o => o.Id == optionId && o.ProductId == productId, ct)) return null;
         if (await db.Set<ProductVariant>().AnyAsync(v => v.ParentProductId == productId, ct))
             throw new PiranhaConflictException("This product has variants that use this option. Delete the variants first.");
-        await db.Set<ProductOption>().Where(o => o.Id == optionId).ExecuteDeleteAsync(ct); // its values go with it
+        await db.DeleteTrackedAsync<ProductOption>(o => o.Id == optionId, ct); // its values go with it
         return await GetAsync(productId, ct);
     }
 
@@ -230,7 +234,7 @@ internal sealed class ProductVariantService(PiranhaDbContext db, IEnumerable<IVa
         if (!await db.Set<ProductOptionValue>().AnyAsync(v => v.Id == valueId && v.OptionId == optionId, ct)) return null;
         if (await db.Set<ProductVariantValue>().AnyAsync(v => v.OptionValueId == valueId, ct))
             throw new PiranhaConflictException("A variant uses this value. Delete that variant first.");
-        await db.Set<ProductOptionValue>().Where(v => v.Id == valueId).ExecuteDeleteAsync(ct);
+        await db.DeleteTrackedAsync<ProductOptionValue>(v => v.Id == valueId, ct);
         return await GetAsync(productId, ct);
     }
 

@@ -1,9 +1,11 @@
 using System.ComponentModel.DataAnnotations;
+using PiranhaCommerce.Core.Audit;
 using PiranhaCommerce.Core.Domain;
 
 namespace PiranhaCommerce.Catalog;
 
 /// <summary>A place where stock is held: a warehouse, a shop floor, a back room. One default location always exists.</summary>
+[Audited]
 public class StockLocation : Entity
 {
     /// <summary>Short stable identifier for integrations. Stored upper-case; unique; cannot be changed after creation.</summary>

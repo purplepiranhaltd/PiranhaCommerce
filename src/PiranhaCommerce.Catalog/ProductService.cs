@@ -80,7 +80,7 @@ internal sealed class ProductService(PiranhaDbContext db, PiranhaCommerce.Core.F
         var hadImages = await db.Set<ProductImage>().AnyAsync(i => i.ProductId == id, ct);
         try
         {
-            var deleted = await db.Set<Product>().Where(x => x.Id == id).ExecuteDeleteAsync(ct) > 0;
+            var deleted = await db.DeleteTrackedAsync<Product>(x => x.Id == id, ct) > 0;
             if (deleted && hadImages) await files.DeleteFolderAsync($"products/{id}", ct); // rows went with the product; so do the files
             return deleted;
         }

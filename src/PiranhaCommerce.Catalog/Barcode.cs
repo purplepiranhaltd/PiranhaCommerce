@@ -1,9 +1,11 @@
 using PiranhaCommerce.Core.Domain;
+using PiranhaCommerce.Core.Audit;
 using PiranhaCommerce.Core.Validation;
 
 namespace PiranhaCommerce.Catalog;
 
 /// <summary>A scannable code for a product. A product can have several; a code identifies at most one product.</summary>
+[Audited]
 public class ProductBarcode : Entity
 {
     public Guid ProductId { get; set; }

@@ -14,7 +14,12 @@ public static class PiranhaDataExtensions
     /// </summary>
     public static PiranhaBuilder AddPiranhaData(this PiranhaBuilder builder, Action<DbContextOptionsBuilder> configureProvider)
     {
-        builder.Services.AddDbContext<PiranhaDbContext>(configureProvider);
+        // Plugins (the audit log) can add EF interceptors by registering them as ISaveChangesInterceptor.
+        builder.Services.AddDbContext<PiranhaDbContext>((sp, o) =>
+        {
+            configureProvider(o);
+            o.AddInterceptors(sp.GetServices<Microsoft.EntityFrameworkCore.Diagnostics.ISaveChangesInterceptor>());
+        });
         builder.Services.AddIdentityCore<PiranhaUser>(o =>
             {
                 o.Password.RequiredLength = 10;

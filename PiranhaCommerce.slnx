@@ -10,6 +10,8 @@
     <Project Path="src/PiranhaCommerce.Catalog.Admin/PiranhaCommerce.Catalog.Admin.csproj" />
     <Project Path="src/PiranhaCommerce.Catalog/PiranhaCommerce.Catalog.csproj" />
     <Project Path="src/PiranhaCommerce.Core/PiranhaCommerce.Core.csproj" />
+    <Project Path="src/PiranhaCommerce.Audit.Admin/PiranhaCommerce.Audit.Admin.csproj" />
+    <Project Path="src/PiranhaCommerce.Audit/PiranhaCommerce.Audit.csproj" />
     <Project Path="src/PiranhaCommerce.Customers.Admin/PiranhaCommerce.Customers.Admin.csproj" />
     <Project Path="src/PiranhaCommerce.Customers/PiranhaCommerce.Customers.csproj" />
     <Project Path="src/PiranhaCommerce.Data.PostgreSql/PiranhaCommerce.Data.PostgreSql.csproj" />
