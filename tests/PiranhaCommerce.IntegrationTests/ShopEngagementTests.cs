@@ -121,6 +121,18 @@ public partial class ShopEngagementTests(PiranhaFactory factory) : IClassFixture
         Assert.Contains("Eve E", shown);
         Assert.DoesNotContain(email, shown);
         Assert.Contains("(4 reviews)", shown);                          // the 3 seeded ones and this one
+
+        // The shop's reply shows under it, as plain text (markup in it is escaped, not run).
+        using (var scope = factory.Services.CreateScope())
+        {
+            var reviews = scope.ServiceProvider.GetRequiredService<IReviewService>();
+            var mine = (await reviews.ListAsync(ReviewStatus.Approved, lipstick.Id, 1, 50)).Items.Single(r => r.Title == "Nice shade");
+            await reviews.SetReplyAsync(mine.Id, "Thank you, Eve! <script>alert(1)</script>", "test");
+        }
+        var answered = await Get(guest, "/product/velvet-matte-lipstick");
+        Assert.Contains("Reply from the shop", answered);
+        Assert.Contains("Thank you, Eve!", answered);
+        Assert.DoesNotContain("<script>alert(1)</script>", await guest.GetStringAsync("/product/velvet-matte-lipstick")); // the raw page, before any decoding
     }
 
     [Fact]

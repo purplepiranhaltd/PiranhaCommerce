@@ -144,6 +144,10 @@ else
                             <p class="rating"><span aria-hidden="true">@Money.Stars(r.Rating)</span> <strong>@r.Title</strong></p>
                             @if (!string.IsNullOrWhiteSpace(r.Body)) { <p>@r.Body</p> }
                             <p class="muted">@r.DisplayName, @r.CreatedUtc.ToString("d MMM yyyy")@(r.VerifiedPurchase ? " · Verified purchase" : "")</p>
+                            @if (!string.IsNullOrWhiteSpace(r.Reply))
+                            {
+                                <blockquote class="shop-reply"><strong>Reply from the shop</strong>@(r.RepliedUtc is { } at ? " · " + at.ToString("d MMM yyyy") : "")<br />@r.Reply</blockquote>
+                            }
                         </li>
                     }
                 </ul>

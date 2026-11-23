@@ -144,3 +144,5 @@ form.inline { display: inline; }
 .specs { border-collapse: collapse; margin: 1rem 0; font-size: .92rem; }
 .specs th { text-align: left; font-weight: 600; padding: .25rem 1.25rem .25rem 0; vertical-align: top; }
 .specs td { padding: .25rem 0; }
+
+.shop-reply { margin: .4rem 0 0 1rem; padding: .5rem .8rem; border-left: 3px solid var(--line); background: var(--card); font-size: .92rem; }

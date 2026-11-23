@@ -22,6 +22,12 @@ This guide covers the features that bring shoppers back and help them buy: revie
 
 **Verified purchases.** A review is marked verified when the shopper has an order on their account for the product, or any of its variants, that was not cancelled.
 
+**Replies from the shop.** Staff can answer a review (admin: Orders > Product reviews > Reply, or `PUT /reviews/{id}/reply` with a `body` up to 2000 characters; `DELETE /reviews/{id}/reply` removes it). A review has one reply, and a second replaces the first. The reply is recorded with who wrote it and when.
+- A reply can be written while the review is waiting, but shoppers see it (as `reply` and `repliedUtc` on the public review) only once the review is approved.
+- If the shopper edits their review it goes back for approval, and the reply is kept for when it returns. Remove it if it no longer fits.
+- A reply is plain text, like a review, so the shop front must escape it. It is exported with the reviewer's data and goes with the review when it is erased.
+- Not built: emailing the reviewer when you reply, and public replies from anyone but the shop.
+
 **Escaping.** Text is stored as plain text, so the shop front must escape it.
 
 **Privacy.** Reviews are exported with a customer and deleted when the customer is erased.

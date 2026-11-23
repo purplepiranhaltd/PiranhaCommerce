@@ -6,7 +6,7 @@
 <h1>Product reviews</h1>
 <p class="pc-muted">
     Shoppers who are signed in can rate and review a product. Unless approval is switched off (Piranha:Ecommerce:ReviewsNeedApproval), a new or changed review waits here until you approve it.
-    Only approved reviews are shown to shoppers or counted in the average. The text is plain text exactly as the shopper wrote it. A review marked Verified was written by someone with a paid-for or open order for the product.
+    Only approved reviews are shown to shoppers or counted in the average. A reply from the shop is shown under its review once the review is approved. The text is plain text exactly as the shopper wrote it. A review marked Verified was written by someone with a paid-for or open order for the product.
 </p>
 
 @if (_error is not null)
@@ -46,11 +46,25 @@ else
                 <td>
                     @if (!string.IsNullOrWhiteSpace(r.Title)) { <strong>@r.Title</strong><br /> }
                     @r.Body
+                    @if (r.Reply is not null && _replying != r.Id)
+                    {
+                        <p class="pc-muted"><em>Shop reply@(r.RepliedBy is { Length: > 0 } by ? " (" + by + ")" : ""):</em> @r.Reply</p>
+                    }
+                    @if (_replying == r.Id)
+                    {
+                        <div class="pc-toolbar" style="margin-top:.5rem">
+                            <textarea aria-label="Reply" rows="3" maxlength="2000" style="width:100%" @bind="_replyText"></textarea>
+                            <button @onclick="() => SaveReplyAsync(r.Id)">Save reply</button>
+                            <button class="secondary" @onclick="() => _replying = null">Cancel</button>
+                        </div>
+                    }
                 </td>
                 <td>@r.DisplayName @(r.VerifiedPurchase ? "(Verified)" : "")</td>
                 <td>@r.Status</td>
                 <td class="actions">
                     @if (r.Status != ReviewStatus.Approved) { <button class="secondary" @onclick="() => SetAsync(r.Id, ReviewStatus.Approved)">Approve</button> }
+                    <button class="secondary" @onclick="() => StartReply(r)">@(r.Reply is null ? "Reply" : "Edit reply")</button>
+                    @if (r.Reply is not null) { <button class="secondary" @onclick="() => RemoveReplyAsync(r.Id)">Remove reply</button> }
                     @if (r.Status != ReviewStatus.Rejected) { <button class="secondary" @onclick="() => SetAsync(r.Id, ReviewStatus.Rejected)">Reject</button> }
                     @if (_confirmDelete == r.Id)
                     {
@@ -76,7 +90,8 @@ else
 @code {
     private PagedResult<ReviewDto>? _reviews;
     private string _filter = "Pending";
-    private Guid? _confirmDelete;
+    private Guid? _confirmDelete, _replying;
+    private string _replyText = "";
     private string? _error;
 
     protected override Task OnInitializedAsync() => LoadAsync();
@@ -100,6 +115,31 @@ else
         _error = null;
         try { var actor = await Auth.GetActorAsync(); await Scope.RunAsync<IReviewService, ReviewDto?>(svc => svc.SetStatusAsync(id, status, actor)); }
         catch (Exception ex) { _error = "Could not change the review: " + ex.Message; }
+        await LoadAsync(_reviews?.Page ?? 1);
+    }
+
+    private void StartReply(ReviewDto r) { _replying = r.Id; _replyText = r.Reply ?? ""; }
+
+    private async Task SaveReplyAsync(Guid id)
+    {
+        _error = null;
+        try
+        {
+            var actor = await Auth.GetActorAsync();
+            var text = _replyText;
+            await Scope.RunAsync<IReviewService, ReviewDto?>(svc => svc.SetReplyAsync(id, text, actor));
+            _replying = null;
+        }
+        catch (PiranhaCommerce.Core.Validation.PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _error = "Could not save the reply: " + ex.Message; }
+        await LoadAsync(_reviews?.Page ?? 1);
+    }
+
+    private async Task RemoveReplyAsync(Guid id)
+    {
+        _error = null;
+        try { await Scope.RunAsync<IReviewService, ReviewDto?>(svc => svc.DeleteReplyAsync(id)); }
+        catch (Exception ex) { _error = "Could not remove the reply: " + ex.Message; }
         await LoadAsync(_reviews?.Page ?? 1);
     }
 

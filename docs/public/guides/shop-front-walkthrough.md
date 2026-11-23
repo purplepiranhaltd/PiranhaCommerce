@@ -65,7 +65,7 @@ A shop front inside the application can use its own cookie for sign-in instead o
 
 | Feature | API |
 |---|---|
-| Reviews on a product page | `GET /products/{id}/reviews` for everyone; `GET|POST /reviews` (and `PUT|DELETE /reviews/{id}`) for a signed-in shopper's own |
+| Reviews on a product page | `GET /products/{id}/reviews` for everyone; `GET|POST /reviews` (and `PUT|DELETE /reviews/{id}`) for a signed-in shopper's own. Each public review can carry the shop's `reply` |
 | Wishlist | `GET /wishlist`, `POST /wishlist`, `DELETE /wishlist/{productId}` |
 | "Tell me when it is back" | `POST /stock-alerts`, anyone, with an email address; `DELETE /stock-alerts/{token}` for the unsubscribe link |
 

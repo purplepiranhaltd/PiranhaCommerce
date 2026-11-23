@@ -2171,6 +2171,17 @@ namespace PiranhaCommerce.Web.Migrations
                     b.Property<int>("Rating")
                         .HasColumnType("int");
 
+                    b.Property<string>("RepliedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTimeOffset?>("RepliedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Reply")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<int>("Status")
                         .HasColumnType("int");
 

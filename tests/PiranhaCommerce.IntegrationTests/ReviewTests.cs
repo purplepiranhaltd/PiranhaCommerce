@@ -45,6 +45,58 @@ public class ReviewTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
     private static async Task<PublicReviewsDto> Public(HttpClient anonymous, Guid productId) =>
         await Read<PublicReviewsDto>(await anonymous.GetAsync($"/api/v1/storefront/products/{productId}/reviews"));
 
+    private static Task<HttpResponseMessage> Reply(HttpClient staff, Guid reviewId, string body) =>
+        staff.PutAsJsonAsync($"/api/v1/reviews/{reviewId}/reply", new ReviewReplyInput { Body = body }, Json);
+
+    [Fact]
+    public async Task Staff_reply_to_a_review_and_shoppers_see_the_reply_only_once_the_review_is_approved()
+    {
+        var staff = await factory.CreateAuthenticatedApiClientAsync();
+        var anonymous = factory.CreateClient();
+        var (shopper, _, _) = await ShopperAsync("Ada", "Lovelace");
+        var product = await Product(staff);
+        var review = await Read<ReviewDto>(await Write(shopper, product.Id, 2, "Arrived late"));
+
+        // A reply can be written while the review waits, but nobody else sees it until the review is approved.
+        var replied = await Read<ReviewDto>(await Reply(staff, review.Id, "  Sorry about that: we have changed courier. <b>Thank you</b>  "));
+        Assert.Equal("Sorry about that: we have changed courier. <b>Thank you</b>", replied.Reply);     // trimmed, stored as plain text
+        Assert.NotNull(replied.RepliedUtc);
+        Assert.Equal(ReviewStatus.Pending, replied.Status);
+        Assert.Empty((await Public(anonymous, product.Id)).Reviews.Items);
+
+        await Approve(staff, review.Id);
+        var shown = (await Public(anonymous, product.Id)).Reviews.Items.Single();
+        Assert.Equal(("Sorry about that: we have changed courier. <b>Thank you</b>", true), (shown.Reply, shown.RepliedUtc is not null));
+
+        // The reviewer sees it on their own review too; another reply replaces the first.
+        Assert.Equal(shown.Reply, (await Read<List<ReviewDto>>(await shopper.GetAsync("/api/v1/storefront/reviews"))).Single().Reply);
+        await Reply(staff, review.Id, "Update: it is fixed.");
+        Assert.Equal("Update: it is fixed.", (await Public(anonymous, product.Id)).Reviews.Items.Single().Reply);
+
+        // The shopper editing their review sends it back for approval; the reply is kept for when it returns.
+        await shopper.PutAsJsonAsync($"/api/v1/storefront/reviews/{review.Id}", new ReviewUpdateInput { Rating = 3, Body = "Better now" }, Json);
+        Assert.Empty((await Public(anonymous, product.Id)).Reviews.Items);
+        await Approve(staff, review.Id);
+        Assert.Equal("Update: it is fixed.", (await Public(anonymous, product.Id)).Reviews.Items.Single().Reply);
+
+        // An empty or too long reply is refused and changes nothing; an unknown review is not found.
+        Assert.Equal(HttpStatusCode.BadRequest, (await Reply(staff, review.Id, "   ")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Reply(staff, review.Id, new string('x', 2001))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await Reply(staff, Guid.NewGuid(), "Hello")).StatusCode);
+        Assert.Equal("Update: it is fixed.", (await Public(anonymous, product.Id)).Reviews.Items.Single().Reply);
+
+        // Only staff with write access can reply or remove one.
+        Assert.Equal(HttpStatusCode.Unauthorized, (await Reply(anonymous, review.Id, "Hi")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.DeleteAsync($"/api/v1/reviews/{review.Id}/reply")).StatusCode);
+        Assert.Contains((int)(await Reply(shopper, review.Id, "I am not staff")).StatusCode, new[] { 401, 403 });
+
+        // Removing it, twice, is fine; the review stays.
+        Assert.Null((await Read<ReviewDto>(await staff.DeleteAsync($"/api/v1/reviews/{review.Id}/reply"))).Reply);
+        Assert.Null((await Read<ReviewDto>(await staff.DeleteAsync($"/api/v1/reviews/{review.Id}/reply"))).Reply);
+        Assert.Null((await Public(anonymous, product.Id)).Reviews.Items.Single().Reply);
+        Assert.Equal(HttpStatusCode.NotFound, (await staff.DeleteAsync($"/api/v1/reviews/{Guid.NewGuid()}/reply")).StatusCode);
+    }
+
     [Fact]
     public async Task A_review_is_pending_until_staff_approve_it_and_only_approved_ones_are_public_and_counted()
     {

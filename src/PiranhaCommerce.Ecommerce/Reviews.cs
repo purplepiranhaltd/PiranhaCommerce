@@ -38,6 +38,11 @@ public class ProductReview : AuditableEntity
     public bool VerifiedPurchase { get; set; }
     public DateTimeOffset? ModeratedUtc { get; set; }
     public string? ModeratedBy { get; set; }
+
+    /// <summary>The shop's answer to the review: one per review, plain text. Shoppers see it with the review once the review is approved.</summary>
+    public string? Reply { get; set; }
+    public DateTimeOffset? RepliedUtc { get; set; }
+    public string? RepliedBy { get; set; }
 }
 
 public sealed class ReviewInput
@@ -66,8 +71,15 @@ public sealed class ReviewStatusInput
     public ReviewStatus Status { get; set; }
 }
 
+public sealed class ReviewReplyInput
+{
+    /// <summary>The shop's answer, as plain text. Sending another replaces the first.</summary>
+    [Required, StringLength(2000, MinimumLength = 1)]
+    public string Body { get; set; } = "";
+}
+
 /// <summary>What shoppers see: no email, no customer id.</summary>
-public sealed record PublicReviewDto(Guid Id, string DisplayName, int Rating, string? Title, string? Body, bool VerifiedPurchase, DateTimeOffset CreatedUtc);
+public sealed record PublicReviewDto(Guid Id, string DisplayName, int Rating, string? Title, string? Body, bool VerifiedPurchase, DateTimeOffset CreatedUtc, string? Reply = null, DateTimeOffset? RepliedUtc = null);
 
 /// <param name="Distribution">How many reviews gave 1, 2, 3, 4 and 5 stars (five numbers, in that order).</param>
 public sealed record ReviewSummaryDto(Guid ProductId, int Count, decimal Average, IReadOnlyList<int> Distribution);
@@ -77,7 +89,7 @@ public sealed record PublicReviewsDto(ReviewSummaryDto Summary, PagedResult<Publ
 /// <summary>A review as its writer and staff see it.</summary>
 public sealed record ReviewDto(
     Guid Id, Guid ProductId, string? ProductName, Guid CustomerId, string DisplayName, int Rating, string? Title, string? Body, ReviewStatus Status,
-    bool VerifiedPurchase, DateTimeOffset CreatedUtc, DateTimeOffset? ModeratedUtc, string? ModeratedBy);
+    bool VerifiedPurchase, DateTimeOffset CreatedUtc, DateTimeOffset? ModeratedUtc, string? ModeratedBy, string? Reply = null, DateTimeOffset? RepliedUtc = null, string? RepliedBy = null);
 
 public interface IReviewService
 {
@@ -104,6 +116,12 @@ public interface IReviewService
     Task<PagedResult<ReviewDto>> ListAsync(ReviewStatus? status, Guid? productId, int? page, int? pageSize, CancellationToken ct = default);
     Task<ReviewDto?> SetStatusAsync(Guid reviewId, ReviewStatus status, string? actor, CancellationToken ct = default);
     Task<bool> DeleteAsync(Guid reviewId, CancellationToken ct = default);
+
+    /// <summary>Sets (or replaces) the shop's reply to a review, whatever its status; shoppers see it once the review is approved. Null when there is no such review. A validation error for an empty reply.</summary>
+    Task<ReviewDto?> SetReplyAsync(Guid reviewId, string body, string? actor, CancellationToken ct = default);
+
+    /// <summary>Removes the reply. Null when there is no such review; removing a reply that is not there is not an error.</summary>
+    Task<ReviewDto?> DeleteReplyAsync(Guid reviewId, CancellationToken ct = default);
 }
 
 internal sealed class ReviewService(PiranhaDbContext db, IOptions<EcommerceOptions> options) : IReviewService
@@ -150,7 +168,7 @@ internal sealed class ReviewService(PiranhaDbContext db, IOptions<EcommerceOptio
         var query = db.Set<ProductReview>().AsNoTracking().Where(r => r.ProductId == id && r.Status == ReviewStatus.Approved);
         var total = await query.CountAsync(ct);
         var items = await query.OrderByDescending(r => r.CreatedUtc).ThenBy(r => r.Id).Skip((p - 1) * size).Take(size)
-            .Select(r => new PublicReviewDto(r.Id, r.DisplayName, r.Rating, r.Title, r.Body, r.VerifiedPurchase, r.CreatedUtc)).ToListAsync(ct);
+            .Select(r => new PublicReviewDto(r.Id, r.DisplayName, r.Rating, r.Title, r.Body, r.VerifiedPurchase, r.CreatedUtc, r.Reply, r.RepliedUtc)).ToListAsync(ct);
         return new PublicReviewsDto(await SummaryOfAsync(id, ct), new PagedResult<PublicReviewDto>(items, p, size, total));
     }
 
@@ -218,12 +236,34 @@ internal sealed class ReviewService(PiranhaDbContext db, IOptions<EcommerceOptio
         return await ToDtoAsync(reviewId, ct);
     }
 
+    public async Task<ReviewDto?> SetReplyAsync(Guid reviewId, string body, string? actor, CancellationToken ct = default)
+    {
+        ModelValidator.ValidateOrThrow(new ReviewReplyInput { Body = body ?? "" });
+        var review = await db.Set<ProductReview>().FirstOrDefaultAsync(r => r.Id == reviewId, ct);
+        if (review is null) return null;
+        review.Reply = body!.Trim(); review.RepliedUtc = DateTimeOffset.UtcNow; review.RepliedBy = actor; review.UpdatedUtc = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(ct);
+        return await ToDtoAsync(reviewId, ct);
+    }
+
+    public async Task<ReviewDto?> DeleteReplyAsync(Guid reviewId, CancellationToken ct = default)
+    {
+        var review = await db.Set<ProductReview>().FirstOrDefaultAsync(r => r.Id == reviewId, ct);
+        if (review is null) return null;
+        if (review.Reply is not null)
+        {
+            review.Reply = null; review.RepliedUtc = null; review.RepliedBy = null; review.UpdatedUtc = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(ct);
+        }
+        return await ToDtoAsync(reviewId, ct);
+    }
+
     public async Task<bool> DeleteAsync(Guid reviewId, CancellationToken ct = default) => await db.DeleteTrackedAsync<ProductReview>(r => r.Id == reviewId, ct) > 0;
 
     private IQueryable<ReviewDto> Project(IQueryable<ProductReview> reviews) =>
         from r in reviews
         select new ReviewDto(r.Id, r.ProductId, db.Set<Product>().Where(p => p.Id == r.ProductId).Select(p => p.Name).FirstOrDefault(), r.CustomerId, r.DisplayName,
-            r.Rating, r.Title, r.Body, r.Status, r.VerifiedPurchase, r.CreatedUtc, r.ModeratedUtc, r.ModeratedBy);
+            r.Rating, r.Title, r.Body, r.Status, r.VerifiedPurchase, r.CreatedUtc, r.ModeratedUtc, r.ModeratedBy, r.Reply, r.RepliedUtc, r.RepliedBy);
 
     private Task<ReviewDto?> ToDtoAsync(Guid id, CancellationToken ct) => Project(db.Set<ProductReview>().AsNoTracking().Where(r => r.Id == id)).FirstOrDefaultAsync(ct);
 
@@ -259,7 +299,7 @@ internal sealed class ReviewCustomerData(PiranhaDbContext db) : ICustomerDataCon
     public async Task<object?> ExportAsync(CustomerSubject subject, CancellationToken ct = default)
     {
         var reviews = await db.Set<ProductReview>().AsNoTracking().Where(r => r.CustomerId == subject.CustomerId).OrderBy(r => r.CreatedUtc)
-            .Select(r => new { r.ProductId, r.DisplayName, r.Rating, r.Title, r.Body, Status = r.Status.ToString(), r.VerifiedPurchase, r.CreatedUtc }).ToListAsync(ct);
+            .Select(r => new { r.ProductId, r.DisplayName, r.Rating, r.Title, r.Body, Status = r.Status.ToString(), r.VerifiedPurchase, r.CreatedUtc, r.Reply, r.RepliedUtc }).ToListAsync(ct);
         return reviews.Count == 0 ? null : reviews;
     }
 
@@ -276,6 +316,10 @@ internal sealed class ReviewEndpoints : IApiEndpointContributor
             Results.Ok(await svc.ListAsync(status, productId, page, pageSize, ct)));
         g.MapPut("/{id:guid}/status", async (Guid id, ReviewStatusInput input, ClaimsPrincipal user, IReviewService svc, CancellationToken ct) =>
             await svc.SetStatusAsync(id, input.Status, user.Identity?.Name, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+        g.MapPut("/{id:guid}/reply", async (Guid id, ReviewReplyInput input, ClaimsPrincipal user, IReviewService svc, CancellationToken ct) =>
+            await svc.SetReplyAsync(id, input.Body, user.Identity?.Name, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+        g.MapDelete("/{id:guid}/reply", async (Guid id, IReviewService svc, CancellationToken ct) =>
+            await svc.DeleteReplyAsync(id, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
         g.MapDelete("/{id:guid}", async (Guid id, IReviewService svc, CancellationToken ct) =>
             await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
     }

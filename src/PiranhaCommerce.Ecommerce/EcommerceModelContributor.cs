@@ -271,6 +271,8 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.Property(r => r.Title).HasMaxLength(100);
             e.Property(r => r.Body).HasMaxLength(4000);
             e.Property(r => r.ModeratedBy).HasMaxLength(256);
+            e.Property(r => r.Reply).HasMaxLength(2000);
+            e.Property(r => r.RepliedBy).HasMaxLength(256);
             e.HasIndex(r => new { r.ProductId, r.CustomerId }).IsUnique(); // one review per customer per product
             e.HasIndex(r => new { r.ProductId, r.Status });
             e.HasIndex(r => r.Status);
