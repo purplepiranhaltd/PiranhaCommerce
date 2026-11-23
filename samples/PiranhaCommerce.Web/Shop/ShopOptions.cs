@@ -10,4 +10,7 @@ public sealed class ShopOptions
 
     /// <summary>The country prices are shown for (with tax). Real shops would take this from the shopper's delivery address.</summary>
     public string CountryCode { get; set; } = "GB";
+
+    /// <summary>How many form posts (add to basket, checkout and so on) one client may make a minute. Starting a basket costs a database row, so this stops a script filling the table.</summary>
+    public int FormsPerMinute { get; set; } = 120;
 }

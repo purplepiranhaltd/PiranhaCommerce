@@ -1,0 +1,12 @@
+@inject ShopSession Session
+
+@if (Session.Open(Token) is { } flash)
+{
+    @if (flash.Error is { Length: > 0 }) { <p class="notice error" role="alert">@flash.Error</p> }
+    @if (flash.Info is { Length: > 0 }) { <p class="notice info" role="status">@flash.Info</p> }
+}
+
+@code {
+    /// <summary>The <c>f</c> value from the address.</summary>
+    [Parameter] public string? Token { get; set; }
+}

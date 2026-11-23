@@ -78,6 +78,18 @@ else
                     </div>
                 }
 
+                <FlashNotice Token="@F" />
+                @if (_available)
+                {
+                    <form method="post" action="/basket/add" class="add">
+                        <AntiforgeryToken />
+                        <input type="hidden" name="productId" value="@(_selected?.ProductId ?? _product.Id)" />
+                        <input type="hidden" name="returnTo" value="/product/@Slug" />
+                        <label>Quantity <input type="number" name="quantity" value="@(Math.Max(1, _product.MinOrderQuantity ?? 1))" min="1" max="99" /></label>
+                        <button type="submit">Add to basket</button>
+                    </form>
+                }
+
                 <p class="stock @(_available ? "in" : "out")">
                     @if (!_available) { <text>Sold out</text> }
                     else if (_left is > 0) { <text>Only @_left left</text> }
@@ -110,6 +122,7 @@ else
 @code {
     [Parameter] public string Slug { get; set; } = "";
     [SupplyParameterFromQuery(Name = "variant")] private Guid? VariantId { get; set; }
+    [SupplyParameterFromQuery(Name = "f")] private string? F { get; set; }
     [CascadingParameter] private HttpContext? Context { get; set; }
 
     private ShopProductDto? _product;

@@ -13,9 +13,24 @@ The sample host (`samples/PiranhaCommerce.Web`) is a working shop as well as an 
 | Home | `/` | Categories, what is on sale, newest products |
 | Listing | `/shop`, `/shop/{category}` | A category with its sub-categories, sorted, filtered to what is in stock, paged |
 | Search | `/search?q=...` | Products matching every word |
-| Product | `/product/{slug}` | Pictures, price with VAT, sale and quantity prices, a picker for shades or sizes (`?variant=...`), stock, reviews total and suggestions |
+| Product | `/product/{slug}` | Pictures, price with VAT, sale and quantity prices, a picker for shades or sizes (`?variant=...`), stock, reviews total, suggestions and an Add to basket form |
+| Basket | `/basket` | Lines with their prices (VAT and any code included), quantity changes, removal and a promo code |
+| Checkout | `/checkout`, `/checkout/delivery` | A guest's email and address, then the delivery methods that serve that address, each with the order total it gives, then Place order |
+| Confirmation | `/order/confirmed` | The order just placed, with its reference, lines, delivery, VAT and total |
 
-Each page gets its data from the same services the storefront API uses (`IShopCatalogueService`, `IProductRelationService`, `IGroupPricingService`), so what the shop shows is exactly what [the API returns](../guides/storefront.md). Prices are shown with VAT for the country in `Piranha:Shop:CountryCode` (default `GB`). The basket, checkout and account pages are the next part of the shop front and are not built yet.
+Each page gets its data from the same services the storefront API uses (`IShopCatalogueService`, `IProductRelationService`, `IGroupPricingService`), so what the shop shows is exactly what [the API returns](../guides/storefront.md). Prices are shown with VAT for the country in `Piranha:Shop:CountryCode` (default `GB`). Accounts (sign-in, order history, wishlist, reviews) are the next part of the shop front and are not built yet, so today the shop takes guest orders only. No payment is taken: an order is placed unpaid and appears in the admin. Set up [payments](../guides/payments.md) to take cards.
+
+## How the shop front works
+
+It shows one way to build a shop front on the packages. Take what suits you.
+
+- **Data comes from services, in process.** The pages call the shop services directly. They never go through the HTTP API, so there are no tokens to manage. A small class (`ShopFront`) runs these calls one at a time, because a page and its layout load at the same moment and share one database connection for the request.
+- **Forms post, then redirect.** Every button is an ordinary HTML form that posts to `/basket/...` or `/checkout/...`, does its work and redirects to a page, so a refresh never repeats an action. A problem goes back to the page as a short message in the address (`?f=`), which is signed and expires after ten minutes, so it cannot be forged. No JavaScript is needed.
+- **Every post carries an antiforgery token** and is refused without it. Posts are also rate limited per client address (`Piranha:Shop:FormsPerMinute`, 120 by default) and answer 429 beyond that, because starting a basket costs a database row. Behind a proxy, configure forwarded headers so the address is the visitor's.
+- **The basket belongs to a cookie.** The first Add to basket starts a basket and puts its id in an HttpOnly cookie. Knowing the id is the whole proof for a guest basket, so on every use the shop checks that the basket still exists, is open and has no owner. A cookie holding any other basket's id, including a signed-in customer's, is ignored and the shopper gets a new basket. Looking at pages never creates a basket.
+- **Checkout keeps its details in an encrypted cookie** between the two steps, and the confirmation page reads the order from another one. The order is never loaded from an id in the address, so nobody can read someone else's order by guessing.
+- **Guest orders belong to no customer.** The shop sends no customer id, whatever the form says. `Piranha:Ecommerce:AllowGuestCheckout` switches guest orders off.
+- **Stock is checked twice.** The add form refuses a sold-out shade or more than are left, with a reason. Checkout checks again, so stock that sold in between is caught with a message and no order is made.
 
 ## The sample data
 

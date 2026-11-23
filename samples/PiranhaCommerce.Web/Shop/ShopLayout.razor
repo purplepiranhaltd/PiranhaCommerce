@@ -9,6 +9,7 @@
             <input type="search" name="q" placeholder="Search lipstick, mascara, serum..." aria-label="Search the shop" />
             <button type="submit">Search</button>
         </form>
+        <a class="basket-link" href="/basket">Basket@(_count > 0 ? $" ({_count})" : "")</a>
     </div>
     <nav class="wrap cats" aria-label="Categories">
         <a href="/shop">All products</a>
@@ -30,6 +31,11 @@
 
 @code {
     private IReadOnlyList<ShopCategoryDto> _categories = [];
+    private int _count;
 
-    protected override async Task OnInitializedAsync() => _categories = await Front.CategoriesAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        _categories = await Front.CategoriesAsync();
+        _count = await Front.BasketCountAsync();
+    }
 }

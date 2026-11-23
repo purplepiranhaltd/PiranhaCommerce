@@ -1,0 +1,69 @@
+@page "/checkout"
+@inject ShopFront Front
+@inject ShopSession Session
+@inject NavigationManager Nav
+@inject Microsoft.Extensions.Options.IOptions<EcommerceOptions> Ecommerce
+
+<PageTitle>Checkout</PageTitle>
+
+<div class="wrap narrow">
+    <h1>Checkout</h1>
+    <p class="steps"><strong>1. Your details</strong> &gt; <span class="muted">2. Delivery</span> &gt; <span class="muted">3. Done</span></p>
+    <FlashNotice Token="@F" />
+
+    @if (!Ecommerce.Value.AllowGuestCheckout)
+    {
+        <p class="notice error">This shop only takes orders from signed-in customers.</p>
+    }
+    else
+    {
+        <form method="post" action="/checkout/details" class="stack">
+            <AntiforgeryToken />
+            <label>Email <input type="email" name="email" value="@Value("email")" required autocomplete="email" /></label>
+            <label>Name <input type="text" name="recipient" value="@Value("recipient")" autocomplete="name" /></label>
+            <label>Address <input type="text" name="line1" value="@Value("line1")" required autocomplete="address-line1" /></label>
+            <label>Address line 2 <input type="text" name="line2" value="@Value("line2")" autocomplete="address-line2" /></label>
+            <div class="two">
+                <label>Town or city <input type="text" name="city" value="@Value("city")" required autocomplete="address-level2" /></label>
+                <label>County <input type="text" name="region" value="@Value("region")" autocomplete="address-level1" /></label>
+            </div>
+            <div class="two">
+                <label>Postcode <input type="text" name="postalCode" value="@Value("postalCode")" autocomplete="postal-code" /></label>
+                <label>Country
+                    <select name="countryCode">
+                        @foreach (var country in ShopCountries.All) { <option value="@country.Code" selected="@(country.Code == Chosen)">@country.Name</option> }
+                    </select>
+                </label>
+            </div>
+            <button type="submit">Continue to delivery</button>
+        </form>
+        <p class="muted">No account needed. You can <a href="/basket">go back to your basket</a>.</p>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "f")] private string? F { get; set; }
+
+    private Flash? _flash;
+    private CheckoutDetails? _saved;
+
+    private string Chosen => Value("countryCode") is { Length: > 0 } c ? c.ToUpperInvariant() : "GB";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (await Front.BasketCountAsync() == 0) { Nav.NavigateTo("/basket"); return; }
+        _flash = Session.Open(F);
+        _saved = Session.Details;
+    }
+
+    /// <summary>What to show in a box: what the shopper just typed (after a problem), else what they gave before.</summary>
+    private string? Value(string name)
+    {
+        if (_flash?.Values is { } v && v.TryGetValue(name, out var typed)) return typed;
+        return name switch
+        {
+            "email" => _saved?.Email, "recipient" => _saved?.Recipient, "line1" => _saved?.Line1, "line2" => _saved?.Line2, "city" => _saved?.City,
+            "region" => _saved?.Region, "postalCode" => _saved?.PostalCode, "countryCode" => _saved?.CountryCode, _ => null,
+        };
+    }
+}

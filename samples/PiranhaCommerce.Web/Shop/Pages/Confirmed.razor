@@ -1,0 +1,47 @@
+@page "/order/confirmed"
+@inject ShopFront Front
+
+<PageTitle>Order placed</PageTitle>
+
+<div class="wrap narrow">
+    @if (_order is null)
+    {
+        <h1>No recent order</h1>
+        <p>There is no order to show here. <a href="/shop">Browse the shop</a>.</p>
+    }
+    else
+    {
+        <h1>Thank you</h1>
+        <p class="lead">Your order <strong>@_order.Reference</strong> has been placed. We will email <strong>@_order.Email</strong> about it.</p>
+        <p class="muted">This is a sample shop: nothing has been charged and nothing will be sent.</p>
+
+        <table class="order">
+            <thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Total</th></tr></thead>
+            <tbody>
+                @foreach (var l in _order.Lines)
+                {
+                    <tr><td>@l.Name</td><td class="num">@l.Quantity</td><td class="num">@Money.Format(l.LineTotalIncludingTax, _order.Currency)</td></tr>
+                }
+            </tbody>
+            <tfoot>
+                @if (_order.DiscountTotal > 0) { <tr><td colspan="2">Discount @(_order.PromotionCode is null ? "" : "(" + _order.PromotionCode + ")")</td><td class="num">included above</td></tr> }
+                <tr><td colspan="2">Delivery @(_order.ShippingMethodName is null ? "" : "(" + _order.ShippingMethodName + ")")</td><td class="num">@(_order.ShippingTotal == 0 ? "Free" : Money.Format(_order.ShippingTotal + _order.ShippingTax, _order.Currency))</td></tr>
+                <tr><td colspan="2">Total includes VAT of</td><td class="num">@Money.Format(_order.TaxTotal, _order.Currency)</td></tr>
+                <tr class="grand"><td colspan="2">Total</td><td class="num">@Money.Format(_order.Total, _order.Currency)</td></tr>
+            </tfoot>
+        </table>
+
+        @if (_order.ShippingAddress is { } a)
+        {
+            <h2>Delivering to</h2>
+            <p>@(a.Recipient is null ? "" : a.Recipient + ", ")@a.Line1@(string.IsNullOrEmpty(a.Line2) ? "" : ", " + a.Line2), @a.City@(string.IsNullOrEmpty(a.PostalCode) ? "" : ", " + a.PostalCode), @ShopCountries.NameOf(a.CountryCode)</p>
+        }
+        <p><a class="button" href="/shop">Keep shopping</a></p>
+    }
+</div>
+
+@code {
+    private OrderDto? _order;
+
+    protected override async Task OnInitializedAsync() => _order = await Front.LastOrderAsync();
+}

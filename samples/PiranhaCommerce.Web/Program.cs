@@ -51,7 +51,10 @@ piranha
 
 builder.Services.Configure<SampleDataOptions>(builder.Configuration.GetSection(SampleDataOptions.SectionName));
 builder.Services.AddSingleton<SampleDataSeeder>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ShopSession>();
 builder.Services.AddScoped<ShopFront>();
+builder.Services.AddSingleton<ShopRateLimiter>();
 builder.Services.Configure<ShopOptions>(builder.Configuration.GetSection(ShopOptions.SectionName));
 
 var app = builder.Build();
@@ -81,6 +84,7 @@ app.MapPiranhaApi();
 app.MapPiranhaAdmin();
 // The sample shop front: server-rendered pages that call the shop services in-process (no JavaScript needed).
 app.MapRazorComponents<ShopApp>();
+ShopForms.Map(app);
 PiranhaCommerce.Web.ReturnPages.Map(app); // where a payment gateway sends the shopper back to
 
 app.Run();

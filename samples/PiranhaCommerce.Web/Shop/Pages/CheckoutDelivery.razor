@@ -1,0 +1,63 @@
+@page "/checkout/delivery"
+@inject ShopFront Front
+@inject ShopSession Session
+@inject NavigationManager Nav
+@inject Microsoft.Extensions.Options.IOptions<EcommerceOptions> Ecommerce
+
+<PageTitle>Delivery</PageTitle>
+
+<div class="wrap narrow">
+    <h1>Checkout</h1>
+    <p class="steps"><a href="/checkout">1. Your details</a> &gt; <strong>2. Delivery</strong> &gt; <span class="muted">3. Done</span></p>
+    <FlashNotice Token="@F" />
+
+    @if (_details is not null && _choices is not null)
+    {
+        <p>Sending to <strong>@_details.Line1, @_details.City@(string.IsNullOrEmpty(_details.PostalCode) ? "" : ", " + _details.PostalCode), @ShopCountries.NameOf(_details.CountryCode)</strong>
+            for <strong>@_details.Email</strong>. <a href="/checkout">Change</a></p>
+
+        @if (_choices.Count == 0)
+        {
+            <p class="notice error">We cannot deliver to that address. <a href="/checkout">Try another address</a>.</p>
+        }
+        else
+        {
+            <form method="post" action="/checkout/place" class="stack">
+                <AntiforgeryToken />
+                <fieldset class="options">
+                    <legend>Choose delivery</legend>
+                    @for (var i = 0; i < _choices.Count; i++)
+                    {
+                        var c = _choices[i];
+                        <label class="option">
+                            <input type="radio" name="shippingMethodId" value="@c.Option.Id" checked="@(i == 0)" required />
+                            <span class="grow">@c.Option.Name</span>
+                            <span>@(c.Option.Price == 0 ? "Free" : Money.Format(c.Option.Price, Currency))</span>
+                            <span class="muted">Order total @Money.Format(c.Quote.Total, Currency)</span>
+                        </label>
+                    }
+                </fieldset>
+                <label>Anything we should know? <textarea name="notes" rows="2" maxlength="500"></textarea></label>
+                <p class="muted">This is a sample shop: no payment is taken. The order is placed as unpaid and staff see it in the admin.</p>
+                <button type="submit">Place order</button>
+            </form>
+        }
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "f")] private string? F { get; set; }
+
+    private CheckoutDetails? _details;
+    private IReadOnlyList<DeliveryChoice>? _choices;
+
+    private string Currency => Ecommerce.Value.Currency;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (await Front.BasketCountAsync() == 0) { Nav.NavigateTo("/basket"); return; }
+        _details = Session.Details;
+        if (_details is null) { Nav.NavigateTo("/checkout"); return; }
+        _choices = await Front.DeliveryAsync(_details.CountryCode, _details.PostalCode);
+    }
+}

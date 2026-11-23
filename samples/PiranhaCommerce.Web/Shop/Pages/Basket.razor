@@ -1,0 +1,86 @@
+@page "/basket"
+@inject ShopFront Front
+@inject Microsoft.Extensions.Options.IOptions<EcommerceOptions> Ecommerce
+
+<PageTitle>Your basket</PageTitle>
+
+<div class="wrap">
+    <h1>Your basket</h1>
+    <FlashNotice Token="@F" />
+
+    @if (_view is null || _view.Lines.Count == 0)
+    {
+        <p class="empty">Your basket is empty. <a href="/shop">Browse the shop</a>.</p>
+    }
+    else
+    {
+        <div class="basket-grid">
+            <ul class="lines">
+                @foreach (var l in _view.Lines)
+                {
+                    <li class="@(l.Line.Available ? "" : "gone")">
+                        <a class="thumb" href="/product/@l.Slug?variant=@l.Line.ProductId">
+                            @if (l.Image is not null) { <img src="@Money.Image(l.Image.Url, 160)" alt="" width="80" height="80" /> }
+                        </a>
+                        <div class="what">
+                            <a href="/product/@l.Slug?variant=@l.Line.ProductId"><strong>@l.Line.Name</strong></a>
+                            @if (l.Variant is not null) { <span class="muted">@l.Variant</span> }
+                            @if (!l.Line.Available) { <span class="notice error">Not available at the moment. Remove it to check out.</span> }
+                            <form method="post" action="/basket/set" class="qty">
+                                <AntiforgeryToken />
+                                <input type="hidden" name="productId" value="@l.Line.ProductId" />
+                                <label>Quantity <input type="number" name="quantity" value="@l.Line.Quantity" min="0" max="99" /></label>
+                                <button type="submit" class="small">Update</button>
+                                <button type="submit" class="small ghost" name="quantity" value="0" formnovalidate>Remove</button>
+                            </form>
+                        </div>
+                        <div class="total">@Money.Format(l.Priced?.LineTotalIncludingTax ?? l.Line.LineTotal, Currency)</div>
+                    </li>
+                }
+            </ul>
+
+            <aside class="summary">
+                <h2>Summary</h2>
+                <form method="post" action="/basket/promo" class="promo">
+                    <AntiforgeryToken />
+                    @if (_view.Quote?.PromotionCode is { } applied)
+                    {
+                        <p>Code <strong>@applied</strong> applied. <button type="submit" name="remove" value="1" class="link">Remove</button></p>
+                    }
+                    else
+                    {
+                        <label>Promo code <input type="text" name="code" autocomplete="off" /></label>
+                        <button type="submit" class="small">Apply</button>
+                    }
+                </form>
+                @if (_view.Quote?.PromotionProblem is { Length: > 0 } problem) { <p class="notice error">@problem</p> }
+
+                <dl>
+                    <dt>Items (with VAT)</dt><dd>@Money.Format(_goods, Currency)</dd>
+                    @if (_saving > 0) { <dt>You save</dt><dd class="save">@Money.Format(_saving, Currency)</dd> }
+                    <dt>Delivery</dt><dd class="muted">Chosen at checkout</dd>
+                </dl>
+                @if (_view.Lines.Any(l => !l.Line.Available)) { <p class="muted">Remove what is not available to carry on.</p> }
+                else { <a class="button wide" href="/checkout">Check out</a> }
+                <p><a href="/shop">Keep shopping</a></p>
+            </aside>
+        </div>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "f")] private string? F { get; set; }
+
+    private BasketView? _view;
+    private decimal _goods, _saving;
+
+    private string Currency => Ecommerce.Value.Currency;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _view = await Front.BasketAsync();
+        if (_view is null) return;
+        _goods = _view.Lines.Sum(l => l.Priced?.LineTotalIncludingTax ?? l.Line.LineTotal);
+        _saving = _view.Lines.Sum(l => l.Priced is { } p ? p.DiscountAmount * (1 + p.TaxRate / 100m) : 0m);
+    }
+}
