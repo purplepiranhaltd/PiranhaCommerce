@@ -27,7 +27,7 @@ A **rate row** is a country (or `*` for every other country) and a weight band i
 
 To see what a basket can use and what each option costs now, call `GET /baskets/{id}/shipping-options?countryCode=GB` (also under `/storefront/baskets`).
 
-## Zones and carriers
+## Shipping zones and carriers
 
 ### Zones
 
