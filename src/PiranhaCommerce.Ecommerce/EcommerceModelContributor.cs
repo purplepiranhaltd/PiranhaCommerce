@@ -224,10 +224,33 @@ internal sealed class EcommerceModelContributor : IModelContributor
         b.Entity<ShippingRate>(e =>
         {
             e.ToTable("ShippingRate", Schema);
-            e.Property(r => r.CountryCode).HasMaxLength(2).IsRequired();
+            e.Property(r => r.CountryCode).HasMaxLength(2);
             e.Property(r => r.Price).HasPrecision(18, 4);
             e.HasIndex(r => new { r.ShippingMethodId, r.CountryCode });
+            e.HasIndex(r => r.ZoneId);
             e.HasOne<ShippingMethod>().WithMany().HasForeignKey(r => r.ShippingMethodId).OnDelete(DeleteBehavior.Cascade);
+            // A zone that rates use cannot be deleted from under them: that would change which methods are offered.
+            e.HasOne<ShippingZone>().WithMany().HasForeignKey(r => r.ZoneId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<ShippingZone>(e =>
+        {
+            e.ToTable("ShippingZone", Schema);
+            e.Property(z => z.Name).HasMaxLength(100).IsRequired();
+        });
+        b.Entity<ShippingZoneRegion>(e =>
+        {
+            e.ToTable("ShippingZoneRegion", Schema);
+            e.Property(r => r.CountryCode).HasMaxLength(2).IsRequired();
+            e.Property(r => r.Prefix).HasMaxLength(20).IsRequired();
+            e.HasIndex(r => new { r.CountryCode, r.Prefix }).IsUnique(); // a destination is in one zone only
+            e.HasOne<ShippingZone>().WithMany().HasForeignKey(r => r.ZoneId).OnDelete(DeleteBehavior.Cascade);
+        });
+        b.Entity<ShippingCarrier>(e =>
+        {
+            e.ToTable("ShippingCarrier", Schema);
+            e.Property(c => c.Name).HasMaxLength(100).IsRequired();
+            e.Property(c => c.TrackingUrlTemplate).HasMaxLength(500);
         });
 
         b.Entity<Promotion>(e =>

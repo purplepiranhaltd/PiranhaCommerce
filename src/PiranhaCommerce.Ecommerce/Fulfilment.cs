@@ -81,6 +81,9 @@ public sealed class ShipmentInput : IValidatableObject
     /// <summary>The lines in this parcel. Leave out (or empty) to send everything not yet sent.</summary>
     public List<FulfilmentLineInput>? Lines { get; set; }
 
+    /// <summary>One of the shop's carriers (<c>/shipping-carriers</c>): its name is used as the carrier, and the tracking link is built from its template and the tracking number unless <see cref="TrackingUrl"/> is given.</summary>
+    public Guid? CarrierId { get; set; }
+
     [StringLength(100)] public string? Carrier { get; set; }
     [StringLength(100)] public string? TrackingNumber { get; set; }
     [StringLength(500)] public string? TrackingUrl { get; set; }
@@ -223,6 +226,15 @@ internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock
                 ? "Move the order to Processing before sending it."
                 : $"An order that is {stage} cannot be shipped.");
 
+        // A chosen carrier gives the name, and the tracking link when the tracking number is known; the parcel keeps these as copies.
+        if (input.CarrierId is { } carrierId)
+        {
+            var carrier = await db.Set<ShippingCarrier>().AsNoTracking().FirstOrDefaultAsync(c => c.Id == carrierId && c.Active, ct)
+                ?? throw new PiranhaValidationException(nameof(ShipmentInput.CarrierId), "Choose one of the shop's carriers that is switched on.");
+            input.Carrier = carrier.Name;
+            if (string.IsNullOrWhiteSpace(input.TrackingUrl) && ShippingCarriers.TrackingUrl(carrier.TrackingUrlTemplate, input.TrackingNumber) is { Length: <= 500 } link) input.TrackingUrl = link;
+        }
+
         var shipmentId = Guid.NewGuid(); // fixed outside the retried delegate so a retry can recognise its own success
         var shipment = new ShipmentBuilder(shipmentId, orderId, input, actor);
         var strategy = db.Database.CreateExecutionStrategy();
@@ -255,7 +267,7 @@ internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock
                     var parcel = shipment.ToEntity(wanted, now);
                     db.Add(parcel);
                     var orderNumber = await db.Set<Order>().AsNoTracking().Where(o => o.Id == orderId).Select(o => o.Number).FirstAsync(token);
-                    events?.Publish(EcommerceEvents.ShipmentCreated, new { shipmentId = parcel.Id, orderId, number = orderNumber, reference = OrderNumbers.Format(orderNumber), lineCount = wanted.Count });
+                    events?.Publish(EcommerceEvents.ShipmentCreated, new { shipmentId = parcel.Id, orderId, number = orderNumber, reference = OrderNumbers.Format(orderNumber), lineCount = wanted.Count, carrier = parcel.Carrier, trackingNumber = parcel.TrackingNumber, trackingUrl = parcel.TrackingUrl });
                     await db.SaveChangesAsync(token);
 
                     // The last item has gone: the order is complete.

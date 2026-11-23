@@ -34,17 +34,24 @@
         <h2 style="margin-top:0">Rates for this method</h2>
         <p class="pc-muted">
             With no rates, the price above applies everywhere. With rates, a destination or weight no row covers is not served by this method.
-            Each row is a country (or * for every other country) and a weight band in grams: from the first weight up to, but not including, the second
-            (leave it empty for no limit). Rows for a country you list take precedence over the * rows. The "free when the basket reaches" amount still applies.
-            Set a product's weight in its Online store settings.
+            Each row is a country (or * for every other country) or a shipping zone, and a weight band in grams: from the first weight up to, but not including, the second
+            (leave it empty for no limit). Rows for a country you list take precedence over the * rows. A method uses countries or zones, not both; a method priced by zone is
+            offered only to the zones it has rows for. The "free when the basket reaches" amount still applies. Set a product's weight in its Online store settings.
+            Zones and carriers are set up under Shipping zones and Shipping carriers.
         </p>
         <table class="pc-table">
-            <thead><tr><th>Country</th><th>From (g)</th><th>Up to (g)</th><th>Price</th><th></th></tr></thead>
+            <thead><tr><th>Country</th><th>or zone</th><th>From (g)</th><th>Up to (g)</th><th>Price</th><th></th></tr></thead>
             <tbody>
             @foreach (var r in _rates)
             {
                 <tr>
-                    <td><InputText @bind-Value="r.CountryCode" maxlength="2" style="width:4rem" /></td>
+                    <td><InputText @bind-Value="r.CountryCode" maxlength="2" style="width:4rem" disabled="@(r.ZoneId is not null)" /></td>
+                    <td>
+                        <InputSelect TValue="Guid?" Value="r.ZoneId" ValueChanged="(Guid? z) => ChooseZone(r, z)" ValueExpression="() => r.ZoneId">
+                            <option value="">None (use the country)</option>
+                            @foreach (var z in _zones) { <option value="@z.Id">@z.Name</option> }
+                        </InputSelect>
+                    </td>
                     <td><InputNumber @bind-Value="r.MinWeightGrams" /></td>
                     <td><InputNumber @bind-Value="r.MaxWeightGrams" /></td>
                     <td><InputNumber @bind-Value="r.Price" /></td>
@@ -106,6 +113,7 @@ else
     private ShippingMethodInput _input = new();
     private Guid? _editing;
     private List<ShippingRateInput> _rates = [];
+    private IReadOnlyList<ShippingZoneDto> _zones = [];
     private string? _ratesMessage;
     private Guid? _confirmDelete;
     private string? _error;
@@ -115,7 +123,11 @@ else
 
     private async Task LoadAsync()
     {
-        try { _methods = await Scope.RunAsync<IShippingService, IReadOnlyList<ShippingMethodDto>>(s => s.ListAsync(false)); }
+        try
+        {
+            _methods = await Scope.RunAsync<IShippingService, IReadOnlyList<ShippingMethodDto>>(s => s.ListAsync(false));
+            _zones = await Scope.RunAsync<IShippingZoneService, IReadOnlyList<ShippingZoneDto>>(s => s.ListAsync());
+        }
         catch (Exception ex) { _error = "Could not load shipping methods: " + ex.Message; }
     }
 
@@ -126,12 +138,14 @@ else
         _input = new ShippingMethodInput { Name = m.Name, Price = m.Price, FreeOver = m.FreeOver, Active = m.Active, Position = m.Position };
         var id = m.Id;
         var rates = await Scope.RunAsync<IShippingService, IReadOnlyList<ShippingRateDto>?>(s => s.GetRatesAsync(id));
-        _rates = (rates ?? []).Select(r => new ShippingRateInput { CountryCode = r.CountryCode, MinWeightGrams = r.MinWeightGrams, MaxWeightGrams = r.MaxWeightGrams, Price = r.Price }).ToList();
+        _rates = (rates ?? []).Select(r => new ShippingRateInput { CountryCode = r.ZoneId is null ? r.CountryCode : null, ZoneId = r.ZoneId, MinWeightGrams = r.MinWeightGrams, MaxWeightGrams = r.MaxWeightGrams, Price = r.Price }).ToList();
     }
 
     private void Reset() { _editing = null; _input = new(); _rates = []; _ratesMessage = null; }
 
-    private void AddRate() => _rates.Add(new ShippingRateInput { CountryCode = "*" });
+    private void AddRate() => _rates.Add(_rates.Any(r => r.ZoneId is not null) && _zones.Count > 0 ? new ShippingRateInput { ZoneId = _zones[0].Id } : new ShippingRateInput { CountryCode = "*" });
+
+    private void ChooseZone(ShippingRateInput rate, Guid? zone) { rate.ZoneId = zone; rate.CountryCode = zone is null ? "*" : null; }
 
     private async Task SaveRatesAsync()
     {

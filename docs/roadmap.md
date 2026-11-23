@@ -20,7 +20,7 @@ or themes), so storefront and CMS features are out of scope by design. Order of 
    limits per customer.
 6. **Outbound webhooks: built** (order placed and stage changed, payment received and refunded, shipment, return, dispute opened and closed; see the README). Open for webhooks: events for product,
    customer and stock changes, a per-endpoint rate limit, and blocking addresses that resolve to private networks.
-7. **Shipping zones, rates by basket value, carrier and live rates, labels, pick-up in store, delivery dates:** open.
+7. **Shipping zones and carriers:** built (zones by country and postcode area, rates by zone, carriers with tracking links). Rates by basket value, live carrier rates, labels, pick-up in store and delivery dates: open.
 8. **Multi-currency and translations:** open, heaviest design work (see the Translations section).
 9. **Reviews, wishlists, related and cross-sell products, brands, specification attributes and tags, back-in-stock and low-stock alerts:** open.
 10. **Multi-store and vendors:** open, only if a use case needs them.
@@ -151,8 +151,8 @@ Not built yet:
 - Payment gateways: the plugin point is built (start a payment, signed webhooks, idempotent recording; tested with a fake gateway).
   Stripe is built (`PiranhaCommerce.Payments.Stripe`). Unreconciled payments are listed in the admin (retry or resolve with a note).
   An email alert goes to `AlertEmail` when something lands on that list. Disputes and failed refunds are recorded and alerted (see the README). Not built: uploading evidence files, a shopper-facing "payment pending" state, and payment on delayed methods that confirm days later.
-- Shipping: a flat price per method (optionally free above a spend), or rates by destination country and basket weight. Not built: zones that group
-  countries (list each country), rates by basket value or item count, dimensional weight, carriers, live rates and labels, and free-shipping promo codes.
+- Shipping: a flat price per method (optionally free above a spend), or rates by destination country and basket weight. Zones (countries or postcode
+  areas) and carriers with tracking links are built. Not built: rates by basket value or item count, dimensional weight, live rates and labels.
 - Tax: classes and per-country rates are built, prices are entered tax-exclusive; see "Tax: what is left" above.
 - Fulfilment: parcels, tracking, partial shipment, returns (with a restock choice per line) and refunds through the provider are built. Not built:
   return labels, exchanges, automatic expiry of unanswered return requests,

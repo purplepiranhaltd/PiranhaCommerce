@@ -76,19 +76,35 @@ public sealed record ShippingMethodDto(Guid Id, string Name, decimal Price, deci
 public class ShippingRate : Entity
 {
     public Guid ShippingMethodId { get; set; }
-    public required string CountryCode { get; set; }
+
+    /// <summary>The destination country (or <c>*</c>), for a rate set by country. Empty for a rate set by zone.</summary>
+    public string? CountryCode { get; set; }
+
+    /// <summary>The zone, for a rate set by zone. A method uses one kind or the other, never both.</summary>
+    public Guid? ZoneId { get; set; }
     public int MinWeightGrams { get; set; }
     public int? MaxWeightGrams { get; set; }
     public decimal Price { get; set; }
 }
 
-public sealed class ShippingRateInput
+public sealed class ShippingRateInput : IValidatableObject
 {
-    [Required, RegularExpression(@"^(\*|[A-Za-z]{2})$", ErrorMessage = "Use a two-letter country code such as GB, or * for every other country.")]
-    public string CountryCode { get; set; } = "";
+    /// <summary>The destination country, or * for every other country. Give this or <see cref="ZoneId"/>, not both.</summary>
+    [RegularExpression(@"^(\*|[A-Za-z]{2})$", ErrorMessage = "Use a two-letter country code such as GB, or * for every other country.")]
+    public string? CountryCode { get; set; }
+
+    /// <summary>A shipping zone (countries, or postcode areas). Give this or <see cref="CountryCode"/>, not both.</summary>
+    public Guid? ZoneId { get; set; }
     [Range(0, 100_000_000)] public int MinWeightGrams { get; set; }
     [Range(1, 100_000_000)] public int? MaxWeightGrams { get; set; }
     [Range(0, 1_000_000)] public decimal Price { get; set; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        var hasCountry = !string.IsNullOrWhiteSpace(CountryCode);
+        if (hasCountry == (ZoneId is not null))
+            yield return new ValidationResult("Give a country or a zone for each rate, not both and not neither.", [nameof(CountryCode)]);
+    }
 }
 
 /// <summary>Replaces the whole set of rates of a method. An empty list goes back to the flat price.</summary>
@@ -97,7 +113,8 @@ public sealed class ShippingRatesInput
     public List<ShippingRateInput> Rates { get; set; } = [];
 }
 
-public sealed record ShippingRateDto(Guid Id, string CountryCode, int MinWeightGrams, int? MaxWeightGrams, decimal Price);
+/// <param name="CountryCode">Empty for a rate set by zone (see <paramref name="ZoneId"/>).</param>
+public sealed record ShippingRateDto(Guid Id, string CountryCode, int MinWeightGrams, int? MaxWeightGrams, decimal Price, Guid? ZoneId = null, string? ZoneName = null);
 
 /// <summary>A shipping method a basket can use for a destination, with what it would cost.</summary>
 public sealed record ShippingOptionDto(Guid Id, string Name, decimal Price);
@@ -112,9 +129,14 @@ public static class ShippingRates
     /// precedence over the <c>*</c> rows, and the row whose weight band holds the basket weight sets the price. Null when nothing covers it
     /// (the method is not available for that destination and basket).
     /// </summary>
-    public static decimal? PriceFor(ShippingMethod method, IReadOnlyList<ShippingRate> rates, string countryCode, long weightGrams)
+    public static decimal? PriceFor(ShippingMethod method, IReadOnlyList<ShippingRate> rates, string countryCode, long weightGrams, Guid? zoneId = null)
     {
         if (rates.Count == 0) return method.Price;
+
+        // A method priced by zone serves only the zones it has rates for: a destination in another zone (or in none) is not served, never given a nearby zone's price.
+        if (rates.Any(r => r.ZoneId is not null))
+            return zoneId is null ? null : rates.Where(r => r.ZoneId == zoneId).FirstOrDefault(r => weightGrams >= r.MinWeightGrams && (r.MaxWeightGrams is null || weightGrams < r.MaxWeightGrams))?.Price;
+
         var exact = rates.Where(r => string.Equals(r.CountryCode, countryCode, StringComparison.OrdinalIgnoreCase)).ToList();
         var pool = exact.Count > 0 ? exact : rates.Where(r => r.CountryCode == Fallback).ToList();
         return pool.FirstOrDefault(r => weightGrams >= r.MinWeightGrams && (r.MaxWeightGrams is null || weightGrams < r.MaxWeightGrams))?.Price;
@@ -125,12 +147,14 @@ public static class ShippingRates
     {
         foreach (var r in rates)
             if (r.MaxWeightGrams is { } max && max <= r.MinWeightGrams) return "A weight band must end above where it starts.";
-        foreach (var group in rates.GroupBy(r => r.CountryCode.ToUpperInvariant()))
+        if (rates.Any(r => r.ZoneId is not null) && rates.Any(r => r.ZoneId is null))
+            return "A method sets its rates by country or by zone, not both.";
+        foreach (var group in rates.GroupBy(r => r.ZoneId?.ToString() ?? (r.CountryCode ?? "").ToUpperInvariant()))
         {
             var ordered = group.OrderBy(r => r.MinWeightGrams).ToList();
             for (var i = 1; i < ordered.Count; i++)
                 if (ordered[i - 1].MaxWeightGrams is null || ordered[i - 1].MaxWeightGrams > ordered[i].MinWeightGrams)
-                    return $"The weight bands for {group.Key} overlap.";
+                    return $"The weight bands for {(group.First().ZoneId is null ? group.Key : "one zone")} overlap.";
         }
         return null;
     }
@@ -148,10 +172,11 @@ internal static class ShippingPricing
     }
 
     /// <summary>What the method charges for this destination and weight; null when it does not serve them.</summary>
-    public static async Task<decimal?> PriceAsync(PiranhaDbContext db, ShippingMethod method, string countryCode, long weightGrams, CancellationToken ct)
+    public static async Task<decimal?> PriceAsync(PiranhaDbContext db, ShippingMethod method, string countryCode, string? postalCode, long weightGrams, CancellationToken ct)
     {
         var rates = await db.Set<ShippingRate>().AsNoTracking().Where(r => r.ShippingMethodId == method.Id).ToListAsync(ct);
-        return ShippingRates.PriceFor(method, rates, countryCode, weightGrams);
+        var zone = rates.Any(r => r.ZoneId is not null) ? await ShippingZoneRules.ResolveAsync(db, countryCode, postalCode, ct) : null;
+        return ShippingRates.PriceFor(method, rates, countryCode, weightGrams, zone);
     }
 }
 
@@ -184,6 +209,9 @@ public sealed class QuoteInput
 {
     public Guid? ShippingMethodId { get; set; }
     [Required, RegularExpression("^[A-Za-z]{2}$")] public string CountryCode { get; set; } = "";
+
+    /// <summary>The delivery postcode, when known: it decides the zone for a method priced by zone (the Highlands, say). Without it the country as a whole is used.</summary>
+    [StringLength(20)] public string? PostalCode { get; set; }
 }
 
 /// <param name="TaxName">The rate name when everything taxed shares one, "Tax" when rates are mixed, null when nothing is taxed.</param>
@@ -328,8 +356,9 @@ internal sealed class ShippingService(PiranhaDbContext db) : IShippingService
     {
         if (!await db.Set<ShippingMethod>().AnyAsync(m => m.Id == id, ct)) return null;
         return await db.Set<ShippingRate>().AsNoTracking().Where(r => r.ShippingMethodId == id)
-            .OrderBy(r => r.CountryCode).ThenBy(r => r.MinWeightGrams).ThenBy(r => r.Id)
-            .Select(r => new ShippingRateDto(r.Id, r.CountryCode, r.MinWeightGrams, r.MaxWeightGrams, r.Price)).ToListAsync(ct);
+            .OrderBy(r => r.CountryCode).ThenBy(r => r.ZoneId).ThenBy(r => r.MinWeightGrams).ThenBy(r => r.Id)
+            .Select(r => new ShippingRateDto(r.Id, r.CountryCode ?? "", r.MinWeightGrams, r.MaxWeightGrams, r.Price, r.ZoneId,
+                r.ZoneId == null ? null : db.Set<ShippingZone>().Where(z => z.Id == r.ZoneId).Select(z => z.Name).FirstOrDefault())).ToListAsync(ct);
     }
 
     public async Task<IReadOnlyList<ShippingRateDto>?> SetRatesAsync(Guid id, ShippingRatesInput input, CancellationToken ct = default)
@@ -337,6 +366,9 @@ internal sealed class ShippingService(PiranhaDbContext db) : IShippingService
         if (input.Rates is null || input.Rates.Count > 200) throw new PiranhaValidationException(nameof(ShippingRatesInput.Rates), "Give at most 200 rates.");
         foreach (var r in input.Rates) ModelValidator.ValidateOrThrow(r); // the list is not walked by the validator, so each row is
         if (ShippingRates.Problem(input.Rates) is { } problem) throw new PiranhaValidationException(nameof(ShippingRatesInput.Rates), problem);
+        var zoneIds = input.Rates.Where(r => r.ZoneId is not null).Select(r => r.ZoneId!.Value).Distinct().ToList();
+        if (zoneIds.Count > 0 && await db.Set<ShippingZone>().CountAsync(z => zoneIds.Contains(z.Id), ct) != zoneIds.Count)
+            throw new PiranhaValidationException(nameof(ShippingRatesInput.Rates), "One of the zones does not exist.");
 
         var strategy = db.Database.CreateExecutionStrategy();
         var found = await strategy.ExecuteInTransactionAsync(
@@ -350,7 +382,7 @@ internal sealed class ShippingService(PiranhaDbContext db) : IShippingService
                 foreach (var r in input.Rates)
                     db.Add(new ShippingRate
                     {
-                        ShippingMethodId = id, CountryCode = r.CountryCode.ToUpperInvariant(), MinWeightGrams = r.MinWeightGrams,
+                        ShippingMethodId = id, CountryCode = r.ZoneId is null ? r.CountryCode!.ToUpperInvariant() : null, ZoneId = r.ZoneId, MinWeightGrams = r.MinWeightGrams,
                         MaxWeightGrams = r.MaxWeightGrams, Price = r.Price,
                     });
                 await db.SaveChangesAsync(token);

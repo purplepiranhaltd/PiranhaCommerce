@@ -53,8 +53,8 @@ internal sealed class EcommerceStorefrontEndpoints : IStorefrontEndpointContribu
         baskets.MapDelete("/{id:guid}/voucher", async (Guid id, ClaimsPrincipal user, IBasketService svc, CancellationToken ct) =>
             await svc.IsOwnedByAsync(id, user.CustomerId()!.Value, ct) && await svc.SetVoucherAsync(id, null, ct) is { } b ? Results.Ok(b) : Results.NotFound());
 
-        baskets.MapGet("/{id:guid}/shipping-options", async (Guid id, string countryCode, ClaimsPrincipal user, IBasketService svc, CancellationToken ct) =>
-            await svc.IsOwnedByAsync(id, user.CustomerId()!.Value, ct) && await svc.ShippingOptionsAsync(id, countryCode, ct) is { } o ? Results.Ok(o) : Results.NotFound());
+        baskets.MapGet("/{id:guid}/shipping-options", async (Guid id, string countryCode, string? postalCode, ClaimsPrincipal user, IBasketService svc, CancellationToken ct) =>
+            await svc.IsOwnedByAsync(id, user.CustomerId()!.Value, ct) && await svc.ShippingOptionsAsync(id, countryCode, postalCode, ct) is { } o ? Results.Ok(o) : Results.NotFound());
 
         baskets.MapPost("/{id:guid}/quote", async (Guid id, QuoteInput input, ClaimsPrincipal user, IBasketService svc, CancellationToken ct) =>
             await svc.IsOwnedByAsync(id, user.CustomerId()!.Value, ct) && await svc.QuoteAsync(id, input, ct) is { } q ? Results.Ok(q) : Results.NotFound());

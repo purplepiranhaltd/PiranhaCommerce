@@ -1,0 +1,109 @@
+@page "/admin/orders/shipping-carriers"
+@inject AdminScopeRunner Scope
+
+<PageTitle>Shipping carriers - Piranha Commerce</PageTitle>
+<h1>Shipping carriers</h1>
+<p class="pc-muted">
+    A carrier is a courier you send parcels with. When you record a parcel and choose its carrier, the carrier's name is kept with it and, if you give the tracking number, a tracking link is made
+    from the carrier's link below (put <code>{tracking}</code> where the number goes) and shown to the customer in the dispatch email. Parcels already sent keep their own copy, so changing or deleting a carrier is safe.
+</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+<div class="pc-card">
+    <EditForm Model="_input" OnValidSubmit="SaveAsync" FormName="carrier-edit">
+        <DataAnnotationsValidator />
+        <h2 style="margin-top:0">@(_editing is null ? "Add a carrier" : "Edit carrier")</h2>
+        <label>Name <InputText @bind-Value="_input.Name" /></label>
+        <ValidationMessage For="() => _input.Name" />
+        <label>Tracking link, with {tracking} (optional) <InputText @bind-Value="_input.TrackingUrlTemplate" placeholder="https://track.example/{tracking}" /></label>
+        <ValidationMessage For="() => _input.TrackingUrlTemplate" />
+        <label><InputCheckbox @bind-Value="_input.Active" /> Active (offered when recording a parcel)</label>
+        <button type="submit" disabled="@_busy">Save</button>
+        @if (_editing is not null) { <button type="button" class="secondary" @onclick="Reset">Cancel</button> }
+    </EditForm>
+</div>
+
+@if (_carriers is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_carriers.Count == 0)
+{
+    <p class="pc-muted" data-testid="no-carriers">No carriers yet.</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>Name</th><th>Tracking link</th><th>Active</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var c in _carriers)
+        {
+            <tr>
+                <td>@c.Name</td>
+                <td>@(c.TrackingUrlTemplate ?? "none")</td>
+                <td>@(c.Active ? "Yes" : "No")</td>
+                <td class="actions">
+                    <button class="secondary" @onclick="() => Edit(c)">Edit</button>
+                    @if (_confirmDelete == c.Id)
+                    {
+                        <button class="danger" @onclick="() => DeleteAsync(c.Id)">Confirm delete</button>
+                        <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
+                    }
+                    else
+                    {
+                        <button class="secondary" @onclick="() => _confirmDelete = c.Id">Delete</button>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IReadOnlyList<ShippingCarrierDto>? _carriers;
+    private ShippingCarrierInput _input = new();
+    private Guid? _editing, _confirmDelete;
+    private string? _error;
+    private bool _busy;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try { _carriers = await Scope.RunAsync<IShippingCarrierService, IReadOnlyList<ShippingCarrierDto>>(s => s.ListAsync(false)); }
+        catch (Exception ex) { _error = "Could not load carriers: " + ex.Message; }
+    }
+
+    private void Edit(ShippingCarrierDto c) { _editing = c.Id; _input = new ShippingCarrierInput { Name = c.Name, TrackingUrlTemplate = c.TrackingUrlTemplate, Active = c.Active }; }
+
+    private void Reset() { _editing = null; _input = new(); }
+
+    private async Task SaveAsync()
+    {
+        _busy = true; _error = null;
+        try
+        {
+            var input = _input;
+            if (_editing is { } id) { if (await Scope.RunAsync<IShippingCarrierService, ShippingCarrierDto?>(s => s.UpdateAsync(id, input)) is null) _error = "That carrier no longer exists."; }
+            else await Scope.RunAsync<IShippingCarrierService, ShippingCarrierDto>(s => s.CreateAsync(input));
+            if (_error is null) Reset();
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _error = "Could not save: " + ex.Message; }
+        finally { _busy = false; }
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        _confirmDelete = null; _error = null;
+        try { await Scope.RunAsync<IShippingCarrierService, bool>(s => s.DeleteAsync(id)); }
+        catch (Exception ex) { _error = "Could not delete: " + ex.Message; }
+        await LoadAsync();
+    }
+}

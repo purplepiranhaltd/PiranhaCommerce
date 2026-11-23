@@ -60,8 +60,8 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
                 await svc.SetVoucherAsync(id, null, ct) is { } b ? Results.Ok(b) : Results.NotFound())
             .RequireAuthorization(ApiPolicies.Write);
 
-        baskets.MapGet("/{id:guid}/shipping-options", async (Guid id, string countryCode, IBasketService svc, CancellationToken ct) =>
-            await svc.ShippingOptionsAsync(id, countryCode, ct) is { } o ? Results.Ok(o) : Results.NotFound());
+        baskets.MapGet("/{id:guid}/shipping-options", async (Guid id, string countryCode, string? postalCode, IBasketService svc, CancellationToken ct) =>
+            await svc.ShippingOptionsAsync(id, countryCode, postalCode, ct) is { } o ? Results.Ok(o) : Results.NotFound());
 
         baskets.MapPost("/{id:guid}/quote", async (Guid id, QuoteInput input, IBasketService svc, CancellationToken ct) =>
             await svc.QuoteAsync(id, input, ct) is { } q ? Results.Ok(q) : Results.NotFound());

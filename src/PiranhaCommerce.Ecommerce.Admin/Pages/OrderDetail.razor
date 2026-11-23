@@ -147,7 +147,19 @@ else
         }
         else if (_order.Stage == OrderStage.Processing)
         {
-            <label>Carrier (optional) <input type="text" maxlength="100" @bind="_carrier" /></label>
+            @if (_carriers.Count > 0)
+            {
+                <label>Carrier
+                    <select @bind="_carrierId" aria-label="Carrier">
+                        <option value="">Other (type it below)</option>
+                        @foreach (var c in _carriers) { <option value="@c.Id">@c.Name</option> }
+                    </select>
+                </label>
+            }
+            @if (_carrierId is null)
+            {
+                <label>Carrier (optional) <input type="text" maxlength="100" @bind="_carrier" /></label>
+            }
             <label>Tracking number (optional) <input type="text" maxlength="100" @bind="_trackingNumber" /></label>
             <label>Tracking link (optional, https://...) <input type="text" maxlength="500" @bind="_trackingUrl" /></label>
             <button type="button" disabled="@_busy" @onclick="SendChosenAsync">Send the quantities above</button>
@@ -399,6 +411,8 @@ else
     private readonly Dictionary<Guid, int> _sendQty = new();
     private readonly Dictionary<Guid, int> _returnQty = new();
     private readonly HashSet<Guid> _noRestock = new();
+    private IReadOnlyList<ShippingCarrierDto> _carriers = [];
+    private Guid? _carrierId;
     private string? _carrier, _trackingNumber, _trackingUrl, _returnReason, _returnNote, _returnNotice, _refundNotice;
     private bool _returnShipping;
     private List<PaymentDto> _refundable = [];
@@ -416,6 +430,7 @@ else
     protected override async Task OnParametersSetAsync()
     {
         _order = await Scope.RunAsync<IOrderService, OrderDto?>(s => s.GetAsync(Id));
+        _carriers = await Scope.RunAsync<IShippingCarrierService, IReadOnlyList<ShippingCarrierDto>>(s => s.ListAsync(true));
         _notFound = _order is null;
         if (_order is not null) await LoadPaymentsAsync();
     }
@@ -501,7 +516,7 @@ else
         {
             var actor = await Auth.GetActorAsync();
             await Scope.RunAsync<IFulfilmentService, ShipmentDto?>(s => s.ShipAsync(Id, input, actor));
-            _sendQty.Clear(); _carrier = _trackingNumber = _trackingUrl = null;
+            _sendQty.Clear(); _carrier = _trackingNumber = _trackingUrl = null; _carrierId = null;
         }
         catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
         catch (PiranhaConflictException ex) { _error = ex.Message; }
@@ -510,13 +525,13 @@ else
         await ReloadAsync();
     }
 
-    private Task SendAllAsync() => SendAsync(new ShipmentInput { Carrier = _carrier, TrackingNumber = _trackingNumber, TrackingUrl = _trackingUrl });
+    private Task SendAllAsync() => SendAsync(new ShipmentInput { CarrierId = _carrierId, Carrier = _carrier, TrackingNumber = _trackingNumber, TrackingUrl = _trackingUrl });
 
     private Task SendChosenAsync()
     {
         var lines = _sendQty.Where(kv => kv.Value > 0).Select(kv => new FulfilmentLineInput { OrderLineId = kv.Key, Quantity = kv.Value }).ToList();
         if (lines.Count == 0) { _error = "Enter how many of each item are in this parcel, or send everything left."; return Task.CompletedTask; }
-        return SendAsync(new ShipmentInput { Lines = lines, Carrier = _carrier, TrackingNumber = _trackingNumber, TrackingUrl = _trackingUrl });
+        return SendAsync(new ShipmentInput { Lines = lines, CarrierId = _carrierId, Carrier = _carrier, TrackingNumber = _trackingNumber, TrackingUrl = _trackingUrl });
     }
 
     private List<ReturnRequestDto>? _requests;

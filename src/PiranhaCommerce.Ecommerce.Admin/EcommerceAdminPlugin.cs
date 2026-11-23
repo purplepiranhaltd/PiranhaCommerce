@@ -33,6 +33,8 @@ internal sealed class EcommerceAdminMenu : IAdminMenuContributor
         new("orders.list", "All orders", "/admin/orders", Order: 16, ParentKey: "orders"),
         new("orders.reports", "Reports", "/admin/orders/reports", Order: 16, ParentKey: "orders"),
         new("orders.shipping", "Shipping methods", "/admin/orders/shipping", Order: 17, ParentKey: "orders"),
+        new("orders.shippingzones", "Shipping zones", "/admin/orders/shipping-zones", Order: 17, ParentKey: "orders"),
+        new("orders.shippingcarriers", "Shipping carriers", "/admin/orders/shipping-carriers", Order: 17, ParentKey: "orders"),
         new("orders.tax", "Tax", "/admin/orders/tax", Order: 18, ParentKey: "orders"),
         new("orders.promotions", "Promotions", "/admin/orders/promotions", Order: 19, ParentKey: "orders"),
         new("orders.discounts", "Discounts", "/admin/orders/discounts", Order: 19, ParentKey: "orders"),

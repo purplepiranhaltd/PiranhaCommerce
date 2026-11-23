@@ -2200,6 +2200,35 @@ namespace PiranhaCommerce.Web.Migrations
                     b.ToTable("ShipmentLine", "ecom");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.ShippingCarrier", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("TrackingUrlTemplate")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTimeOffset?>("UpdatedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ShippingCarrier", "ecom");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.ShippingMethod", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2243,7 +2272,6 @@ namespace PiranhaCommerce.Web.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("CountryCode")
-                        .IsRequired()
                         .HasMaxLength(2)
                         .HasColumnType("nvarchar(2)");
 
@@ -2260,11 +2288,70 @@ namespace PiranhaCommerce.Web.Migrations
                     b.Property<Guid>("ShippingMethodId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("ZoneId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("ZoneId");
 
                     b.HasIndex("ShippingMethodId", "CountryCode");
 
                     b.ToTable("ShippingRate", "ecom");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.ShippingZone", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("UpdatedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ShippingZone", "ecom");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.ShippingZoneRegion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CountryCode")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
+                    b.Property<string>("Prefix")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid>("ZoneId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ZoneId");
+
+                    b.HasIndex("CountryCode", "Prefix")
+                        .IsUnique();
+
+                    b.ToTable("ShippingZoneRegion", "ecom");
                 });
 
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.TaxClass", b =>
@@ -3278,6 +3365,20 @@ namespace PiranhaCommerce.Web.Migrations
                     b.HasOne("PiranhaCommerce.Ecommerce.ShippingMethod", null)
                         .WithMany()
                         .HasForeignKey("ShippingMethodId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PiranhaCommerce.Ecommerce.ShippingZone", null)
+                        .WithMany()
+                        .HasForeignKey("ZoneId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.ShippingZoneRegion", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Ecommerce.ShippingZone", null)
+                        .WithMany()
+                        .HasForeignKey("ZoneId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

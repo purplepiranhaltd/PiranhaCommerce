@@ -1,0 +1,128 @@
+@page "/admin/orders/shipping-zones"
+@inject AdminScopeRunner Scope
+
+<PageTitle>Shipping zones - Piranha Commerce</PageTitle>
+<h1>Shipping zones</h1>
+<p class="pc-muted">
+    A zone is a part of the world that a shipping method prices as one: some countries, or only some postcode areas of a country (the Highlands and Islands, Northern Ireland).
+    A destination is in one zone only: the zone with the longest matching postcode start, else the one that holds its whole country, else the one for "everywhere else" (country *).
+    Then give each shipping method a rate per zone. One line per country, with the postcode starts separated by commas (BT, IV, HS). Letters on their own match only when a digit follows,
+    so B means B1 to B99 (Birmingham) and not BA, BB or BT. Leave the postcode starts empty for the whole country.
+</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+<div class="pc-card">
+    <EditForm Model="_input" OnValidSubmit="SaveAsync" FormName="zone-edit">
+        <DataAnnotationsValidator />
+        <h2 style="margin-top:0">@(_editing is null ? "Add a zone" : "Edit zone")</h2>
+        <label>Name <InputText @bind-Value="_input.Name" /></label>
+        <ValidationMessage For="() => _input.Name" />
+        <label>Position (lower is listed first) <InputNumber @bind-Value="_input.Position" /></label>
+        <label>Countries and postcode starts, one country per line, such as <code>GB: IV, HS, KW</code> or <code>FR</code> or <code>*</code>
+            <textarea rows="6" @bind="_text" aria-label="Regions"></textarea>
+        </label>
+        <button type="submit" disabled="@_busy">Save</button>
+        @if (_editing is not null) { <button type="button" class="secondary" @onclick="Reset">Cancel</button> }
+    </EditForm>
+</div>
+
+@if (_zones is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_zones.Count == 0)
+{
+    <p class="pc-muted" data-testid="no-zones">No zones yet.</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>Zone</th><th>Where</th><th>Rates</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var z in _zones)
+        {
+            <tr>
+                <td>@z.Name</td>
+                <td>@string.Join("; ", z.Regions.Select(r => r.CountryCode == "*" ? "everywhere else" : r.PostcodePrefixes.Count == 0 ? r.CountryCode : r.CountryCode + " " + string.Join(", ", r.PostcodePrefixes)))</td>
+                <td>@z.RateCount</td>
+                <td class="actions">
+                    <button class="secondary" @onclick="() => Edit(z)">Edit</button>
+                    @if (_confirmDelete == z.Id)
+                    {
+                        <button class="danger" @onclick="() => DeleteAsync(z.Id)">Confirm delete</button>
+                        <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
+                    }
+                    else
+                    {
+                        <button class="secondary" @onclick="() => _confirmDelete = z.Id">Delete</button>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IReadOnlyList<ShippingZoneDto>? _zones;
+    private ShippingZoneInput _input = new();
+    private string _text = "";
+    private Guid? _editing, _confirmDelete;
+    private string? _error;
+    private bool _busy;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try { _zones = await Scope.RunAsync<IShippingZoneService, IReadOnlyList<ShippingZoneDto>>(s => s.ListAsync()); }
+        catch (Exception ex) { _error = "Could not load zones: " + ex.Message; }
+    }
+
+    private void Edit(ShippingZoneDto z)
+    {
+        _editing = z.Id;
+        _input = new ShippingZoneInput { Name = z.Name, Position = z.Position };
+        _text = string.Join("\n", z.Regions.Select(r => r.PostcodePrefixes.Count == 0 ? r.CountryCode : r.CountryCode + ": " + string.Join(", ", r.PostcodePrefixes)));
+    }
+
+    private void Reset() { _editing = null; _input = new(); _text = ""; }
+
+    private async Task SaveAsync()
+    {
+        _busy = true; _error = null;
+        try
+        {
+            _input.Regions = _text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(line =>
+            {
+                var parts = line.Split(':', 2);
+                return new ShippingZoneRegionInput
+                {
+                    CountryCode = parts[0].Trim(),
+                    PostcodePrefixes = parts.Length < 2 ? [] : parts[1].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
+                };
+            }).ToList();
+            var input = _input;
+            if (_editing is { } id) { if (await Scope.RunAsync<IShippingZoneService, ShippingZoneDto?>(s => s.UpdateAsync(id, input)) is null) _error = "That zone no longer exists."; }
+            else await Scope.RunAsync<IShippingZoneService, ShippingZoneDto>(s => s.CreateAsync(input));
+            if (_error is null) Reset();
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _error = "Could not save: " + ex.Message; }
+        finally { _busy = false; }
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        _confirmDelete = null; _error = null;
+        try { await Scope.RunAsync<IShippingZoneService, bool>(s => s.DeleteAsync(id)); }
+        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (Exception ex) { _error = "Could not delete: " + ex.Message; }
+        await LoadAsync();
+    }
+}

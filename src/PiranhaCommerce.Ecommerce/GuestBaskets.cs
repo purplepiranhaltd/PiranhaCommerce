@@ -140,8 +140,8 @@ internal sealed class GuestStorefrontEndpoints : IStorefrontEndpointContributor
         guest.MapDelete("/{id:guid}/voucher", async (Guid id, IBasketService svc, IGuestBasketService guests, CancellationToken ct) =>
             await guests.IsGuestBasketAsync(id, ct) && await svc.SetVoucherAsync(id, null, ct) is { } b ? Results.Ok(b) : Results.NotFound());
 
-        guest.MapGet("/{id:guid}/shipping-options", async (Guid id, string countryCode, IBasketService svc, IGuestBasketService guests, CancellationToken ct) =>
-            await guests.IsGuestBasketAsync(id, ct) && await svc.ShippingOptionsAsync(id, countryCode, ct) is { } o ? Results.Ok(o) : Results.NotFound());
+        guest.MapGet("/{id:guid}/shipping-options", async (Guid id, string countryCode, string? postalCode, IBasketService svc, IGuestBasketService guests, CancellationToken ct) =>
+            await guests.IsGuestBasketAsync(id, ct) && await svc.ShippingOptionsAsync(id, countryCode, postalCode, ct) is { } o ? Results.Ok(o) : Results.NotFound());
 
         guest.MapPost("/{id:guid}/quote", async (Guid id, QuoteInput input, IBasketService svc, IGuestBasketService guests, CancellationToken ct) =>
             await guests.IsGuestBasketAsync(id, ct) && await svc.QuoteAsync(id, input, ct) is { } q ? Results.Ok(q) : Results.NotFound());

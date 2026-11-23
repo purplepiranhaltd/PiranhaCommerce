@@ -175,7 +175,7 @@ internal sealed partial class OrderService(
                     if (method is not null)
                     {
                         var weight = await ShippingPricing.WeightAsync(db, lines.Select(l => (l.Id, l.Quantity)).ToList(), token);
-                        shippingPrice = await ShippingPricing.PriceAsync(db, method, country, weight, token)
+                        shippingPrice = await ShippingPricing.PriceAsync(db, method, country, input.ShippingAddress.PostalCode, weight, token)
                             ?? throw new PiranhaValidationException(nameof(CheckoutInput.ShippingMethodId), "That shipping method is not available for this destination and basket.");
                     }
 

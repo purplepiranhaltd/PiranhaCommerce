@@ -540,6 +540,16 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   `GET /baskets/{id}/shipping-options?countryCode=GB` (also under `/storefront/baskets`), which lists what a basket can use with what each costs now. A
   method's "free when the basket reaches" still applies on top of a rate. Rates are replaced as a whole set (a PUT; an empty list goes back to the flat
   price) and bands for one country may not overlap. A product's weight is part of its listing, so a PUT of the listing without it clears it.
+- **Shipping zones and carriers** (`/shipping-zones`, `/shipping-carriers`, admin: Orders > Shipping zones and Shipping carriers): a zone groups countries, or
+  only some postcode areas of a country (`GB` with `IV, HS, KW` for the Highlands; `GB` with `BT` for Northern Ireland; `*` for everywhere else). A destination is
+  in one zone only (a country and postcode start can be in just one) and is resolved by the longest matching postcode start, then the zone holding its whole
+  country, then the `*` zone. Postcodes are compared in upper case without spaces, and a start of letters only matches when a digit follows, so `B` means B1 to B99
+  and not BA, BB or BT (write `BT`). A rate row gives a `zoneId` instead of a `countryCode`; a method uses countries or zones, never both, and a method priced by
+  zone serves only the zones it has rows for (it never falls back to a neighbouring zone's price). A zone that rates use cannot be deleted. Pass the delivery
+  `postalCode` to a quote (`QuoteInput`) and to `shipping-options` (query `postalCode`); checkout uses the shipping address's postcode, and with no postcode the
+  country as a whole is used. A carrier has a name and an optional tracking link containing `{tracking}`; give `carrierId` when recording a shipment and its name
+  and a tracking link built from the number are kept on the parcel (a `trackingUrl` you give wins; free-text carrier still works; deleting a carrier leaves sent
+  parcels as they were). Not built: rates by basket value or item count, live carrier rates, labels, pick-up in store, delivery dates, dimensional weight.
 - **Verified email** (`Piranha:Customers:RequireVerifiedEmail`, off by default): when on, registering returns 202 with no token and emails a link
   (template `customer.verify-email`, page set by `VerifyUrlTemplate`, lasts `VerifyTokenMinutes`, default a day); the shopper posts it to
   `/storefront/auth/verify-email` and can ask for another at `/auth/resend-verification` (silent, hourly limit counted apart from password

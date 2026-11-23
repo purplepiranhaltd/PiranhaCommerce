@@ -14,7 +14,7 @@ public interface IBasketService
     Task<BasketDto?> GetAsync(Guid basketId, CancellationToken ct = default);
 
     /// <summary>The shipping methods this basket can use for a destination country, with what each would cost now (after any free-over rule). Null when the basket does not exist.</summary>
-    Task<IReadOnlyList<ShippingOptionDto>?> ShippingOptionsAsync(Guid basketId, string countryCode, CancellationToken ct = default);
+    Task<IReadOnlyList<ShippingOptionDto>?> ShippingOptionsAsync(Guid basketId, string countryCode, string? postalCode = null, CancellationToken ct = default);
 
     /// <summary>
     /// Puts a promo code on an open basket (null or blank removes it). A code that does not exist, is off, outside its dates or used up
@@ -202,7 +202,7 @@ internal sealed partial class BasketService(PiranhaDbContext db, ICustomerServic
         db.Set<Basket>().Where(b => b.Id == basketId && b.Status == BasketStatus.Open)
             .ExecuteUpdateAsync(s => s.SetProperty(b => b.UpdatedUtc, (DateTimeOffset?)DateTimeOffset.UtcNow), ct);
 
-    public async Task<IReadOnlyList<ShippingOptionDto>?> ShippingOptionsAsync(Guid basketId, string countryCode, CancellationToken ct = default)
+    public async Task<IReadOnlyList<ShippingOptionDto>?> ShippingOptionsAsync(Guid basketId, string countryCode, string? postalCode = null, CancellationToken ct = default)
     {
         if (!System.Text.RegularExpressions.Regex.IsMatch(countryCode ?? "", "^[A-Za-z]{2}$"))
             throw new PiranhaValidationException("CountryCode", "Use a two-letter country code such as GB.");
@@ -214,7 +214,7 @@ internal sealed partial class BasketService(PiranhaDbContext db, ICustomerServic
         {
             try
             {
-                var quote = await QuoteAsync(basketId, new QuoteInput { ShippingMethodId = m.Id, CountryCode = countryCode! }, ct);
+                var quote = await QuoteAsync(basketId, new QuoteInput { ShippingMethodId = m.Id, CountryCode = countryCode!, PostalCode = postalCode }, ct);
                 if (quote is null) return null;
                 options.Add(new ShippingOptionDto(m.Id, m.Name, quote.ShippingTotal));
             }
@@ -240,7 +240,7 @@ internal sealed partial class BasketService(PiranhaDbContext db, ICustomerServic
         if (method is not null)
         {
             var weight = await ShippingPricing.WeightAsync(db, basket.Lines.Select(l => (l.ProductId, l.Quantity)).ToList(), ct);
-            shippingPrice = await ShippingPricing.PriceAsync(db, method, input.CountryCode.ToUpperInvariant(), weight, ct)
+            shippingPrice = await ShippingPricing.PriceAsync(db, method, input.CountryCode.ToUpperInvariant(), input.PostalCode, weight, ct)
                 ?? throw new PiranhaValidationException(nameof(QuoteInput.ShippingMethodId), "That shipping method is not available for this destination and basket.");
         }
 
