@@ -9,6 +9,7 @@ using PiranhaCommerce.Data.SqlServer;
 using PiranhaCommerce.Ecommerce;
 using PiranhaCommerce.Ecommerce.Admin;
 using PiranhaCommerce.Example.Warranty;
+using PiranhaCommerce.Web.SampleData;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -47,6 +48,9 @@ piranha
     .AddPlugin<PiranhaCommerce.Imaging.Skia.SkiaImagingPlugin>() // makes sizes of product images
     .AddPlugin<WarrantyPlugin>();
 
+builder.Services.Configure<SampleDataOptions>(builder.Configuration.GetSection(SampleDataOptions.SectionName));
+builder.Services.AddSingleton<SampleDataSeeder>();
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment() && !EF.IsDesignTime) // EF tooling executes Program.cs too
@@ -58,6 +62,10 @@ if (app.Environment.IsDevelopment() && !EF.IsDesignTime) // EF tooling executes 
     var seed = app.Configuration.GetSection("Piranha:SeedAdmin");
     if (seed["Email"] is { Length: > 0 } email && seed["Password"] is { Length: > 0 } password)
         await app.Services.EnsureAdministratorAsync(email, password);
+
+    // The sample shop's catalogue (Piranha:SampleData:Enabled). Only ever in Development.
+    if (app.Configuration.GetValue<bool>($"{SampleDataOptions.SectionName}:Enabled"))
+        await app.Services.GetRequiredService<SampleDataSeeder>().SeedAsync();
 }
 
 app.UseStaticFiles();

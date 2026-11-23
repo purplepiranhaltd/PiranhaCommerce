@@ -31,6 +31,9 @@ public class PiranhaFactory: WebApplicationFactory<Program>, IAsyncLifetime
     // PIRANHA_TEST_SQLSERVER_DATABASE=<name> runs against that EXISTING database and never drops it (for servers where the test
     // login cannot create databases, e.g. Azure SQL). The tests then leave their rows behind: use a disposable dev database.
     private static readonly string? ExistingDatabase = Environment.GetEnvironmentVariable("PIRANHA_TEST_SQLSERVER_DATABASE");
+
+    /// <summary>True when every test class shares one existing database (so a test must not change store-wide settings such as tax rules).</summary>
+    public static bool UsesSharedDatabase => ExistingDatabase is not null;
     private readonly string _database = ExistingDatabase is { Length: > 0 } ? ExistingDatabase : $"PiranhaTests_{Guid.NewGuid():N}";
 
     private string ConnectionString
@@ -60,6 +63,7 @@ public class PiranhaFactory: WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("Piranha:RateLimit:SignInAttempts", SignInAttempts.ToString());
         builder.UseSetting("Piranha:Storage:LocalDisk:Path", FilesFolder);
         builder.UseSetting("Piranha:Ecommerce:StockAlertPollSeconds", "0"); // tests run the notifier themselves
+        builder.UseSetting("Piranha:SampleData:Enabled", "false"); // the tests share one database and count what is in it
         builder.UseSetting("Piranha:Webhooks:PollSeconds", "0"); // tests drive the sender themselves; the background one must not post anywhere
         if (AlertEmail is { } alert) builder.UseSetting("Piranha:Ecommerce:AlertEmail", alert);
         foreach (var (key, value) in ExtraSettings) builder.UseSetting(key, value);
