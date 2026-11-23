@@ -1924,6 +1924,34 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.ToTable("ProductPriceBreak", "ecom");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.ProductRelation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RelatedProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RelatedProductId");
+
+                    b.HasIndex("ProductId", "Kind", "RelatedProductId")
+                        .IsUnique();
+
+                    b.ToTable("ProductRelation", "ecom");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.ProductReview", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3400,6 +3428,15 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                         .HasForeignKey("GroupId")
                         .OnDelete(DeleteBehavior.Cascade);
 
+                    b.HasOne("PiranhaCommerce.Catalog.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.ProductRelation", b =>
+                {
                     b.HasOne("PiranhaCommerce.Catalog.Product", null)
                         .WithMany()
                         .HasForeignKey("ProductId")

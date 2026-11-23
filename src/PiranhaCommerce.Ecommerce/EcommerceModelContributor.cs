@@ -280,6 +280,13 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.HasOne<PiranhaCommerce.Catalog.Product>().WithMany().HasForeignKey(i => i.ProductId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<PiranhaCommerce.Customers.Customer>().WithMany().HasForeignKey(i => i.CustomerId).OnDelete(DeleteBehavior.Cascade);
         });
+        b.Entity<ProductRelation>(e =>
+        {
+            e.ToTable("ProductRelation", Schema);
+            e.HasIndex(r => new { r.ProductId, r.Kind, r.RelatedProductId }).IsUnique();
+            e.HasIndex(r => r.RelatedProductId);
+            e.HasOne<PiranhaCommerce.Catalog.Product>().WithMany().HasForeignKey(r => r.ProductId).OnDelete(DeleteBehavior.Cascade);
+        });
         b.Entity<ShippingCarrier>(e =>
         {
             e.ToTable("ShippingCarrier", Schema);

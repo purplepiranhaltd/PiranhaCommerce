@@ -556,6 +556,12 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   a signed-in shopper saves products (a simple product or one chosen variant) to come back to. Only products on sale can be saved; saving one already saved is a quiet success; a list holds up to 200.
   Each item shows the current price and the price when it was saved, whether it is still on sale (`published`) and whether it can be bought now (`available`: on sale and in stock where online orders take
   it from), so a shopper sees changes. A list is private to its owner, exported with the customer and deleted when they are erased.
+- **Related and cross-sell products** (staff `GET/PUT /products/{id}/relations`, admin: the "Related and cross-sell products" panel on a product; shoppers `GET /storefront/products/{id}/suggestions`
+  and `GET /storefront/cross-sell?productIds=...`): staff choose, in order and at most 20 each, products to suggest on a product's page (related) and products to suggest when it is in the basket
+  (cross-sell). A PUT replaces both lists; a product cannot be suggested for itself, twice in a list, or as a variant (suggestions belong to the main product, and a variant's page shows its parent's).
+  A suggestion goes one way only. Shoppers see only products on sale, each with its price and whether it can be bought now (`available`). The basket call takes the product ids in the basket (the shop
+  front knows them, so guest and signed-in baskets work alike) and returns the cross-sell products of all of them that are on sale, leaving out anything already there, those suggested by the most
+  products first, at most 12.
 - **Shipping zones and carriers** (`/shipping-zones`, `/shipping-carriers`, admin: Orders > Shipping zones and Shipping carriers): a zone groups countries, or
   only some postcode areas of a country (`GB` with `IV, HS, KW` for the Highlands; `GB` with `BT` for Northern Ireland; `*` for everywhere else). A destination is
   in one zone only (a country and postcode start can be in just one) and is resolved by the longest matching postcode start, then the zone holding its whole

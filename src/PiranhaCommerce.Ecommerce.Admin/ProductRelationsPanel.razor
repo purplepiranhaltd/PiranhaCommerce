@@ -1,0 +1,134 @@
+@* Panel for AdminSlots.ProductEditPanels; the slot supplies ProductId. Saves independently of the product form. *@
+@using PiranhaCommerce.Catalog
+@using PiranhaCommerce.Core.Validation
+<div class="pc-card" style="margin-top:1rem">
+    <h2 style="margin-top:0">Related and cross-sell products</h2>
+    <p class="pc-muted">
+        <strong>Related</strong> products are suggested on this product's page ("you may also like").
+        <strong>Cross-sell</strong> products are suggested when this product is in the basket (a case for the phone).
+        Each list is in the order shown, at most 20. A suggestion goes one way only. Shoppers are shown only products that are on sale.
+    </p>
+    @if (_loading)
+    {
+        <p class="pc-muted">Loading...</p>
+    }
+    else if (_related is null || _cross is null)
+    {
+        <p class="pc-error">Could not load the suggestions for this product.</p>
+    }
+    else
+    {
+        <div class="pc-card">
+            <label>Find a product to suggest
+                <input type="search" aria-label="Find a product" @bind="_search" @bind:event="oninput" @bind:after="SearchAsync" placeholder="Name or SKU" />
+            </label>
+            @if (_hits.Count > 0)
+            {
+                <ul>
+                    @foreach (var h in _hits)
+                    {
+                        var hit = h;
+                        <li>
+                            @hit.Name (@hit.Sku)
+                            <button type="button" class="secondary" disabled="@(_related.Count >= 20 || _related.Any(r => r.Id == hit.Id))" @onclick="() => AddTo(_related, hit)">Add to related</button>
+                            <button type="button" class="secondary" disabled="@(_cross.Count >= 20 || _cross.Any(r => r.Id == hit.Id))" @onclick="() => AddTo(_cross, hit)">Add to cross-sell</button>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+
+        @RenderList("Related products", _related, "no-related")
+        @RenderList("Cross-sell products", _cross, "no-cross-sell")
+
+        <button type="button" disabled="@_busy" @onclick="SaveAsync">Save suggestions</button>
+        @if (_message is not null) { <p class="@(_failed ? "pc-error" : "pc-muted")" role="status">@_message</p> }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Guid ProductId { get; set; }
+    [Inject] private AdminScopeRunner Scope { get; set; } = default!;
+
+    private sealed record Item(Guid Id, string Name, string? Sku, bool Published);
+
+    private List<Item>? _related, _cross;
+    private List<Item> _hits = [];
+    private string _search = "";
+    private bool _loading = true, _busy, _failed;
+    private string? _message;
+    private Guid _loadedFor;
+
+    private RenderFragment RenderList(string title, List<Item> list, string emptyId) => __builder =>
+    {
+        <h3>@title</h3>
+        if (list.Count == 0) { <p class="pc-muted" data-testid="@emptyId">None yet.</p> }
+        else
+        {
+            <table class="pc-table">
+                <tbody>
+                @for (var i = 0; i < list.Count; i++)
+                {
+                    var index = i;
+                    var item = list[i];
+                    <tr>
+                        <td>@item.Name @(string.IsNullOrEmpty(item.Sku) ? "" : $"({item.Sku})") @(item.Published ? "" : "- not on sale")</td>
+                        <td class="actions">
+                            <button type="button" class="secondary" disabled="@(index == 0)" aria-label="Move up" @onclick="() => Move(list, index, -1)">Up</button>
+                            <button type="button" class="secondary" disabled="@(index == list.Count - 1)" aria-label="Move down" @onclick="() => Move(list, index, 1)">Down</button>
+                            <button type="button" class="secondary" @onclick="() => list.Remove(item)">Remove</button>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedFor == ProductId) return;
+        _loadedFor = ProductId;
+        _loading = true; _message = null;
+        var id = ProductId;
+        var dto = await Scope.RunAsync<IProductRelationService, ProductRelationsDto?>(s => s.GetAsync(id));
+        _related = dto?.Related.Select(r => new Item(r.ProductId, r.Name, r.Sku, r.Published)).ToList();
+        _cross = dto?.CrossSell.Select(r => new Item(r.ProductId, r.Name, r.Sku, r.Published)).ToList();
+        _loading = false;
+    }
+
+    private async Task SearchAsync()
+    {
+        var text = _search.Trim();
+        if (text.Length < 2) { _hits = []; return; }
+        var page = await Scope.RunAsync<IProductService, PiranhaCommerce.Core.Paging.PagedResult<ProductDto>>(s => s.ListAsync(1, 8, text));
+        _hits = page.Items.Where(p => p.Id != ProductId).Select(p => new Item(p.Id, p.Name, p.Sku, true)).ToList();
+    }
+
+    private static void AddTo(List<Item> list, Item item) { if (list.All(i => i.Id != item.Id)) list.Add(item); }
+
+    private static void Move(List<Item> list, int index, int by)
+    {
+        var to = index + by;
+        if (to < 0 || to >= list.Count) return;
+        (list[index], list[to]) = (list[to], list[index]);
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true; _message = null; _failed = false;
+        try
+        {
+            var id = ProductId;
+            var input = new ProductRelationsInput { Related = _related!.Select(i => i.Id).ToList(), CrossSell = _cross!.Select(i => i.Id).ToList() };
+            var saved = await Scope.RunAsync<IProductRelationService, ProductRelationsDto?>(s => s.SetAsync(id, input));
+            if (saved is null) { _failed = true; _message = "The product no longer exists."; return; }
+            _related = saved.Related.Select(r => new Item(r.ProductId, r.Name, r.Sku, r.Published)).ToList();
+            _cross = saved.CrossSell.Select(r => new Item(r.ProductId, r.Name, r.Sku, r.Published)).ToList();
+            _message = "Saved.";
+        }
+        catch (PiranhaValidationException ex) { _failed = true; _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _failed = true; _message = "Could not save: " + ex.Message; }
+        finally { _busy = false; }
+    }
+}

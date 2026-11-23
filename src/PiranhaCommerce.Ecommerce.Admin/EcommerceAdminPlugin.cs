@@ -53,5 +53,5 @@ internal sealed class EcommerceAdminMenu : IAdminMenuContributor
 internal sealed class EcommerceSlotItems : IAdminSlotContributor
 {
     public IEnumerable<AdminSlotItem> GetItems() =>
-        [new(AdminSlots.ProductEditPanels, typeof(ProductListingPanel), Order: 10), new(AdminSlots.ProductEditPanels, typeof(ProductGroupPricesPanel), Order: 11), new(AdminSlots.ProductEditPanels, typeof(ProductPriceBreaksPanel), Order: 12)];
+        [new(AdminSlots.ProductEditPanels, typeof(ProductListingPanel), Order: 10), new(AdminSlots.ProductEditPanels, typeof(ProductGroupPricesPanel), Order: 11), new(AdminSlots.ProductEditPanels, typeof(ProductPriceBreaksPanel), Order: 12), new(AdminSlots.ProductEditPanels, typeof(ProductRelationsPanel), Order: 13)];
 }

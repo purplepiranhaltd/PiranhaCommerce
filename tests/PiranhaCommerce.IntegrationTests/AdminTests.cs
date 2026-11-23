@@ -146,6 +146,7 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
         Assert.Contains("<h2 style=\"margin-top:0\">Options and variants</h2>", existing);
         Assert.Contains("<h2 style=\"margin-top:0\">Pictures</h2>", existing);
         Assert.Contains("<h2 style=\"margin-top:0\">Quantity prices</h2>", existing);
+        Assert.Contains("<h2 style=\"margin-top:0\">Related and cross-sell products</h2>", existing);
         var transfer = await (await browser.GetAsync("/admin/catalog/import-export")).Content.ReadAsStringAsync();
         Assert.Contains("Download CSV", transfer);
         Assert.Contains("Check the file", transfer);
