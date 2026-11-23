@@ -121,6 +121,12 @@ else
                 @if (_product.MinOrderQuantity is > 1) { <p class="muted">Minimum order: @_product.MinOrderQuantity</p> }
 
                 @foreach (var line in (_product.Description ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries)) { <p>@line</p> }
+                @if (_product.Specs is { Count: > 0 } specs)
+                {
+                    <table class="specs" aria-label="Specifications">
+                        @foreach (var spec in specs) { <tr><th scope="row">@spec.Name</th><td>@string.Join(", ", spec.Values)</td></tr> }
+                    </table>
+                }
                 @if (_product.Sku is not null) { <p class="muted">Code: @(_selected?.Sku ?? _product.Sku)</p> }
             </div>
         </div>

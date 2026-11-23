@@ -110,6 +110,38 @@ internal static class SampleCatalogue
         new("fern-and-ash", "Fern & Ash", "Gentle, simple skincare."),
     ];
 
+    /// <summary>The facts the shop records about products: each with its fixed list of answers. Shoppers filter by those marked filterable.</summary>
+    public sealed record SampleSpec(string Name, bool Filterable, params string[] Values);
+
+    public static readonly IReadOnlyList<SampleSpec> Specs =
+    [
+        new("Finish", true, "Matte", "Satin", "Glossy", "Shimmer", "Dewy"),
+        new("Coverage", true, "Sheer", "Medium", "Full"),
+        new("Skin type", true, "All skin types", "Dry", "Oily", "Combination", "Sensitive"),
+        new("Vegan", true, "Yes"),
+        new("Key ingredient", false, "Shea butter", "Hyaluronic acid", "Vitamin C", "Mineral SPF"),
+    ];
+
+    /// <summary>The answers each product has, by product slug: attribute name, then its values.</summary>
+    public static readonly IReadOnlyDictionary<string, (string Attribute, string[] Values)[]> SpecsOf = new Dictionary<string, (string, string[])[]>
+    {
+        ["velvet-matte-lipstick"] = [("Finish", ["Matte"]), ("Vegan", ["Yes"]), ("Key ingredient", ["Shea butter"])],
+        ["satin-cream-lipstick"] = [("Finish", ["Satin"]), ("Key ingredient", ["Shea butter"])],
+        ["hydra-shine-lip-gloss"] = [("Finish", ["Glossy"]), ("Vegan", ["Yes"])],
+        ["precision-lip-liner"] = [("Finish", ["Matte"]), ("Vegan", ["Yes"])],
+        ["lash-lift-mascara"] = [("Finish", ["Matte"]), ("Vegan", ["Yes"])],
+        ["sunset-eyeshadow-palette"] = [("Finish", ["Matte", "Shimmer"])],
+        ["smoky-nights-eyeshadow-palette"] = [("Finish", ["Matte", "Shimmer"]), ("Vegan", ["Yes"])],
+        ["rose-quartz-eyeshadow-palette"] = [("Finish", ["Satin", "Shimmer"])],
+        ["skin-glow-foundation"] = [("Finish", ["Dewy"]), ("Coverage", ["Medium"]), ("Skin type", ["Dry", "Combination"])],
+        ["cheek-bloom-blush"] = [("Finish", ["Satin"]), ("Coverage", ["Sheer"]), ("Vegan", ["Yes"])],
+        ["luminous-highlighter"] = [("Finish", ["Shimmer", "Dewy"]), ("Coverage", ["Sheer"])],
+        ["gentle-cream-cleanser"] = [("Skin type", ["All skin types"]), ("Vegan", ["Yes"])],
+        ["daily-moisture-cream"] = [("Skin type", ["Dry", "Sensitive"]), ("Key ingredient", ["Hyaluronic acid"]), ("Vegan", ["Yes"])],
+        ["vitamin-c-serum"] = [("Skin type", ["All skin types"]), ("Key ingredient", ["Vitamin C"])],
+        ["spf-30-daily-fluid"] = [("Skin type", ["Oily", "Combination"]), ("Key ingredient", ["Mineral SPF"]), ("Vegan", ["Yes"])],
+    };
+
     /// <summary>Which label each product belongs to, by product slug then brand slug.</summary>
     public static readonly IReadOnlyDictionary<string, string> BrandOf = new Dictionary<string, string>
     {

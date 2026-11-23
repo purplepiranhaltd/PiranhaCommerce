@@ -20,7 +20,7 @@ Only categories that are switched on and products that are **published** appear.
 
 `GET /storefront/brands` lists the brands that are switched on and have something on sale, with `name`, `slug`, `description` and `productCount`.
 
-`GET /storefront/products/facets` takes the same query as the product list and returns the filters a shopper can still use, each with its values and counts. Today there is one, `brand`. Every value is counted with all the *other* filters applied but not its own, so choosing one brand still shows how many each alternative would give. Within one filter a shopper's choices are "any of"; across filters they are "all of". A chosen value stays in the list even when its count is 0, so it can be unticked.
+`GET /storefront/products/facets` takes the same query as the product list and returns the filters a shopper can still use, each with its values and counts. There is a `brand` facet, and one for each filterable specification attribute (`key` is `spec` and `attribute` names which). Every value is counted with all the *other* filters applied but not its own, so choosing one brand still shows how many each alternative would give. Within one filter a shopper's choices are "any of"; across filters they are "all of". A chosen value stays in the list even when its count is 0, so it can be unticked.
 
 ## Products
 
@@ -33,6 +33,7 @@ Only categories that are switched on and products that are **published** appear.
 | `sort` | `Name` (default), `PriceLowToHigh`, `PriceHighToLow` or `Newest`. Price sorting uses the regular price. |
 | `minPrice`, `maxPrice` | Limits on the regular price. |
 | `inStock` | `true` for only products that can be bought now. |
+| `spec` | A specification value as `attribute:value` slugs, for example `finish:matte`. Repeat it. Values of one attribute are alternatives (any of them); different attributes all apply, so `finish:matte&spec=skin-type:dry` gives products that are both. An unknown attribute, or one that is not filterable, is ignored. An unknown value of a known attribute matches nothing, unless another value of that attribute is known. |
 | `brand` | A brand slug. Repeat it for several brands: a product matching any of them is listed. A name nobody stocks matches nothing. |
 | `page`, `pageSize` | Paging. The answer has `items`, `page`, `pageSize`, `totalCount`. |
 | `countryCode` | The destination, for tax-inclusive prices. The shop's home country is used when empty. |
@@ -46,6 +47,8 @@ For a product that comes in options, `price` is the **cheapest published variant
 `GET /storefront/products/{id}` or `GET /storefront/products/by-slug/{slug}` returns the whole page: description, page-title and meta text, price, all pictures in order, the categories it is in, order limits (`minOrderQuantity`, `maxOrderQuantity`), the review totals and, for a product with options, `options` (each with its values in order) and `variants`.
 
 Each variant has its own `productId` (this is what you add to a basket), `name`, `sku`, the chosen `values`, `price`, `available`, `left` and its own `images` (empty means use the product's). Give the id of a variant and you get its parent, with `selectedVariantId` set, so a link to one shade opens the right page with that shade chosen.
+
+The page also carries the product's `brand` and its `specs`: a table of lines, each an attribute `name`, its `slug` and the `values` the product has (every attribute with values, whether or not it can be filtered).
 
 A product that does not exist, or is not published, is a `404`.
 

@@ -53,6 +53,37 @@ internal sealed class CatalogModelContributor : IModelContributor
         b.Entity<Product>().HasOne<Brand>().WithMany().HasForeignKey(p => p.BrandId).OnDelete(DeleteBehavior.Restrict);
         b.Entity<Product>().HasIndex(p => p.BrandId);
 
+        b.Entity<SpecAttribute>(e =>
+        {
+            e.ToTable("SpecAttribute", Schema);
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.NormalizedName).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Slug).HasMaxLength(200).IsRequired();
+            e.HasIndex(x => x.NormalizedName).IsUnique();
+            e.HasIndex(x => x.Slug).IsUnique();
+        });
+
+        b.Entity<SpecValue>(e =>
+        {
+            e.ToTable("SpecValue", Schema);
+            e.Property(x => x.Value).HasMaxLength(200).IsRequired();
+            e.Property(x => x.NormalizedValue).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Slug).HasMaxLength(200).IsRequired();
+            e.HasIndex(x => new { x.AttributeId, x.NormalizedValue }).IsUnique();
+            e.HasIndex(x => new { x.AttributeId, x.Slug }).IsUnique();
+            // The service deletes an attribute's values with it, after refusing when products have any.
+            e.HasOne<SpecAttribute>().WithMany().HasForeignKey(x => x.AttributeId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<ProductSpecValue>(e =>
+        {
+            e.ToTable("ProductSpecValue", Schema);
+            e.HasKey(l => new { l.ProductId, l.ValueId });
+            e.HasOne<Product>().WithMany().HasForeignKey(l => l.ProductId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<SpecValue>().WithMany().HasForeignKey(l => l.ValueId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(l => l.ValueId);
+        });
+
         b.Entity<ProductCategory>(e =>
         {
             e.ToTable("ProductCategory", Schema);

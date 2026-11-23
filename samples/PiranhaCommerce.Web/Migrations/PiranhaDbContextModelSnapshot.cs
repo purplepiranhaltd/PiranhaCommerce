@@ -484,6 +484,21 @@ namespace PiranhaCommerce.Web.Migrations
                     b.ToTable("ProductOptionValue", "catalog");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Catalog.ProductSpecValue", b =>
+                {
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ValueId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("ProductId", "ValueId");
+
+                    b.HasIndex("ValueId");
+
+                    b.ToTable("ProductSpecValue", "catalog");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Catalog.ProductVariant", b =>
                 {
                     b.Property<Guid>("ProductId")
@@ -515,6 +530,94 @@ namespace PiranhaCommerce.Web.Migrations
                     b.HasIndex("OptionValueId");
 
                     b.ToTable("ProductVariantValue", "catalog");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Catalog.SpecAttribute", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("Filterable")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset?>("UpdatedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NormalizedName")
+                        .IsUnique();
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("SpecAttribute", "catalog");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Catalog.SpecValue", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AttributeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("NormalizedValue")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset?>("UpdatedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AttributeId", "NormalizedValue")
+                        .IsUnique();
+
+                    b.HasIndex("AttributeId", "Slug")
+                        .IsUnique();
+
+                    b.ToTable("SpecValue", "catalog");
                 });
 
             modelBuilder.Entity("PiranhaCommerce.Catalog.StaffLocation", b =>
@@ -3052,6 +3155,21 @@ namespace PiranhaCommerce.Web.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Catalog.ProductSpecValue", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Catalog.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PiranhaCommerce.Catalog.SpecValue", null)
+                        .WithMany()
+                        .HasForeignKey("ValueId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Catalog.ProductVariant", b =>
                 {
                     b.HasOne("PiranhaCommerce.Catalog.Product", null)
@@ -3079,6 +3197,15 @@ namespace PiranhaCommerce.Web.Migrations
                         .WithMany()
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Catalog.SpecValue", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Catalog.SpecAttribute", null)
+                        .WithMany()
+                        .HasForeignKey("AttributeId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

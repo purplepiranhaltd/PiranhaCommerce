@@ -30,6 +30,7 @@ internal sealed class CatalogAdminMenu : IAdminMenuContributor
         new("catalog.products", "Products", "/admin/catalog/products", Order: 11, ParentKey: "catalog"),
         new("catalog.categories", "Categories", "/admin/catalog/categories", Order: 12, ParentKey: "catalog"),
         new("catalog.brands", "Brands", "/admin/catalog/brands", Order: 12, ParentKey: "catalog"),
+        new("catalog.specifications", "Specifications", "/admin/catalog/specifications", Order: 12, ParentKey: "catalog"),
         new("catalog.negative-stock", "Negative stock", "/admin/catalog/negative-stock", Order: 13, ParentKey: "catalog"),
         new("catalog.low-stock", "Low stock", "/admin/catalog/low-stock", Order: 13, ParentKey: "catalog"),
         new("catalog.stock-locations", "Stock locations", "/admin/catalog/stock-locations", Order: 14, ParentKey: "catalog"),
@@ -47,6 +48,7 @@ internal sealed class CatalogSlotItems : IAdminSlotContributor
             new(AdminSlots.ProductEditPanels, typeof(ProductVariantsPanel), Order: 4),
             new(AdminSlots.ProductEditPanels, typeof(ProductCategoriesPanel), Order: 5),
             new(AdminSlots.ProductEditPanels, typeof(ProductBrandPanel), Order: 5),
+            new(AdminSlots.ProductEditPanels, typeof(ProductSpecsPanel), Order: 5),
             new(AdminSlots.ProductEditPanels, typeof(ProductBarcodesPanel), Order: 6),
             new(AdminSlots.ProductEditPanels, typeof(ProductStockPanel), Order: 7),
         ];

@@ -88,6 +88,7 @@
     [SupplyParameterFromQuery(Name = "f")] private string? F { get; set; }
     [SupplyParameterFromQuery(Name = "q")] private string? Q { get; set; }
     [SupplyParameterFromQuery(Name = "brand")] private string[]? BrandKeys { get; set; }
+    [SupplyParameterFromQuery(Name = "spec")] private string[]? SpecKeys { get; set; }
     [SupplyParameterFromQuery(Name = "sort")] private string? Sort { get; set; }
     [SupplyParameterFromQuery(Name = "stock")] private bool InStock { get; set; }
     [SupplyParameterFromQuery(Name = "page")] private int? PageNumber { get; set; }
@@ -129,6 +130,7 @@
             Sort = SortKey,
             InStockOnly = InStock,
             Brands = [.. BrandKeys ?? []],
+            Specs = [.. SpecKeys ?? []],
             Page = CurrentPage,
             PageSize = PageSize,
             CountryCode = Shop.Value.CountryCode,
@@ -159,6 +161,7 @@
         if (!string.IsNullOrWhiteSpace(Sort)) query.Add("sort=" + Uri.EscapeDataString(Sort));
         if (InStock) query.Add("stock=true");
         foreach (var b in BrandKeys ?? []) query.Add("brand=" + Uri.EscapeDataString(b));
+        foreach (var sp in SpecKeys ?? []) query.Add("spec=" + Uri.EscapeDataString(sp));
         query.Add("page=" + page);
         return Path + "?" + string.Join('&', query);
     }

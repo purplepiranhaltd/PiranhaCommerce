@@ -1,0 +1,183 @@
+@page "/admin/catalog/specifications"
+@inject AdminScopeRunner Scope
+
+<PageTitle>Specifications - Piranha Commerce</PageTitle>
+<h1>Specifications</h1>
+<p class="pc-muted">Facts about products with a fixed list of answers, such as Finish (Matte, Satin, Glossy). Shoppers see them on the product page, and can filter by the ones marked filterable.</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+<div class="pc-card">
+    <h2 style="margin-top:0">@(_editingId is null ? "New attribute" : "Edit attribute")</h2>
+    <div class="pc-toolbar">
+        <input aria-label="Attribute name" placeholder="Name, e.g. Finish" @bind="_input.Name" />
+        <input aria-label="Slug" placeholder="Slug (made from the name if empty)" @bind="_input.Slug" />
+        <input type="number" aria-label="Display order" style="width:6rem" @bind="_input.DisplayOrder" />
+        <label><input type="checkbox" @bind="_input.Filterable" /> Shoppers can filter by it</label>
+        <button @onclick="SaveAsync" disabled="@_saving">@(_editingId is null ? "Add" : "Save")</button>
+        @if (_editingId is not null)
+        {
+            <button class="secondary" @onclick="ResetForm">Cancel</button>
+        }
+    </div>
+</div>
+
+@if (_loading)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_attributes.Count == 0)
+{
+    <p class="pc-muted">No attributes yet.</p>
+}
+else
+{
+    @foreach (var a in _attributes)
+    {
+        <div class="pc-card" style="margin-top:1rem">
+            <h2 style="margin-top:0">@a.Name <span class="pc-muted">(@a.Slug@(a.Filterable ? ", filterable" : ""), @a.ProductCount products)</span></h2>
+            @if (a.Values.Count == 0)
+            {
+                <p class="pc-muted">No values yet.</p>
+            }
+            else
+            {
+                <table class="pc-table">
+                    <thead><tr><th>Value</th><th>Slug</th><th class="num">Order</th><th class="num">Products</th><th></th></tr></thead>
+                    <tbody>
+                    @foreach (var v in a.Values)
+                    {
+                        <tr>
+                            <td>@v.Value</td>
+                            <td>@v.Slug</td>
+                            <td class="num">@v.DisplayOrder</td>
+                            <td class="num">@v.ProductCount</td>
+                            <td class="actions">
+                                @if (_confirmDelete == v.Id)
+                                {
+                                    <button class="danger" @onclick="() => DeleteValueAsync(a.Id, v.Id)">Confirm delete</button>
+                                    <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
+                                }
+                                else
+                                {
+                                    <button class="secondary" @onclick="() => _confirmDelete = v.Id">Delete</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            }
+            <div class="pc-toolbar" style="margin-top:.5rem">
+                <input aria-label="@("New value for " + a.Name)" placeholder="New value" @bind="NewValue(a.Id).Value" />
+                <input type="number" aria-label="@("Display order for " + a.Name + " value")" style="width:6rem" @bind="NewValue(a.Id).DisplayOrder" />
+                <button @onclick="() => AddValueAsync(a.Id)">Add value</button>
+                <button class="secondary" @onclick="() => Edit(a)">Edit attribute</button>
+                @if (_confirmDelete == a.Id)
+                {
+                    <button class="danger" @onclick="() => DeleteAsync(a.Id)">Confirm delete</button>
+                    <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
+                }
+                else
+                {
+                    <button class="secondary" @onclick="() => _confirmDelete = a.Id">Delete attribute</button>
+                }
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private IReadOnlyList<SpecAttributeDto> _attributes = [];
+    private SpecAttributeInput _input = new();
+    private readonly Dictionary<Guid, SpecValueInput> _newValues = [];
+    private Guid? _editingId, _confirmDelete;
+    private bool _loading = true, _saving;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private SpecValueInput NewValue(Guid attributeId) => _newValues.TryGetValue(attributeId, out var v) ? v : _newValues[attributeId] = new();
+
+    private async Task LoadAsync()
+    {
+        try { _attributes = await Scope.RunAsync<ISpecificationService, IReadOnlyList<SpecAttributeDto>>(s => s.ListAsync()); }
+        catch (Exception ex) { _error = "Could not load specifications: " + ex.Message; }
+        _loading = false;
+    }
+
+    private void Edit(SpecAttributeDto a)
+    {
+        _editingId = a.Id;
+        _input = new SpecAttributeInput { Name = a.Name, Slug = a.Slug, DisplayOrder = a.DisplayOrder, Filterable = a.Filterable };
+    }
+
+    private void ResetForm() { _editingId = null; _input = new(); }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            if (_editingId is { } id)
+            {
+                var updated = await Scope.RunAsync<ISpecificationService, SpecAttributeDto?>(s => s.UpdateAsync(id, _input));
+                if (updated is null) _error = "That attribute no longer exists.";
+            }
+            else
+            {
+                await Scope.RunAsync<ISpecificationService, SpecAttributeDto>(s => s.CreateAsync(_input));
+            }
+            if (_error is null) ResetForm();
+            await LoadAsync();
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _error = "Could not save: " + ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task AddValueAsync(Guid attributeId)
+    {
+        _error = null;
+        try
+        {
+            var input = NewValue(attributeId);
+            await Scope.RunAsync<ISpecificationService, SpecValueDto?>(s => s.AddValueAsync(attributeId, input));
+            _newValues.Remove(attributeId);
+            await LoadAsync();
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _error = "Could not add: " + ex.Message; }
+    }
+
+    private async Task DeleteValueAsync(Guid attributeId, Guid valueId)
+    {
+        _confirmDelete = null;
+        _error = null;
+        try
+        {
+            await Scope.RunAsync<ISpecificationService, bool>(s => s.DeleteValueAsync(attributeId, valueId));
+            await LoadAsync();
+        }
+        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (Exception ex) { _error = "Could not delete: " + ex.Message; }
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        _confirmDelete = null;
+        _error = null;
+        try
+        {
+            await Scope.RunAsync<ISpecificationService, bool>(s => s.DeleteAsync(id));
+            if (_editingId == id) ResetForm();
+            await LoadAsync();
+        }
+        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (Exception ex) { _error = "Could not delete: " + ex.Message; }
+    }
+}

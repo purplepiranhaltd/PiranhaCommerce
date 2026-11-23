@@ -88,6 +88,33 @@ public class ShopPagesTests(PiranhaFactory factory) : IClassFixture<PiranhaFacto
     }
 
     [Fact]
+    public async Task The_shop_filters_by_specification_and_shows_the_specification_table()
+    {
+        if (PiranhaFactory.UsesSharedDatabase) return;
+        var shop = await SeededShopAsync();
+
+        var all = await Page(shop, "/shop");
+        Assert.Contains("name=\"spec\" value=\"finish:matte\"", all);          // one checkbox group per filterable attribute
+        Assert.Contains("name=\"spec\" value=\"skin-type:dry\"", all);
+        Assert.DoesNotContain("key-ingredient:", all);                           // shown on products but not offered as a filter
+
+        var dewy = await Page(shop, "/shop?spec=finish:dewy");
+        Assert.Contains("Skin Glow Foundation", dewy);
+        Assert.Contains("Luminous Highlighter", dewy);
+        Assert.DoesNotContain("Velvet Matte Lipstick", dewy);
+
+        var both = await Page(shop, "/shop?spec=finish:dewy&spec=skin-type:dry");   // all of: only the foundation is both
+        Assert.Contains("Skin Glow Foundation", both);
+        Assert.DoesNotContain("Luminous Highlighter", both);
+
+
+        var product = await Page(shop, "/product/daily-moisture-cream");
+        Assert.Contains("Specifications", product);
+        Assert.Contains("Dry, Sensitive", product);
+        Assert.Contains("Hyaluronic acid", product);
+    }
+
+    [Fact]
     public async Task A_product_page_shows_shades_the_chosen_shade_its_price_with_vat_and_what_is_sold_out()
     {
         if (PiranhaFactory.UsesSharedDatabase) return;

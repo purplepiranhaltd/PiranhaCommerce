@@ -21,6 +21,8 @@ public sealed class CatalogPlugin : IPiranhaPlugin
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IBrandService, BrandService>();
         services.AddSingleton<IApiEndpointContributor, BrandApiEndpoints>();
+        services.AddScoped<ISpecificationService, SpecificationService>();
+        services.AddSingleton<IApiEndpointContributor, SpecificationApiEndpoints>();
         services.AddScoped<IStockService, StockService>();
         services.AddScoped<IStockLocationService, StockLocationService>();
         services.AddOptions<StockOptions>().BindConfiguration(StockOptions.SectionName);

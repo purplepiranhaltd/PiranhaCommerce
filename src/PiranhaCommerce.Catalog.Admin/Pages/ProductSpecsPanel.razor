@@ -1,0 +1,75 @@
+@* Panel for AdminSlots.ProductEditPanels. Saves independently of the product form. *@
+@inject AdminScopeRunner Scope
+
+<div class="pc-card" style="margin-top:1rem">
+    <h2 style="margin-top:0">Specifications</h2>
+    @if (_loading)
+    {
+        <p class="pc-muted">Loading...</p>
+    }
+    else if (_inherited)
+    {
+        <p class="pc-muted">This is a variant, so it shows its parent product's specifications. Change them on the parent.</p>
+    }
+    else if (_attributes.Count == 0)
+    {
+        <p class="pc-muted">No specifications exist yet. <a href="/admin/catalog/specifications">Create some</a>.</p>
+    }
+    else
+    {
+        @foreach (var a in _attributes.Where(a => a.Values.Count > 0))
+        {
+            <div style="margin-bottom:.5rem">
+                <strong>@a.Name</strong>
+                @foreach (var v in a.Values)
+                {
+                    <label style="margin-left:.75rem"><input type="checkbox" checked="@_selected.Contains(v.Id)" @onchange="e => Toggle(v.Id, (bool)e.Value!)" /> @v.Value</label>
+                }
+            </div>
+        }
+        <button type="button" @onclick="SaveAsync" disabled="@_saving">Save specifications</button>
+        @if (_message is not null)
+        {
+            <span class="pc-muted" role="status"> @_message</span>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Guid ProductId { get; set; }
+
+    private IReadOnlyList<SpecAttributeDto> _attributes = [];
+    private HashSet<Guid> _selected = [];
+    private bool _loading = true, _saving, _inherited;
+    private string? _message;
+    private Guid _loadedFor;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedFor == ProductId) return;
+        _loadedFor = ProductId;
+        _loading = true;
+        _message = null;
+        _attributes = await Scope.RunAsync<ISpecificationService, IReadOnlyList<SpecAttributeDto>>(s => s.ListAsync());
+        var current = await Scope.RunAsync<ISpecificationService, ProductSpecsDto?>(s => s.GetProductAsync(ProductId));
+        _inherited = current?.Inherited == true;
+        _selected = current?.ValueIds.ToHashSet() ?? [];
+        _loading = false;
+    }
+
+    private void Toggle(Guid id, bool on) { if (on) _selected.Add(id); else _selected.Remove(id); }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            var ids = _selected.ToList();
+            var r = await Scope.RunAsync<ISpecificationService, ProductSpecsDto?>(s => s.SetProductAsync(ProductId, ids));
+            _message = r is null ? "Product no longer exists." : "Saved.";
+        }
+        catch (PiranhaValidationException ex) { _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _message = "Could not save: " + ex.Message; }
+        finally { _saving = false; }
+    }
+}

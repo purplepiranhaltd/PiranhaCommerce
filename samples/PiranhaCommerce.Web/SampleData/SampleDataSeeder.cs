@@ -52,6 +52,7 @@ public sealed class SampleDataSeeder(
         }
 
         await SeedBrandsAsync(sp, productIds, ct);
+        await SeedSpecsAsync(sp, productIds, ct);
         await SeedRelationsAsync(sp, productIds, ct);
         await SeedStoreSettingsAsync(sp, categoryIds, ct);
         await SeedShoppersAndReviewsAsync(sp, productIds, ct);
@@ -128,6 +129,31 @@ public sealed class SampleDataSeeder(
         foreach (var (productSlug, brandSlug) in SampleCatalogue.BrandOf)
             if (ids.TryGetValue(productSlug, out var productId) && (await brands.GetProductBrandAsync(productId, ct))?.BrandId is null)
                 await brands.SetProductBrandAsync(productId, brandIds[brandSlug], ct);
+    }
+
+    /// <summary>Makes the attributes and their answers, then gives each product its answers unless it already has some (so staff changes, and a second run, are left alone).</summary>
+    private static async Task SeedSpecsAsync(IServiceProvider sp, Dictionary<string, Guid> ids, CancellationToken ct)
+    {
+        var specs = sp.GetRequiredService<ISpecificationService>();
+        var valueIds = new Dictionary<(string Attribute, string Value), Guid>();
+        var order = 0;
+        foreach (var s in SampleCatalogue.Specs)
+        {
+            var attribute = (await specs.ListAsync(ct)).FirstOrDefault(a => string.Equals(a.Name, s.Name, StringComparison.OrdinalIgnoreCase))
+                ?? await specs.CreateAsync(new SpecAttributeInput { Name = s.Name, DisplayOrder = order, Filterable = s.Filterable }, ct);
+            order++;
+            var valueOrder = 0;
+            foreach (var v in s.Values)
+            {
+                var existing = attribute.Values.FirstOrDefault(x => string.Equals(x.Value, v, StringComparison.OrdinalIgnoreCase));
+                var id = existing?.Id ?? (await specs.AddValueAsync(attribute.Id, new SpecValueInput { Value = v, DisplayOrder = valueOrder }, ct))!.Id;
+                valueIds[(s.Name, v)] = id;
+                valueOrder++;
+            }
+        }
+        foreach (var (productSlug, answers) in SampleCatalogue.SpecsOf)
+            if (ids.TryGetValue(productSlug, out var productId) && (await specs.GetProductAsync(productId, ct))?.ValueIds.Count == 0)
+                await specs.SetProductAsync(productId, answers.SelectMany(a => a.Values.Select(v => valueIds[(a.Attribute, v)])).ToList(), ct);
     }
 
     private static async Task SeedRelationsAsync(IServiceProvider sp, Dictionary<string, Guid> ids, CancellationToken ct)

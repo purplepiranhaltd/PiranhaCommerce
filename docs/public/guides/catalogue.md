@@ -24,6 +24,18 @@ A brand is a label a product carries, such as the maker or the house range. A pr
 - A variant has no brand of its own. It shows its parent's, and setting one on a variant is refused.
 - `GET /brands/by-slug/{slug}` finds one by address. Each brand reports its `productCount` (main products only).
 
+## Specifications
+
+A specification is a fact about a product with a fixed list of answers: **Finish** (Matte, Satin, Glossy), **Skin type**, **Vegan**. Staff define them in Catalog > Specifications (`/specifications` in the API) and tick a product's answers on its edit page (`GET` or `PUT /products/{id}/specifications`). They appear as a table on the product page, and shoppers can filter listings by the ones marked **filterable**.
+
+- An attribute has a `name`, a `slug`, a `displayOrder` and a `filterable` switch. Add its answers with `POST /specifications/{id}/values`; each value has its own `slug` and `displayOrder`. Answers are a fixed list: a product can only be given a value that exists.
+- A product can have several values of one attribute (a cream can suit "Dry" and "Sensitive" skin). `PUT /products/{id}/specifications` replaces the product's whole set with `valueIds`.
+- Names are unique whatever their letter case. Value names and slugs are unique within their attribute, so "Dry" can exist under both Skin type and Hair type.
+- **A slug is never empty.** Unlike a brand's, leave it out (or on a `PUT`) and it is made from the name: "Skin type" becomes `skin-type`. A name with no letters or digits needs a slug given.
+- An attribute or value that products have cannot be deleted (`409`). Remove it from the products first. An attribute nobody uses goes with all its values.
+- A variant has no specifications of its own. It shows its parent's, and setting some on a variant is refused.
+- Not in the CSV import and export yet. Set them in the admin or the API.
+
 ## Slugs and page text
 
 Products and categories have a **slug** (lower-case letters, digits and single hyphens; unique; lower-cased for you), a `metaTitle` and a `metaDescription`. A shop front that routes by address uses `GET /products/by-slug/{slug}` and `GET /categories/by-slug/{slug}`.
@@ -115,6 +127,8 @@ One row per product. The columns are:
 The online store adds `published, tax_class, weight_grams`. A package adds its own columns with `IProductImportExtension`. A column the importer does not know refuses the file.
 
 The `brand` cell holds a brand's name. A name that matches an existing brand in any letter case uses it; a new name makes the brand. A blank cell leaves the product's brand alone and `[clear]` removes it. A variant row must leave it blank, because a variant uses its parent's brand.
+
+Specifications have no column yet: the file neither exports nor imports them, and a file that has them in some column the importer does not know is refused as usual.
 
 ### How rows are read
 
