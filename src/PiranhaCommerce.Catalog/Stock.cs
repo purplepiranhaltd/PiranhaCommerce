@@ -100,6 +100,9 @@ public sealed record StockMovementDto(
 
 public sealed record StockAdjustmentResult(StockMovementDto Movement, decimal Quantity);
 
+/// <summary>A product whose stock, across every location, is at or below a level the shop chose: it needs reordering. (<see cref="Quantity"/> is what is on hand, not counting stock in transit.)</summary>
+public sealed record LowStockDto(Guid ProductId, string Name, string? Sku, decimal Quantity);
+
 /// <summary>A product that currently has less than nothing at a location: a recount is needed.</summary>
 public sealed record NegativeStockDto(
     Guid ProductId, string ProductName, string? Sku, Guid LocationId, string LocationCode, string LocationName, decimal Quantity);

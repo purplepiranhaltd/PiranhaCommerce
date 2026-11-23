@@ -391,6 +391,11 @@ What is not built yet (payments, shipping, tax, promotions) is listed in `docs/r
   **nothing is saved**; `skipInvalid=true` saves the good rows, and `dryRun=true` only checks. A saved row is applied on its own, so a failure that appears only then (the data changed meanwhile) leaves the rest
   done and is reported. Limits: `Piranha:Catalog:Import:MaxRows` (5000) and `MaxBytes` (10 MB). The stock column needs access to the default location (a user limited to other locations is refused). Not built:
   stock at other locations, pictures, prices for customer groups, Excel (.xlsx) files, and an import that runs in the background for very large files. Names with `>` or `|` in a category cannot be written as a path.
+- **Reports** (`GET /api/v1/reports/sales`, `/products`, `/categories`, `/customers`, `/tax`; `GET /stock/low?threshold=`; admin: Orders > Reports and Catalog > Low stock). Every report takes `from` and `to`
+  (dates, inclusive, last 30 days by default) and `format=csv` for a spreadsheet file. They count orders that were not cancelled on the day they were placed (UTC). **Sales** by `interval` day, week (from Monday)
+  or month: orders, units, goods, discounts, shipping, tax, total, refunded (by the day refunded) and net. **Products** ranked by revenue or quantity (`top`, `rollUpVariants`), with units returned;
+  **categories** (a product in several categories counts in each; variants use their parent's); **customers** (top spenders, new customers, guest orders); **tax** by rate for goods and delivery, before refunds.
+  Limits: 1100 days per report, a daily report at most a year. Not built: profit (no cost price is held), reports by sales channel, charts and an audit log of staff changes.
 - **Product pictures** (`/products/{id}/images`, admin: Pictures on a product page): needs a storage package (`IFileStore`; the sample host uses local disk). Upload is
   `multipart/form-data` with `file` and an optional `altText`; the type is decided from the file's own bytes (JPEG, PNG, WebP or GIF; SVG is refused because it can carry script),
   limited by `Piranha:Images:MaxBytes` (default 10 MB) and `MaxPerProduct` (20). With an imaging package, the picture is read (a file that cannot be read is refused), turned upright from its

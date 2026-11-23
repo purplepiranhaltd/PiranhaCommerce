@@ -34,6 +34,12 @@ public interface IStockService
     /// </summary>
     Task ApplyInTransactionAsync(IReadOnlyList<StockChange> changes, Guid locationId, bool allowNegative, string? actor, CancellationToken ct = default);
 
+    /// <summary>
+    /// Products with <paramref name="threshold"/> or less on hand in total (never-stocked products count as zero), lowest first, at most 1000. A product that comes in
+    /// options is left out (its variants are the ones that sell). A validation error for a threshold outside 0 to 1,000,000.
+    /// </summary>
+    Task<IReadOnlyList<LowStockDto>> ListLowAsync(decimal threshold, CancellationToken ct = default);
+
     /// <summary>Every product/location currently below zero, most negative first. This is the "recount needed" report.</summary>
     Task<IReadOnlyList<NegativeStockDto>> ListNegativeAsync(CancellationToken ct = default);
 }
@@ -134,6 +140,17 @@ internal sealed class StockService(PiranhaDbContext db) : IStockService
         return new StockAdjustmentResult(
             new StockMovementDto(movement.Id, productId, locationId, movement.Delta, movement.Balance, movement.Reason, movement.Reference, movement.Actor, movement.CreatedUtc),
             quantity);
+    }
+
+    public async Task<IReadOnlyList<LowStockDto>> ListLowAsync(decimal threshold, CancellationToken ct = default)
+    {
+        if (threshold is < 0 or > 1_000_000) throw new PiranhaCommerce.Core.Validation.PiranhaValidationException("threshold", "Use a level from 0 to 1,000,000.");
+        return await (from p in db.Set<Product>().AsNoTracking()
+                      where !db.Set<ProductOption>().Any(o => o.ProductId == p.Id)
+                      let quantity = db.Set<StockLevel>().Where(l => l.ProductId == p.Id).Sum(l => (decimal?)l.Quantity) ?? 0m
+                      where quantity <= threshold
+                      orderby quantity, p.Name, p.Id
+                      select new LowStockDto(p.Id, p.Name, p.Sku, quantity)).Take(1000).ToListAsync(ct);
     }
 
     public async Task<IReadOnlyList<NegativeStockDto>> ListNegativeAsync(CancellationToken ct = default)

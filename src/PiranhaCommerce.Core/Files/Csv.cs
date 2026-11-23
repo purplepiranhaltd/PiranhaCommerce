@@ -1,9 +1,9 @@
 using System.Text;
 
-namespace PiranhaCommerce.Catalog;
+namespace PiranhaCommerce.Core.Files;
 
 /// <summary>A small RFC 4180 reader and writer: quoted cells, doubled quotes, line breaks inside quotes, a byte order mark, and comma, semicolon or tab as the separator.</summary>
-internal static class Csv
+public static class Csv
 {
     /// <summary>Rows of cells, with empty lines skipped. Throws <see cref="FormatException"/> for a quote that is never closed.</summary>
     public static List<List<string>> Parse(string text)

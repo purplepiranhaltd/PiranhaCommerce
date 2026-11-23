@@ -31,6 +31,10 @@ internal sealed class StockApiEndpoints : IApiEndpointContributor
         api.MapGet("/stock/negative", async (IStockService svc, CancellationToken ct) => Results.Ok(await svc.ListNegativeAsync(ct)))
             .WithTags("Stock");
 
+        // Products with a threshold or less on hand (default 5): the "reorder" report.
+        api.MapGet("/stock/low", async (decimal? threshold, IStockService svc, CancellationToken ct) => Results.Ok(await svc.ListLowAsync(threshold ?? 5m, ct)))
+            .WithTags("Stock");
+
         // Locations are deactivated rather than deleted: the ledger refers to them.
         var locations = api.MapGroup("/stock-locations").WithTags("Stock locations");
 

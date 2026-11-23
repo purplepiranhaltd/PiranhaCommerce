@@ -30,6 +30,7 @@ internal sealed class CatalogAdminMenu : IAdminMenuContributor
         new("catalog.products", "Products", "/admin/catalog/products", Order: 11, ParentKey: "catalog"),
         new("catalog.categories", "Categories", "/admin/catalog/categories", Order: 12, ParentKey: "catalog"),
         new("catalog.negative-stock", "Negative stock", "/admin/catalog/negative-stock", Order: 13, ParentKey: "catalog"),
+        new("catalog.low-stock", "Low stock", "/admin/catalog/low-stock", Order: 13, ParentKey: "catalog"),
         new("catalog.stock-locations", "Stock locations", "/admin/catalog/stock-locations", Order: 14, ParentKey: "catalog"),
         new("catalog.stock-transfers", "Stock transfers", "/admin/catalog/stock-transfers", Order: 15, ParentKey: "catalog", BadgeKey: "stock-transfers"),
         new("catalog.staff-locations", "Staff locations", "/admin/catalog/staff-locations", Order: 16, ParentKey: "catalog"),

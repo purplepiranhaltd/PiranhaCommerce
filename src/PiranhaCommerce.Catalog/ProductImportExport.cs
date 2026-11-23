@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using PiranhaCommerce.Core.Files;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
 

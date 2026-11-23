@@ -1,0 +1,140 @@
+@page "/admin/orders/reports"
+@using System.Text
+@using Microsoft.JSInterop
+@using PiranhaCommerce.Core.Files
+@using PiranhaCommerce.Core.Validation
+@inject AdminScopeRunner Scope
+@inject IJSRuntime Js
+
+<PageTitle>Reports - Piranha Commerce</PageTitle>
+<h1>Reports</h1>
+<p class="pc-muted">
+    Orders that were not cancelled, counted on the day they were placed (UTC). Amounts are in the store's currency. For stock to reorder, see Catalog &gt; Low stock.
+</p>
+
+<div class="pc-toolbar">
+    <label>Report
+        <select @bind="_report">
+            <option value="sales">Sales over time</option>
+            <option value="products">Best selling products</option>
+            <option value="categories">Sales by category</option>
+            <option value="customers">Top customers</option>
+            <option value="tax">Tax charged</option>
+        </select>
+    </label>
+    <label>From <input type="date" @bind="_from" /></label>
+    <label>To <input type="date" @bind="_to" /></label>
+    @if (_report == "sales")
+    {
+        <label>By
+            <select @bind="_interval">
+                <option value="@ReportInterval.Day">Day</option>
+                <option value="@ReportInterval.Week">Week</option>
+                <option value="@ReportInterval.Month">Month</option>
+            </select>
+        </label>
+    }
+    @if (_report == "products")
+    {
+        <label>Rank by
+            <select @bind="_sort">
+                <option value="@ProductReportSort.Revenue">Revenue</option>
+                <option value="@ProductReportSort.Quantity">Quantity</option>
+            </select>
+        </label>
+        <label><input type="checkbox" @bind="_rollUp" /> Count variants under their parent</label>
+    }
+    @if (_report is "products" or "customers")
+    {
+        <label>How many <input type="number" min="1" max="1000" style="width:5rem" @bind="_top" /></label>
+    }
+    <button type="button" disabled="@_busy" @onclick="RunAsync">Show</button>
+    <button type="button" class="secondary" disabled="@(_busy || _table is null)" @onclick="DownloadAsync">Download CSV</button>
+</div>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+@if (_table is not null)
+{
+    <h2>@_table.Title</h2>
+    @if (_table.Rows.Count == 0)
+    {
+        <p class="pc-muted">Nothing in that period.</p>
+    }
+    else
+    {
+        <table class="pc-table">
+            <thead><tr>@for (var c = 0; c < _table.Columns.Count; c++) { <th class="@(c > 0 && IsNumber(c) ? "num" : "")">@_table.Columns[c]</th> }</tr></thead>
+            <tbody>
+            @foreach (var row in _table.Rows)
+            {
+                <tr>@for (var c = 0; c < row.Count; c++) { <td class="@(c > 0 && IsNumber(c) ? "num" : "")">@row[c]</td> }</tr>
+            }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private string _report = "sales";
+    private DateTime _from = DateTime.UtcNow.Date.AddDays(-29), _to = DateTime.UtcNow.Date;
+    private ReportInterval _interval = ReportInterval.Day;
+    private ProductReportSort _sort = ProductReportSort.Revenue;
+    private bool _rollUp, _busy;
+    private int _top = 20;
+    private ReportTable? _table;
+    private string? _error;
+    private string _shownReport = "sales";
+
+    // Everything after the first column is a number or a date, except these text columns.
+    private bool IsNumber(int column) => _shownReport switch
+    {
+        "products" => column >= 2,
+        "categories" => column >= 1,
+        "customers" => column >= 2,
+        "tax" => column is 1 or 3 or 4,
+        _ => true,
+    };
+
+    protected override Task OnInitializedAsync() => RunAsync();
+
+    private async Task RunAsync()
+    {
+        _busy = true; _error = null;
+        try
+        {
+            var from = DateOnly.FromDateTime(_from);
+            var to = DateOnly.FromDateTime(_to);
+            var report = _report; var interval = _interval; var sort = _sort; var rollUp = _rollUp; var top = _top;
+            _table = await Scope.RunAsync<IReportService, ReportTable>(async s => report switch
+            {
+                "products" => ReportTables.Of(await s.ProductsAsync(from, to, sort, top, rollUp)),
+                "categories" => ReportTables.Of(await s.CategoriesAsync(from, to)),
+                "customers" => ReportTables.Of(await s.CustomersAsync(from, to, top)),
+                "tax" => ReportTables.Of(await s.TaxAsync(from, to)),
+                _ => ReportTables.Of(await s.SalesAsync(from, to, interval)),
+            });
+            _shownReport = report;
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _error = "Could not run the report: " + ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task DownloadAsync()
+    {
+        var table = _table!;
+        using var buffer = new MemoryStream();
+        await using (var writer = new StreamWriter(buffer, new UTF8Encoding(true), 4096, leaveOpen: true))
+        {
+            Csv.WriteRow(writer, [Csv.Protect(table.Title)]);
+            Csv.WriteRow(writer, table.Columns);
+            foreach (var row in table.Rows) Csv.WriteRow(writer, row.Select(c => Csv.Protect(c)));
+        }
+        buffer.Position = 0;
+        using var reference = new DotNetStreamReference(buffer);
+        await Js.InvokeVoidAsync("piranhaDownload", $"report-{_shownReport}-{DateTime.UtcNow:yyyyMMdd-HHmm}.csv", "text/csv;charset=utf-8", reference);
+    }
+}

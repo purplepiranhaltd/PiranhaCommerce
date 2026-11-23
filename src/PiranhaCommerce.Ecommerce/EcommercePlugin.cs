@@ -22,6 +22,8 @@ public sealed class EcommercePlugin : IPiranhaPlugin
         services.AddScoped<IPromotionService, PromotionService>();
         services.AddScoped<IVariantCreatedHandler, VariantListingHandler>();
         services.AddScoped<IProductImportExtension, ProductListingImportExtension>();
+        services.AddScoped<IReportService, ReportService>();
+        services.AddSingleton<IApiEndpointContributor, ReportEndpoints>();
         services.AddScoped<IVoucherService, VoucherService>();
         services.AddScoped<IGatewayService, GatewayService>();
         services.AddScoped<IUnreconciledPaymentService, UnreconciledPaymentService>();

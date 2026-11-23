@@ -1,0 +1,66 @@
+@page "/admin/catalog/low-stock"
+@using PiranhaCommerce.Core.Validation
+@inject AdminScopeRunner Scope
+
+<PageTitle>Low stock - Piranha Commerce</PageTitle>
+<h1>Low stock</h1>
+<p class="pc-muted">Products with this much or less on hand in total, lowest first, so you know what to reorder. A product that comes in options is not listed: its variants are.
+    Stock sent on a transfer and not yet received is not counted.</p>
+
+<label>Show products with this many or fewer
+    <input type="number" min="0" step="1" style="width:7rem" @bind="_threshold" />
+</label>
+<button type="button" @onclick="LoadAsync" disabled="@_loading">Show</button>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+@if (_items is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_items.Count == 0)
+{
+    <p data-testid="no-low-stock">Nothing is at or below @_shown.</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>Product</th><th>SKU</th><th class="num">On hand</th></tr></thead>
+        <tbody>
+        @foreach (var p in _items)
+        {
+            <tr>
+                <td><a href="/admin/catalog/products/@p.ProductId">@p.Name</a></td>
+                <td>@p.Sku</td>
+                <td class="num @(p.Quantity <= 0 ? "pc-error" : "")">@p.Quantity.ToString("0.####")</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    @if (_items.Count == 1000) { <p class="pc-muted">Showing the first 1000.</p> }
+}
+
+@code {
+    private IReadOnlyList<LowStockDto>? _items;
+    private decimal _threshold = 5, _shown = 5;
+    private bool _loading;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = null;
+        try
+        {
+            var level = _threshold;
+            _items = await Scope.RunAsync<IStockService, IReadOnlyList<LowStockDto>>(s => s.ListLowAsync(level));
+            _shown = level;
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); _items ??= []; }
+        catch (Exception ex) { _error = "Could not load the report: " + ex.Message; _items ??= []; }
+        finally { _loading = false; }
+    }
+}
