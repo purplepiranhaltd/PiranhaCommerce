@@ -21,6 +21,8 @@ or themes), so storefront and CMS features are out of scope by design. Order of 
 6. **Outbound webhooks: built** (order placed and stage changed, payment received and refunded, shipment, return, dispute opened and closed; see the README). Open for webhooks: events for product,
    customer and stock changes, a per-endpoint rate limit, and blocking addresses that resolve to private networks.
 7. **Shipping zones and carriers:** built (zones by country and postcode area, rates by zone, carriers with tracking links). Rates by basket value, live carrier rates, labels, pick-up in store and delivery dates: open.
+   **Later: the real carriers.** Live rates and labels for the carriers the shop actually uses (Royal Mail, DPD, Evri, Parcelforce, ShipStation and so on): needs the owner's carrier accounts and
+   a choice of which first. Never call a carrier from inside the checkout transaction; fetch rates before it and keep the chosen price on the quote.
 8. **Multi-currency and translations:** open, heaviest design work (see the Translations section).
 9. **Reviews, wishlists, related and cross-sell products, brands, specification attributes and tags, back-in-stock and low-stock alerts:** open.
 10. **Multi-store and vendors:** open, only if a use case needs them.
