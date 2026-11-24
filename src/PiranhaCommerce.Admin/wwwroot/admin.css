@@ -70,3 +70,6 @@ label input[type=checkbox] { width: auto; margin-right: .4rem; }
 #blazor-error-ui a { color: #fff; margin-left: .75rem; cursor: pointer; }
 .pc-login-logo { margin: 0 0 .5rem; text-align: center; }
 .pc-login-logo img { height: 48px; width: auto; }
+
+.pc-attribution { font-size: .8rem; opacity: .85; }
+.pc-login-attribution { text-align: center; margin: 1rem 0; }

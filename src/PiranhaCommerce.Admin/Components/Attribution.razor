@@ -1,0 +1,10 @@
+@namespace PiranhaCommerce.Admin.Components
+@using Microsoft.Extensions.Options
+@using PiranhaCommerce.Core.Identity
+@inject IOptions<BrandingOptions> Branding
+
+@* The attribution notice the licence asks every page to show. Use it in the footer of your own shop front too: <Attribution />. *@
+@if (Branding.Value.ShowAttribution)
+{
+    <a class="pc-attribution" href="@PiranhaCommerceAttribution.Url" rel="noopener">@PiranhaCommerceAttribution.Text</a>
+}

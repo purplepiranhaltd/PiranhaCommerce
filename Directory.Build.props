@@ -11,10 +11,11 @@
     <VersionPrefix>0.1.0</VersionPrefix>
     <VersionSuffix>alpha</VersionSuffix>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <!-- Closed source for now: no license expression chosen yet (NU5125 = package has no license). Decide before publishing. -->
-    <NoWarn>$(NoWarn);NU5125</NoWarn>
+    <!-- The PiranhaCommerce Attribution Licence (a custom licence, so a file rather than an SPDX expression). -->
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
   </PropertyGroup>
   <ItemGroup Condition="'$(IsPackable)' != 'false'">
     <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="\" Visible="false" />
   </ItemGroup>
 </Project>

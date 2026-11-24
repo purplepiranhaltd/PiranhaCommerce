@@ -1,0 +1,84 @@
+PiranhaCommerce Attribution Licence, version 1.0
+
+Copyright (c) 2026 Purple Piranha Ltd ("the Licensor")
+
+This licence applies to PiranhaCommerce: its source code, compiled packages, documentation and sample applications ("the Software"), and to
+anything you make from it by copying or changing it ("a Modified Version").
+
+In short: you may use and change the Software however you like, for free, including to run a business, provided every page it shows people
+carries the small "Built on PiranhaCommerce" notice described in section 2. If you would rather not show the notice, you can buy a Commercial
+Licence (section 4). The numbered sections below are the licence; this paragraph is only a summary.
+
+1. PERMISSION
+
+   Subject to the conditions below, the Licensor gives you a worldwide, royalty-free, non-exclusive licence to use, copy, modify, merge, publish,
+   distribute, sublicense and sell the Software and Modified Versions, for any purpose, including commercial use. You do not have to publish your
+   changes or share your own code.
+
+2. ATTRIBUTION NOTICE
+
+   2.1 Every web page that the Software, or a Modified Version, shows to people (the pages of a shop front shown to shoppers, and the pages of the
+       admin area shown to staff) must display this notice, linked to https://piranhacommerce.com :
+
+           Built on PiranhaCommerce
+
+   2.2 The notice must be in the footer of the page, or in another place that is just as easy to see; be readable (its text no smaller than the
+       other text in that footer, and clearly contrasting with its background); be shown to everyone who sees the page, without signing in,
+       opening a menu or scrolling past other content to find it; and not be hidden, covered, shrunk to nothing or made to look like part of
+       something else.
+
+   2.3 You may change how the notice looks (its colours, font and position) so that it suits your design, provided it still meets 2.2. You may not
+       change its words or where its link goes.
+
+   2.4 Section 2.1 covers web pages only. It does not cover API responses, emails, printed or downloaded documents, or the pages of a different
+       application that merely talks to the Software through its API.
+
+   2.5 Where the Software shows the notice for you (for example in the sample shop and the admin area), you meet this section by leaving that
+       in place. Where you build your own shop front, you must add the notice to it yourself.
+
+3. OTHER CONDITIONS
+
+   3.1 Keep every copyright notice and a copy of this licence in the source code and in any copy of the Software you give to someone else.
+
+   3.2 A Modified Version must not be presented as the original or as being made or approved by the Licensor.
+
+   3.3 This licence gives you no right to the Licensor's names, logos or trade marks except to show the notice in section 2 and to say accurately that
+       your product is built on PiranhaCommerce.
+
+4. COMMERCIAL LICENCE
+
+   The Licensor offers a separate written Commercial Licence. Where you have a Commercial Licence that is in force, section 2 does not apply to you
+   (or applies only as that agreement says), and you may remove the notice. The rest of this licence still applies unless that agreement says
+   otherwise. Without a Commercial Licence in force, removing or hiding the notice breaks this licence.
+
+5. THIRD-PARTY COMPONENTS
+
+   The Software uses components made by others, which stay under their own licences. This licence does not change them.
+
+6. CONTRIBUTIONS
+
+   If you send changes to the Licensor for inclusion in the Software, you give the Licensor the right to include them and to licence them under
+   this licence and under any Commercial Licence, unless you and the Licensor agree otherwise in writing.
+
+7. ENDING THE LICENCE
+
+   If you break section 2 or 3, the Licensor may write to tell you. If you have not put it right within 30 days of that notice, the permission in
+   section 1 ends for you until you do. Putting it right restores the permission. People who received the Software from you keep their own
+   licence from the Licensor, provided they follow it.
+
+8. NO WARRANTY
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR
+   A PARTICULAR PURPOSE AND NON-INFRINGEMENT. YOU ARE RESPONSIBLE FOR TESTING IT, SECURING IT AND KEEPING IT UP TO DATE.
+
+9. LIMIT OF LIABILITY
+
+   TO THE FULLEST EXTENT THE LAW ALLOWS, THE LICENSOR AND CONTRIBUTORS ARE NOT LIABLE FOR ANY CLAIM, LOSS OR DAMAGES (INCLUDING LOST PROFIT, LOST
+   DATA OR INTERRUPTION OF BUSINESS) ARISING FROM THE SOFTWARE OR ITS USE, WHETHER IN CONTRACT, TORT OR OTHERWISE. NOTHING IN THIS LICENCE LIMITS
+   LIABILITY THAT CANNOT BE LIMITED BY LAW, SUCH AS FOR DEATH OR PERSONAL INJURY CAUSED BY NEGLIGENCE, OR FOR FRAUD.
+
+10. GENERAL
+
+   This licence is governed by the law of England and Wales, and the courts of England and Wales have exclusive jurisdiction, unless your local law
+   requires otherwise. If part of this licence cannot be enforced, the rest still applies. This is the whole licence between you and the Licensor
+   for the Software, apart from any Commercial Licence.

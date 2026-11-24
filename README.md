@@ -1,6 +1,6 @@
 # PiranhaCommerce
 
-A commerce engine for .NET, delivered as NuGet packages. Closed source for now; designed so it can be opened later.
+A commerce engine for .NET, delivered as NuGet packages. Source-available under the [PiranhaCommerce Attribution Licence](LICENSE): free to use and change, with a "Built on PiranhaCommerce" notice on every page; a Commercial Licence removes the notice. See [licensing](docs/public/getting-started/licensing.md).
 
 ## Documentation
 

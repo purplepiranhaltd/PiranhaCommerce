@@ -47,7 +47,7 @@ Also open from the comparison, with where each stands:
 
 Where PiranhaCommerce is ahead or different: weighed and fractional stock, locations and transfers with a ledger, low-stock alerts, payment reconciliation and disputes, shopper and staff
 privacy tools (export and erasure), reviews with photos, shop replies and helpful votes, an API for everything with signed webhooks and an audit log, specifications with filter
-counts, and plugins as NuGet packages (host-owned migrations) rather than uploaded DLLs. PiranhaCommerce is closed source; nopCommerce is open source with a paid licence option.
+counts, and plugins as NuGet packages (host-owned migrations) rather than uploaded DLLs. PiranhaCommerce is source-available under an attribution licence, with a paid Commercial Licence that removes the notice; nopCommerce does much the same with its own licence.
 
 ## Stock transfers and staff locations
 
