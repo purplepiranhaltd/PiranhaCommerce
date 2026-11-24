@@ -63,5 +63,3 @@ git push origin v0.1.0-alpha.1
 - **One-off setup:** add a nuget.org API key as the repository secret `NUGET_API_KEY` (allowed to push `PiranhaCommerce.*`). Reserve the `PiranhaCommerce.` package prefix on nuget.org so nobody else can publish under it. The publish step runs in a GitHub environment called `nuget`; add required reviewers to it if you want to approve each release by hand.
 - **Rehearse first:** *Run workflow* on the Actions tab, with a version, does everything except publish.
 - A release cannot be taken back: nuget.org lets you hide a version ("unlist") but never reuse its number.
-
-The CI and release workflows have been run on GitHub; the release rehearsal is the check that a tag will pack and verify.
