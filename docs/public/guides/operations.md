@@ -8,7 +8,7 @@ This guide covers running the shop: sales and stock reports, telling other syste
 
 ## Reports
 
-Reports are at `GET /api/v1/reports/sales`, `/products`, `/categories`, `/customers` and `/tax`, plus `GET /stock/low?threshold=`. In the admin: Orders > Reports and Catalog > Low stock.
+Reports are at `GET /api/v1/reports/sales`, `/products`, `/categories`, `/customers` and `/tax`, plus `GET /stock/low?threshold=`. In the admin, under the Reports section: Reports > Orders and Reports > Low stock.
 
 **Options every report takes**
 - `from` and `to` (dates, inclusive; the last 30 days by default).
@@ -93,6 +93,13 @@ Add `PiranhaCommerce.Audit`, and `PiranhaCommerce.Audit.Admin` for the Audit log
 **For package authors.** Mark your own entity classes with `[Audited]` to join in. Services that change rows with set-based SQL either go through the change tracker (`db.DeleteTrackedAsync`, `db.UpdateTrackedAsync`) or say what they changed through `IAuditTrail` (order stage changes do).
 
 **Not recorded:** payments and stock movements (they are ledgers already), baskets, sign-ins, and counters. There is no automatic clearing out of old entries yet.
+
+## The admin menu
+
+The menu on the left is made from the entries each package adds (`IAdminMenuContributor`). A top-level entry with no address is a **section**; entries that name it in `ParentKey` sit inside it.
+- **Sections fold.** Only the section the current page is in is open; the others are closed until you open them, and the ones you open stay open as you move around. A closed section still shows a count if something inside it is waiting. The menu scrolls inside the height of the window on a desktop, so the person and the sign-out link stay in view.
+- **Icons.** A section can name one in `Icon`: `home`, `box`, `cart`, `users`, `chart`, `mail`, `shield` or `plug`. A name that is not one of these shows a dot.
+- **Reports.** The admin provides a Reports section of its own. A package adds a report by giving its entry `ParentKey: "reports"` while it stays in its own package: Reports > Orders comes from the ecommerce admin, and Reports > Low stock and Negative stock from the catalogue admin. The section is left out when nothing is in it.
 
 ## Admin menu badges
 

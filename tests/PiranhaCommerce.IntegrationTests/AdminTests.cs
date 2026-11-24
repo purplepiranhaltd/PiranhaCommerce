@@ -129,6 +129,42 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
     }
 
     [Fact]
+    public async Task The_menu_groups_reports_in_their_own_section_and_folds_every_section_but_the_current_one()
+    {
+        var browser = NewBrowser();
+        await PostLoginAsync(browser, PiranhaFactory.AdminEmail, PiranhaFactory.AdminPassword, "/admin");
+
+        static string Section(string page, string key)
+        {
+            var start = page.IndexOf($"id=\"pc-nav-{key}\"", StringComparison.Ordinal);
+            Assert.True(start >= 0, $"No {key} section in the menu.");
+            return page[start..page.IndexOf("</div>", start, StringComparison.Ordinal)];
+        }
+
+        // Reports is a section of its own: Orders, Low stock and Negative stock, each from the package that owns the page.
+        var dashboard = await (await browser.GetAsync("/admin")).Content.ReadAsStringAsync();
+        var reports = Section(dashboard, "reports");
+        Assert.Contains("href=\"/admin/orders/reports\"", reports);
+        Assert.Contains("href=\"/admin/catalog/low-stock\"", reports);
+        Assert.Contains("href=\"/admin/catalog/negative-stock\"", reports);
+        Assert.DoesNotContain("low-stock", Section(dashboard, "catalog"));
+        Assert.DoesNotContain("negative-stock", Section(dashboard, "catalog"));
+        Assert.DoesNotContain("/admin/orders/reports", Section(dashboard, "orders"));
+
+        // Every section has an icon, and on the dashboard they are all closed.
+        Assert.Equal(7, System.Text.RegularExpressions.Regex.Matches(dashboard, "class=\"pc-nav-toggle\"").Count);
+        Assert.Equal(System.Text.RegularExpressions.Regex.Matches(dashboard, "class=\"pc-nav-toggle").Count, System.Text.RegularExpressions.Regex.Matches(dashboard, "aria-expanded=\"false\"").Count);
+        Assert.Contains("<svg class=\"pc-icon\"", dashboard);
+
+        // On a page, its own section is the one open, and Reports > Orders is the current entry, not Orders > All orders.
+        var page = await (await browser.GetAsync("/admin/orders/reports")).Content.ReadAsStringAsync();
+        Assert.Matches("aria-expanded=\"true\"[^>]*aria-controls=\"pc-nav-reports\"|aria-controls=\"pc-nav-reports\"[^>]*aria-expanded=\"true\"", page);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(page, "aria-expanded=\"true\""));
+        Assert.Contains("class=\"pc-nav-link active\" href=\"/admin/orders/reports\"", page);
+        Assert.DoesNotContain("class=\"pc-nav-link active\" href=\"/admin/orders\"", page);
+    }
+
+    [Fact]
     public async Task Product_edit_page_shows_the_ecommerce_panel_only_for_saved_products()
     {
         var api = await factory.CreateAuthenticatedApiClientAsync();

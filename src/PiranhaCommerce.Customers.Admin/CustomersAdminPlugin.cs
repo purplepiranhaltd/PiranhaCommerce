@@ -24,7 +24,7 @@ internal sealed class CustomersAdminMenu : IAdminMenuContributor
 {
     public IEnumerable<AdminMenuItem> GetMenuItems() =>
     [
-        new("customers", "Customers", Order: 20),
+        new("customers", "Customers", Icon: "users", Order: 20),
         new("customers.list", "All customers", "/admin/customers", Order: 21, ParentKey: "customers"),
         new("customers.groups", "Groups", "/admin/customers/groups", Order: 22, ParentKey: "customers"),
     ];

@@ -22,7 +22,7 @@ internal sealed class WebhooksAdminMenu : IAdminMenuContributor
 {
     public IEnumerable<AdminMenuItem> GetMenuItems() =>
     [
-        new("webhooks", "Webhooks", Order: 92),
+        new("webhooks", "Webhooks", Icon: "plug", Order: 92),
         new("webhooks.endpoints", "Endpoints and deliveries", "/admin/webhooks", Order: 93, ParentKey: "webhooks"),
     ];
 }

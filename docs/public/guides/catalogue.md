@@ -121,7 +121,7 @@ The Low stock page (`GET /stock/low?threshold=`) lists what is at or below a lev
 
 ### Negative stock report
 
-`GET /stock/negative`, or Catalog > Negative stock in the admin, lists every product and location below zero. It exists for channels such as EPOS that must record a sale even when the system thought it had none. A product drops off the list once a recount brings it back to zero or more.
+`GET /stock/negative`, or Reports > Negative stock in the admin, lists every product and location below zero. It exists for channels such as EPOS that must record a sale even when the system thought it had none. A product drops off the list once a recount brings it back to zero or more.
 
 ### Moving stock between locations
 

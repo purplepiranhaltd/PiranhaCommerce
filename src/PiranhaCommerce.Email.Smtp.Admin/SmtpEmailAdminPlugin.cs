@@ -22,7 +22,7 @@ internal sealed class SmtpEmailAdminMenu : IAdminMenuContributor
 {
     public IEnumerable<AdminMenuItem> GetMenuItems() =>
     [
-        new("email", "Email", Order: 40),
+        new("email", "Email", Icon: "mail", Order: 40),
         new("email.templates", "Email templates", "/admin/email/templates", Order: 41, ParentKey: "email"),
     ];
 }

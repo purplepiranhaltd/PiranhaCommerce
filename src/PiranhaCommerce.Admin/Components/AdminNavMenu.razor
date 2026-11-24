@@ -1,23 +1,35 @@
 @using PiranhaCommerce.Admin.Services
 @implements IDisposable
-<nav class="pc-admin-nav">
+<nav class="pc-admin-nav" aria-label="Admin">
     <div class="pc-nav-group">
-        <NavLink href="/admin" Match="NavLinkMatch.All">Dashboard</NavLink>
+        <a class="pc-nav-link pc-nav-top@(IsActive("/admin", exact: true) ? " active" : "")" href="/admin" aria-current="@(IsActive("/admin", exact: true) ? "page" : null)">@AdminIcons.Svg("home")<span>Dashboard</span></a>
     </div>
-    @foreach (var top in Menu.Where(i => i.ParentKey is null))
+    @foreach (var top in Sections)
     {
+        var children = ChildrenOf(top.Key);
+        var open = _open.Contains(top.Key);
+        var waiting = children.Sum(c => c.BadgeKey is not null && _badges.TryGetValue(c.BadgeKey, out var n) ? n : 0);
         <div class="pc-nav-group">
-            @if (top.Href is null)
+            @if (children.Count == 0)
             {
-                <span>@top.Title</span>
+                <a class="pc-nav-link pc-nav-top@(IsActive(top.Href!) ? " active" : "")" href="@top.Href" aria-current="@(IsActive(top.Href!) ? "page" : null)">@AdminIcons.Svg(top.Icon)<span>@top.Title</span></a>
             }
             else
             {
-                <NavLink href="@top.Href">@top.Title</NavLink>
-            }
-            @foreach (var child in Menu.Where(i => i.ParentKey == top.Key))
-            {
-                <NavLink href="@child.Href">@child.Title@if (child.BadgeKey is not null && _badges.TryGetValue(child.BadgeKey, out var waiting)){<span class="pc-badge" title="@waiting waiting" aria-label="@waiting waiting">@waiting</span>}</NavLink>
+                <button type="button" class="pc-nav-toggle@(open ? " open" : "")" aria-expanded="@(open ? "true" : "false")" aria-controls="pc-nav-@top.Key" @onclick="() => Toggle(top.Key)">
+                    @AdminIcons.Svg(top.Icon)<span>@top.Title</span>
+                    @* A closed section still says when something inside it is waiting. *@
+                    @if (!open && waiting > 0) { <span class="pc-badge" title="@waiting waiting" aria-label="@waiting waiting">@waiting</span> }
+                    <svg class="pc-chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+                </button>
+                @* Always in the page, hidden when closed: the links stay reachable to anything that reads the page. *@
+                <div class="pc-nav-items" id="pc-nav-@top.Key" hidden="@(!open)">
+                    @foreach (var child in children)
+                    {
+                        var active = IsActive(child.Href!);
+                        <a class="pc-nav-link@(active ? " active" : "")" href="@child.Href" aria-current="@(active ? "page" : null)">@child.Title@if (child.BadgeKey is not null && _badges.TryGetValue(child.BadgeKey, out var count)){<span class="pc-badge" title="@count waiting" aria-label="@count waiting">@count</span>}</a>
+                    }
+                </div>
             }
         </div>
     }
@@ -26,19 +38,51 @@
 @code {
     [Inject] private AdminMenuService Service { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
+
     private IReadOnlyList<AdminMenuItem> Menu => Service.GetMenu();
     private IReadOnlyDictionary<string, int> _badges = new Dictionary<string, int>();
 
+    /// <summary>The sections the person has opened, plus the one the current page is in.</summary>
+    private readonly HashSet<string> _open = [];
+
+    /// <summary>Top-level entries to show: a section with nothing in it (no link and no entries) is left out.</summary>
+    private IEnumerable<AdminMenuItem> Sections => Menu.Where(i => i.ParentKey is null && (i.Href is not null || ChildrenOf(i.Key).Count > 0));
+
+    private List<AdminMenuItem> ChildrenOf(string key) => Menu.Where(i => i.ParentKey == key && i.Href is not null).ToList();
+
+    private string CurrentPath => "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].TrimEnd('/');
+
+    private static bool Covers(string href, string path) => path == href || path.StartsWith(href + "/", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The entry the current page belongs to is the one with the longest address that covers it, so a page under Reports is not also "All orders".
+    /// </summary>
+    private AdminMenuItem? CurrentEntry => Menu.Where(i => i.Href is not null && Covers(i.Href, CurrentPath)).OrderByDescending(i => i.Href!.Length).FirstOrDefault();
+
+    private bool IsActive(string href, bool exact = false) =>
+        exact ? CurrentPath == href : CurrentEntry?.Href == href;
+
     protected override async Task OnInitializedAsync()
     {
+        OpenCurrentSection();
         Navigation.LocationChanged += OnLocationChanged;
         await RefreshAsync();
+    }
+
+    private void OpenCurrentSection()
+    {
+        if (CurrentEntry is { ParentKey: { } parent }) _open.Add(parent);
+    }
+
+    private void Toggle(string key)
+    {
+        if (!_open.Remove(key)) _open.Add(key);
     }
 
     // Counts are read again when the person moves between pages, so dealing with something clears its badge.
     private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
-        try { await InvokeAsync(async () => { await RefreshAsync(); StateHasChanged(); }); }
+        try { await InvokeAsync(async () => { OpenCurrentSection(); await RefreshAsync(); StateHasChanged(); }); }
         catch (Exception) { /* the circuit has gone */ }
     }
 

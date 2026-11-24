@@ -22,7 +22,7 @@ internal sealed class AuditAdminMenu : IAdminMenuContributor
 {
     public IEnumerable<AdminMenuItem> GetMenuItems() =>
     [
-        new("audit", "Audit log", Order: 90),
+        new("audit", "Audit log", Icon: "shield", Order: 90),
         new("audit.log", "Who changed what", "/admin/audit", Order: 91, ParentKey: "audit"),
     ];
 }

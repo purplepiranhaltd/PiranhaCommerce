@@ -14,7 +14,7 @@ engine you build a shop on. Order of work, each marked built or open:
    Open: slug history and redirects, bulk upload and video. (Dispute evidence files are built.)
 3. **Catalogue import and export: built** (see the README), as CSV with variants, categories, barcodes, stock and the online listing, checked before anything is saved.
    Open: Excel files, stock at other locations, group prices, pictures by address, and large files imported in the background.
-4. **Reports and the audit log: built.** Reports (API `/reports/sales|products|categories|customers|tax`, `GET /stock/low`; admin Orders > Reports and Catalog > Low stock) cover sales by day, week or month,
+4. **Reports and the audit log: built.** Reports (API `/reports/sales|products|categories|customers|tax`, `GET /stock/low`; admin Reports > Orders and Reports > Low stock) cover sales by day, week or month,
    best sellers (optionally variants under their parent), sales by category, top customers, tax by rate and low stock, each as JSON or CSV. Orders that were not cancelled count on the day placed (UTC).
    The audit log (package `PiranhaCommerce.Audit`, admin page Audit log) records who created, changed or deleted catalogue, price, promotion, tax, shipping, customer-group, customer and order records. Open: profit (no cost price held), reports by sales channel, charts, and for the log: entries for other record types, history panels on the product and order pages, and keeping it to a set number of days.
 5. **Quantity breaks and minimum or maximum order quantities: built** (see the README). **The discount engine: built** (automatic discounts, free-shipping codes, discounts on chosen products or categories, buy-X-get-Y, per-customer limits, stacking; see the README).

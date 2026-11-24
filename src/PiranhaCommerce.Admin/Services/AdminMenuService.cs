@@ -6,8 +6,18 @@ namespace PiranhaCommerce.Admin.Services;
 
 public sealed class AdminMenuService(IEnumerable<IAdminMenuContributor> contributors, IEnumerable<IAdminBadgeProvider> badges, IServiceScopeFactory scopes, ILogger<AdminMenuService> logger)
 {
-    public IReadOnlyList<AdminMenuItem> GetMenu() =>
-        contributors.SelectMany(c => c.GetMenuItems()).OrderBy(i => i.Order).ToList();
+    /// <summary>
+    /// The section reports are gathered under. It belongs to the admin itself, not to one package, so a package adds a report by giving its entry
+    /// <c>ParentKey: "reports"</c>; the section only shows when something is in it.
+    /// </summary>
+    public const string ReportsKey = "reports";
+
+    public IReadOnlyList<AdminMenuItem> GetMenu()
+    {
+        var items = contributors.SelectMany(c => c.GetMenuItems()).ToList();
+        if (!items.Any(i => i.Key == ReportsKey)) items.Add(new AdminMenuItem(ReportsKey, "Reports", Icon: "chart", Order: 30));
+        return items.OrderBy(i => i.Order).ToList();
+    }
 
     /// <summary>What is waiting, by badge key. Only keys with something waiting are present. A failing provider is logged and left out: a menu must never break a page.</summary>
     public async Task<IReadOnlyDictionary<string, int>> GetBadgesAsync(CancellationToken ct = default)
