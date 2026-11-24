@@ -34,7 +34,7 @@ Also open from the comparison, with where each stands:
 - **Payments:** other gateways (PayPal, Adyen and others). Stripe, gift vouchers, refunds, disputes and reconciliation are built.
 - **Shipping:** live carrier rates and labels (item 7). Zones, rates and tracking links are built.
 - **Currency and language:** multi-currency and translations (item 8).
-- **Accounts:** social sign-in and two-factor, reward points, customer-defined attributes. Finer staff permissions and API keys for integrations are built (see the staff guide).
+- **Accounts:** social sign-in, two-factor for shoppers (staff have it), a way to make two-factor compulsory, reward points, customer-defined attributes. Finer staff permissions and API keys for integrations are built (see the staff guide).
 - **Marketing and content:** a newsletter list (nopCommerce 4.90 has several), multiple wishlists per shopper, request-a-quote, and AI help with product text. Blogs, news, polls, forums and themes are out of scope.
 - **Databases:** a MySQL package (and MariaDB if it comes free), alongside SQL Server, Azure SQL and PostgreSQL. Planned as one more provider package, like `PiranhaCommerce.Data.PostgreSql`: `PiranhaCommerce.Data.MySql` with an `AddPiranhaCommerceMySql()`
   registration, a host-owned migration set in its own project (as `PiranhaCommerce.Web.Migrations.PostgreSql` is), and a CI job that runs the whole integration suite against MySQL.

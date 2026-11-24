@@ -14,7 +14,7 @@ public sealed record StaffRoleDto(string Name, bool IsAdministrator, IReadOnlyLi
 
 public sealed record StaffRoleInput(string Name, IReadOnlyList<string>? Permissions);
 
-public sealed record StaffUserDto(Guid Id, string Email, string? DisplayName, bool Active, bool IsAdministrator, IReadOnlyList<string> Roles);
+public sealed record StaffUserDto(Guid Id, string Email, string? DisplayName, bool Active, bool IsAdministrator, IReadOnlyList<string> Roles, bool TwoFactorEnabled = false);
 
 public sealed record StaffUserInput(string Email, string? DisplayName, string Password, IReadOnlyList<string>? Roles);
 
@@ -41,6 +41,13 @@ public interface IStaffAdminService
     /// <summary>Replaces the person's roles. Null when there is no such person.</summary>
     [RequiresPermission(Permissions.StaffManage)]
     Task<StaffUserDto?> SetRolesAsync(Guid userId, IReadOnlyList<string> roles, CancellationToken ct = default);
+
+    /// <summary>
+    /// Turns off someone's two-factor sign-in, for a lost or replaced phone. They sign in with their password and can set it up again. An administrator
+    /// cannot read or set anyone's codes. Null when there is no such person.
+    /// </summary>
+    [RequiresPermission(Permissions.StaffManage)]
+    Task<StaffUserDto?> ResetTwoFactorAsync(Guid userId, CancellationToken ct = default);
 
     /// <summary>Switches a person on or off. Someone who is off cannot sign in and holds no permission at once. Null when there is no such person.</summary>
     [RequiresPermission(Permissions.StaffManage)]
@@ -188,6 +195,17 @@ internal sealed class StaffAdminService(
         return await ToDtoAsync(user);
     }
 
+    public async Task<StaffUserDto?> ResetTwoFactorAsync(Guid userId, CancellationToken ct = default)
+    {
+        if (await users.FindByIdAsync(userId.ToString()) is not { } user) return null;
+        if (!user.TwoFactorEnabled) return await ToDtoAsync(user);
+        Check(await users.SetTwoFactorEnabledAsync(user, false));
+        await users.ResetAuthenticatorKeyAsync(user);
+        await users.RemoveAuthenticationTokenAsync(user, "[AspNetUserStore]", "RecoveryCodes");
+        await RecordAsync("StaffUser", user.Email ?? userId.ToString(), "two-factor reset", [new AuditChange("TwoFactor", "On", "Off")], ct);
+        return await ToDtoAsync(user);
+    }
+
     /// <summary>Someone must always be able to run the shop: refuse a change that would leave no active administrator.</summary>
     private async Task EnsureAnotherAdministratorAsync(PiranhaCommerceUser leaving)
     {
@@ -219,7 +237,7 @@ internal sealed class StaffAdminService(
     private async Task<StaffUserDto> ToDtoAsync(PiranhaCommerceUser user)
     {
         var names = (await users.GetRolesAsync(user)).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
-        return new StaffUserDto(user.Id, user.Email ?? "", user.DisplayName, user.Active, names.Contains(Administrator), names);
+        return new StaffUserDto(user.Id, user.Email ?? "", user.DisplayName, user.Active, names.Contains(Administrator), names, user.TwoFactorEnabled);
     }
 
     private async Task RecordAsync(string entityType, string id, string what, IReadOnlyList<AuditChange> changes, CancellationToken ct)

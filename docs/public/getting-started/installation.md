@@ -22,7 +22,7 @@ dotnet run --project samples/PiranhaCommerce.Web      # http://localhost:5280
 In `Development` the host applies migrations on startup and creates an administrator from `appsettings.Development.json` (`admin@piranhacommerce.local` / `Dev-Passw0rd!`; **development only**). In any other environment, set `PiranhaCommerce:Jwt:SigningKey` (32 or more characters, from a secret store) and create users yourself; the API fails closed without a key.
 
 - **Admin:** `/admin`, cookie sign-in, Blazor Interactive Server. Pages from plugins appear once the plugin registers an admin page assembly. Each page needs the permission it names (see [Staff and permissions](../guides/staff.md)); a page that names none needs the Administrator role.
-- **API:** `POST /api/v1/auth/token` with `{ "email", "password" }`, then send `Authorization: Bearer <token>`. All `/api/v1` endpoints need a token, and each endpoint needs the permission it names (an endpoint that names none needs the `Administrator` role). The OpenAPI document is at `/openapi/v1.json`. For another system, use an API key instead of a password (see [Staff and permissions](../guides/staff.md#api-keys)).
+- **API:** `POST /api/v1/auth/token` with `{ "email", "password" }`, then send `Authorization: Bearer <token>`. (If the person has two-factor sign-in on, add `"code"`; see [Staff and permissions](../guides/staff.md#two-factor-sign-in).) All `/api/v1` endpoints need a token, and each endpoint needs the permission it names (an endpoint that names none needs the `Administrator` role). The OpenAPI document is at `/openapi/v1.json`. For another system, use an API key instead of a password (see [Staff and permissions](../guides/staff.md#api-keys)).
 
 To build and test everything:
 

@@ -47,6 +47,16 @@ Reading is controlled too. Someone with only `orders.fulfil` sees orders but not
 
 The API enforces the same permissions. Call `POST /api/v1/auth/token` as the person and the token works for exactly what their roles allow, as they change. A call without the permission returns `403`. An endpoint a package adds without naming a permission is treated as administrator-only, so a forgotten annotation fails closed.
 
+## Two-factor sign-in
+
+Anyone on the staff can turn on two-factor sign-in for themselves: **My account > Sign-in security**, then **Set it up**. Add the key to an authenticator app on your phone, type the six-digit code it shows, and you are given ten recovery codes. Keep them somewhere safe; each works once if you lose your phone, and they are shown only then.
+
+- **At sign-in** the admin asks for the code after the password. The API does the same: if the password is right but the person has two-factor on, `POST /api/v1/auth/token` answers `401` with `{ "error": "two_factor_required" }`; send the request again with `"code": "123456"` (a recovery code works too). For an integration, use an API key instead, which has no code to type.
+- **Guessing is limited.** A wrong code counts towards the same lockout as a wrong password, and a correct password on its own does not clear that count.
+- **Turning it off, or making new recovery codes,** needs a current code, so someone at an unlocked screen cannot do it.
+- **A lost phone:** use a recovery code, or ask an administrator to choose **Reset two-factor** next to your name on **Staff > Staff and roles**. That switches it off, discards the old key and recovery codes, and records the reset in the audit log. You can then set it up again on the new phone. An administrator can never see or set anyone's codes.
+- **Not yet:** two-factor cannot be made compulsory for a role, and shoppers cannot use it.
+
 ## API keys
 
 A key lets another system (a warehouse system, an accounts package) call the API without a person's password. Open **Staff > API keys**, say what the key is for, tick the roles it acts with and choose **Make key**. The key is shown once; copy it then, because only a fingerprint is kept and it cannot be read again.

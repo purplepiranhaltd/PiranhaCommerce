@@ -29,7 +29,7 @@ else
         @foreach (var u in _staff)
         {
             <tr>
-                <td>@u.Email @(u.Active ? "" : "(switched off)")<br /><span class="pc-muted">@u.DisplayName</span></td>
+                <td>@u.Email @(u.Active ? "" : "(switched off)")@(u.TwoFactorEnabled ? " (two-factor on)" : "")<br /><span class="pc-muted">@u.DisplayName</span></td>
                 <td>
                     @foreach (var r in _roles)
                     {
@@ -41,6 +41,7 @@ else
                 <td class="actions">
                     <button @onclick="() => SaveUserAsync(u)">Save roles</button>
                     <button class="secondary" @onclick="() => ToggleActiveAsync(u)">@(u.Active ? "Switch off" : "Switch on")</button>
+                    @if (u.TwoFactorEnabled) { <button class="secondary" @onclick="() => ResetTwoFactorAsync(u)">Reset two-factor</button> }
                 </td>
             </tr>
         }
@@ -160,6 +161,9 @@ else
 
     private Task ToggleActiveAsync(StaffUserDto u) =>
         Run(() => Scope.RunAsync<IStaffAdminService, StaffUserDto?>(s => s.SetActiveAsync(u.Id, !u.Active)), u.Active ? $"{u.Email} is switched off." : $"{u.Email} is switched on.");
+
+    private Task ResetTwoFactorAsync(StaffUserDto u) =>
+        Run(() => Scope.RunAsync<IStaffAdminService, StaffUserDto?>(s => s.ResetTwoFactorAsync(u.Id)), $"Two-factor is off for {u.Email}. They sign in with their password and can set it up again.");
 
     private Task CreateUserAsync() => Run(async () =>
     {

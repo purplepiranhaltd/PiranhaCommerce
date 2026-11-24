@@ -226,7 +226,7 @@ public partial class StaffAdminPermissionTests(PiranhaCommerceFactory factory) :
         "IProductService", "IProductVariantService", "IPromotionService", "IReportService", "IReturnRequestService", "IReviewPhotoService", "IReviewService",
         "ISaleService", "IShippingCarrierService", "IShippingService", "IShippingZoneService", "ISpecificationService", "IStaffLocationService", "IStockAlertService",
         "IStockLocationService", "IStockService", "IStockTransferService", "ITagService", "ITaxService", "IUnreconciledPaymentService", "IVoucherService",
-        "IWarrantyService", "IStaffAdminService", "IApiKeyService", "IWebhookDispatcher", "IWebhookService", "IWishlistService", "IAuditService",
+        "IWarrantyService", "IStaffAdminService", "IStaffSecurityService", "IApiKeyService", "IWebhookDispatcher", "IWebhookService", "IWishlistService", "IAuditService",
     ];
 
     private static readonly string[] ReadPrefixes = ["Get", "List", "Find", "Count", "Export", "Preview", "Providers"];
@@ -252,6 +252,8 @@ public partial class StaffAdminPermissionTests(PiranhaCommerceFactory factory) :
         // called by the system (gateways, the background sender, other services), never from the admin
         "IGatewayService.HandleWebhookAsync", "IWebhookDispatcher.DispatchDueAsync", "IWebhookDispatcher.PurgeAsync", "IStockService.EnsureLevelsAsync",
         "IStockService.ApplyInTransactionAsync",
+        // the signed-in person looks after their own sign-in security; the page passes their own id
+        "IStaffSecurityService.BeginSetupAsync", "IStaffSecurityService.ConfirmSetupAsync", "IStaffSecurityService.DisableAsync", "IStaffSecurityService.NewRecoveryCodesAsync",
         // the sample plugin guards this one with its own permission on the interface method (see the next test)
     ];
 

@@ -152,7 +152,7 @@ public partial class AdminTests(PiranhaCommerceFactory factory) : IClassFixture<
         Assert.DoesNotContain("/admin/orders/reports", Section(dashboard, "orders"));
 
         // Every section has an icon, and on the dashboard they are all closed.
-        Assert.Equal(8, System.Text.RegularExpressions.Regex.Matches(dashboard, "class=\"pc-nav-toggle\"").Count); // including the admin's own Staff section
+        Assert.Equal(9, System.Text.RegularExpressions.Regex.Matches(dashboard, "class=\"pc-nav-toggle\"").Count); // including the admin's own Staff and My account sections
         Assert.Equal(System.Text.RegularExpressions.Regex.Matches(dashboard, "class=\"pc-nav-toggle").Count, System.Text.RegularExpressions.Regex.Matches(dashboard, "aria-expanded=\"false\"").Count);
         Assert.Contains("<svg class=\"pc-icon\"", dashboard);
 

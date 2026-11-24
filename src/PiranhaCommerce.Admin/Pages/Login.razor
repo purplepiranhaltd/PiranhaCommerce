@@ -21,20 +21,34 @@
     }
     <EditForm Model="Input" FormName="login" OnValidSubmit="LoginAsync" method="post">
         <DataAnnotationsValidator />
-        <label>Email
-            <InputText type="email" @bind-Value="Input!.Email" autocomplete="username" />
-        </label>
-        <ValidationMessage For="() => Input!.Email" />
-        <label>Password
-            <InputText type="password" @bind-Value="Input!.Password" autocomplete="current-password" />
-        </label>
-        <ValidationMessage For="() => Input!.Password" />
-        <button type="submit">Sign in</button>
+        @if (_needCode)
+        {
+            @* Step two: the password was right. It travels in the form again so the code and the password are checked together. *@
+            <InputText type="hidden" @bind-Value="Input!.Email" />
+            <InputText type="hidden" @bind-Value="Input!.Password" />
+            <p class="pc-muted">Enter the six-digit code from your authenticator app, or one of your recovery codes.</p>
+            <label>Code
+                <InputText @bind-Value="Input!.Code" autocomplete="one-time-code" inputmode="numeric" autofocus />
+            </label>
+        }
+        else
+        {
+            <label>Email
+                <InputText type="email" @bind-Value="Input!.Email" autocomplete="username" />
+            </label>
+            <ValidationMessage For="() => Input!.Email" />
+            <label>Password
+                <InputText type="password" @bind-Value="Input!.Password" autocomplete="current-password" />
+            </label>
+            <ValidationMessage For="() => Input!.Password" />
+        }
+        <button type="submit">@(_needCode ? "Verify" : "Sign in")</button>
     </EditForm>
 </div>
 
 @code {
     private string? _error;
+    private bool _needCode;
 
     [SupplyParameterFromForm] private LoginModel? Input { get; set; }
     [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
@@ -43,13 +57,15 @@
 
     private async Task LoginAsync()
     {
-        var check = await Credentials.CheckAsync(Input!.Email, Input.Password);
+        var check = await Credentials.CheckAsync(Input!.Email, Input.Password, Input.Code);
         if (check.User is { } user)
         {
             await SignInManager.SignInAsync(user, isPersistent: false);
             Navigation.NavigateTo(IsLocal(ReturnUrl) ? ReturnUrl! : "/admin", forceLoad: true);
             return;
         }
+        if (check.Status == CredentialStatus.TwoFactorRequired) { _needCode = true; Input.Code = null; return; }
+        if (check.Status == CredentialStatus.TwoFactorInvalid) { _needCode = true; Input.Code = null; _error = "That code is not right. Try again."; return; }
         _error = check.Status == CredentialStatus.LockedOut
             ? "This account is temporarily locked. Try again later."
             : "Invalid email or password.";
@@ -63,5 +79,6 @@
     {
         [Required, EmailAddress] public string Email { get; set; } = "";
         [Required] public string Password { get; set; } = "";
+        public string? Code { get; set; }
     }
 }

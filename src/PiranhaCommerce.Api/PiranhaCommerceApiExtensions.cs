@@ -93,7 +93,12 @@ public static class PiranhaCommerceApiExtensions
         var root = app.MapGroup(prefix);
 
         root.MapPost("/auth/token", async (TokenRequest request, JwtTokenService tokens) =>
-                await tokens.IssueAsync(request) is { } t ? Results.Ok(t) : Results.Unauthorized())
+            {
+                var (token, status) = await tokens.IssueWithStatusAsync(request);
+                if (token is not null) return Results.Ok(token);
+                // The password was right but the person has two-factor on: say so, so the caller can ask for the code and send it as "code".
+                return status == CredentialStatus.TwoFactorRequired ? Results.Json(new { error = "two_factor_required" }, statusCode: StatusCodes.Status401Unauthorized) : Results.Unauthorized();
+            })
             .AllowAnonymous().WithTags("Auth");
 
         var api = root.MapGroup("").RequireAuthorization(ApiPolicies.Read).AddEndpointFilter<AuditActorFilter>().AddEndpointFilter<PiranhaCommerceExceptionFilter>();

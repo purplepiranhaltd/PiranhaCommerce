@@ -10,6 +10,12 @@ public enum CredentialStatus
 
     /// <summary>Too many failed attempts; the account refuses every password until the lockout ends.</summary>
     LockedOut,
+
+    /// <summary>The password is right, but the person has two-factor sign-in on and no code was given. Ask for the code and check again.</summary>
+    TwoFactorRequired,
+
+    /// <summary>The password is right but the code is not (or was already used).</summary>
+    TwoFactorInvalid,
 }
 
 public sealed record CredentialResult(CredentialStatus Status, PiranhaCommerceUser? User)
@@ -25,5 +31,6 @@ public sealed record CredentialResult(CredentialStatus Status, PiranhaCommerceUs
 /// </summary>
 public interface ICredentialChecker
 {
-    Task<CredentialResult> CheckAsync(string email, string password, CancellationToken ct = default);
+    /// <param name="code">The six-digit code from the authenticator app, or a recovery code. Only needed when the person has two-factor sign-in on.</param>
+    Task<CredentialResult> CheckAsync(string email, string password, string? code = null, CancellationToken ct = default);
 }

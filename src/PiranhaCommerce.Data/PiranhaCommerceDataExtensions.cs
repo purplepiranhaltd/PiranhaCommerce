@@ -27,6 +27,7 @@ public static class PiranhaCommerceDataExtensions
                 o.User.RequireUniqueEmail = true;
             })
             .AddRoles<PiranhaCommerceRole>()
+            .AddTokenProvider<AuthenticatorTokenProvider<PiranhaCommerceUser>>(TokenOptions.DefaultAuthenticatorProvider) // two-factor codes
             .AddEntityFrameworkStores<PiranhaCommerceDbContext>();
         builder.Services.AddScoped<ICredentialChecker, CredentialChecker>();
         builder.Services.AddScoped<ApiKeyService>();

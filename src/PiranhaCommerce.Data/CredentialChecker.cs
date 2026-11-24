@@ -11,7 +11,7 @@ internal sealed class CredentialChecker(
     // Burned when the email is unknown so that "no such user" takes as long as "wrong password".
     private static readonly PiranhaCommerceUser Dummy = new() { UserName = "dummy" };
 
-    public async Task<CredentialResult> CheckAsync(string email, string password, CancellationToken ct = default)
+    public async Task<CredentialResult> CheckAsync(string email, string password, string? code = null, CancellationToken ct = default)
     {
         var user = string.IsNullOrWhiteSpace(email) ? null : await users.FindByEmailAsync(email.Trim());
         if (user is null || !user.Active)
@@ -26,6 +26,18 @@ internal sealed class CredentialChecker(
         if (!await users.CheckPasswordAsync(user, password ?? ""))
             return new(await RecordFailureAsync(user.Id, ct) ? CredentialStatus.LockedOut : CredentialStatus.Invalid, null);
 
+        // With two-factor on, the failure count is only cleared once the code is right too. Otherwise a guesser who knows the password
+        // could reset the count with every correct password and try codes without end.
+        if (user.TwoFactorEnabled)
+        {
+            var open = DateTimeOffset.UtcNow;
+            if (await db.Users.AnyAsync(u => u.Id == user.Id && u.LockoutEnabled && u.LockoutEnd != null && u.LockoutEnd > open, ct))
+                return new(CredentialStatus.LockedOut, null);
+            if (string.IsNullOrWhiteSpace(code)) return new(CredentialStatus.TwoFactorRequired, null);
+            if (!await CodeIsRightAsync(user, code))
+                return new(await RecordFailureAsync(user.Id, ct) ? CredentialStatus.LockedOut : CredentialStatus.TwoFactorInvalid, null);
+        }
+
         // Success is only granted if the account is STILL unlocked at this instant (one atomic statement). A burst of guesses that
         // all passed the check above before the lock landed cannot sign in once it has: the right password is refused after that.
         // Conflict-free as well: it does not touch the concurrency stamp, so simultaneous correct sign-ins cannot refuse each other.
@@ -33,6 +45,14 @@ internal sealed class CredentialChecker(
         var granted = await db.Users.Where(u => u.Id == user.Id && (!u.LockoutEnabled || u.LockoutEnd == null || u.LockoutEnd <= now))
             .ExecuteUpdateAsync(s => s.SetProperty(u => u.AccessFailedCount, 0), ct);
         return granted > 0 ? new(CredentialStatus.Valid, user) : new(CredentialStatus.LockedOut, null);
+    }
+
+    /// <summary>An authenticator-app code, or failing that a recovery code (which is used up by being accepted).</summary>
+    private async Task<bool> CodeIsRightAsync(PiranhaCommerceUser user, string code)
+    {
+        var clean = code.Replace(" ", "").Replace("-", "");
+        if (await users.VerifyTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider, clean)) return true;
+        return (await users.RedeemTwoFactorRecoveryCodeAsync(user, code.Trim())).Succeeded;
     }
 
     /// <summary>Counts one failed attempt with a single atomic increment; returns true when it locked the account.</summary>

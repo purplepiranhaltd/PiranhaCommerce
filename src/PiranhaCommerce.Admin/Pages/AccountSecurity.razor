@@ -1,0 +1,118 @@
+@page "/admin/account/security"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = PiranhaCommerce.Core.Identity.PermissionPolicies.Access)]
+@using Microsoft.AspNetCore.Components.Authorization
+@using PiranhaCommerce.Admin.Services
+@using PiranhaCommerce.Core.Identity
+@using PiranhaCommerce.Core.Validation
+@inject AdminScopeRunner Scope
+@inject AuthenticationStateProvider Auth
+
+<PageTitle>Sign-in security - PiranhaCommerce</PageTitle>
+<h1>Sign-in security</h1>
+<p class="pc-muted">
+    Two-factor sign-in asks for a six-digit code from an authenticator app on your phone as well as your password, so a stolen password is not enough.
+</p>
+
+@if (_error is not null) { <p class="pc-error" role="alert">@_error</p> }
+@if (_message is not null) { <p role="status">@_message</p> }
+
+@if (_recovery is not null)
+{
+    <div class="pc-card">
+        <p><strong>Keep these recovery codes somewhere safe.</strong> Each one works once if you lose your phone. They are shown now and cannot be shown again.</p>
+        <p style="column-count:2"><code>@string.Join("\n", _recovery)</code></p>
+        <button type="button" class="secondary" @onclick="() => _recovery = null">I have saved them</button>
+    </div>
+}
+
+@if (_status is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_status.Enabled)
+{
+    <div class="pc-card">
+        <p>Two-factor sign-in is <strong>on</strong>. You have @_status.RecoveryCodesLeft recovery @(_status.RecoveryCodesLeft == 1 ? "code" : "codes") left.</p>
+        <label>A current code from the app (or a recovery code)
+            <input @bind="_code" autocomplete="one-time-code" inputmode="numeric" />
+        </label>
+        <p>
+            <button @onclick="NewCodesAsync">Make new recovery codes</button>
+            <button class="danger" @onclick="DisableAsync">Turn off</button>
+        </p>
+        <p class="pc-muted">Lost your phone? Use a recovery code to sign in, or ask an administrator to reset it for you.</p>
+    </div>
+}
+else if (_setup is null)
+{
+    <div class="pc-card">
+        <p>Two-factor sign-in is <strong>off</strong>.</p>
+        <button @onclick="BeginAsync">Set it up</button>
+    </div>
+}
+else
+{
+    <div class="pc-card">
+        <ol>
+            <li>Install an authenticator app on your phone (any app that supports one-time codes will do).</li>
+            <li>Add a new account in the app and choose to enter a key. Enter this key: <code>@_setup.SharedKey</code> (<a href="@_setup.Uri">or open it in the app</a>).</li>
+            <li>Type the six-digit code the app now shows:</li>
+        </ol>
+        <label>Code <input @bind="_code" autocomplete="one-time-code" inputmode="numeric" /></label>
+        <p><button @onclick="ConfirmAsync">Turn on</button> <button class="secondary" @onclick="() => { _setup = null; _code = null; }">Cancel</button></p>
+    </div>
+}
+
+@code {
+    private TwoFactorStatus? _status;
+    private TwoFactorSetup? _setup;
+    private IReadOnlyList<string>? _recovery;
+    private string? _error, _message, _code;
+    private Guid _userId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _userId = StaffPermissionService.UserId((await Auth.GetAuthenticationStateAsync()).User) ?? Guid.Empty;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try { _status = await Scope.RunAsync<IStaffSecurityService, TwoFactorStatus>(s => s.GetStatusAsync(_userId)); }
+        catch (Exception ex) { _error = Describe(ex); }
+    }
+
+    private static string Describe(Exception ex) => ex switch
+    {
+        PiranhaCommerceValidationException v => string.Join(" ", v.Errors.SelectMany(e => e.Value)),
+        PiranhaCommerceConflictException or PiranhaCommerceForbiddenException => ex.Message,
+        _ => "Something went wrong. Try again."
+    };
+
+    private async Task Run(Func<Task> action)
+    {
+        _error = _message = null;
+        try { await action(); await LoadAsync(); }
+        catch (Exception ex) { _error = Describe(ex); }
+    }
+
+    private Task BeginAsync() => Run(async () => _setup = await Scope.RunAsync<IStaffSecurityService, TwoFactorSetup>(s => s.BeginSetupAsync(_userId)));
+
+    private Task ConfirmAsync() => Run(async () =>
+    {
+        _recovery = await Scope.RunAsync<IStaffSecurityService, IReadOnlyList<string>>(s => s.ConfirmSetupAsync(_userId, _code ?? ""));
+        _setup = null; _code = null; _message = "Two-factor sign-in is on.";
+    });
+
+    private Task NewCodesAsync() => Run(async () =>
+    {
+        _recovery = await Scope.RunAsync<IStaffSecurityService, IReadOnlyList<string>>(s => s.NewRecoveryCodesAsync(_userId, _code ?? ""));
+        _code = null;
+    });
+
+    private Task DisableAsync() => Run(async () =>
+    {
+        await Scope.RunAsync<IStaffSecurityService, bool>(async s => { await s.DisableAsync(_userId, _code ?? ""); return true; });
+        _code = null; _message = "Two-factor sign-in is off.";
+    });
+}
