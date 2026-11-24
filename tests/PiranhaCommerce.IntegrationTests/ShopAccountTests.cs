@@ -62,7 +62,6 @@ public partial class ShopAccountTests(PiranhaCommerceFactory factory) : IClassFi
     [Fact]
     public async Task A_shopper_registers_keeps_their_basket_orders_as_a_customer_and_sees_only_their_own_orders()
     {
-        if (PiranhaCommerceFactory.UsesSharedDatabase) return;
         var lipstick = await Lipstick();
         var ruby = lipstick.Variants.Single(v => v.Values[0].Value == "Ruby Red");
         var email = NewEmail();
@@ -125,7 +124,6 @@ public partial class ShopAccountTests(PiranhaCommerceFactory factory) : IClassFi
     [Fact]
     public async Task Signing_in_adds_the_guest_basket_to_the_one_the_customer_already_had_and_changing_the_password_ends_the_session()
     {
-        if (PiranhaCommerceFactory.UsesSharedDatabase) return;
         var lipstick = await Lipstick();
         var coral = lipstick.Variants.Single(v => v.Values[0].Value == "Coral Crush");
         var rosewood = lipstick.Variants.Single(v => v.Values[0].Value == "Rosewood");
@@ -166,7 +164,6 @@ public partial class ShopAccountTests(PiranhaCommerceFactory factory) : IClassFi
     [Fact]
     public async Task A_forgotten_password_is_reset_from_the_emailed_code_and_the_form_never_says_who_has_an_account()
     {
-        if (PiranhaCommerceFactory.UsesSharedDatabase) return;
         var email = NewEmail();
         var browser = await BrowserAsync();
         await Register(browser, email);
@@ -195,7 +192,6 @@ public partial class ShopAccountTests(PiranhaCommerceFactory factory) : IClassFi
     [Fact]
     public async Task Sign_in_forms_are_limited_harder_than_the_rest_and_a_shop_can_require_an_account_to_order()
     {
-        if (PiranhaCommerceFactory.UsesSharedDatabase) return;
         await factory.Services.GetRequiredService<SampleDataSeeder>().SeedAsync();
         using var strict = factory.WithWebHostBuilder(b => b
             .UseSetting("PiranhaCommerce:Shop:AccountFormsPerMinute", "3")

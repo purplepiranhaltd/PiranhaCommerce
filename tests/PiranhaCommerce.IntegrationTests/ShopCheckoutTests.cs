@@ -53,7 +53,6 @@ public partial class ShopCheckoutTests(PiranhaCommerceFactory factory) : IClassF
     [Fact]
     public async Task A_guest_fills_a_basket_uses_a_code_picks_delivery_and_places_the_order_through_the_shops_own_forms()
     {
-        if (PiranhaCommerceFactory.UsesSharedDatabase) return;
         var browser = await BrowserAsync();
         var lipstick = await Product("velvet-matte-lipstick");
         var ruby = lipstick.Variants.Single(v => v.Values[0].Value == "Ruby Red");
@@ -129,7 +128,6 @@ public partial class ShopCheckoutTests(PiranhaCommerceFactory factory) : IClassF
     [Fact]
     public async Task The_shops_forms_refuse_what_they_should()
     {
-        if (PiranhaCommerceFactory.UsesSharedDatabase) return;
         var browser = await BrowserAsync();
         var lipstick = await Product("velvet-matte-lipstick");
         var plumNoir = lipstick.Variants.Single(v => v.Values[0].Value == "Plum Noir");   // sold out
@@ -202,7 +200,6 @@ public partial class ShopCheckoutTests(PiranhaCommerceFactory factory) : IClassF
     [Fact]
     public async Task Posting_forms_over_and_over_is_slowed_down_before_it_fills_the_basket_table()
     {
-        if (PiranhaCommerceFactory.UsesSharedDatabase) return;
         await factory.Services.GetRequiredService<SampleDataSeeder>().SeedAsync();
         using var limited = factory.WithWebHostBuilder(b => b.UseSetting("PiranhaCommerce:Shop:FormsPerMinute", "5"));
         var browser = limited.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });

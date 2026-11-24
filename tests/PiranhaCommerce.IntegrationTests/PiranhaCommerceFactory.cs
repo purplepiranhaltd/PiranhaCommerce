@@ -29,11 +29,16 @@ public class PiranhaCommerceFactory: WebApplicationFactory<Program>, IAsyncLifet
     // against PostgreSQL (a uniquely named database is created per fixture). Default: SQL Server LocalDB, or PIRANHACOMMERCE_TEST_SQLSERVER.
     private static readonly string Provider = Environment.GetEnvironmentVariable("PIRANHACOMMERCE_TEST_PROVIDER") ?? "SqlServer";
     // PIRANHACOMMERCE_TEST_SQLSERVER_DATABASE=<name> runs against that EXISTING database and never drops it (for servers where the test
-    // login cannot create databases, e.g. Azure SQL). The tests then leave their rows behind: use a disposable dev database.
+    // login cannot create databases, e.g. Azure SQL). Test classes then take turns: each waits for the one before, empties the database
+    // (every table, constraint and sequence; the host then migrates it again, as CI does for each class's own database) and runs.
+    // Use a disposable dev database: its contents are deleted.
     private static readonly string? ExistingDatabase = Environment.GetEnvironmentVariable("PIRANHACOMMERCE_TEST_SQLSERVER_DATABASE");
 
-    /// <summary>True when every test class shares one existing database (so a test must not change store-wide settings such as tax rules).</summary>
+    /// <summary>True when every test class shares one existing database. Classes run one at a time and start from an empty database, so tests need no special care.</summary>
     public static bool UsesSharedDatabase => ExistingDatabase is not null;
+
+    private static readonly SemaphoreSlim SharedDatabaseTurn = new(1, 1);
+    private bool _hasTurn;
     private readonly string _database = ExistingDatabase is { Length: > 0 } ? ExistingDatabase : $"PiranhaCommerceTests_{Guid.NewGuid():N}";
 
     private string ConnectionString
@@ -83,7 +88,38 @@ public class PiranhaCommerceFactory: WebApplicationFactory<Program>, IAsyncLifet
 
     protected virtual IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?>();
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public async Task InitializeAsync()
+    {
+        if (!UsesSharedDatabase) return;
+        await SharedDatabaseTurn.WaitAsync();
+        _hasTurn = true;
+        await EmptySharedDatabaseAsync();
+    }
+
+    /// <summary>Drops every foreign key, table and sequence, leaving the (empty) database for the host to migrate afresh.</summary>
+    private async Task EmptySharedDatabaseAsync()
+    {
+        const string script = """
+            DECLARE @sql nvarchar(max) = N'';
+            SELECT @sql += N'ALTER TABLE ' + QUOTENAME(s.name) + N'.' + QUOTENAME(t.name) + N' DROP CONSTRAINT ' + QUOTENAME(f.name) + N';'
+              FROM sys.foreign_keys f JOIN sys.tables t ON f.parent_object_id = t.object_id JOIN sys.schemas s ON t.schema_id = s.schema_id;
+            EXEC sp_executesql @sql;
+            SET @sql = N'';
+            SELECT @sql += N'DROP TABLE ' + QUOTENAME(s.name) + N'.' + QUOTENAME(t.name) + N';' FROM sys.tables t JOIN sys.schemas s ON t.schema_id = s.schema_id;
+            EXEC sp_executesql @sql;
+            SET @sql = N'';
+            SELECT @sql += N'DROP SEQUENCE ' + QUOTENAME(s.name) + N'.' + QUOTENAME(q.name) + N';' FROM sys.sequences q JOIN sys.schemas s ON q.schema_id = s.schema_id;
+            EXEC sp_executesql @sql;
+            """;
+        try
+        {
+            await using var connection = new SqlConnection(ConnectionString);
+            await connection.OpenAsync();
+            await using var command = new SqlCommand(script, connection) { CommandTimeout = 300 };
+            await command.ExecuteNonQueryAsync();
+        }
+        catch (SqlException ex) when (ex.Number == 4060) { /* the database does not exist yet: the host creates it */ }
+    }
 
     async Task IAsyncLifetime.DisposeAsync()
     {
@@ -100,6 +136,11 @@ public class PiranhaCommerceFactory: WebApplicationFactory<Program>, IAsyncLifet
             SqlConnection.ClearAllPools();
             Npgsql.NpgsqlConnection.ClearAllPools();
             await base.DisposeAsync();
+            if (_hasTurn)
+            {
+                try { await EmptySharedDatabaseAsync(); } // leave the shared database tidy
+                finally { _hasTurn = false; SharedDatabaseTurn.Release(); }
+            }
         }
     }
 

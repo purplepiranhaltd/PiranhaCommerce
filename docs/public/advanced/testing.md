@@ -22,8 +22,10 @@ PIRANHACOMMERCE_TEST_PROVIDER=PostgreSql PIRANHACOMMERCE_TEST_PG_SERVER="Host=lo
 
 To run on a real SQL Server or **Azure SQL**, set `PIRANHACOMMERCE_TEST_SQLSERVER` to a connection string without a database name.
 By default each test class creates and drops its own database. Where the login cannot create databases (Azure SQL),
-also set `PIRANHACOMMERCE_TEST_SQLSERVER_DATABASE=<existing db>`: the suite then uses that database and never drops it, but leaves
-its test rows behind, so point it at a disposable dev database. Keep credentials in environment variables, never in files.
+also set `PIRANHACOMMERCE_TEST_SQLSERVER_DATABASE=<existing db>`: the suite then uses that database and never drops it. Test classes take
+turns, and each one starts by **deleting every table in that database** and migrating it afresh (the same as the per-class databases elsewhere),
+so point it at a disposable dev database. The full suite takes longer this way, because the classes no longer run side by side. Keep credentials
+in environment variables, never in files.
 
 Behaviour that differs between providers (e.g. case-sensitive text comparison) is normalised in the services and covered by tests
 that run on both.

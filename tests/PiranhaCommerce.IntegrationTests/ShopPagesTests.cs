@@ -25,7 +25,6 @@ public class ShopPagesTests(PiranhaCommerceFactory factory) : IClassFixture<Pira
     [Fact]
     public async Task Home_category_search_and_paging_pages_show_the_catalogue()
     {
-        if (PiranhaCommerceFactory.UsesSharedDatabase) return;
         var shop = await SeededShopAsync();
 
         var home = await Page(shop, "/");
@@ -55,7 +54,6 @@ public class ShopPagesTests(PiranhaCommerceFactory factory) : IClassFixture<Pira
     [Fact]
     public async Task The_shop_filters_by_brand_with_counts_and_keeps_the_filter_while_paging_and_the_brand_shows_on_cards_and_product_pages()
     {
-        if (PiranhaCommerceFactory.UsesSharedDatabase) return;
         var shop = await SeededShopAsync();
 
         var all = await Page(shop, "/shop");
@@ -90,7 +88,6 @@ public class ShopPagesTests(PiranhaCommerceFactory factory) : IClassFixture<Pira
     [Fact]
     public async Task The_shop_filters_by_specification_and_shows_the_specification_table()
     {
-        if (PiranhaCommerceFactory.UsesSharedDatabase) return;
         var shop = await SeededShopAsync();
 
         var all = await Page(shop, "/shop");
@@ -117,7 +114,6 @@ public class ShopPagesTests(PiranhaCommerceFactory factory) : IClassFixture<Pira
     [Fact]
     public async Task The_shop_browses_by_tag_with_a_row_of_tags_a_heading_and_tag_links_on_each_product()
     {
-        if (PiranhaCommerceFactory.UsesSharedDatabase) return;
         var shop = await SeededShopAsync();
 
         var all = await Page(shop, "/shop");
@@ -151,7 +147,6 @@ public class ShopPagesTests(PiranhaCommerceFactory factory) : IClassFixture<Pira
     [Fact]
     public async Task A_product_page_shows_shades_the_chosen_shade_its_price_with_vat_and_what_is_sold_out()
     {
-        if (PiranhaCommerceFactory.UsesSharedDatabase) return;
         var shop = await SeededShopAsync();
 
         var page = await Page(shop, "/product/velvet-matte-lipstick");
