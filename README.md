@@ -19,7 +19,7 @@ PiranhaCommerce is built to be extended. One shared database model, a REST API f
 The documentation covers installation, your first store, configuration, every feature and advanced setup. It is Markdown in
 [`docs/public`](docs/public/index.md), served by the site in `site/PiranhaCommerce.Site` (at `docs.<your domain>`, or under `/docs`).
 
-- Start here: [installation](docs/public/getting-started/installation.md) and [your first store](docs/public/getting-started/first-store.md).
+- Start here: the [quickstart from NuGet](docs/public/getting-started/quickstart.md), [installation](docs/public/getting-started/installation.md) and [your first store](docs/public/getting-started/first-store.md).
 - Features: [catalogue](docs/public/guides/catalogue.md), [customers](docs/public/guides/shoppers.md), [baskets and orders](docs/public/guides/baskets-orders.md),
   [prices and discounts](docs/public/guides/pricing.md), [shipping](docs/public/guides/shipping.md), [payments](docs/public/guides/payments.md),
   [email](docs/public/guides/email.md), [reviews, wishlists and suggestions](docs/public/guides/engagement.md), [reports, webhooks and audit](docs/public/guides/operations.md).

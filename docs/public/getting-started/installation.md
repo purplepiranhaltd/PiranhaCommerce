@@ -33,6 +33,8 @@ dotnet test
 
 ## Add it to your own application
 
+For a complete, tested walkthrough from an empty folder, see the [Quickstart from NuGet](quickstart.md). The rest of this page explains each part.
+
 Create an ASP.NET Core web application, reference the packages you want (see [the packages](packages.md)) and register them:
 
 ```csharp

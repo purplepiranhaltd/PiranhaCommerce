@@ -6,7 +6,7 @@ description: Create a product, put it on sale and place an order, using only the
 
 # Your first store
 
-This walkthrough uses the API only, so you can see the whole flow before you build a shop front. It assumes the sample is running on `http://localhost:5280` (see [Installation](installation.md)). The examples use `curl`; any HTTP client works.
+This walkthrough uses the API only, so you can see the whole flow before you build a shop front. It assumes the sample is running on `http://localhost:5280` (see [Installation](installation.md)), or the application from the [Quickstart](quickstart.md) on its own address (then use your own address, email and password). The examples use `curl`; any HTTP client works.
 
 ## 1. Sign in as staff
 
