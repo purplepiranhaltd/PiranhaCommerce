@@ -19,7 +19,7 @@ package build files exist). The admin logs a warning at startup if the script is
 ## Sign-in limits and proxies
 
 Accounts lock for a while after 5 wrong passwords. On top of that, `POST /api/v1/auth/token` and the admin sign-in form allow
-10 attempts a minute per client address (answer `429` with `Retry-After`). Change it under `Piranha:RateLimit`
+10 attempts a minute per client address (answer `429` with `Retry-After`). Change it under `PiranhaCommerce:RateLimit`
 (`SignInAttempts`, `WindowSeconds`, or `Enabled: false` if a gateway already limits). It is on automatically once
 `AddPiranhaApi()` is called; the host does not need to add middleware.
 

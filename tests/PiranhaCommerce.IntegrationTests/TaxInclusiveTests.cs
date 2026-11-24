@@ -72,7 +72,7 @@ public class TaxInclusiveTests(PiranhaFactory factory) : IClassFixture<PiranhaFa
 
     private sealed class HomeCountryFactory : PiranhaFactory
     {
-        protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?> { ["Piranha:Ecommerce:DefaultCountryCode"] = "qx" };
+        protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?> { ["PiranhaCommerce:Ecommerce:DefaultCountryCode"] = "qx" };
     }
 
     [Fact]

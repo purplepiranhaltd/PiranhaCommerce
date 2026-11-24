@@ -14,7 +14,7 @@ This guide covers how money gets onto an order: payment gateways and the Stripe 
 - A provider `reference` is unique per provider, so a retried webhook or a double click is refused (`409`) instead of recording the money twice.
 - The order shows a `paymentStatus`: `Unpaid`, `PartlyPaid`, `Paid` or `Refunded`.
 
-To stop unpaid orders moving to Processing, set `Piranha:Ecommerce:RequirePaymentBeforeProcessing` to `true`.
+To stop unpaid orders moving to Processing, set `PiranhaCommerce:Ecommerce:RequirePaymentBeforeProcessing` to `true`.
 
 ## Payment gateways
 
@@ -47,7 +47,7 @@ A payment taken outside any gateway (cash, a bank transfer, a card terminal, a c
 
 `PiranhaCommerce.Payments.Stripe` (register it with `.AddPlugin<StripePlugin>()`) is the gateway that ships with PiranhaCommerce. It uses Stripe Checkout, a page Stripe hosts, so card numbers never touch your server.
 
-**Settings** under `Piranha:Stripe`: `SecretKey`, `WebhookSecret`, `SuccessUrl` and `CancelUrl` (set by you, never by a caller). Keep the two secrets in user secrets or your host's secret store, never in source control.
+**Settings** under `PiranhaCommerce:Stripe`: `SecretKey`, `WebhookSecret`, `SuccessUrl` and `CancelUrl` (set by you, never by a caller). Keep the two secrets in user secrets or your host's secret store, never in source control.
 
 **Webhook.** Point a Stripe webhook endpoint at `/api/v1/payments/webhooks/stripe` for these events:
 
@@ -107,7 +107,7 @@ A file store plugin is needed. `POST /disputes/{id}/files?kind=` (multipart `fil
 
 - `kind` is `Receipt`, `ShippingDocumentation`, `CustomerCommunication`, `ServiceDocumentation`, `CancellationPolicy`, `RefundPolicy`, `CustomerSignature` or `Other`. There is one document per kind.
 - `GET /disputes/{id}/files` lists them, `GET .../files/{fileId}` downloads one, and `DELETE` removes it (not once the evidence is sent).
-- Limits are `Piranha:Ecommerce:DisputeFiles:MaxBytes` (5 MB each) and `MaxTotalBytes` (4.5 MB together, which is Stripe's limit).
+- Limits are `PiranhaCommerce:Ecommerce:DisputeFiles:MaxBytes` (5 MB each) and `MaxTotalBytes` (4.5 MB together, which is Stripe's limit).
 - The documents go to the provider with the next save or send of the evidence. For Stripe, each is uploaded to Stripe Files and named in the dispute. Documents alone count as evidence. A gateway receives them as `DisputeEvidence.Documents`.
 - The Evidence form has upload, list, download and remove.
 - The files are not deleted from the store afterwards. They are kept as the record of what was sent.
@@ -120,4 +120,4 @@ Money a gateway confirmed that could not be booked (a cancelled order, over-paym
 - A replay of the same webhook never lists it twice, and a resolved one is not brought back.
 - `GET /unreconciled-payments/open-count` gives the number still open, for a health check.
 
-**Alerts.** Set `Piranha:Ecommerce:AlertEmail` (one or more addresses, comma-separated) and the shop is emailed the first time money is listed (template `alert.unreconciled-payment`, editable like the others). The email has the provider, amount, order reference, reason and the provider's id. A retried webhook for the same money does not email again, and a mail failure never fails the webhook: the item is on the list and in the log either way.
+**Alerts.** Set `PiranhaCommerce:Ecommerce:AlertEmail` (one or more addresses, comma-separated) and the shop is emailed the first time money is listed (template `alert.unreconciled-payment`, editable like the others). The email has the provider, amount, order reference, reason and the provider's id. A retried webhook for the same money does not email again, and a mail failure never fails the webhook: the item is on the list and in the log either way.

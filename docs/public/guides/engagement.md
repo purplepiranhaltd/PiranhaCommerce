@@ -16,7 +16,7 @@ This guide covers the features that bring shoppers back and help them buy: revie
 
 **Writing.** A signed-in shopper rates a product 1 to 5, with an optional title and text. There is one review per shopper per product. When the product has variants the review is kept against the parent, so give any variant's id.
 
-**Approval.** A new or changed review waits for staff approval (`Piranha:Ecommerce:ReviewsNeedApproval`, on by default). Only approved reviews are public or counted.
+**Approval.** A new or changed review waits for staff approval (`PiranhaCommerce:Ecommerce:ReviewsNeedApproval`, on by default). Only approved reviews are public or counted.
 
 **Names.** Shoppers see a display name: their first name and last initial unless they choose one. Never an email address.
 
@@ -26,7 +26,7 @@ This guide covers the features that bring shoppers back and help them buy: revie
 - A reply can be written while the review is waiting, but shoppers see it (as `reply` and `repliedUtc` on the public review) only once the review is approved.
 - If the shopper edits their review it goes back for approval, and the reply is kept for when it returns. Remove it if it no longer fits.
 - A reply is plain text, like a review, so the shop front must escape it. It is exported with the reviewer's data and goes with the review when it is erased.
-- **The reviewer is emailed** the first time the shop replies (template `review.replied`, with `displayName`, `productName`, `productSlug`, `productId`, `rating`, `reviewTitle`, `reply` and `published`; `published` is false while the review still waits for approval, so the email can say the reply will appear later). Changing the reply does not send it again, so fixing a typo does not email them twice; removing it and replying afresh does. Switch it off with `Piranha:Ecommerce:SendReviewReplies` (default on). It needs an email package, and a failed send never stops the reply being saved.
+- **The reviewer is emailed** the first time the shop replies (template `review.replied`, with `displayName`, `productName`, `productSlug`, `productId`, `rating`, `reviewTitle`, `reply` and `published`; `published` is false while the review still waits for approval, so the email can say the reply will appear later). Changing the reply does not send it again, so fixing a typo does not email them twice; removing it and replying afresh does. Switch it off with `PiranhaCommerce:Ecommerce:SendReviewReplies` (default on). It needs an email package, and a failed send never stops the reply being saved.
 - Not built: public replies from anyone but the shop.
 
 **"Was this helpful".** A signed-in shopper can mark someone else's review helpful (`PUT /storefront/reviews/{id}/helpful`) and take the mark back (`DELETE` on the same address).
@@ -35,8 +35,8 @@ This guide covers the features that bring shoppers back and help them buy: revie
 - Each public review carries `helpfulCount` and `votedByMe`. `votedByMe` is only ever true for the signed-in shopper asking: send the token with `GET /storefront/products/{id}/reviews`. Nobody can see who else marked a review.
 - A shopper's marks are exported with their data and deleted when they are erased, so the count falls. Deleting a review deletes its marks.
 **Photos.** A signed-in shopper can attach pictures to their own review.
-- `POST /storefront/reviews/{id}/photos` takes `multipart/form-data` with a `file`. The type is decided from the file's own bytes (JPEG, PNG, WebP or GIF; SVG and anything else is refused, whatever the name or content type says), and it can be up to `Piranha:Images:MaxBytes` (10 MB). A review can have up to `Piranha:Ecommerce:MaxReviewPhotos` photos (4; 0 switches photos off).
-- With an image processor installed (the sample uses SkiaSharp) the photo is **re-made, not stored as sent**: turned upright, kept to 2000 px on its longest side, and the smaller sizes of `Piranha:Images:Sizes` are made beside it. Re-making drops what a phone writes into a photo, which often includes where it was taken. Without a processor the file is stored as it came, so install one if shoppers upload.
+- `POST /storefront/reviews/{id}/photos` takes `multipart/form-data` with a `file`. The type is decided from the file's own bytes (JPEG, PNG, WebP or GIF; SVG and anything else is refused, whatever the name or content type says), and it can be up to `PiranhaCommerce:Images:MaxBytes` (10 MB). A review can have up to `PiranhaCommerce:Ecommerce:MaxReviewPhotos` photos (4; 0 switches photos off).
+- With an image processor installed (the sample uses SkiaSharp) the photo is **re-made, not stored as sent**: turned upright, kept to 2000 px on its longest side, and the smaller sizes of `PiranhaCommerce:Images:Sizes` are made beside it. Re-making drops what a phone writes into a photo, which often includes where it was taken. Without a processor the file is stored as it came, so install one if shoppers upload.
 - A photo is **only reachable while its review is approved** and its product is on sale. Its address (`/storefront/guest/review-photos/{id}`, with `?width=` for a smaller size) answers `404` before that and again after a rejection, unlike product pictures, because this is something a shopper sent that no one has read yet. The writer can fetch their own at `GET /storefront/reviews/{id}/photos/{photoId}` and staff any photo at `GET /reviews/{id}/photos/{photoId}`, so staff can look before approving.
 - Public reviews, and a shopper's own and staff's review lists, carry `photos` (each an `id`, `url`, `width` and `height`).
 - Adding a photo sends the review back to waiting when approval is on, like changing its text. Taking one off (`DELETE /storefront/reviews/{id}/photos/{photoId}`) does not. Staff can take one off without rejecting the review: `DELETE /reviews/{id}/photos/{photoId}`, or Remove photo on the admin Product reviews page, which shows a small preview of each.
@@ -63,11 +63,11 @@ A shopper asks to be emailed when a sold-out product can be bought again. It wor
 
 **Sending.** A background check emails each waiting person once the product is published and has stock at the location online orders take from (`StockLocationId`).
 
-- It runs every `Piranha:Ecommerce:StockAlertPollSeconds` (default 300; `0` turns it off), or call `IStockAlertNotifier.RunOnceAsync` from your own scheduler.
+- It runs every `PiranhaCommerce:Ecommerce:StockAlertPollSeconds` (default 300; `0` turns it off), or call `IStockAlertNotifier.RunOnceAsync` from your own scheduler.
 - Each request is claimed before sending, so several running copies never both send.
 - A failed send is retried after ten minutes.
 
-**The email** is template `stock.back-in-stock` with the variables `productName`, `sku`, `productId`, `unsubscribeToken` and `unsubscribeUrl`. The URL is built from `Piranha:Ecommerce:StockAlertUnsubscribeUrlTemplate`, with `{token}` in it. Make that link open a page that asks first and removes the request when the shopper presses a button: mail scanners open links, so opening one must change nothing.
+**The email** is template `stock.back-in-stock` with the variables `productName`, `sku`, `productId`, `unsubscribeToken` and `unsubscribeUrl`. The URL is built from `PiranhaCommerce:Ecommerce:StockAlertUnsubscribeUrlTemplate`, with `{token}` in it. Make that link open a page that asks first and removes the request when the shopper presses a button: mail scanners open links, so opening one must change nothing.
 
 **Privacy.** Requests are exported with a customer and deleted when they are erased, matched by account or by email address.
 

@@ -207,7 +207,7 @@ public sealed record OrderDto(
 
 public sealed class EcommerceOptions
 {
-    public const string SectionName = "Piranha:Ecommerce";
+    public const string SectionName = "PiranhaCommerce:Ecommerce";
 
     /// <summary>ISO 4217 code written on every order. One currency per store for now.</summary>
     [Required, RegularExpression("^[A-Za-z]{3}$")]

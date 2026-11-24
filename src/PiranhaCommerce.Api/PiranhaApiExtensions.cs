@@ -17,13 +17,13 @@ namespace PiranhaCommerce.Api;
 public static class ApiPolicies
 {
     /// <summary>Any authenticated API caller.</summary>
-    public const string Read = "Piranha.Api.Read";
+    public const string Read = "PiranhaCommerce.Api.Read";
 
     /// <summary>Administrators only: use for create/update/delete.</summary>
-    public const string Write = "Piranha.Api.Write";
+    public const string Write = "PiranhaCommerce.Api.Write";
 
     /// <summary>A signed-in shopper (storefront API only). A staff token does not satisfy it.</summary>
-    public const string Customer = "Piranha.Api.Customer";
+    public const string Customer = "PiranhaCommerce.Api.Customer";
 }
 
 public static class PiranhaApiExtensions

@@ -166,7 +166,7 @@ public class PaymentTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory
     [Fact]
     public async Task Payment_can_be_required_before_an_order_is_processed()
     {
-        using var strict = factory.WithWebHostBuilder(b => b.UseSetting("Piranha:Ecommerce:RequirePaymentBeforeProcessing", "true"));
+        using var strict = factory.WithWebHostBuilder(b => b.UseSetting("PiranhaCommerce:Ecommerce:RequirePaymentBeforeProcessing", "true"));
         var token = await (await strict.CreateClient().PostAsJsonAsync("/api/v1/auth/token", new TokenRequest(PiranhaFactory.AdminEmail, PiranhaFactory.AdminPassword)))
             .Content.ReadFromJsonAsync<TokenResponse>();
         var c = strict.CreateClient();

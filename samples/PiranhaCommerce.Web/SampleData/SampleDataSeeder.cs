@@ -5,10 +5,10 @@ using PiranhaCommerce.Ecommerce;
 
 namespace PiranhaCommerce.Web.SampleData;
 
-/// <summary>Settings under "Piranha:SampleData". Off unless a host turns it on.</summary>
+/// <summary>Settings under "PiranhaCommerce:SampleData". Off unless a host turns it on.</summary>
 public sealed class SampleDataOptions
 {
-    public const string SectionName = "Piranha:SampleData";
+    public const string SectionName = "PiranhaCommerce:SampleData";
 
     /// <summary>Fills an empty shop with the sample cosmetics catalogue at startup. For development and demonstrations only.</summary>
     public bool Enabled { get; set; }

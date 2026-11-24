@@ -63,9 +63,9 @@ Look a product up with `GET /products/lookup?barcode=...`. The barcode is a quer
 
 Pictures are on a product's Pictures panel in the admin, or under `/products/{id}/images`. They need a storage package (`IFileStore`); the sample host uses local disk.
 
-**Uploading.** Send `multipart/form-data` with `file` and an optional `altText`. The type is decided from the file's own bytes: JPEG, PNG, WebP or GIF. SVG is refused because it can carry script. Limits are `Piranha:Images:MaxBytes` (10 MB) and `Piranha:Images:MaxPerProduct` (20).
+**Uploading.** Send `multipart/form-data` with `file` and an optional `altText`. The type is decided from the file's own bytes: JPEG, PNG, WebP or GIF. SVG is refused because it can carry script. Limits are `PiranhaCommerce:Images:MaxBytes` (10 MB) and `PiranhaCommerce:Images:MaxPerProduct` (20).
 
-**What happens to the file.** With an imaging package installed, the picture is read (a file that cannot be read is refused), turned upright using its camera orientation data, and smaller copies are made (`Piranha:Images:Sizes`, default `160,480,1024` on the longest side, never enlarged).
+**What happens to the file.** With an imaging package installed, the picture is read (a file that cannot be read is refused), turned upright using its camera orientation data, and smaller copies are made (`PiranhaCommerce:Images:Sizes`, default `160,480,1024` on the longest side, never enlarged).
 
 **Managing pictures.** The first picture is the main one. `PUT .../images/order` sets the order, `PUT .../images/{id}` changes the alt text, and `DELETE` removes the picture and its files. Deleting a product removes all of its pictures. A variant with no pictures of its own returns its parent's, marked `inherited`.
 
@@ -109,7 +109,7 @@ Stock is held per **location**: a warehouse, a shop, a van. A default location a
 
 ### Low stock alerts
 
-The Low stock page (`GET /stock/low?threshold=`) lists what is at or below a level when someone looks. To be **told**, set `Piranha:Ecommerce:LowStockAlertLevel` (for example `5`) and `Piranha:Ecommerce:AlertEmail` (one or more addresses, comma-separated), with an email package registered. The shop then emails that address one digest of the products that have newly run low.
+The Low stock page (`GET /stock/low?threshold=`) lists what is at or below a level when someone looks. To be **told**, set `PiranhaCommerce:Ecommerce:LowStockAlertLevel` (for example `5`) and `PiranhaCommerce:Ecommerce:AlertEmail` (one or more addresses, comma-separated), with an email package registered. The shop then emails that address one digest of the products that have newly run low.
 
 - "Low" is the same measure as the Low stock page: what is on hand across every location, counting each variant on its own. Stock sent on a transfer and not yet received is not counted.
 - Only products that are on sale are included, so a draft you are still setting up does not nag. Putting it on sale while it is low tells you then.
@@ -128,7 +128,7 @@ The Low stock page (`GET /stock/low?threshold=`) lists what is at or below a lev
 Transfers (`/stock/transfers`, admin: Catalog > Stock transfers) move stock in two steps, by two people.
 
 1. **Send.** `POST` creates the transfer. The stock leaves the sending location at once (refused if there is not enough) and the transfer is **in transit**: on neither shelf, but listed at `GET /stock/in-transit` (per product and route) and shown as `inTransit` on a product's stock level.
-2. **Receive.** `POST /{id}/receive` adds what arrived to the receiving location. By default a different user must receive it (`Piranha:Stock:AllowSameUserToReceive` allows the same one). To say that less or more arrived than was sent, send `{ "lines": [{ "productId", "quantity" }] }`. The transfer is then flagged (`hasDiscrepancy`; filter the list with `?discrepancies=true`).
+2. **Receive.** `POST /{id}/receive` adds what arrived to the receiving location. By default a different user must receive it (`PiranhaCommerce:Stock:AllowSameUserToReceive` allows the same one). To say that less or more arrived than was sent, send `{ "lines": [{ "productId", "quantity" }] }`. The transfer is then flagged (`hasDiscrepancy`; filter the list with `?discrepancies=true`).
 3. **Or cancel.** `POST /{id}/cancel` while it is in transit puts the stock back.
 
 Every step is a ledger movement ("Transfer sent", "Transfer received", "Transfer cancelled") carrying the `TRF-` reference and the user. A transfer is received or cancelled exactly once, however many people try at the same moment. The admin menu shows how many are in transit.
@@ -181,6 +181,6 @@ A saved row is applied on its own, so a failure that appears only then (the data
 
 ### Limits
 
-`Piranha:Catalog:Import:MaxRows` (5000) and `MaxBytes` (10 MB). The stock column needs access to the default location, so a user limited to other locations is refused.
+`PiranhaCommerce:Catalog:Import:MaxRows` (5000) and `MaxBytes` (10 MB). The stock column needs access to the default location, so a user limited to other locations is refused.
 
 Not built: stock at other locations, pictures, prices for customer groups, Excel (`.xlsx`) files, and an import that runs in the background for very large files.

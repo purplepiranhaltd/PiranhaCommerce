@@ -10,11 +10,11 @@ namespace PiranhaCommerce.Api.RateLimiting;
 
 /// <summary>
 /// Limits password guessing per client address. Account lockout caps guesses at one account; this caps how fast
-/// one client can try, including one guess each at many accounts. Bound to <c>Piranha:RateLimit</c>.
+/// one client can try, including one guess each at many accounts. Bound to <c>PiranhaCommerce:RateLimit</c>.
 /// </summary>
 public sealed class SignInRateLimitOptions
 {
-    public const string SectionName = "Piranha:RateLimit";
+    public const string SectionName = "PiranhaCommerce:RateLimit";
 
     /// <summary>Set false to turn the limit off (for example behind a gateway that already limits).</summary>
     public bool Enabled { get; set; } = true;

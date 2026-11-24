@@ -1,3 +1,4 @@
+@import url("https://use.typekit.net/ayu6ujj.css");  /* Adobe Fonts: Urbana, used for the wordmark only */
 :root {
     /* From the logo: pink #e61b72, amber #f8b133, ink #1d1d1b. --brand is a slightly deeper pink so links and buttons keep 4.5:1 on white. */
     --pink: #e61b72; --amber: #f8b133; --ink: #1d1d1b;
@@ -29,7 +30,7 @@ pre code { background: none; padding: 0; }
 
 .site-header { border-bottom: 3px solid var(--pink); background: var(--ink); position: sticky; top: 0; z-index: 10; }
 .site-header .bar { display: flex; align-items: center; justify-content: space-between; min-height: 60px; gap: 1rem; flex-wrap: wrap; }
-.brand { display: inline-flex; align-items: center; gap: .6rem; font-weight: 700; text-decoration: none; font-size: 1.25rem; letter-spacing: -.01em; }
+.brand { display: inline-flex; align-items: center; gap: .6rem; font-family: "urbana", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-weight: 700; text-decoration: none; font-size: 1.5rem; letter-spacing: 0; }
 .brand img { height: 30px; width: auto; display: block; }
 .brand .w1 { color: var(--pink); }
 .brand .w2 { color: var(--amber); }

@@ -15,13 +15,13 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var connectionString = builder.Configuration.GetConnectionString("Piranha")
-    ?? throw new InvalidOperationException("ConnectionStrings:Piranha is not configured.");
+var connectionString = builder.Configuration.GetConnectionString("PiranhaCommerce")
+    ?? throw new InvalidOperationException("ConnectionStrings:PiranhaCommerce is not configured.");
 
 var piranha = builder.Services.AddPiranhaCore();
 
 // One migration set per database provider, each in an assembly the host owns (it knows which plugins are installed).
-switch (builder.Configuration["Piranha:Provider"] ?? "SqlServer")
+switch (builder.Configuration["PiranhaCommerce:Provider"] ?? "SqlServer")
 {
     case "SqlServer":   // also Azure SQL
         piranha.AddPiranhaSqlServer(connectionString, typeof(Program).Assembly);
@@ -30,7 +30,7 @@ switch (builder.Configuration["Piranha:Provider"] ?? "SqlServer")
         piranha.AddPiranhaPostgreSql(connectionString, typeof(PiranhaCommerce.Web.Migrations.PostgreSql.MigrationsAssemblyMarker).Assembly);
         break;
     default:
-        throw new InvalidOperationException("Piranha:Provider must be SqlServer or PostgreSql.");
+        throw new InvalidOperationException("PiranhaCommerce:Provider must be SqlServer or PostgreSql.");
 }
 
 piranha
@@ -43,9 +43,9 @@ piranha
     .AddPlugin<PiranhaCommerce.Webhooks.Admin.WebhooksAdminPlugin>() // signed, retried notifications to other systems (Settings > Webhooks)
     .AddPlugin<CustomersAdminPlugin>()
     .AddPlugin<EcommerceAdminPlugin>()
-    .AddPlugin<PiranhaCommerce.Payments.Stripe.StripePlugin>() // inert until Piranha:Stripe keys are set
-    .AddPlugin<PiranhaCommerce.Email.Smtp.Admin.SmtpEmailAdminPlugin>() // SMTP sending (needs Piranha:Email:Smtp settings) and its template editor
-    .AddPlugin<PiranhaCommerce.Storage.LocalDisk.LocalDiskStoragePlugin>() // uploaded files (Piranha:Storage:LocalDisk:Path, default App_Data/files)
+    .AddPlugin<PiranhaCommerce.Payments.Stripe.StripePlugin>() // inert until PiranhaCommerce:Stripe keys are set
+    .AddPlugin<PiranhaCommerce.Email.Smtp.Admin.SmtpEmailAdminPlugin>() // SMTP sending (needs PiranhaCommerce:Email:Smtp settings) and its template editor
+    .AddPlugin<PiranhaCommerce.Storage.LocalDisk.LocalDiskStoragePlugin>() // uploaded files (PiranhaCommerce:Storage:LocalDisk:Path, default App_Data/files)
     .AddPlugin<PiranhaCommerce.Imaging.Skia.SkiaImagingPlugin>() // makes sizes of product images
     .AddPlugin<WarrantyPlugin>();
 
@@ -67,11 +67,11 @@ if (app.Environment.IsDevelopment() && !EF.IsDesignTime) // EF tooling executes 
     using (var scope = app.Services.CreateScope())
         await scope.ServiceProvider.GetRequiredService<PiranhaDbContext>().Database.MigrateAsync();
 
-    var seed = app.Configuration.GetSection("Piranha:SeedAdmin");
+    var seed = app.Configuration.GetSection("PiranhaCommerce:SeedAdmin");
     if (seed["Email"] is { Length: > 0 } email && seed["Password"] is { Length: > 0 } password)
         await app.Services.EnsureAdministratorAsync(email, password);
 
-    // The sample shop's catalogue (Piranha:SampleData:Enabled). Only ever in Development.
+    // The sample shop's catalogue (PiranhaCommerce:SampleData:Enabled). Only ever in Development.
     if (app.Configuration.GetValue<bool>($"{SampleDataOptions.SectionName}:Enabled"))
         await app.Services.GetRequiredService<SampleDataSeeder>().SeedAsync();
 }

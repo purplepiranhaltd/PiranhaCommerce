@@ -31,7 +31,7 @@ public static class PiranhaAdminExtensions
         {
             o.LoginPath = "/admin/login";
             o.AccessDeniedPath = "/admin/login";
-            o.Cookie.Name = ".Piranha.Admin";
+            o.Cookie.Name = ".PiranhaCommerce.Admin";
             o.ExpireTimeSpan = TimeSpan.FromHours(8);
             o.SlidingExpiration = true;
         });

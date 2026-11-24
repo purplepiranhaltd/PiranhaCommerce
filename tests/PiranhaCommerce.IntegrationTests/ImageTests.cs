@@ -137,7 +137,7 @@ public class ImageTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
     {
         protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?>
         {
-            ["Piranha:Images:MaxBytes"] = "2000", ["Piranha:Images:MaxPerProduct"] = "2", ["Piranha:Images:Sizes"] = "64",
+            ["PiranhaCommerce:Images:MaxBytes"] = "2000", ["PiranhaCommerce:Images:MaxPerProduct"] = "2", ["PiranhaCommerce:Images:Sizes"] = "64",
         };
     }
 

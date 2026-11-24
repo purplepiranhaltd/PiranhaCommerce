@@ -9,7 +9,7 @@ namespace PiranhaCommerce.IntegrationTests;
 
 public sealed class VerifiedEmailFactory : PiranhaFactory
 {
-    protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?> { ["Piranha:Customers:RequireVerifiedEmail"] = "true" };
+    protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?> { ["PiranhaCommerce:Customers:RequireVerifiedEmail"] = "true" };
 }
 
 /// <summary>When a shop requires it, a new shopper cannot sign in until they have followed the link emailed to the address.</summary>

@@ -11,7 +11,7 @@ namespace PiranhaCommerce.IntegrationTests;
 public sealed class LowStockFactory : PiranhaFactory
 {
     protected override string? AlertEmail => "stock@example.com, Second@Example.com ,stock@example.com";
-    protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?> { ["Piranha:Ecommerce:LowStockAlertLevel"] = "5", ["Piranha:Ecommerce:LowStockAlertPollSeconds"] = "0" };
+    protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?> { ["PiranhaCommerce:Ecommerce:LowStockAlertLevel"] = "5", ["PiranhaCommerce:Ecommerce:LowStockAlertPollSeconds"] = "0" };
 }
 
 /// <summary>The shop's alert address is emailed one digest of the products on sale that have newly run low, once per dip.</summary>

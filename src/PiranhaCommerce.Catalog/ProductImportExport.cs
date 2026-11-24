@@ -12,7 +12,7 @@ namespace PiranhaCommerce.Catalog;
 
 public sealed class CatalogImportOptions
 {
-    public const string SectionName = "Piranha:Catalog:Import";
+    public const string SectionName = "PiranhaCommerce:Catalog:Import";
 
     /// <summary>Rows (products and variants) in one import file.</summary>
     [Range(1, 100_000)]

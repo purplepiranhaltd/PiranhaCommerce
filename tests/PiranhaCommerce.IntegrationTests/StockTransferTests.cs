@@ -142,7 +142,7 @@ public class StockTransferTests(PiranhaFactory factory) : IClassFixture<PiranhaF
 
     private sealed class LenientStockFactory : PiranhaFactory
     {
-        protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?> { ["Piranha:Stock:AllowSameUserToReceive"] = "true" };
+        protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?> { ["PiranhaCommerce:Stock:AllowSameUserToReceive"] = "true" };
     }
 
     [Fact]

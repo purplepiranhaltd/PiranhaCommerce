@@ -119,10 +119,10 @@ internal sealed class EcommerceEmailContributor : IEmailTemplateContributor
             new("sku", "The product's SKU. May be empty.", "MUG-BLU"),
             new("productId", "The product's id, for building a link to it.", "6f1c0a3e-2a8d-4a43-9a53-0d1f8d5a9b11"),
             new("unsubscribeToken", "The secret that removes this request (DELETE /storefront/stock-alerts/{token}).", "9f2c4b7a1d3e5f60"),
-            new("unsubscribeUrl", "A ready-made unsubscribe link, when Piranha:Ecommerce:StockAlertUnsubscribeUrlTemplate is set. Otherwise empty.", "https://shop.example/stock-alerts/unsubscribe?token=9f2c4b7a1d3e5f60"),
+            new("unsubscribeUrl", "A ready-made unsubscribe link, when PiranhaCommerce:Ecommerce:StockAlertUnsubscribeUrlTemplate is set. Otherwise empty.", "https://shop.example/stock-alerts/unsubscribe?token=9f2c4b7a1d3e5f60"),
         ]),
 
-        new(EcommerceEmailTemplates.LowStock, "Low stock (to the shop)", "Sent to the shop's alert address when products on sale fall to the low stock level (Piranha:Ecommerce:LowStockAlertLevel). One email lists everything that has newly run low.",
+        new(EcommerceEmailTemplates.LowStock, "Low stock (to the shop)", "Sent to the shop's alert address when products on sale fall to the low stock level (PiranhaCommerce:Ecommerce:LowStockAlertLevel). One email lists everything that has newly run low.",
         [
             new("level", "The level the shop chose: products at or below this are listed.", "5"),
             new("count", "How many products are listed.", 2),

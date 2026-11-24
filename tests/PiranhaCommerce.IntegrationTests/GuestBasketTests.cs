@@ -155,7 +155,7 @@ public class GuestBasketTests(PiranhaFactory factory) : IClassFixture<PiranhaFac
 
     private sealed class NoGuestFactory : PiranhaFactory
     {
-        protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?> { ["Piranha:Ecommerce:AllowGuestCheckout"] = "false" };
+        protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?> { ["PiranhaCommerce:Ecommerce:AllowGuestCheckout"] = "false" };
     }
 
     [Fact]
@@ -169,7 +169,7 @@ public class GuestBasketTests(PiranhaFactory factory) : IClassFixture<PiranhaFac
 
     private sealed class GuestLimitFactory : PiranhaFactory
     {
-        protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?> { ["Piranha:RateLimit:GuestBasketAttempts"] = "3" };
+        protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?> { ["PiranhaCommerce:RateLimit:GuestBasketAttempts"] = "3" };
     }
 
     // ---- merging -----------------------------------------------------------------------------------------------------------------

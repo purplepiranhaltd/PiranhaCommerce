@@ -198,8 +198,8 @@ public partial class ShopAccountTests(PiranhaFactory factory) : IClassFixture<Pi
         if (PiranhaFactory.UsesSharedDatabase) return;
         await factory.Services.GetRequiredService<SampleDataSeeder>().SeedAsync();
         using var strict = factory.WithWebHostBuilder(b => b
-            .UseSetting("Piranha:Shop:AccountFormsPerMinute", "3")
-            .UseSetting("Piranha:Ecommerce:AllowGuestCheckout", "false"));
+            .UseSetting("PiranhaCommerce:Shop:AccountFormsPerMinute", "3")
+            .UseSetting("PiranhaCommerce:Ecommerce:AllowGuestCheckout", "false"));
         var browser = strict.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
 
         var statuses = new List<HttpStatusCode>();

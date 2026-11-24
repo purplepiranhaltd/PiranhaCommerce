@@ -29,9 +29,9 @@ Shoppers sign in separately from staff. These endpoints are under `/api/v1/store
 
 ### Signing in and registering
 
-`POST /auth/register` and `POST /auth/token` are anonymous. Registration returns a token. A wrong password, an unknown email, a locked account and a deactivated account all answer the same `401`. Five wrong passwords lock the account for 15 minutes (`Piranha:Customers`).
+`POST /auth/register` and `POST /auth/token` are anonymous. Registration returns a token. A wrong password, an unknown email, a locked account and a deactivated account all answer the same `401`. Five wrong passwords lock the account for 15 minutes (`PiranhaCommerce:Customers`).
 
-Tokens last `Piranha:Jwt:LifetimeMinutes` (60). A deactivated customer is cut off at once, even with an unexpired token.
+Tokens last `PiranhaCommerce:Jwt:LifetimeMinutes` (60). A deactivated customer is cut off at once, even with an unexpired token.
 
 ### Refresh tokens
 
@@ -40,7 +40,7 @@ Signing in, registering and changing a password also return a `refreshToken`.
 - `POST /auth/refresh` with `{ "refreshToken" }` swaps it for a new access token and the next refresh token. The response has the same shape as signing in. Each refresh token is single use, and only a hash is stored.
 - Using a token a second time means it was copied, so **that device's whole chain is revoked**. Two refreshes at the same moment look like this, so an app should refresh from one place.
 - `POST /auth/logout` with `{ "refreshToken" }` ends one device's chain (always `204`).
-- A refresh token stops working when sessions are ended (sign out everywhere, a password change or reset, switching the customer off, a staff email change), after `Piranha:Customers:RefreshTokenDays` (default 30, counted from each use; 0 switches refresh tokens off), and after `RefreshTokenMaxDays` (default 180) since that sign-in began. Anything not live gets the same `401`.
+- A refresh token stops working when sessions are ended (sign out everywhere, a password change or reset, switching the customer off, a staff email change), after `PiranhaCommerce:Customers:RefreshTokenDays` (default 30, counted from each use; 0 switches refresh tokens off), and after `RefreshTokenMaxDays` (default 180) since that sign-in began. Anything not live gets the same `401`.
 - Refresh tokens are for the shopper API only, never staff.
 
 ### Their devices
@@ -59,7 +59,7 @@ The shopper also uses `POST /baskets`, `GET /baskets/{id}`, `PUT|DELETE /baskets
 ### Kept apart from the staff API
 
 - A shopper's sign-in lives in its own table, not among the admin users, so a customer can never open the admin or hold a role.
-- Shopper tokens have their own audience, signing key (derived from `Piranha:Jwt:SigningKey`) and scheme. The staff API refuses them, and the storefront refuses staff tokens. Every storefront endpoint requires a shopper token unless it says otherwise.
+- Shopper tokens have their own audience, signing key (derived from `PiranhaCommerce:Jwt:SigningKey`) and scheme. The staff API refuses them, and the storefront refuses staff tokens. Every storefront endpoint requires a shopper token unless it says otherwise.
 - The customer is always the one in the token. Checkout ignores any `customerId` in the request, and another shopper's basket or order answers `404`, the same as one that does not exist.
 - An open basket with no owner can be claimed once with its id (`/claim`). Two shoppers claiming at once leaves one owner.
 
@@ -76,11 +76,11 @@ Reset links:
 - are limited to 5 emails an hour per customer, and
 - never reveal whether an address belongs to a customer.
 
-Set `Piranha:Customers:ResetUrlTemplate` (for example `https://shop.example.com/reset?email={email}&token={token}`) so the email carries a link to your storefront page. Without it the email carries the code.
+Set `PiranhaCommerce:Customers:ResetUrlTemplate` (for example `https://shop.example.com/reset?email={email}&token={token}`) so the email carries a link to your storefront page. Without it the email carries the code.
 
 ## Verified email
 
-Turn on `Piranha:Customers:RequireVerifiedEmail` (off by default) to make shoppers prove their address.
+Turn on `PiranhaCommerce:Customers:RequireVerifiedEmail` (off by default) to make shoppers prove their address.
 
 - **Registering** returns `202` with no token, and emails a link (template `customer.verify-email`, page set by `VerifyUrlTemplate`, lasting `VerifyTokenMinutes`, default a day).
 - **Verifying:** the shopper posts the code to `/storefront/auth/verify-email`. They can ask for another at `/auth/resend-verification`, which is silent and has its own hourly limit, counted apart from password resets.

@@ -204,7 +204,7 @@ public partial class ShopCheckoutTests(PiranhaFactory factory) : IClassFixture<P
     {
         if (PiranhaFactory.UsesSharedDatabase) return;
         await factory.Services.GetRequiredService<SampleDataSeeder>().SeedAsync();
-        using var limited = factory.WithWebHostBuilder(b => b.UseSetting("Piranha:Shop:FormsPerMinute", "5"));
+        using var limited = factory.WithWebHostBuilder(b => b.UseSetting("PiranhaCommerce:Shop:FormsPerMinute", "5"));
         var browser = limited.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
         var cleanser = await Product("gentle-cream-cleanser");
 

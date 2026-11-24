@@ -29,7 +29,7 @@ Every store starts with a default tax class, "Standard". Add classes such as Red
 
 ### Showing prices with tax
 
-The price lookups (`GET /storefront/guest/prices`, `/storefront/prices`, `/customers/{id}/prices`) take an optional `countryCode`, or use `Piranha:Ecommerce:DefaultCountryCode` (the shop's home country). They then also return `taxCountry`, `taxRate`, `priceIncludingTax` and `regularPriceIncludingTax`, using the rate of that product's tax class in that country (0 when not taxed there). With no country known there are no tax figures.
+The price lookups (`GET /storefront/guest/prices`, `/storefront/prices`, `/customers/{id}/prices`) take an optional `countryCode`, or use `PiranhaCommerce:Ecommerce:DefaultCountryCode` (the shop's home country). They then also return `taxCountry`, `taxRate`, `priceIncludingTax` and `regularPriceIncludingTax`, using the rate of that product's tax class in that country (0 when not taxed there). With no country known there are no tax figures.
 
 Each tax-inclusive price is the price plus its tax rounded to the penny, so a total built from unit prices can differ by a penny from what is charged. **The quote is the authority.** A quote also returns `lines` (each with its share of any discount, its tax and `lineTotalIncludingTax`) and `shippingTax`, so a basket page can show tax-inclusive lines that add up to the total. Order lines return `lineTotalIncludingTax` too.
 

@@ -2,7 +2,7 @@ namespace PiranhaCommerce.Web;
 
 /// <summary>
 /// The two pages a payment gateway sends a shopper back to: <c>/thanks</c> after paying and <c>/cart</c> if they back out. The sample has
-/// no storefront, so these are deliberately plain; a real shop points <c>Piranha:Stripe:SuccessUrl</c> and <c>CancelUrl</c> at its own pages.
+/// no storefront, so these are deliberately plain; a real shop points <c>PiranhaCommerce:Stripe:SuccessUrl</c> and <c>CancelUrl</c> at its own pages.
 ///
 /// They are fixed text on purpose. The gateway adds query values (a session id) to the address, and echoing anything from the address
 /// into the page is how a crafted link becomes script injection. They also say nothing about the order, because the browser here has no

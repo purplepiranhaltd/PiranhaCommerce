@@ -6,7 +6,7 @@ namespace PiranhaCommerce.Webhooks;
 
 public sealed class WebhookOptions
 {
-    public const string SectionName = "Piranha:Webhooks";
+    public const string SectionName = "PiranhaCommerce:Webhooks";
 
     /// <summary>How often the background sender looks for events to send, in seconds. 0 turns the background sender off (events are still recorded).</summary>
     public int PollSeconds { get; set; } = 10;

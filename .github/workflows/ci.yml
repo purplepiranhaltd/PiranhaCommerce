@@ -82,8 +82,8 @@ jobs:
       - name: Migrations are up to date (PostgreSQL)
         if: matrix.provider == 'PostgreSql'
         env:
-          Piranha__Provider: PostgreSql
-          ConnectionStrings__Piranha: Host=localhost;Port=5432;Database=drift_check;Username=postgres;Password=Ci_Passw0rd_for_tests
+          PiranhaCommerce__Provider: PostgreSql
+          ConnectionStrings__PiranhaCommerce: Host=localhost;Port=5432;Database=drift_check;Username=postgres;Password=Ci_Passw0rd_for_tests
         run: >
           dotnet ef migrations has-pending-model-changes
           --project samples/PiranhaCommerce.Web.Migrations.PostgreSql

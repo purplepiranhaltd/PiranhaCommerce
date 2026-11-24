@@ -12,12 +12,12 @@ using PiranhaCommerce.Ecommerce;
 namespace PiranhaCommerce.Payments.Stripe;
 
 /// <summary>
-/// Stripe settings (section <c>Piranha:Stripe</c>). Keep the two secrets out of source control: user secrets in development, the host's
+/// Stripe settings (section <c>PiranhaCommerce:Stripe</c>). Keep the two secrets out of source control: user secrets in development, the host's
 /// secret store (environment variables, Key Vault) in production.
 /// </summary>
 public sealed class StripeOptions
 {
-    public const string SectionName = "Piranha:Stripe";
+    public const string SectionName = "PiranhaCommerce:Stripe";
 
     /// <summary>The secret (or restricted) API key, sk_test_... or sk_live_.... Never sent to the browser, never logged.</summary>
     public string? SecretKey { get; set; }
@@ -56,9 +56,9 @@ public sealed class StripeGateway(IHttpClientFactory http, IOptions<StripeOption
 
     public async Task<GatewaySession> StartAsync(GatewayStartRequest request, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(Options.SecretKey)) throw new GatewayException("Stripe is not configured: Piranha:Stripe:SecretKey is empty.");
+        if (string.IsNullOrWhiteSpace(Options.SecretKey)) throw new GatewayException("Stripe is not configured: PiranhaCommerce:Stripe:SecretKey is empty.");
         if (string.IsNullOrWhiteSpace(Options.SuccessUrl) || string.IsNullOrWhiteSpace(Options.CancelUrl))
-            throw new GatewayException("Stripe is not configured: Piranha:Stripe:SuccessUrl and CancelUrl are required.");
+            throw new GatewayException("Stripe is not configured: PiranhaCommerce:Stripe:SuccessUrl and CancelUrl are required.");
 
         var order = request.OrderId.ToString();
         var form = new List<KeyValuePair<string, string>>
@@ -284,7 +284,7 @@ public sealed class StripeGateway(IHttpClientFactory http, IOptions<StripeOption
 
     private async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, HttpContent? content, string? idempotencyKey, CancellationToken ct, string? baseUrl = null)
     {
-        if (string.IsNullOrWhiteSpace(Options.SecretKey)) throw new GatewayException("Stripe is not configured: Piranha:Stripe:SecretKey is empty.");
+        if (string.IsNullOrWhiteSpace(Options.SecretKey)) throw new GatewayException("Stripe is not configured: PiranhaCommerce:Stripe:SecretKey is empty.");
         var client = http.CreateClient(HttpClientName);
         using var message = new HttpRequestMessage(method, (baseUrl ?? Options.ApiBaseUrl).TrimEnd('/') + path) { Content = content };
         message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Options.SecretKey);

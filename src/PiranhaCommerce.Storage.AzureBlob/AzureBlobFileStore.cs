@@ -11,7 +11,7 @@ namespace PiranhaCommerce.Storage.AzureBlob;
 
 public sealed class AzureBlobOptions
 {
-    public const string SectionName = "Piranha:Storage:AzureBlob";
+    public const string SectionName = "PiranhaCommerce:Storage:AzureBlob";
 
     /// <summary>A storage account connection string. Leave empty to sign in with <see cref="AccountUri"/> instead.</summary>
     public string? ConnectionString { get; set; }
@@ -41,7 +41,7 @@ internal sealed class AzureBlobFileStore(IOptions<AzureBlobOptions> options) : I
                 ? new BlobContainerClient(o.ConnectionString, o.Container)
                 : !string.IsNullOrWhiteSpace(o.AccountUri)
                     ? new BlobContainerClient(new Uri(new Uri(o.AccountUri), o.Container), new DefaultAzureCredential())
-                    : throw new InvalidOperationException("Set Piranha:Storage:AzureBlob:ConnectionString, or AccountUri to use the host's Azure identity.");
+                    : throw new InvalidOperationException("Set PiranhaCommerce:Storage:AzureBlob:ConnectionString, or AccountUri to use the host's Azure identity.");
             await client.CreateIfNotExistsAsync(cancellationToken: ct);
             return _container = client;
         }

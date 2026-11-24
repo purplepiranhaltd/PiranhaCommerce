@@ -8,7 +8,7 @@ namespace PiranhaCommerce.Storage.LocalDisk;
 
 public sealed class LocalDiskOptions
 {
-    public const string SectionName = "Piranha:Storage:LocalDisk";
+    public const string SectionName = "PiranhaCommerce:Storage:LocalDisk";
 
     /// <summary>The folder files are kept in. A relative path is relative to the application's content root. Back it up, and share it between instances (or use a cloud store) if there are several.</summary>
     public string Path { get; set; } = "App_Data/files";

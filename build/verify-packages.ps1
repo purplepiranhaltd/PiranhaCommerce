@@ -79,7 +79,7 @@ using PiranhaCommerce.Storage.LocalDisk;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddPiranhaCore()
-    .AddPiranhaSqlServer(builder.Configuration.GetConnectionString("Piranha")!, typeof(Program).Assembly)
+    .AddPiranhaSqlServer(builder.Configuration.GetConnectionString("PiranhaCommerce")!, typeof(Program).Assembly)
     .AddPiranhaApi()
     .AddPiranhaAdmin()
     .AddPlugin<EcommercePlugin>()
@@ -96,7 +96,7 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
     await scope.ServiceProvider.GetRequiredService<PiranhaDbContext>().Database.MigrateAsync();
-var seed = app.Configuration.GetSection("Piranha:SeedAdmin");
+var seed = app.Configuration.GetSection("PiranhaCommerce:SeedAdmin");
 await app.Services.EnsureAdministratorAsync(seed["Email"]!, seed["Password"]!);
 
 app.UseStaticFiles();
@@ -133,7 +133,7 @@ Step 'Run published output'
 $port = (& { $l = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0); $l.Start(); $p = $l.LocalEndpoint.Port; $l.Stop(); $p })
 $base = "http://localhost:$port"
 $env:ASPNETCORE_ENVIRONMENT = 'Development'          # applies migrations + seeds admin in the throwaway DB
-$env:ConnectionStrings__Piranha = $ConnectionString
+$env:ConnectionStrings__PiranhaCommerce = $ConnectionString
 $log = Join-Path $WorkDir 'app.log'
 $proc = Start-Process dotnet -ArgumentList @((Join-Path $publish 'ConsumerApp.dll'), '--urls', $base) `
     -WorkingDirectory $publish -PassThru -NoNewWindow -RedirectStandardOutput $log -RedirectStandardError "$log.err"
@@ -237,7 +237,7 @@ finally {
         try { Run sqlcmd @('-S', '(localdb)\MSSQLLocalDB', '-Q', "ALTER DATABASE [$dbName] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$dbName];") | Out-Null } catch { Write-Warning "Could not drop $dbName" }
     }
     Remove-Item Env:NUGET_PACKAGES -ErrorAction SilentlyContinue
-    Remove-Item Env:ConnectionStrings__Piranha -ErrorAction SilentlyContinue
+    Remove-Item Env:ConnectionStrings__PiranhaCommerce -ErrorAction SilentlyContinue
     Remove-Item Env:ASPNETCORE_ENVIRONMENT -ErrorAction SilentlyContinue
     if (-not $KeepWorkDir) { Remove-Item $WorkDir -Recurse -Force -ErrorAction SilentlyContinue } else { Write-Host "Kept: $WorkDir" }
 }

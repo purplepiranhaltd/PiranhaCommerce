@@ -37,7 +37,7 @@ public class ProductImage : Entity
 
 public sealed class ImageOptions
 {
-    public const string SectionName = "Piranha:Images";
+    public const string SectionName = "PiranhaCommerce:Images";
 
     /// <summary>The biggest upload accepted, in bytes (default 10 MB).</summary>
     [Range(1024, 200_000_000)]

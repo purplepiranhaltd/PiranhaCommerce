@@ -34,10 +34,10 @@ public class DisputeEvidenceFile : Entity
     public DateTimeOffset UploadedUtc { get; set; }
 }
 
-/// <summary>Settings (section <c>Piranha:Ecommerce:DisputeFiles</c>).</summary>
+/// <summary>Settings (section <c>PiranhaCommerce:Ecommerce:DisputeFiles</c>).</summary>
 public sealed class DisputeFileOptions
 {
-    public const string SectionName = "Piranha:Ecommerce:DisputeFiles";
+    public const string SectionName = "PiranhaCommerce:Ecommerce:DisputeFiles";
 
     /// <summary>The largest single document. Stripe takes up to 5 MB.</summary>
     public long MaxBytes { get; set; } = 5 * 1024 * 1024;

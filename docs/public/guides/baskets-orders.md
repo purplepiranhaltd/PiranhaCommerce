@@ -24,7 +24,7 @@ API paths below are under `/api/v1`. Enums travel as names (`"Placed"`).
 
 Order numbers are sequential, starting at `ORD-1001`. Orders never change when a product is edited, and they survive deleting a customer. A product that has been sold cannot be deleted.
 
-**Settings:** `Piranha:Ecommerce:Currency` (default `GBP`) and `Piranha:Ecommerce:StockLocationId` (default: the built-in location).
+**Settings:** `PiranhaCommerce:Ecommerce:Currency` (default `GBP`) and `PiranhaCommerce:Ecommerce:StockLocationId` (default: the built-in location).
 
 ## Guest baskets and checkout
 
@@ -40,10 +40,10 @@ A shopper who is not signed in uses the anonymous routes under `/api/v1/storefro
 **How it is protected.**
 - Knowing the basket id is the whole of the proof, as it is for claiming a basket.
 - These routes only ever touch a basket that has no owner, so a signed-in shopper's basket answers `404` here, and the signed-in routes still need a token.
-- Starting a guest basket is limited per client address (`Piranha:RateLimit:GuestBasketAttempts`, default 120 a minute). A shop front on one server address makes one per visitor, so the limit counts that address's visitors together.
+- Starting a guest basket is limited per client address (`PiranhaCommerce:RateLimit:GuestBasketAttempts`, default 120 a minute). A shop front on one server address makes one per visitor, so the limit counts that address's visitors together.
 - Promo and voucher codes share the sign-in limit.
 
-**Requiring an account.** Set `Piranha:Ecommerce:AllowGuestCheckout` to `false`. Guests can still build a basket, but checkout answers `403`.
+**Requiring an account.** Set `PiranhaCommerce:Ecommerce:AllowGuestCheckout` to `false`. Guests can still build a basket, but checkout answers `403`.
 
 Old unowned baskets are cleared like any other (see below).
 
@@ -74,7 +74,7 @@ Two background jobs keep the shop tidy. Each has an interface so you can run it 
 
 ### Abandoned baskets
 
-Open baskets nobody has touched for `Piranha:Ecommerce:AbandonedBasketDays` (default 60; `0` keeps them for ever) are deleted with their lines. The job runs every six hours, first a minute after start.
+Open baskets nobody has touched for `PiranhaCommerce:Ecommerce:AbandonedBasketDays` (default 60; `0` keeps them for ever) are deleted with their lines. The job runs every six hours, first a minute after start.
 
 - Any change to a basket counts as being active: a line, a promo code, a voucher, or a shopper claiming it.
 - Checked-out baskets are never touched.
@@ -83,7 +83,7 @@ Open baskets nobody has touched for `Piranha:Ecommerce:AbandonedBasketDays` (def
 
 ### Unpaid orders
 
-Off by default. With `Piranha:Ecommerce:UnpaidOrderHours` above 0, an order still at Placed with no payment of any kind after that many hours is cancelled by a job that runs every 15 minutes. It is exactly as if staff had cancelled it: the stock goes back on the shelf, the promo use is given back, and the buyer gets the cancellation email. The movement is recorded as done by "system (unpaid order expired)".
+Off by default. With `PiranhaCommerce:Ecommerce:UnpaidOrderHours` above 0, an order still at Placed with no payment of any kind after that many hours is cancelled by a job that runs every 15 minutes. It is exactly as if staff had cancelled it: the stock goes back on the shelf, the promo use is given back, and the buyer gets the cancellation email. The movement is recorded as done by "system (unpaid order expired)".
 
 - Part-paid orders, orders already in progress and orders with nothing to pay are never touched.
 - A payment that lands a moment before is detected inside the cancel and wins.

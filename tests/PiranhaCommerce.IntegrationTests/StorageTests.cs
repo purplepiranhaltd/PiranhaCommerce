@@ -57,7 +57,7 @@ public class StorageTests
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["Piranha:Storage:AzureBlob:ConnectionString"] = connection, ["Piranha:Storage:AzureBlob:Container"] = "test-" + Guid.NewGuid().ToString("N")[..12],
+            ["PiranhaCommerce:Storage:AzureBlob:ConnectionString"] = connection, ["PiranhaCommerce:Storage:AzureBlob:Container"] = "test-" + Guid.NewGuid().ToString("N")[..12],
         }).Build());
         new AzureBlobStoragePlugin().ConfigureServices(services);
         var store = services.BuildServiceProvider().GetRequiredService<IFileStore>();

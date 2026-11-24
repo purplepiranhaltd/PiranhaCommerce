@@ -33,7 +33,7 @@ builder.Services.AddSingleton<IEmailSender, MySmtpSender>();   // after AddPiran
 - HTML bodies HTML-encode every variable. Text bodies and subjects do not, and a subject is forced onto one line.
 - An email with no stored or shipped wording (a third-party package's key you have not written yet) fails to send with a clear message, and the admin lists it as "not set up".
 
-**Settings** under `Piranha:Email:Smtp`:
+**Settings** under `PiranhaCommerce:Email:Smtp`:
 
 | Setting | Meaning |
 |---|---|
@@ -56,8 +56,8 @@ Its package maps each key from `IEmailTemplateCatalog` to a template id and send
 | Email | When | Setting |
 |---|---|---|
 | Password reset and sign-in links | A shopper or staff member asks for one | |
-| Order confirmation (plain text) | Every order placed | `Piranha:Ecommerce:SendOrderConfirmations`, default on |
-| `order.shipped` | A parcel is sent: carrier, tracking, what is in it and what is still to come | `Piranha:Ecommerce:SendOrderUpdates`, default on |
+| Order confirmation (plain text) | Every order placed | `PiranhaCommerce:Ecommerce:SendOrderConfirmations`, default on |
+| `order.shipped` | A parcel is sent: carrier, tracking, what is in it and what is still to come | `PiranhaCommerce:Ecommerce:SendOrderUpdates`, default on |
 | `order.cancelled` | An order is cancelled; says what is still to be refunded if they paid | `SendOrderUpdates` |
 | `order.refunded` | A refund is recorded: the amount and the total refunded so far, however it was booked (by hand, from the admin, or by the provider's webhook) | `SendOrderUpdates` |
 

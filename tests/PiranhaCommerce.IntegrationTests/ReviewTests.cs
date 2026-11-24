@@ -334,7 +334,7 @@ public class ReviewTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
         var staff = await factory.CreateAuthenticatedApiClientAsync();
         var p = await Product(staff);
         var ada = await ShopperAsync();
-        using var open = factory.WithWebHostBuilder(b => b.UseSetting("Piranha:Ecommerce:ReviewsNeedApproval", "false"));
+        using var open = factory.WithWebHostBuilder(b => b.UseSetting("PiranhaCommerce:Ecommerce:ReviewsNeedApproval", "false"));
         var shopper = open.CreateClient();
         shopper.DefaultRequestHeaders.Authorization = ada.Client.DefaultRequestHeaders.Authorization;
         var review = await Read<ReviewDto>(await Write(shopper, p.Id, 4));

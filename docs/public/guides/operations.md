@@ -42,7 +42,7 @@ Services write each event in the same transaction as the change, so an event exi
 
 ### The message
 
-A background sender (every `Piranha:Webhooks:PollSeconds`, default 10; `0` turns it off) delivers each event to every endpoint that existed when it happened and wanted it. A message is:
+A background sender (every `PiranhaCommerce:Webhooks:PollSeconds`, default 10; `0` turns it off) delivers each event to every endpoint that existed when it happened and wanted it. A message is:
 
 ```json
 POST { "id": "...", "type": "order.placed", "created": "...", "apiVersion": "...", "data": { } }
@@ -54,13 +54,13 @@ Headers:
 
 | Header | Meaning |
 |---|---|
-| `Piranha-Signature` | `t=<unix seconds>,v1=<hex HMAC-SHA256 of "t.body" with the endpoint's secret>`. Reject old `t` values to stop replays. |
-| `Piranha-Event-Id`, `Piranha-Event-Type` | What happened. |
-| `Piranha-Delivery-Id`, `Piranha-Delivery-Attempt` | Which delivery, and which try. |
+| `PiranhaCommerce-Signature` | `t=<unix seconds>,v1=<hex HMAC-SHA256 of "t.body" with the endpoint's secret>`. Reject old `t` values to stop replays. |
+| `PiranhaCommerce-Event-Id`, `PiranhaCommerce-Event-Type` | What happened. |
+| `PiranhaCommerce-Delivery-Id`, `PiranhaCommerce-Delivery-Attempt` | Which delivery, and which try. |
 
 ### Delivery
 
-Answer 2xx to accept. Anything else, no answer in 10 seconds, or a redirect (never followed) counts as failed and is tried again after 1, 5 and 15 minutes, then 1, 3, 6 and 12 hours (`Piranha:Webhooks:MaxAttempts`, default 8). It is then marked Failed.
+Answer 2xx to accept. Anything else, no answer in 10 seconds, or a redirect (never followed) counts as failed and is tried again after 1, 5 and 15 minutes, then 1, 3, 6 and 12 hours (`PiranhaCommerce:Webhooks:MaxAttempts`, default 8). It is then marked Failed.
 
 Delivery is **at least once and in no guaranteed order**: ignore an event id you have already handled.
 
@@ -72,7 +72,7 @@ Several hosts can run the sender at once, because each delivery is claimed with 
 - `POST /webhooks/{id}/test` sends a `webhook.test` event now.
 - `GET /webhooks/{id}/deliveries` is the log: status, tries, the answer and any error.
 - `POST /webhook-deliveries/{id}/redeliver` sends one again.
-- Events and finished deliveries are deleted after `Piranha:Webhooks:RetentionDays` (30).
+- Events and finished deliveries are deleted after `PiranhaCommerce:Webhooks:RetentionDays` (30).
 
 ### Publishing your own events
 

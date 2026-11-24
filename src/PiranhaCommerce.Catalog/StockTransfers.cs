@@ -78,7 +78,7 @@ public static class StockTransferNumbers
 
 public sealed class StockOptions
 {
-    public const string SectionName = "Piranha:Stock";
+    public const string SectionName = "PiranhaCommerce:Stock";
 
     /// <summary>
     /// Sending and receiving a transfer are two people's jobs. Set this to let one user do both, for a shop with a single member of staff.

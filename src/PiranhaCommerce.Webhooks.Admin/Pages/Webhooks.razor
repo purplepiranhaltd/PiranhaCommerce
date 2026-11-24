@@ -5,7 +5,7 @@
 <h1>Webhooks</h1>
 <p class="pc-muted">
     A webhook tells another system when something happens here: an order is placed, a payment is taken, a parcel is sent. Each message is a signed POST to your address
-    (the <code>Piranha-Signature</code> header holds <code>t=time,v1=HMAC-SHA256 of "time.body"</code>, made with the endpoint's secret). A 2xx answer means received; anything else is tried again
+    (the <code>PiranhaCommerce-Signature</code> header holds <code>t=time,v1=HMAC-SHA256 of "time.body"</code>, made with the endpoint's secret). A 2xx answer means received; anything else is tried again
     after 1 minute, 5 minutes, 15 minutes, 1, 3, 6 and 12 hours, then given up. A message can arrive more than once and in any order, so ignore an event id you have already handled.
     The messages carry ids and figures, not personal details: fetch more from the API.
 </p>

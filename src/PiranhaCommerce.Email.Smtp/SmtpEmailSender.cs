@@ -27,12 +27,12 @@ public enum SmtpSecurity
 }
 
 /// <summary>
-/// SMTP settings (section <c>Piranha:Email:Smtp</c>). Keep the password out of source control: user secrets in development,
+/// SMTP settings (section <c>PiranhaCommerce:Email:Smtp</c>). Keep the password out of source control: user secrets in development,
 /// your host's secret store in production. Server certificates are always validated.
 /// </summary>
 public sealed class SmtpEmailOptions
 {
-    public const string SectionName = "Piranha:Email:Smtp";
+    public const string SectionName = "PiranhaCommerce:Email:Smtp";
 
     public string? Host { get; set; }
     public int Port { get; set; } = 587;
@@ -63,8 +63,8 @@ public sealed class SmtpEmailSender(IOptions<SmtpEmailOptions> options, ISmtpTem
     public async Task SendAsync(EmailMessage message, CancellationToken ct = default)
     {
         var o = Options;
-        if (string.IsNullOrWhiteSpace(o.Host)) throw new InvalidOperationException("SMTP is not configured: Piranha:Email:Smtp:Host is empty.");
-        if (!TryAddress(o.FromAddress, out var from)) throw new InvalidOperationException("SMTP is not configured: Piranha:Email:Smtp:FromAddress is not a valid address.");
+        if (string.IsNullOrWhiteSpace(o.Host)) throw new InvalidOperationException("SMTP is not configured: PiranhaCommerce:Email:Smtp:Host is empty.");
+        if (!TryAddress(o.FromAddress, out var from)) throw new InvalidOperationException("SMTP is not configured: PiranhaCommerce:Email:Smtp:FromAddress is not a valid address.");
         if (!string.IsNullOrWhiteSpace(o.FromName)) from.Name = Clean(o.FromName);
 
         // One recipient, parsed as an address: a value like "a@x.com, b@y.com" or one carrying header text is refused rather than sent.
@@ -83,7 +83,7 @@ public sealed class SmtpEmailSender(IOptions<SmtpEmailOptions> options, ISmtpTem
         mime.To.Add(to);
         if (!string.IsNullOrWhiteSpace(o.ReplyToAddress))
         {
-            if (!TryAddress(o.ReplyToAddress, out var reply)) throw new InvalidOperationException("SMTP is not configured: Piranha:Email:Smtp:ReplyToAddress is not a valid address.");
+            if (!TryAddress(o.ReplyToAddress, out var reply)) throw new InvalidOperationException("SMTP is not configured: PiranhaCommerce:Email:Smtp:ReplyToAddress is not a valid address.");
             mime.ReplyTo.Add(reply);
         }
         var content = await RenderAsync(message, ct);

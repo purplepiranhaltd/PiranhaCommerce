@@ -28,8 +28,8 @@ The documentation covers installation, your first store, configuration, every fe
 | `PiranhaCommerce.Admin` | Blazor admin (Razor class library): menu + slots that plugins contribute to. |
 | `PiranhaCommerce.Catalog` | Products shared by every sales channel (name, SKU, price), with API. Channels never add columns to it. |
 | `PiranhaCommerce.Catalog.Admin` | Product list/edit pages. |
-| `PiranhaCommerce.Storage.LocalDisk` | Where uploaded files (product pictures) live: a folder on the server (`Piranha:Storage:LocalDisk:Path`, default `App_Data/files`). Back it up; share it or use Azure Blob when there are several servers. |
-| `PiranhaCommerce.Storage.AzureBlob` | The same, in an Azure storage container (`Piranha:Storage:AzureBlob:ConnectionString`, or `AccountUri` to use the host's Azure identity, and `Container`). Use instead of LocalDisk, not with it. |
+| `PiranhaCommerce.Storage.LocalDisk` | Where uploaded files (product pictures) live: a folder on the server (`PiranhaCommerce:Storage:LocalDisk:Path`, default `App_Data/files`). Back it up; share it or use Azure Blob when there are several servers. |
+| `PiranhaCommerce.Storage.AzureBlob` | The same, in an Azure storage container (`PiranhaCommerce:Storage:AzureBlob:ConnectionString`, or `AccountUri` to use the host's Azure identity, and `Container`). Use instead of LocalDisk, not with it. |
 | `PiranhaCommerce.Imaging.Skia` | Reads image sizes and makes smaller copies when a picture is uploaded, with SkiaSharp (MIT licensed). Optional: without it the original is stored as it is. |
 | `PiranhaCommerce.Customers` | Customers and their address books, shared by every sales channel, with API. Customers are not admin users. |
 | `PiranhaCommerce.Customers.Admin` | Customer list/edit pages and an address book panel (contributed through the `customer.edit.panels` slot). |

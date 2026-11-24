@@ -55,7 +55,7 @@ How the open questions were settled, so they can be revisited:
   every existing user working). The location an action happens at is named on the action (send from X, receive at Y, adjust at Z) and checked against
   the assignment, so a person who works at two sites needs no "choose a location" step at sign-in.
 - **Per location:** sending, receiving, cancelling and manual stock adjustments. Everything else (catalogue, reports, orders) is global.
-- **Two people:** the receiver must be a different user from the sender, unless `Piranha:Stock:AllowSameUserToReceive` is set for a one-person shop.
+- **Two people:** the receiver must be a different user from the sender, unless `PiranhaCommerce:Stock:AllowSameUserToReceive` is set for a one-person shop.
 
 Not built:
 
@@ -173,7 +173,7 @@ Not built yet:
 - Stock is taken when the order is placed (checkout is one step, so there is no separate hold). An order nobody pays no longer holds it for ever: with
   `UnpaidOrderHours` set, unpaid orders are cancelled and the stock put back (see the README). Not built: holding stock for a basket before checkout.
   Old open baskets are cleared automatically (see the README).
-- Per-order stock location (every online order currently draws from `Piranha:Ecommerce:StockLocationId`, or the default location).
-- One currency per store (`Piranha:Ecommerce:Currency`, default GBP).
+- Per-order stock location (every online order currently draws from `PiranhaCommerce:Ecommerce:StockLocationId`, or the default location).
+- One currency per store (`PiranhaCommerce:Ecommerce:Currency`, default GBP).
 - Quantities are whole numbers in baskets; stock itself supports fractions for channels that need them.
 - Order emails and notifications: built (see the README); guest checkout rules are the `AllowGuestCheckout` setting.

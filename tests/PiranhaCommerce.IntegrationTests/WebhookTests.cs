@@ -38,7 +38,7 @@ public class WebhookTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory
         public string Type => Message.GetProperty("type").GetString()!;
         public JsonElement Data => Message.GetProperty("data");
         public Guid? OrderId => Data.ValueKind == JsonValueKind.Object && Data.TryGetProperty("orderId", out var id) ? id.GetGuid() : null;
-        public Guid EventId => Guid.Parse(Headers["Piranha-Event-Id"]);
+        public Guid EventId => Guid.Parse(Headers["PiranhaCommerce-Event-Id"]);
     }
 
     private sealed class Receiver(Func<Call, HttpStatusCode>? reply = null) : HttpMessageHandler, IHttpClientFactory
@@ -122,7 +122,7 @@ public class WebhookTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory
 
     private static bool SignatureIsValid(Call call, string secret)
     {
-        var parts = call.Headers["Piranha-Signature"].Split(',').Select(x => x.Split('=', 2)).ToDictionary(x => x[0], x => x[1]);
+        var parts = call.Headers["PiranhaCommerce-Signature"].Split(',').Select(x => x.Split('=', 2)).ToDictionary(x => x[0], x => x[1]);
         var expected = Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes($"{parts["t"]}.{call.Body}"))).ToLowerInvariant();
         return parts["v1"] == expected;
     }
@@ -146,9 +146,9 @@ public class WebhookTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory
         Assert.Equal(order.Reference, call.Data.GetProperty("reference").GetString());
         Assert.Equal(25m, call.Data.GetProperty("total").GetDecimal());
         Assert.Equal(1, call.Message.GetProperty("apiVersion").GetInt32());
-        Assert.Equal(call.Message.GetProperty("id").GetString(), call.Headers["Piranha-Event-Id"]);
-        Assert.Equal("order.placed", call.Headers["Piranha-Event-Type"]);
-        Assert.Equal("1", call.Headers["Piranha-Delivery-Attempt"]);
+        Assert.Equal(call.Message.GetProperty("id").GetString(), call.Headers["PiranhaCommerce-Event-Id"]);
+        Assert.Equal("order.placed", call.Headers["PiranhaCommerce-Event-Type"]);
+        Assert.Equal("1", call.Headers["PiranhaCommerce-Delivery-Attempt"]);
         Assert.True(SignatureIsValid(call, endpoint.Secret!));
         Assert.False(SignatureIsValid(call, "whsec_wrong"));
         Assert.DoesNotContain("@example.com", call.Body);
@@ -241,7 +241,7 @@ public class WebhookTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory
         // After the wait it goes again, and says it is the second attempt.
         clock.Advance(TimeSpan.FromMinutes(2));
         await Dispatch(receiver, clock, maxAttempts: 3);
-        Assert.Equal("2", receiver.About(endpoint, order.Id).Last().Headers["Piranha-Delivery-Attempt"]);
+        Assert.Equal("2", receiver.About(endpoint, order.Id).Last().Headers["PiranhaCommerce-Delivery-Attempt"]);
 
         clock.Advance(TimeSpan.FromMinutes(10));
         var last = await Dispatch(receiver, clock, maxAttempts: 3);

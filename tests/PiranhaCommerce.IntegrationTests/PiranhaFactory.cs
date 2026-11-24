@@ -58,15 +58,15 @@ public class PiranhaFactory: WebApplicationFactory<Program>, IAsyncLifetime
     // Per-factory setting (not an environment variable: fixtures run in parallel and would overwrite each other).
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseSetting("Piranha:Provider", Provider);
-        builder.UseSetting("ConnectionStrings:Piranha", ConnectionString);
-        builder.UseSetting("Piranha:RateLimit:SignInAttempts", SignInAttempts.ToString());
-        builder.UseSetting("Piranha:Storage:LocalDisk:Path", FilesFolder);
-        builder.UseSetting("Piranha:Ecommerce:StockAlertPollSeconds", "0"); // tests run the notifier themselves
-        builder.UseSetting("Piranha:Shop:AccountFormsPerMinute", "1000"); // every test shares one client address; tests of the limit lower it
-        builder.UseSetting("Piranha:SampleData:Enabled", "false"); // the tests share one database and count what is in it
-        builder.UseSetting("Piranha:Webhooks:PollSeconds", "0"); // tests drive the sender themselves; the background one must not post anywhere
-        if (AlertEmail is { } alert) builder.UseSetting("Piranha:Ecommerce:AlertEmail", alert);
+        builder.UseSetting("PiranhaCommerce:Provider", Provider);
+        builder.UseSetting("ConnectionStrings:PiranhaCommerce", ConnectionString);
+        builder.UseSetting("PiranhaCommerce:RateLimit:SignInAttempts", SignInAttempts.ToString());
+        builder.UseSetting("PiranhaCommerce:Storage:LocalDisk:Path", FilesFolder);
+        builder.UseSetting("PiranhaCommerce:Ecommerce:StockAlertPollSeconds", "0"); // tests run the notifier themselves
+        builder.UseSetting("PiranhaCommerce:Shop:AccountFormsPerMinute", "1000"); // every test shares one client address; tests of the limit lower it
+        builder.UseSetting("PiranhaCommerce:SampleData:Enabled", "false"); // the tests share one database and count what is in it
+        builder.UseSetting("PiranhaCommerce:Webhooks:PollSeconds", "0"); // tests drive the sender themselves; the background one must not post anywhere
+        if (AlertEmail is { } alert) builder.UseSetting("PiranhaCommerce:Ecommerce:AlertEmail", alert);
         foreach (var (key, value) in ExtraSettings) builder.UseSetting(key, value);
         // Mail goes to memory so tests can read the links and codes it would have carried.
         builder.ConfigureTestServices(s => { s.AddSingleton<IEmailSender>(Email); s.AddPaymentGateway<TestGateway>(); });

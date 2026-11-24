@@ -35,10 +35,10 @@ public class CustomerLogin
     public DateTimeOffset? EmailVerifiedUtc { get; set; }
 }
 
-/// <summary>Bound to <c>Piranha:Customers</c>.</summary>
+/// <summary>Bound to <c>PiranhaCommerce:Customers</c>.</summary>
 public sealed class CustomerAccountOptions
 {
-    public const string SectionName = "Piranha:Customers";
+    public const string SectionName = "PiranhaCommerce:Customers";
 
     public int MaxFailedAttempts { get; set; } = 5;
     public int LockoutMinutes { get; set; } = 15;

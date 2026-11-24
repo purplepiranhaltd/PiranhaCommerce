@@ -27,7 +27,7 @@ public interface IWebhookDispatcher
 
 /// <summary>
 /// Sends the messages. Each is a POST of <c>{ id, type, created, apiVersion, data }</c> signed with the endpoint's secret: header
-/// <c>Piranha-Signature: t=&lt;unix seconds&gt;,v1=&lt;hex HMAC-SHA256 of "t.body"&gt;</c>. A 2xx answer is success; anything else (or no answer within 10 seconds,
+/// <c>PiranhaCommerce-Signature: t=&lt;unix seconds&gt;,v1=&lt;hex HMAC-SHA256 of "t.body"&gt;</c>. A 2xx answer is success; anything else (or no answer within 10 seconds,
 /// or a redirect) is a failure, tried again after 1 minute, 5 minutes, 15 minutes, 1, 3, 6 and 12 hours. Delivery is at least once and in no guaranteed
 /// order, so a receiver should ignore an event id it has already handled.
 /// </summary>
@@ -159,11 +159,11 @@ public sealed class WebhookDispatcher(PiranhaDbContext db, IHttpClientFactory ht
 
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint.Url) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
         request.Headers.TryAddWithoutValidation("User-Agent", "PiranhaCommerce-Webhooks/1");
-        request.Headers.TryAddWithoutValidation("Piranha-Event-Id", ev.Id.ToString());
-        request.Headers.TryAddWithoutValidation("Piranha-Event-Type", ev.Type);
-        request.Headers.TryAddWithoutValidation("Piranha-Delivery-Id", delivery.Id.ToString());
-        request.Headers.TryAddWithoutValidation("Piranha-Delivery-Attempt", attempt.ToString());
-        request.Headers.TryAddWithoutValidation("Piranha-Signature", $"t={t},v1={mac}");
+        request.Headers.TryAddWithoutValidation("PiranhaCommerce-Event-Id", ev.Id.ToString());
+        request.Headers.TryAddWithoutValidation("PiranhaCommerce-Event-Type", ev.Type);
+        request.Headers.TryAddWithoutValidation("PiranhaCommerce-Delivery-Id", delivery.Id.ToString());
+        request.Headers.TryAddWithoutValidation("PiranhaCommerce-Delivery-Attempt", attempt.ToString());
+        request.Headers.TryAddWithoutValidation("PiranhaCommerce-Signature", $"t={t},v1={mac}");
 
         // One deadline for the whole exchange, the reply body included (HttpClient.Timeout stops at the headers).
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
