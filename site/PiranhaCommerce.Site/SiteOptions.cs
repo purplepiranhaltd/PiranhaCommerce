@@ -14,6 +14,9 @@ public sealed class SiteOptions
     /// <summary>The address of a running sample shop to link to ("See the demo"). Empty hides the link.</summary>
     public string? DemoUrl { get; set; }
 
+    /// <summary>The address to email to ask for a Commercial Licence. Empty shows the pricing page without an email link.</summary>
+    public string? LicenceEmail { get; set; }
+
     /// <summary>Where the docs Markdown is. Empty finds the "docs" folder beside the app, or the repository's docs/public.</summary>
     public string? DocsPath { get; set; }
 }

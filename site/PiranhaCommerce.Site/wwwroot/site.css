@@ -120,3 +120,14 @@ section.container h2 { font-size: 1.7rem; margin: 0 0 1.25rem; }
 .shots img { width: 100%; height: auto; aspect-ratio: 1200 / 860; object-fit: cover; object-position: top; border: 1px solid var(--line); border-radius: 10px; display: block; }
 .shots figcaption { color: var(--muted); font-size: .9rem; margin-top: .5rem; }
 @media (max-width: 800px) { .shots { grid-template-columns: 1fr; } }
+
+/* Pricing */
+.price { font-size: 2rem; font-weight: 700; margin: .25rem 0 .75rem; }
+.muted { color: var(--muted); font-size: .95rem; font-weight: 400; }
+.prices { border-collapse: collapse; width: 100%; max-width: 640px; margin: 1rem 0; }
+.prices caption { text-align: left; font-weight: 600; padding: .5rem 0; }
+.prices th, .prices td { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid var(--line); }
+.calc { display: flex; gap: .75rem; align-items: end; flex-wrap: wrap; margin: .5rem 0 1rem; }
+.calc input { display: block; margin-top: .25rem; padding: .5rem; width: 8rem; font: inherit; }
+.result { font-size: 1.1rem; }
+.pc-error { color: #b00020; }

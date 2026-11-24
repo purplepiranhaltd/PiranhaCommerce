@@ -1,0 +1,110 @@
+@page "/pricing"
+@using System.Globalization
+@inject IOptions<SiteOptions> Options
+
+<PageTitle>Pricing - PiranhaCommerce</PageTitle>
+<HeadContent><meta name="description" content="PiranhaCommerce is free to use and change with a small attribution notice. A one-off Commercial Licence of £400 per domain removes it, with discounts for agencies." /></HeadContent>
+
+<section class="hero">
+    <div class="container">
+        <p class="eyebrow">Pricing</p>
+        <h1>Free to use. Pay once to remove the notice.</h1>
+        <p class="lead">PiranhaCommerce is free to use and change, for any shop, as long as every page carries a small "Built on PiranhaCommerce" notice. A Commercial Licence removes the notice, for a one-off price per domain.</p>
+    </div>
+</section>
+
+<section class="container">
+    <div class="grid">
+        <article class="card">
+            <h3>Free</h3>
+            <p class="price">£0</p>
+            <ul class="ticks">
+                <li>Use it for any shop, including one that makes money</li>
+                <li>Change it however you like, keep your changes private</li>
+                <li>"Built on PiranhaCommerce" shown in the footer of every page</li>
+            </ul>
+        </article>
+        <article class="card">
+            <h3>Commercial Licence</h3>
+            <p class="price">£@LicencePricing.StandardPrice.ToString("N0", Uk) <span class="muted">per domain, once</span></p>
+            <ul class="ticks">
+                <li>Everything in the free licence, on the same terms</li>
+                <li>Leave the notice out on your licensed domain</li>
+                <li>Covers every subdomain of that domain</li>
+                <li>No renewal, and it covers later versions too</li>
+            </ul>
+        </article>
+    </div>
+</section>
+
+<section class="container" id="domains">
+    <h2>One domain, and everything under it</h2>
+    <p>A licence covers a domain and all of its subdomains. A licence for <code>example.co.uk</code> also covers <code>shop.example.co.uk</code>, <code>admin.example.co.uk</code> and any other subdomain. Test, staging and demonstration copies of a licensed site are covered too. A different domain, even for the same brand (<code>example.com</code> beside <code>example.co.uk</code>), needs its own licence.</p>
+</section>
+
+<section class="container" id="agencies">
+    <h2>More than one domain</h2>
+    <p>Building shops for clients? The more domains you hold licences for, the less each one costs. Each domain is priced by where it falls in your count, so adding one never costs more than the one before.</p>
+    <table class="pc-table prices">
+        <thead><tr><th>Domains</th><th>Each</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var band in LicencePricing.Bands)
+        {
+            <tr>
+                <td>@(band.To is null ? $"{band.From} or more" : band.From == band.To ? band.From.ToString() : $"{band.From} to {band.To}")</td>
+                <td>£@band.Price.ToString("N0", Uk)</td>
+                <td>@band.Description</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+
+    <h3 id="calculator">Work out a price</h3>
+    <form method="get" action="/pricing#calculator" class="calc">
+        <label>How many domains? <input type="number" name="domains" min="1" max="1000" value="@(Count?.ToString() ?? "1")" /></label>
+        <button class="button" type="submit">Work it out</button>
+    </form>
+    @if (Count is { } n and >= 1 and <= 1000)
+    {
+        <p class="result" role="status">
+            <strong>@n @(n == 1 ? "domain" : "domains"): £@LicencePricing.Total(n).ToString("N0", Uk)</strong>
+            <span class="muted">(about £@LicencePricing.AveragePerDomain(n).ToString("N0", Uk) each, once, plus VAT where it applies)</span>
+        </p>
+    }
+    else if (!string.IsNullOrEmpty(Domains))
+    {
+        <p class="pc-error" role="alert">Enter a number of domains from 1 to 1000.</p>
+    }
+
+    <table class="pc-table prices">
+        <caption>Some examples</caption>
+        <thead><tr><th>Domains</th><th>Total</th><th>Average each</th></tr></thead>
+        <tbody>
+        @foreach (var count in new[] { 1, 4, 5, 9, 10, 20 })
+        {
+            <tr><td>@count</td><td>£@LicencePricing.Total(count).ToString("N0", Uk)</td><td>£@LicencePricing.AveragePerDomain(count).ToString("N0", Uk)</td></tr>
+        }
+        </tbody>
+    </table>
+</section>
+
+<section class="container" id="buy">
+    <h2>How to buy</h2>
+    <p>Prices are in pounds sterling, one-off, and VAT is added where it applies. Send us the domains you want to license and who the licence is for, and we will send you an invoice. The licence starts when it is paid.</p>
+    @if (!string.IsNullOrWhiteSpace(Options.Value.LicenceEmail))
+    {
+        <p class="actions"><a class="button" href="mailto:@Options.Value.LicenceEmail?subject=PiranhaCommerce%20Commercial%20Licence">Email us to buy a licence</a></p>
+    }
+    <p>The full terms are in the <a href="@(Links.Docs(Context) + "/getting-started/licensing")">licensing guide</a>. They are the same as the free licence, plus the right to leave the notice out on your licensed domains.</p>
+</section>
+
+@code {
+    private static readonly CultureInfo Uk = CultureInfo.GetCultureInfo("en-GB");
+
+    [CascadingParameter] private HttpContext? Context { get; set; }
+
+    // Read as text and parsed here, so junk in the address shows a message and not an error page.
+    [SupplyParameterFromQuery(Name = "domains")] private string? Domains { get; set; }
+
+    private int? Count => int.TryParse(Domains, NumberStyles.None, CultureInfo.InvariantCulture, out var n) ? n : null;
+}

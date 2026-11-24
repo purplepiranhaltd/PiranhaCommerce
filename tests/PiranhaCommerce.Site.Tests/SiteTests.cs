@@ -120,4 +120,72 @@ public class SiteTests(WebApplicationFactory<Program> factory) : IClassFixture<W
         foreach (var topic in new[] { "Gift vouchers", "Webhooks", "Audit log", "Discounts", "Stock transfers", "Product reviews", "Wishlists", "Shipping zones and carriers", "Stripe" })
             Assert.Contains(topic, text);
     }
+
+    [Theory]
+    [InlineData(1, 400)]
+    [InlineData(4, 1600)]
+    [InlineData(5, 1960)]    // the fifth domain is 10% off
+    [InlineData(9, 3400)]
+    [InlineData(10, 3720)]   // the tenth is 20% off
+    [InlineData(12, 4360)]
+    [InlineData(20, 6920)]
+    public void Licences_are_priced_by_band(int domains, int total) => Assert.Equal(total, LicencePricing.Total(domains));
+
+    [Fact]
+    public void Buying_one_more_domain_never_costs_more_than_the_one_before()
+    {
+        var previous = 0m;
+        decimal lastStep = decimal.MaxValue;
+        for (var n = 1; n <= 60; n++)
+        {
+            var total = LicencePricing.Total(n);
+            var step = total - previous;
+            Assert.True(step <= lastStep, $"Domain {n} costs {step}, more than the one before it ({lastStep}).");
+            Assert.True(step > 0);
+            (previous, lastStep) = (total, step);
+        }
+        Assert.Throws<ArgumentOutOfRangeException>(() => LicencePricing.Total(0));
+    }
+
+    [Fact]
+    public async Task The_pricing_page_shows_the_price_the_bands_and_a_calculator_that_works_without_scripts()
+    {
+        var html = await (await Client(factory).GetAsync("/pricing")).Content.ReadAsStringAsync();
+        Assert.Contains("£400", html);
+        Assert.Contains("£360", html);
+        Assert.Contains("£320", html);
+        Assert.Contains("every subdomain", html.Replace("all of its subdomains", "every subdomain"));
+        Assert.Contains("<form method=\"get\"", html);
+
+        var calc = await (await Client(factory).GetAsync("/pricing?domains=12")).Content.ReadAsStringAsync();
+        Assert.Contains("12 domains: £4,360", calc);
+        Assert.Contains("1 domain: £400", await (await Client(factory).GetAsync("/pricing?domains=1")).Content.ReadAsStringAsync());
+        Assert.Contains("from 1 to 1000", await (await Client(factory).GetAsync("/pricing?domains=0")).Content.ReadAsStringAsync());
+        Assert.Contains("from 1 to 1000", await (await Client(factory).GetAsync("/pricing?domains=5000")).Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.OK, (await Client(factory).GetAsync("/pricing?domains=abc")).StatusCode); // junk in the address is not an error page
+    }
+
+    [Fact]
+    public async Task The_email_link_appears_only_when_an_address_is_configured_and_the_menu_links_to_pricing()
+    {
+        Assert.DoesNotContain("mailto:", await (await Client(factory).GetAsync("/pricing")).Content.ReadAsStringAsync());
+        using var configured = factory.WithWebHostBuilder(b => b.UseSetting("Site:LicenceEmail", "licences@example.com"));
+        var html = await (await Client(configured).GetAsync("/pricing")).Content.ReadAsStringAsync();
+        Assert.Contains("mailto:licences@example.com", html);
+        Assert.Contains("href=\"/pricing\"", html); // in the main menu
+    }
+
+    [Fact]
+    public void The_docs_and_the_commercial_licence_state_the_same_prices_as_the_pricing_page()
+    {
+        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+        var docs = File.ReadAllText(Path.Combine(root, "docs", "public", "getting-started", "licensing.md"));
+        Assert.Contains("£400 per domain", docs);
+        Assert.Contains("£360 each (10% off)", docs);
+        Assert.Contains("£320 each (20% off)", docs);
+        Assert.Contains($"12 domains cost £{LicencePricing.Total(12):N0}", docs);
+        var terms = File.ReadAllText(Path.Combine(root, "COMMERCIAL-LICENSE.md"));
+        Assert.Contains("domains 1 to 4 at the standard price, domains 5 to 9 at 10% off", terms);
+        Assert.Contains("10th domain and any after it at 20% off", terms);
+    }
 }
