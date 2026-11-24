@@ -45,12 +45,12 @@ else
                 <td class="actions">
                     @if (_confirmDelete == c.Id)
                     {
-                        <button class="danger" @onclick="() => DeleteAsync(c.Id)">Confirm delete</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button class="danger" @onclick="() => DeleteAsync(c.Id)">Confirm delete</button></PiranhaCommerce.Admin.Components.Can>
                         <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
                     }
                     else
                     {
-                        <button class="secondary" @onclick="() => _confirmDelete = c.Id">Delete</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button class="secondary" @onclick="() => _confirmDelete = c.Id">Delete</button></PiranhaCommerce.Admin.Components.Can>
                     }
                 </td>
             </tr>

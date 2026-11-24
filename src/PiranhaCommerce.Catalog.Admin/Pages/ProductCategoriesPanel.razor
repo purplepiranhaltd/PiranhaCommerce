@@ -19,7 +19,7 @@
                 <label><input type="checkbox" checked="@_selected.Contains(c.Id)" @onchange="e => Toggle(c.Id, (bool)e.Value!)" /> @c.Name</label>
             </div>
         }
-        <button type="button" @onclick="SaveAsync" disabled="@_saving">Save categories</button>
+        <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button type="button" @onclick="SaveAsync" disabled="@_saving">Save categories</button></PiranhaCommerce.Admin.Components.Can>
         @if (_message is not null)
         {
             <span class="pc-muted" role="status"> @_message</span>

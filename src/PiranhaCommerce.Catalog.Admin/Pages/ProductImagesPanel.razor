@@ -31,10 +31,10 @@
                             {
                                 <input aria-label="Description of picture @(index + 1)" placeholder="Describe it (alt text)" maxlength="200" value="@(_alt.GetValueOrDefault(image.Id) ?? image.AltText)" @onchange="e => _alt[image.Id] = e.Value?.ToString()" />
                                 <div class="actions">
-                                    <button type="button" class="secondary" disabled="@_busy" @onclick="() => SaveAltAsync(image)">Save text</button>
-                                    <button type="button" class="secondary" disabled="@(_busy || index == 0)" aria-label="Move picture @(index + 1) earlier" @onclick="() => MoveAsync(index, -1)">&larr;</button>
-                                    <button type="button" class="secondary" disabled="@(_busy || index == _data.Images.Count - 1)" aria-label="Move picture @(index + 1) later" @onclick="() => MoveAsync(index, 1)">&rarr;</button>
-                                    <button type="button" class="secondary" disabled="@_busy" @onclick="() => DeleteAsync(image)">Delete</button>
+                                    <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button type="button" class="secondary" disabled="@_busy" @onclick="() => SaveAltAsync(image)">Save text</button></PiranhaCommerce.Admin.Components.Can>
+                                    <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button type="button" class="secondary" disabled="@(_busy || index == 0)" aria-label="Move picture @(index + 1) earlier" @onclick="() => MoveAsync(index, -1)">&larr;</button></PiranhaCommerce.Admin.Components.Can>
+                                    <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button type="button" class="secondary" disabled="@(_busy || index == _data.Images.Count - 1)" aria-label="Move picture @(index + 1) later" @onclick="() => MoveAsync(index, 1)">&rarr;</button></PiranhaCommerce.Admin.Components.Can>
+                                    <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button type="button" class="secondary" disabled="@_busy" @onclick="() => DeleteAsync(image)">Delete</button></PiranhaCommerce.Admin.Components.Can>
                                 </div>
                             }
                             <span class="pc-muted">@(image.Width is { } w ? $"{w} x {image.Height}, " : "")@(image.SizeBytes / 1024) KB</span>

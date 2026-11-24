@@ -150,6 +150,33 @@ public partial class StaffAdminPermissionTests(PiranhaCommerceFactory factory) :
         Assert.Contains("Record refund", refunder);
     }
 
+    [Fact]
+    public async Task List_pages_show_edit_and_delete_only_to_people_who_can_use_them()
+    {
+        var brand = Unique("Brand");
+        var api = await factory.CreateAuthenticatedApiClientAsync();
+        Assert.True((await api.PostAsJsonAsync("/api/v1/brands", new { name = brand })).IsSuccessStatusCode);
+
+        async Task<string> PageFor(string url, params string[] permissions)
+        {
+            var (email, password) = await factory.CreateStaffAsync(permissions);
+            var browser = await SignInAsync(email, password);
+            return await (await browser.GetAsync(url)).Content.ReadAsStringAsync();
+        }
+
+        var viewer = await PageFor("/admin/catalog/brands", Permissions.CatalogView);
+        Assert.Contains(brand, viewer);
+        Assert.DoesNotContain(">Edit</button>", viewer);
+        Assert.DoesNotContain(">Delete</button>", viewer);
+        Assert.DoesNotContain(">Add</button>", viewer);
+
+        var editor = await PageFor("/admin/catalog/brands", Permissions.CatalogEdit);
+        Assert.Contains(">Edit</button>", editor);
+        Assert.Contains(">Delete</button>", editor);
+    }
+
+    private static string Unique(string p) => p + " " + Guid.NewGuid().ToString("N")[..8];
+
     // ---- the guard that stops a service call from the admin ----
 
     public interface ISampleService

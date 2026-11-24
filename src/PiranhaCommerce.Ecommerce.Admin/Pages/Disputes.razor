@@ -47,7 +47,7 @@ else
                 <td style="text-align:right">@(d.Fee is null ? "-" : d.Fee.Value.ToString("N2"))</td>
                 <td>@(d.RespondByUtc?.ToString("dd MMM yyyy") ?? "-")</td>
                 <td>@d.Status@(d.EvidenceSubmittedUtc is not null ? " (evidence sent)" : "")</td>
-                <td>@if (d.Status == DisputeStatus.Open && d.EvidenceSubmittedUtc is null) { <button type="button" class="secondary" @onclick="() => Open(d)">Evidence</button> }</td>
+                <td>@if (d.Status == DisputeStatus.Open && d.EvidenceSubmittedUtc is null) { <PiranhaCommerce.Admin.Components.Can Permission="orders.refund"><button type="button" class="secondary" @onclick="() => Open(d)">Evidence</button></PiranhaCommerce.Admin.Components.Can> }</td>
             </tr>
             @if (_editing == d.Id)
             {
@@ -73,7 +73,7 @@ else
                                 <li>
                                     @f.Kind: <button type="button" class="link" @onclick="() => DownloadAsync(d, f)">@f.FileName</button>
                                     <span class="pc-muted">(@((f.Length / 1024.0).ToString("N0")) KB)</span>
-                                    <button type="button" class="secondary" disabled="@_busy" @onclick="() => RemoveFileAsync(d, f)">Remove</button>
+                                    <PiranhaCommerce.Admin.Components.Can Permission="orders.refund"><button type="button" class="secondary" disabled="@_busy" @onclick="() => RemoveFileAsync(d, f)">Remove</button></PiranhaCommerce.Admin.Components.Can>
                                 </li>
                             }
                             </ul>
@@ -84,8 +84,8 @@ else
                             </select>
                         </label>
                         <InputFile OnChange="e => UploadAsync(d, e)" accept="application/pdf,image/jpeg,image/png" disabled="@_busy" />
-                        <button type="button" class="secondary" disabled="@_busy" @onclick="() => SendAsync(d, false)">Save only</button>
-                        <button type="button" disabled="@_busy" @onclick="() => SendAsync(d, true)">Send to the bank (final)</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="orders.refund"><button type="button" class="secondary" disabled="@_busy" @onclick="() => SendAsync(d, false)">Save only</button></PiranhaCommerce.Admin.Components.Can>
+                        <PiranhaCommerce.Admin.Components.Can Permission="orders.refund"><button type="button" disabled="@_busy" @onclick="() => SendAsync(d, true)">Send to the bank (final)</button></PiranhaCommerce.Admin.Components.Can>
                         <button type="button" class="secondary" @onclick="() => _editing = null">Close</button>
                         @if (_message is not null) { <p role="status">@_message</p> }
                     </div>

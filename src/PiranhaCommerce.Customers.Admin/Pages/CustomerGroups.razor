@@ -25,7 +25,7 @@
         <label>Description (optional) <InputText @bind-Value="_input.Description" /></label>
         <label>Percentage off every product for members (0 for none; set fixed prices per product on the product page) <InputNumber @bind-Value="_input.DiscountPercent" /></label>
         <ValidationMessage For="() => _input.DiscountPercent" />
-        <button type="submit" disabled="@_busy">Save</button>
+        <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button type="submit" disabled="@_busy">Save</button></PiranhaCommerce.Admin.Components.Can>
         @if (_editing is not null)
         {
             <button type="button" class="secondary" @onclick="Reset">Cancel</button>
@@ -56,15 +56,15 @@ else
                 <td style="text-align:right">@g.MemberCount</td>
                 <td class="actions">
                     <button class="secondary" @onclick="() => OpenAsync(group)">Customers</button>
-                    <button class="secondary" @onclick="() => Edit(group)">Edit</button>
+                    <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button class="secondary" @onclick="() => Edit(group)">Edit</button></PiranhaCommerce.Admin.Components.Can>
                     @if (_confirmDelete == g.Id)
                     {
-                        <button class="danger" @onclick="() => DeleteAsync(group.Id)">Confirm delete</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button class="danger" @onclick="() => DeleteAsync(group.Id)">Confirm delete</button></PiranhaCommerce.Admin.Components.Can>
                         <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
                     }
                     else
                     {
-                        <button class="secondary" @onclick="() => _confirmDelete = group.Id">Delete</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button class="secondary" @onclick="() => _confirmDelete = group.Id">Delete</button></PiranhaCommerce.Admin.Components.Can>
                     }
                 </td>
             </tr>
@@ -93,7 +93,7 @@ else
                         <td>@m.Email</td>
                         <td>@m.FirstName @m.LastName</td>
                         <td>@m.AddedUtc.ToString("dd MMM yyyy")@(m.AddedBy is null ? "" : " by " + m.AddedBy)</td>
-                        <td class="actions"><button class="secondary" disabled="@_busy" @onclick="() => RemoveAsync(member.CustomerId)">Remove</button></td>
+                        <td class="actions"><PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button class="secondary" disabled="@_busy" @onclick="() => RemoveAsync(member.CustomerId)">Remove</button></PiranhaCommerce.Admin.Components.Can></td>
                     </tr>
                 }
                 </tbody>
@@ -105,7 +105,7 @@ else
         @foreach (var c in _found)
         {
             var customer = c;
-            <div>@c.Email <button type="button" disabled="@_busy" @onclick="() => AddAsync(customer.Id)">Add</button></div>
+            <div>@c.Email <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button type="button" disabled="@_busy" @onclick="() => AddAsync(customer.Id)">Add</button></PiranhaCommerce.Admin.Components.Can></div>
         }
     </div>
 }

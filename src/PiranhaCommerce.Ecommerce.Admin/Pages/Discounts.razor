@@ -63,13 +63,13 @@
                     @foreach (var p in _chosen)
                     {
                         var id = p.Id;
-                        <span class="pc-tag">@p.Name <button type="button" class="secondary" aria-label="Remove @p.Name" @onclick="() => RemoveProduct(id)">x</button></span>
+                        <span class="pc-tag">@p.Name <PiranhaCommerce.Admin.Components.Can Permission="prices.manage"><button type="button" class="secondary" aria-label="Remove @p.Name" @onclick="() => RemoveProduct(id)">x</button></PiranhaCommerce.Admin.Components.Can></span>
                     }
                     <input type="search" placeholder="Search products to add" aria-label="Search products" @bind="_search" @bind:event="oninput" @bind:after="SearchAsync" />
                     @foreach (var p in _found)
                     {
                         var found = p;
-                        <div><button type="button" class="secondary" @onclick="() => AddProduct(found)">Add</button> @p.Name <span class="pc-muted">@p.Sku</span></div>
+                        <div><PiranhaCommerce.Admin.Components.Can Permission="prices.manage"><button type="button" class="secondary" @onclick="() => AddProduct(found)">Add</button></PiranhaCommerce.Admin.Components.Can> @p.Name <span class="pc-muted">@p.Sku</span></div>
                     }
                 </fieldset>
             }
@@ -93,7 +93,7 @@
             </InputSelect>
         </label>
         <label><InputCheckbox @bind-Value="_input.Active" /> Active</label>
-        <button type="submit" disabled="@_busy">Save</button>
+        <PiranhaCommerce.Admin.Components.Can Permission="prices.manage"><button type="submit" disabled="@_busy">Save</button></PiranhaCommerce.Admin.Components.Can>
         @if (_editing is not null) { <button type="button" class="secondary" @onclick="Reset">Cancel</button> }
     </EditForm>
 </div>
@@ -122,15 +122,15 @@ else
                 <td>@r.Redeemed@(r.MaxRedemptions is { } max ? " of " + max : "")</td>
                 <td>@(r.Active ? "Yes" : "No")</td>
                 <td class="actions">
-                    <button class="secondary" @onclick="() => Edit(r)">Edit</button>
+                    <PiranhaCommerce.Admin.Components.Can Permission="prices.manage"><button class="secondary" @onclick="() => Edit(r)">Edit</button></PiranhaCommerce.Admin.Components.Can>
                     @if (_confirmDelete == r.Id)
                     {
-                        <button class="danger" @onclick="() => DeleteAsync(r.Id)">Confirm delete</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="prices.manage"><button class="danger" @onclick="() => DeleteAsync(r.Id)">Confirm delete</button></PiranhaCommerce.Admin.Components.Can>
                         <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
                     }
                     else
                     {
-                        <button class="secondary" @onclick="() => _confirmDelete = r.Id">Delete</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="prices.manage"><button class="secondary" @onclick="() => _confirmDelete = r.Id">Delete</button></PiranhaCommerce.Admin.Components.Can>
                     }
                 </td>
             </tr>

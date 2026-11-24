@@ -26,7 +26,7 @@
         <label>Countries and postcode starts, one country per line, such as <code>GB: IV, HS, KW</code> or <code>FR</code> or <code>*</code>
             <textarea rows="6" @bind="_text" aria-label="Regions"></textarea>
         </label>
-        <button type="submit" disabled="@_busy">Save</button>
+        <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button type="submit" disabled="@_busy">Save</button></PiranhaCommerce.Admin.Components.Can>
         @if (_editing is not null) { <button type="button" class="secondary" @onclick="Reset">Cancel</button> }
     </EditForm>
 </div>
@@ -51,15 +51,15 @@ else
                 <td>@string.Join("; ", z.Regions.Select(r => r.CountryCode == "*" ? "everywhere else" : r.PostcodePrefixes.Count == 0 ? r.CountryCode : r.CountryCode + " " + string.Join(", ", r.PostcodePrefixes)))</td>
                 <td>@z.RateCount</td>
                 <td class="actions">
-                    <button class="secondary" @onclick="() => Edit(z)">Edit</button>
+                    <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button class="secondary" @onclick="() => Edit(z)">Edit</button></PiranhaCommerce.Admin.Components.Can>
                     @if (_confirmDelete == z.Id)
                     {
-                        <button class="danger" @onclick="() => DeleteAsync(z.Id)">Confirm delete</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button class="danger" @onclick="() => DeleteAsync(z.Id)">Confirm delete</button></PiranhaCommerce.Admin.Components.Can>
                         <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
                     }
                     else
                     {
-                        <button class="secondary" @onclick="() => _confirmDelete = z.Id">Delete</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button class="secondary" @onclick="() => _confirmDelete = z.Id">Delete</button></PiranhaCommerce.Admin.Components.Can>
                     }
                 </td>
             </tr>

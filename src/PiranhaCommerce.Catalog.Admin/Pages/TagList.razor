@@ -16,7 +16,7 @@
     <div class="pc-toolbar">
         <input aria-label="Tag name" placeholder="Name" maxlength="50" @bind="_input.Name" />
         <input aria-label="Slug" placeholder="Slug (made from the name if empty)" @bind="_input.Slug" />
-        <button @onclick="SaveAsync" disabled="@_saving">@(_editingId is null ? "Add" : "Save")</button>
+        <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button @onclick="SaveAsync" disabled="@_saving">@(_editingId is null ? "Add" : "Save")</button></PiranhaCommerce.Admin.Components.Can>
         @if (_editingId is not null)
         {
             <button class="secondary" @onclick="ResetForm">Cancel</button>
@@ -44,15 +44,15 @@ else
                 <td>@t.Slug</td>
                 <td class="num">@t.ProductCount</td>
                 <td class="actions">
-                    <button class="secondary" @onclick="() => Edit(t)">Edit</button>
+                    <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button class="secondary" @onclick="() => Edit(t)">Edit</button></PiranhaCommerce.Admin.Components.Can>
                     @if (_confirmDelete == t.Id)
                     {
-                        <button class="danger" @onclick="() => DeleteAsync(t.Id)">Confirm delete@(t.ProductCount > 0 ? $" (off {t.ProductCount} products)" : "")</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button class="danger" @onclick="() => DeleteAsync(t.Id)">Confirm delete@(t.ProductCount > 0 ? $" (off {t.ProductCount} products)" : "")</button></PiranhaCommerce.Admin.Components.Can>
                         <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
                     }
                     else
                     {
-                        <button class="secondary" @onclick="() => _confirmDelete = t.Id">Delete</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button class="secondary" @onclick="() => _confirmDelete = t.Id">Delete</button></PiranhaCommerce.Admin.Components.Can>
                     }
                 </td>
             </tr>

@@ -24,7 +24,7 @@
             @foreach (var g in _mine)
             {
                 var group = g;
-                <li>@g.Name <button type="button" class="secondary" disabled="@_busy" @onclick="() => RemoveAsync(group.Id)">Remove</button></li>
+                <li>@g.Name <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button type="button" class="secondary" disabled="@_busy" @onclick="() => RemoveAsync(group.Id)">Remove</button></PiranhaCommerce.Admin.Components.Can></li>
             }
             </ul>
         }
@@ -37,7 +37,7 @@
                     <option value="@g.Id">@g.Name</option>
                 }
             </select>
-            <button type="button" disabled="@(_busy || string.IsNullOrEmpty(_pick))" @onclick="AddAsync">Add</button>
+            <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button type="button" disabled="@(_busy || string.IsNullOrEmpty(_pick))" @onclick="AddAsync">Add</button></PiranhaCommerce.Admin.Components.Can>
         }
         else if (_all.Count == 0)
         {

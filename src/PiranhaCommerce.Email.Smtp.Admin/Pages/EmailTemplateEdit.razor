@@ -37,7 +37,7 @@ else if (_template is not null)
                 <InputTextArea @bind-Value="_input.HtmlBody" rows="14" style="font-family:monospace;width:100%" />
             </label>
             <ValidationMessage For="() => _input.HtmlBody" />
-            <button type="submit" disabled="@_busy">Save</button>
+            <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button type="submit" disabled="@_busy">Save</button></PiranhaCommerce.Admin.Components.Can>
             <button type="button" class="secondary" disabled="@_busy" @onclick="PreviewAsync">Preview</button>
             @if (_template.Status == EmailTemplateStatus.Customised)
             {
@@ -48,7 +48,7 @@ else if (_template is not null)
                 }
                 else
                 {
-                    <button type="button" class="secondary" @onclick="AskReset">Reset to default</button>
+                    <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button type="button" class="secondary" @onclick="AskReset">Reset to default</button></PiranhaCommerce.Admin.Components.Can>
                 }
             }
         </EditForm>

@@ -18,7 +18,7 @@
         <input aria-label="Slug" placeholder="Slug (made from the name if empty)" @bind="_input.Slug" />
         <input type="number" aria-label="Display order" style="width:6rem" @bind="_input.DisplayOrder" />
         <label><input type="checkbox" @bind="_input.Filterable" /> Shoppers can filter by it</label>
-        <button @onclick="SaveAsync" disabled="@_saving">@(_editingId is null ? "Add" : "Save")</button>
+        <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button @onclick="SaveAsync" disabled="@_saving">@(_editingId is null ? "Add" : "Save")</button></PiranhaCommerce.Admin.Components.Can>
         @if (_editingId is not null)
         {
             <button class="secondary" @onclick="ResetForm">Cancel</button>
@@ -59,12 +59,12 @@ else
                             <td class="actions">
                                 @if (_confirmDelete == v.Id)
                                 {
-                                    <button class="danger" @onclick="() => DeleteValueAsync(a.Id, v.Id)">Confirm delete</button>
+                                    <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button class="danger" @onclick="() => DeleteValueAsync(a.Id, v.Id)">Confirm delete</button></PiranhaCommerce.Admin.Components.Can>
                                     <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
                                 }
                                 else
                                 {
-                                    <button class="secondary" @onclick="() => _confirmDelete = v.Id">Delete</button>
+                                    <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button class="secondary" @onclick="() => _confirmDelete = v.Id">Delete</button></PiranhaCommerce.Admin.Components.Can>
                                 }
                             </td>
                         </tr>
@@ -75,16 +75,16 @@ else
             <div class="pc-toolbar" style="margin-top:.5rem">
                 <input aria-label="@("New value for " + a.Name)" placeholder="New value" @bind="NewValue(a.Id).Value" />
                 <input type="number" aria-label="@("Display order for " + a.Name + " value")" style="width:6rem" @bind="NewValue(a.Id).DisplayOrder" />
-                <button @onclick="() => AddValueAsync(a.Id)">Add value</button>
-                <button class="secondary" @onclick="() => Edit(a)">Edit attribute</button>
+                <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button @onclick="() => AddValueAsync(a.Id)">Add value</button></PiranhaCommerce.Admin.Components.Can>
+                <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button class="secondary" @onclick="() => Edit(a)">Edit attribute</button></PiranhaCommerce.Admin.Components.Can>
                 @if (_confirmDelete == a.Id)
                 {
-                    <button class="danger" @onclick="() => DeleteAsync(a.Id)">Confirm delete</button>
+                    <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button class="danger" @onclick="() => DeleteAsync(a.Id)">Confirm delete</button></PiranhaCommerce.Admin.Components.Can>
                     <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
                 }
                 else
                 {
-                    <button class="secondary" @onclick="() => _confirmDelete = a.Id">Delete attribute</button>
+                    <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button class="secondary" @onclick="() => _confirmDelete = a.Id">Delete attribute</button></PiranhaCommerce.Admin.Components.Can>
                 }
             </div>
         </div>

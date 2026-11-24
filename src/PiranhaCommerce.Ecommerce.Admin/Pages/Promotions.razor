@@ -43,7 +43,7 @@
             </InputSelect>
         </label>
         <label><InputCheckbox @bind-Value="_input.Active" /> Active</label>
-        <button type="submit" disabled="@_busy">Save</button>
+        <PiranhaCommerce.Admin.Components.Can Permission="prices.manage"><button type="submit" disabled="@_busy">Save</button></PiranhaCommerce.Admin.Components.Can>
         @if (_editing is not null)
         {
             <button type="button" class="secondary" @onclick="Reset">Cancel</button>
@@ -73,15 +73,15 @@ else
                 <td>@(p.StartsUtc?.ToString("dd MMM yyyy") ?? "any time") to @(p.EndsUtc?.ToString("dd MMM yyyy") ?? "no end")</td>
                 <td>@(p.Active ? "Yes" : "No")</td>
                 <td class="actions">
-                    <button class="secondary" @onclick="() => Edit(p)">Edit</button>
+                    <PiranhaCommerce.Admin.Components.Can Permission="prices.manage"><button class="secondary" @onclick="() => Edit(p)">Edit</button></PiranhaCommerce.Admin.Components.Can>
                     @if (_confirmDelete == p.Id)
                     {
-                        <button class="danger" @onclick="() => DeleteAsync(p.Id)">Confirm delete</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="prices.manage"><button class="danger" @onclick="() => DeleteAsync(p.Id)">Confirm delete</button></PiranhaCommerce.Admin.Components.Can>
                         <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
                     }
                     else
                     {
-                        <button class="secondary" @onclick="() => _confirmDelete = p.Id">Delete</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="prices.manage"><button class="secondary" @onclick="() => _confirmDelete = p.Id">Delete</button></PiranhaCommerce.Admin.Components.Can>
                     }
                 </td>
             </tr>

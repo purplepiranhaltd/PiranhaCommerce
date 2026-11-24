@@ -15,7 +15,7 @@
     {
         <div class="pc-toolbar">
             <input aria-label="Tags" placeholder="Tags, separated by commas" maxlength="2000" style="min-width:20rem" @bind="_text" />
-            <button type="button" @onclick="SaveAsync" disabled="@_saving">Save tags</button>
+            <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button type="button" @onclick="SaveAsync" disabled="@_saving">Save tags</button></PiranhaCommerce.Admin.Components.Can>
             @if (_message is not null)
             {
                 <span class="pc-muted" role="status">@_message</span>
@@ -26,7 +26,7 @@
             <p class="pc-muted" style="margin-bottom:0">Existing tags:
                 @foreach (var t in _others)
                 {
-                    <button type="button" class="secondary" style="margin:.15rem" @onclick="() => Add(t)">@t</button>
+                    <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button type="button" class="secondary" style="margin:.15rem" @onclick="() => Add(t)">@t</button></PiranhaCommerce.Admin.Components.Can>
                 }
             </p>
         }

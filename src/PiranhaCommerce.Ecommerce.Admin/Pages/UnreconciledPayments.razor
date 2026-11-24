@@ -55,13 +55,13 @@ else
                         @if (_resolving == u.Id)
                         {
                             <input @bind="_note" placeholder="What did you do?" maxlength="500" />
-                            <button disabled="@(_busy || string.IsNullOrWhiteSpace(_note))" @onclick="() => ResolveAsync(u.Id)">Mark resolved</button>
+                            <PiranhaCommerce.Admin.Components.Can Permission="orders.refund"><button disabled="@(_busy || string.IsNullOrWhiteSpace(_note))" @onclick="() => ResolveAsync(u.Id)">Mark resolved</button></PiranhaCommerce.Admin.Components.Can>
                             <button class="secondary" @onclick="() => _resolving = null">Cancel</button>
                         }
                         else
                         {
-                            <button class="secondary" disabled="@_busy" @onclick="() => RetryAsync(u.Id)">Try booking again</button>
-                            <button class="secondary" @onclick="() => StartResolving(u.Id)">Resolve...</button>
+                            <PiranhaCommerce.Admin.Components.Can Permission="orders.refund"><button class="secondary" disabled="@_busy" @onclick="() => RetryAsync(u.Id)">Try booking again</button></PiranhaCommerce.Admin.Components.Can>
+                            <PiranhaCommerce.Admin.Components.Can Permission="orders.refund"><button class="secondary" @onclick="() => StartResolving(u.Id)">Resolve...</button></PiranhaCommerce.Admin.Components.Can>
                         }
                     }
                     else

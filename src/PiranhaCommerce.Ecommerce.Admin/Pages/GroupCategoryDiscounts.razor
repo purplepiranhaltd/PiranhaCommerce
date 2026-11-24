@@ -57,10 +57,10 @@ else
                     <td><input type="number" step="0.01" min="0" max="100" aria-label="Percentage off for @r.Name" placeholder="not set"
                                value="@_edits[r.Id]" @onchange="e => _edits[row.Id] = e.Value?.ToString()" /></td>
                     <td class="actions">
-                        <button type="button" disabled="@_busy" @onclick="() => SaveAsync(row)">Save</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="prices.manage"><button type="button" disabled="@_busy" @onclick="() => SaveAsync(row)">Save</button></PiranhaCommerce.Admin.Components.Can>
                         @if (_set.Contains(r.Id))
                         {
-                            <button type="button" class="secondary" disabled="@_busy" @onclick="() => ClearAsync(row)">Clear</button>
+                            <PiranhaCommerce.Admin.Components.Can Permission="prices.manage"><button type="button" class="secondary" disabled="@_busy" @onclick="() => ClearAsync(row)">Clear</button></PiranhaCommerce.Admin.Components.Can>
                         }
                     </td>
                 </tr>

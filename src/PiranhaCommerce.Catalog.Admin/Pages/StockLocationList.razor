@@ -21,7 +21,7 @@
         }
         <input aria-label="Location name" placeholder="Name" @bind="_input.Name" />
         <label><input type="checkbox" @bind="_input.Active" /> Active</label>
-        <button @onclick="SaveAsync" disabled="@_saving">@(_editing is null ? "Add" : "Save")</button>
+        <PiranhaCommerce.Admin.Components.Can Permission="stock.adjust"><button @onclick="SaveAsync" disabled="@_saving">@(_editing is null ? "Add" : "Save")</button></PiranhaCommerce.Admin.Components.Can>
         @if (_editing is not null)
         {
             <button class="secondary" @onclick="ResetForm">Cancel</button>
@@ -44,7 +44,7 @@ else
                 <td>@l.Code</td>
                 <td>@l.Name @(l.IsDefault ? "(default)" : "")</td>
                 <td>@(l.Active ? "Yes" : "No")</td>
-                <td class="actions"><button class="secondary" @onclick="() => Edit(l)">Edit</button></td>
+                <td class="actions"><PiranhaCommerce.Admin.Components.Can Permission="stock.adjust"><button class="secondary" @onclick="() => Edit(l)">Edit</button></PiranhaCommerce.Admin.Components.Can></td>
             </tr>
         }
         </tbody>

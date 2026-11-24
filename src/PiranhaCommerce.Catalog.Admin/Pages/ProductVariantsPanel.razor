@@ -28,25 +28,25 @@
                 @foreach (var v in o.Values)
                 {
                     var value = v;
-                    <span class="pc-chip">@v.Value <button type="button" class="secondary" aria-label="Remove @v.Value from @o.Name" disabled="@_busy" @onclick="() => RunAsync(s => s.DeleteValueAsync(ProductId, option.Id, value.Id))">x</button></span>
+                    <span class="pc-chip">@v.Value <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button type="button" class="secondary" aria-label="Remove @v.Value from @o.Name" disabled="@_busy" @onclick="() => RunAsync(s => s.DeleteValueAsync(ProductId, option.Id, value.Id))">x</button></PiranhaCommerce.Admin.Components.Can></span>
                 }
                 <input aria-label="New @o.Name value" placeholder="Add a value" style="width:10rem" @bind="_newValue[option.Id]" />
-                <button type="button" class="secondary" disabled="@_busy" @onclick="() => AddValueAsync(option)">Add</button>
-                <button type="button" class="secondary" disabled="@_busy" @onclick="() => RunAsync(s => s.DeleteOptionAsync(ProductId, option.Id))">Delete option</button>
+                <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button type="button" class="secondary" disabled="@_busy" @onclick="() => AddValueAsync(option)">Add</button></PiranhaCommerce.Admin.Components.Can>
+                <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button type="button" class="secondary" disabled="@_busy" @onclick="() => RunAsync(s => s.DeleteOptionAsync(ProductId, option.Id))">Delete option</button></PiranhaCommerce.Admin.Components.Can>
             </div>
         }
 
         <div>
             <input aria-label="New option name" placeholder="Option name, for example Size" @bind="_optionName" />
             <input aria-label="New option values" placeholder="Values, separated by commas" style="width:16rem" @bind="_optionValues" />
-            <button type="button" class="secondary" disabled="@_busy" @onclick="AddOptionAsync">Add option</button>
+            <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button type="button" class="secondary" disabled="@_busy" @onclick="AddOptionAsync">Add option</button></PiranhaCommerce.Admin.Components.Can>
         </div>
 
         @if (_data.Options.Count > 0)
         {
             <p style="margin-top:.75rem">
                 <label>Price for new variants <input type="number" step="0.01" min="0" style="width:8rem" placeholder="this product's" @bind="_price" /></label>
-                <button type="button" disabled="@_busy" @onclick="GenerateAsync">Make a variant for every combination</button>
+                <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button type="button" disabled="@_busy" @onclick="GenerateAsync">Make a variant for every combination</button></PiranhaCommerce.Admin.Components.Can>
             </p>
         }
 

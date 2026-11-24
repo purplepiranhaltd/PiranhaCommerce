@@ -37,7 +37,7 @@
     <label><input type="checkbox" @bind="_skipInvalid" /> If some rows are wrong, still save the rows that are fine</label>
     <p>
         <button type="button" class="secondary" disabled="@(_busy || _bytes is null)" @onclick="() => RunAsync(dryRun: true)">Check the file (saves nothing)</button>
-        <button type="button" disabled="@(_busy || _bytes is null)" @onclick="() => RunAsync(dryRun: false)">Import</button>
+        <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button type="button" disabled="@(_busy || _bytes is null)" @onclick="() => RunAsync(dryRun: false)">Import</button></PiranhaCommerce.Admin.Components.Can>
     </p>
     @if (_error is not null)
     {

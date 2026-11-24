@@ -31,7 +31,7 @@
             <p>Email address: <strong>@(_status.EmailVerifiedUtc is null ? "not verified" : "verified")</strong>
                 @if (_status.EmailVerifiedUtc is null)
                 {
-                    <button type="button" class="secondary" disabled="@_busy" @onclick="VerifyAsync">Mark as verified</button>
+                    <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button type="button" class="secondary" disabled="@_busy" @onclick="VerifyAsync">Mark as verified</button></PiranhaCommerce.Admin.Components.Can>
                 }
             </p>
         }
@@ -43,22 +43,22 @@
         <div class="pc-toolbar">
             @if (_status.State == SignInState.Locked)
             {
-                <button type="button" class="secondary" disabled="@_busy" @onclick="UnlockAsync">Unlock</button>
+                <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button type="button" class="secondary" disabled="@_busy" @onclick="UnlockAsync">Unlock</button></PiranhaCommerce.Admin.Components.Can>
             }
             <button type="button" class="secondary" disabled="@(_busy || !_status.CustomerActive)" @onclick="SendLinkAsync">
                 @(_status.HasSignIn ? "Send password reset link" : "Send invitation")
             </button>
             @if (_status.HasSignIn)
             {
-                <button type="button" class="secondary" disabled="@_busy" @onclick="SignOutAsync">Sign out everywhere</button>
+                <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button type="button" class="secondary" disabled="@_busy" @onclick="SignOutAsync">Sign out everywhere</button></PiranhaCommerce.Admin.Components.Can>
                 @if (_confirmRemove)
                 {
-                    <button type="button" class="danger" disabled="@_busy" @onclick="RemoveAsync">Confirm: remove sign-in</button>
+                    <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button type="button" class="danger" disabled="@_busy" @onclick="RemoveAsync">Confirm: remove sign-in</button></PiranhaCommerce.Admin.Components.Can>
                     <button type="button" class="secondary" @onclick="() => _confirmRemove = false">Cancel</button>
                 }
                 else
                 {
-                    <button type="button" class="secondary" disabled="@_busy" @onclick="() => _confirmRemove = true">Remove sign-in</button>
+                    <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button type="button" class="secondary" disabled="@_busy" @onclick="() => _confirmRemove = true">Remove sign-in</button></PiranhaCommerce.Admin.Components.Can>
                 }
             }
         </div>

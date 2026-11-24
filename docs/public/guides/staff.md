@@ -75,7 +75,7 @@ public sealed class WarrantyPermissions : IPermissionContributor
 - **API:** `group.RequirePermission("catalog.view")` on the group, and `.RequirePermission("warranty.edit")` on the write endpoints.
 - **Admin page:** `@attribute [Authorize(Policy = PermissionPolicies.For("warranty.edit"))]`. A page that names none is for administrators only.
 - **Admin menu:** `new AdminMenuItem(..., RequiredPermission: "warranty.edit")`. The entry is hidden from people without it, and a section whose entries are all hidden disappears. Hiding a link is only a courtesy; the page and the service both check as well.
-- **Buttons:** wrap an action in `<Can Permission="warranty.edit">...</Can>` (from `PiranhaCommerce.Admin.Components`) to hide it from people who could not use it. The built-in pages do this for the main actions: order stages, shipping, refunds, stock adjustments and transfers, voucher changes, and saving products and customers.
+- **Buttons:** wrap an action in `<Can Permission="warranty.edit">...</Can>` (from `PiranhaCommerce.Admin.Components`) to hide it from people who could not use it. The built-in pages do this for every action that changes something: add, edit, delete and save on each list and panel, order actions, refunds, stock, vouchers, reviews, shipping, tax, email templates and webhooks. Buttons that only look (search, paging, history, downloads) stay visible.
 - **Service methods:** mark each method that changes something with `[RequiresPermission("warranty.edit")]` on the interface. The admin refuses the call for anyone without it, whichever page made it. Methods that only read need no mark.
 
 The built-in permission keys are constants on `Permissions`, and the matching policy names are constants on `PermissionPolicies`.

@@ -29,15 +29,15 @@
                     <td class="actions">
                         @if (!c.IsDefault)
                         {
-                            <button class="secondary" @onclick="() => MakeDefaultAsync(c)">Make default</button>
+                            <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button class="secondary" @onclick="() => MakeDefaultAsync(c)">Make default</button></PiranhaCommerce.Admin.Components.Can>
                             @if (_confirmDeleteClass == c.Id)
                             {
-                                <button class="danger" @onclick="() => DeleteClassAsync(c.Id)">Confirm delete</button>
+                                <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button class="danger" @onclick="() => DeleteClassAsync(c.Id)">Confirm delete</button></PiranhaCommerce.Admin.Components.Can>
                                 <button class="secondary" @onclick="() => _confirmDeleteClass = null">Cancel</button>
                             }
                             else
                             {
-                                <button class="secondary" @onclick="() => _confirmDeleteClass = c.Id">Delete</button>
+                                <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button class="secondary" @onclick="() => _confirmDeleteClass = c.Id">Delete</button></PiranhaCommerce.Admin.Components.Can>
                             }
                         }
                     </td>
@@ -50,7 +50,7 @@
         <DataAnnotationsValidator />
         <label>New class (for example Reduced or Zero) <InputText @bind-Value="_classInput.Name" /></label>
         <ValidationMessage For="() => _classInput.Name" />
-        <button type="submit" disabled="@_busy">Add class</button>
+        <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button type="submit" disabled="@_busy">Add class</button></PiranhaCommerce.Admin.Components.Can>
     </EditForm>
 </div>
 
@@ -72,7 +72,7 @@
         <ValidationMessage For="() => _input.Name" />
         <label>Rate (percent) <InputNumber @bind-Value="_input.Rate" /></label>
         <ValidationMessage For="() => _input.Rate" />
-        <button type="submit" disabled="@_busy">Save</button>
+        <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button type="submit" disabled="@_busy">Save</button></PiranhaCommerce.Admin.Components.Can>
         @if (_editing is not null)
         {
             <button type="button" class="secondary" @onclick="Reset">Cancel</button>
@@ -101,15 +101,15 @@ else
                 <td>@r.Name</td>
                 <td style="text-align:right">@r.Rate.ToString("0.####")%</td>
                 <td class="actions">
-                    <button class="secondary" @onclick="() => Edit(r)">Edit</button>
+                    <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button class="secondary" @onclick="() => Edit(r)">Edit</button></PiranhaCommerce.Admin.Components.Can>
                     @if (_confirmDelete == r.Id)
                     {
-                        <button class="danger" @onclick="() => DeleteAsync(r.Id)">Confirm delete</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button class="danger" @onclick="() => DeleteAsync(r.Id)">Confirm delete</button></PiranhaCommerce.Admin.Components.Can>
                         <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
                     }
                     else
                     {
-                        <button class="secondary" @onclick="() => _confirmDelete = r.Id">Delete</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button class="secondary" @onclick="() => _confirmDelete = r.Id">Delete</button></PiranhaCommerce.Admin.Components.Can>
                     }
                 </td>
             </tr>

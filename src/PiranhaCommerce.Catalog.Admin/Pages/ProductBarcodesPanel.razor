@@ -11,7 +11,7 @@
     {
         <textarea rows="4" aria-label="Barcodes, one per line" style="width:100%" @bind="_text"></textarea>
         <p class="pc-muted">One code per line. 8, 12, 13 and 14 digit codes are checked as GTINs (UPC-A and EAN-13 forms of one code are the same barcode).</p>
-        <button type="button" @onclick="SaveAsync" disabled="@_saving">Save barcodes</button>
+        <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button type="button" @onclick="SaveAsync" disabled="@_saving">Save barcodes</button></PiranhaCommerce.Admin.Components.Can>
         @if (_message is not null)
         {
             <span class="@(_failed ? "pc-error" : "pc-muted")" role="status"> @_message</span>

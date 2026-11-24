@@ -23,7 +23,7 @@
         <label>Tracking link, with {tracking} (optional) <InputText @bind-Value="_input.TrackingUrlTemplate" placeholder="https://track.example/{tracking}" /></label>
         <ValidationMessage For="() => _input.TrackingUrlTemplate" />
         <label><InputCheckbox @bind-Value="_input.Active" /> Active (offered when recording a parcel)</label>
-        <button type="submit" disabled="@_busy">Save</button>
+        <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button type="submit" disabled="@_busy">Save</button></PiranhaCommerce.Admin.Components.Can>
         @if (_editing is not null) { <button type="button" class="secondary" @onclick="Reset">Cancel</button> }
     </EditForm>
 </div>
@@ -48,15 +48,15 @@ else
                 <td>@(c.TrackingUrlTemplate ?? "none")</td>
                 <td>@(c.Active ? "Yes" : "No")</td>
                 <td class="actions">
-                    <button class="secondary" @onclick="() => Edit(c)">Edit</button>
+                    <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button class="secondary" @onclick="() => Edit(c)">Edit</button></PiranhaCommerce.Admin.Components.Can>
                     @if (_confirmDelete == c.Id)
                     {
-                        <button class="danger" @onclick="() => DeleteAsync(c.Id)">Confirm delete</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button class="danger" @onclick="() => DeleteAsync(c.Id)">Confirm delete</button></PiranhaCommerce.Admin.Components.Can>
                         <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
                     }
                     else
                     {
-                        <button class="secondary" @onclick="() => _confirmDelete = c.Id">Delete</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button class="secondary" @onclick="() => _confirmDelete = c.Id">Delete</button></PiranhaCommerce.Admin.Components.Can>
                     }
                 </td>
             </tr>

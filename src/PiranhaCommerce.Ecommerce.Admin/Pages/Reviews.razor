@@ -55,7 +55,7 @@ else
                                 <span style="display:inline-block;text-align:center">
                                     @if (_previews.TryGetValue(p.Id, out var src) && src is not null) { <img src="@src" alt="Photo from @r.DisplayName" style="max-height:96px;max-width:128px;display:block" /> }
                                     else { <span class="pc-muted">(no preview)</span> }
-                                    <button class="secondary" @onclick="() => RemovePhotoAsync(r.Id, p.Id)">Remove photo</button>
+                                    <PiranhaCommerce.Admin.Components.Can Permission="reviews.moderate"><button class="secondary" @onclick="() => RemovePhotoAsync(r.Id, p.Id)">Remove photo</button></PiranhaCommerce.Admin.Components.Can>
                                 </span>
                             }
                         </div>
@@ -68,7 +68,7 @@ else
                     {
                         <div class="pc-toolbar" style="margin-top:.5rem">
                             <textarea aria-label="Reply" rows="3" maxlength="2000" style="width:100%" @bind="_replyText"></textarea>
-                            <button @onclick="() => SaveReplyAsync(r.Id)">Save reply</button>
+                            <PiranhaCommerce.Admin.Components.Can Permission="reviews.moderate"><button @onclick="() => SaveReplyAsync(r.Id)">Save reply</button></PiranhaCommerce.Admin.Components.Can>
                             <button class="secondary" @onclick="() => _replying = null">Cancel</button>
                         </div>
                     }
@@ -77,17 +77,17 @@ else
                 <td>@r.Status</td>
                 <td class="actions">
                     @if (r.Status != ReviewStatus.Approved) { <button class="secondary" @onclick="() => SetAsync(r.Id, ReviewStatus.Approved)">Approve</button> }
-                    <button class="secondary" @onclick="() => StartReply(r)">@(r.Reply is null ? "Reply" : "Edit reply")</button>
-                    @if (r.Reply is not null) { <button class="secondary" @onclick="() => RemoveReplyAsync(r.Id)">Remove reply</button> }
+                    <PiranhaCommerce.Admin.Components.Can Permission="reviews.moderate"><button class="secondary" @onclick="() => StartReply(r)">@(r.Reply is null ? "Reply" : "Edit reply")</button></PiranhaCommerce.Admin.Components.Can>
+                    @if (r.Reply is not null) { <PiranhaCommerce.Admin.Components.Can Permission="reviews.moderate"><button class="secondary" @onclick="() => RemoveReplyAsync(r.Id)">Remove reply</button></PiranhaCommerce.Admin.Components.Can> }
                     @if (r.Status != ReviewStatus.Rejected) { <button class="secondary" @onclick="() => SetAsync(r.Id, ReviewStatus.Rejected)">Reject</button> }
                     @if (_confirmDelete == r.Id)
                     {
-                        <button class="danger" @onclick="() => DeleteAsync(r.Id)">Confirm delete</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="reviews.moderate"><button class="danger" @onclick="() => DeleteAsync(r.Id)">Confirm delete</button></PiranhaCommerce.Admin.Components.Can>
                         <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
                     }
                     else
                     {
-                        <button class="secondary" @onclick="() => _confirmDelete = r.Id">Delete</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="reviews.moderate"><button class="secondary" @onclick="() => _confirmDelete = r.Id">Delete</button></PiranhaCommerce.Admin.Components.Can>
                     }
                 </td>
             </tr>

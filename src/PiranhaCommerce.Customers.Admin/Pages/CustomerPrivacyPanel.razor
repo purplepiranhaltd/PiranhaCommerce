@@ -29,7 +29,7 @@
 
     <h3>Erase personal data</h3>
     <label>Type the customer's email address to confirm <input type="text" maxlength="256" @bind="_confirm" autocomplete="off" /></label>
-    <button type="button" class="danger" disabled="@(_busy || string.IsNullOrWhiteSpace(_confirm))" @onclick="EraseAsync">Erase personal data</button>
+    <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button type="button" class="danger" disabled="@(_busy || string.IsNullOrWhiteSpace(_confirm))" @onclick="EraseAsync">Erase personal data</button></PiranhaCommerce.Admin.Components.Can>
 </div>
 
 @code {

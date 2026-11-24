@@ -22,15 +22,15 @@
                         <td>@a.Label</td>
                         <td>@Format(a)</td>
                         <td class="actions">
-                            <button type="button" class="secondary" @onclick="() => Edit(a)">Edit</button>
+                            <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button type="button" class="secondary" @onclick="() => Edit(a)">Edit</button></PiranhaCommerce.Admin.Components.Can>
                             @if (_confirmDelete == a.Id)
                             {
-                                <button type="button" class="danger" @onclick="() => DeleteAsync(a.Id)">Confirm delete</button>
+                                <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button type="button" class="danger" @onclick="() => DeleteAsync(a.Id)">Confirm delete</button></PiranhaCommerce.Admin.Components.Can>
                                 <button type="button" class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
                             }
                             else
                             {
-                                <button type="button" class="secondary" @onclick="() => _confirmDelete = a.Id">Delete</button>
+                                <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button type="button" class="secondary" @onclick="() => _confirmDelete = a.Id">Delete</button></PiranhaCommerce.Admin.Components.Can>
                             }
                         </td>
                     </tr>
@@ -54,7 +54,7 @@
             <input aria-label="Postcode" placeholder="Postcode" style="width:8rem" @bind="_input.PostalCode" />
             <input aria-label="Country code" placeholder="Country (GB)" style="width:7rem" maxlength="2" @bind="_input.CountryCode" />
         </div>
-        <button type="button" @onclick="SaveAsync" disabled="@_saving">@(_editingId is null ? "Add address" : "Save address")</button>
+        <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button type="button" @onclick="SaveAsync" disabled="@_saving">@(_editingId is null ? "Add address" : "Save address")</button></PiranhaCommerce.Admin.Components.Can>
         @if (_editingId is not null)
         {
             <button type="button" class="secondary" @onclick="ResetForm">Cancel</button>

@@ -21,7 +21,7 @@
         <label>Free when the basket reaches (optional) <InputNumber @bind-Value="_input.FreeOver" /></label>
         <label>Order in the list <InputNumber @bind-Value="_input.Position" /></label>
         <label><InputCheckbox @bind-Value="_input.Active" /> Active</label>
-        <button type="submit" disabled="@_busy">Save</button>
+        <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button type="submit" disabled="@_busy">Save</button></PiranhaCommerce.Admin.Components.Can>
         @if (_editing is not null)
         {
             <button type="button" class="secondary" @onclick="Reset">Cancel</button>
@@ -56,13 +56,13 @@
                     <td><InputNumber @bind-Value="r.MinWeightGrams" /></td>
                     <td><InputNumber @bind-Value="r.MaxWeightGrams" /></td>
                     <td><InputNumber @bind-Value="r.Price" /></td>
-                    <td class="actions"><button type="button" class="secondary" @onclick="() => _rates.Remove(r)">Remove</button></td>
+                    <td class="actions"><PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button type="button" class="secondary" @onclick="() => _rates.Remove(r)">Remove</button></PiranhaCommerce.Admin.Components.Can></td>
                 </tr>
             }
             </tbody>
         </table>
-        <button type="button" class="secondary" @onclick="AddRate">Add a rate</button>
-        <button type="button" disabled="@_busy" @onclick="SaveRatesAsync">Save rates</button>
+        <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button type="button" class="secondary" @onclick="AddRate">Add a rate</button></PiranhaCommerce.Admin.Components.Can>
+        <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button type="button" disabled="@_busy" @onclick="SaveRatesAsync">Save rates</button></PiranhaCommerce.Admin.Components.Can>
         @if (_ratesMessage is not null)
         {
             <span class="pc-muted" role="status"> @_ratesMessage</span>
@@ -92,15 +92,15 @@ else
                 <td>@(m.RateCount == 0 ? "flat price" : m.RateCount + " rates")</td>
                 <td>@(m.Active ? "Yes" : "No")</td>
                 <td class="actions">
-                    <button class="secondary" @onclick="() => EditAsync(m)">Edit</button>
+                    <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button class="secondary" @onclick="() => EditAsync(m)">Edit</button></PiranhaCommerce.Admin.Components.Can>
                     @if (_confirmDelete == m.Id)
                     {
-                        <button class="danger" @onclick="() => DeleteAsync(m.Id)">Confirm delete</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button class="danger" @onclick="() => DeleteAsync(m.Id)">Confirm delete</button></PiranhaCommerce.Admin.Components.Can>
                         <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
                     }
                     else
                     {
-                        <button class="secondary" @onclick="() => _confirmDelete = m.Id">Delete</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="settings.manage"><button class="secondary" @onclick="() => _confirmDelete = m.Id">Delete</button></PiranhaCommerce.Admin.Components.Can>
                     }
                 </td>
             </tr>

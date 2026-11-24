@@ -25,7 +25,7 @@
                     <option value="@b.Id">@b.Name@(b.Active ? "" : " (switched off)")</option>
                 }
             </select>
-            <button type="button" @onclick="SaveAsync" disabled="@_saving">Save brand</button>
+            <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button type="button" @onclick="SaveAsync" disabled="@_saving">Save brand</button></PiranhaCommerce.Admin.Components.Can>
             @if (_message is not null)
             {
                 <span class="pc-muted" role="status">@_message</span>
