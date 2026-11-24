@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using PiranhaCommerce.Core.Admin;
 using PiranhaCommerce.Core.Plugins;
 using PiranhaCommerce.Customers.Admin.Pages;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Customers.Admin;
 
@@ -25,8 +26,8 @@ internal sealed class CustomersAdminMenu : IAdminMenuContributor
     public IEnumerable<AdminMenuItem> GetMenuItems() =>
     [
         new("customers", "Customers", Icon: "users", Order: 20),
-        new("customers.list", "All customers", "/admin/customers", Order: 21, ParentKey: "customers"),
-        new("customers.groups", "Groups", "/admin/customers/groups", Order: 22, ParentKey: "customers"),
+        new("customers.list", "All customers", "/admin/customers", Order: 21, ParentKey: "customers", RequiredPermission: Permissions.CustomersView),
+        new("customers.groups", "Groups", "/admin/customers/groups", Order: 22, ParentKey: "customers", RequiredPermission: Permissions.CustomersView),
     ];
 }
 

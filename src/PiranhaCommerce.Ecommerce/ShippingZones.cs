@@ -105,12 +105,15 @@ public interface IShippingZoneService
     Task<ShippingZoneDto?> GetAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>Validation error for a bad region, or a country and postcode start that another zone already holds.</summary>
+    [RequiresPermission(Permissions.SettingsManage)]
     Task<ShippingZoneDto> CreateAsync(ShippingZoneInput input, CancellationToken ct = default);
 
     /// <summary>Replaces the name, position and all the regions. Null when not found.</summary>
+    [RequiresPermission(Permissions.SettingsManage)]
     Task<ShippingZoneDto?> UpdateAsync(Guid id, ShippingZoneInput input, CancellationToken ct = default);
 
     /// <summary>Conflict while a shipping method's rates use the zone: change those first, so the methods offered do not change by surprise. False when not found.</summary>
+    [RequiresPermission(Permissions.SettingsManage)]
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 }
 
@@ -274,10 +277,13 @@ public interface IShippingCarrierService
 {
     Task<IReadOnlyList<ShippingCarrierDto>> ListAsync(bool activeOnly, CancellationToken ct = default);
     Task<ShippingCarrierDto?> GetAsync(Guid id, CancellationToken ct = default);
+    [RequiresPermission(Permissions.SettingsManage)]
     Task<ShippingCarrierDto> CreateAsync(ShippingCarrierInput input, CancellationToken ct = default);
+    [RequiresPermission(Permissions.SettingsManage)]
     Task<ShippingCarrierDto?> UpdateAsync(Guid id, ShippingCarrierInput input, CancellationToken ct = default);
 
     /// <summary>Parcels already sent keep the carrier name and link they were given, so deleting is always safe.</summary>
+    [RequiresPermission(Permissions.SettingsManage)]
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 }
 

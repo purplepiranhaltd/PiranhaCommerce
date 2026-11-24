@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Catalog;
 
@@ -10,16 +11,20 @@ public interface ICategoryService
     Task<IReadOnlyList<CategoryDto>> ListAsync(CancellationToken ct = default);
     Task<CategoryDto?> GetAsync(Guid id, CancellationToken ct = default);
     Task<CategoryDto?> GetBySlugAsync(string slug, CancellationToken ct = default);
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<CategoryDto> CreateAsync(CategoryInput input, CancellationToken ct = default);
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<CategoryDto?> UpdateAsync(Guid id, CategoryInput input, CancellationToken ct = default);
 
     /// <summary>False when not found. Throws <see cref="PiranhaCommerceConflictException"/> while the category still has child categories.</summary>
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>Null when the product does not exist.</summary>
     Task<ProductCategoriesDto?> GetProductCategoriesAsync(Guid productId, CancellationToken ct = default);
 
     /// <summary>Replaces the product's categories. Null when the product does not exist; unknown category ids are a validation error.</summary>
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<ProductCategoriesDto?> SetProductCategoriesAsync(Guid productId, IReadOnlyCollection<Guid> categoryIds, CancellationToken ct = default);
 }
 

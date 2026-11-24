@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using PiranhaCommerce.Catalog.Admin;
 using PiranhaCommerce.Core.Admin;
 using PiranhaCommerce.Core.Plugins;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce.Admin;
 
@@ -30,23 +31,23 @@ internal sealed class EcommerceAdminMenu : IAdminMenuContributor
     public IEnumerable<AdminMenuItem> GetMenuItems() =>
     [
         new("orders", "Orders", Icon: "cart", Order: 15),
-        new("orders.list", "All orders", "/admin/orders", Order: 16, ParentKey: "orders"),
-        new("reports.orders", "Orders", "/admin/orders/reports", Order: 30, ParentKey: "reports"),
-        new("orders.shipping", "Shipping methods", "/admin/orders/shipping", Order: 17, ParentKey: "orders"),
-        new("orders.shippingzones", "Shipping zones", "/admin/orders/shipping-zones", Order: 17, ParentKey: "orders"),
-        new("orders.shippingcarriers", "Shipping carriers", "/admin/orders/shipping-carriers", Order: 17, ParentKey: "orders"),
-        new("orders.tax", "Tax", "/admin/orders/tax", Order: 18, ParentKey: "orders"),
-        new("orders.promotions", "Promotions", "/admin/orders/promotions", Order: 19, ParentKey: "orders"),
-        new("orders.discounts", "Discounts", "/admin/orders/discounts", Order: 19, ParentKey: "orders"),
-        new("orders.sales", "Sales", "/admin/orders/sales", Order: 19, ParentKey: "orders"),
-        new("orders.group-discounts", "Group category discounts", "/admin/orders/group-discounts", Order: 19, ParentKey: "orders"),
-        new("orders.reviews", "Product reviews", "/admin/orders/reviews", Order: 20, ParentKey: "orders"),
-        new("orders.stockalerts", "Back-in-stock requests", "/admin/orders/stock-alerts", Order: 20, ParentKey: "orders"),
-        new("orders.wishlists", "Wishlists", "/admin/orders/wishlists", Order: 20, ParentKey: "orders"),
-        new("orders.vouchers", "Gift vouchers", "/admin/orders/vouchers", Order: 20, ParentKey: "orders"),
-        new("orders.unreconciled", "Unreconciled payments", "/admin/orders/unreconciled", Order: 21, ParentKey: "orders", BadgeKey: "unreconciled"),
-        new("orders.disputes", "Disputes", "/admin/orders/disputes", Order: 22, ParentKey: "orders", BadgeKey: "disputes"),
-        new("orders.returns", "Return requests", "/admin/orders/return-requests", Order: 23, ParentKey: "orders", BadgeKey: "return-requests"),
+        new("orders.list", "All orders", "/admin/orders", Order: 16, ParentKey: "orders", RequiredPermission: Permissions.OrdersView),
+        new("reports.orders", "Orders", "/admin/orders/reports", Order: 30, ParentKey: "reports", RequiredPermission: Permissions.ReportsView),
+        new("orders.shipping", "Shipping methods", "/admin/orders/shipping", Order: 17, ParentKey: "orders", RequiredPermission: Permissions.Access),
+        new("orders.shippingzones", "Shipping zones", "/admin/orders/shipping-zones", Order: 17, ParentKey: "orders", RequiredPermission: Permissions.Access),
+        new("orders.shippingcarriers", "Shipping carriers", "/admin/orders/shipping-carriers", Order: 17, ParentKey: "orders", RequiredPermission: Permissions.Access),
+        new("orders.tax", "Tax", "/admin/orders/tax", Order: 18, ParentKey: "orders", RequiredPermission: Permissions.Access),
+        new("orders.promotions", "Promotions", "/admin/orders/promotions", Order: 19, ParentKey: "orders", RequiredPermission: Permissions.CatalogView),
+        new("orders.discounts", "Discounts", "/admin/orders/discounts", Order: 19, ParentKey: "orders", RequiredPermission: Permissions.CatalogView),
+        new("orders.sales", "Sales", "/admin/orders/sales", Order: 19, ParentKey: "orders", RequiredPermission: Permissions.CatalogView),
+        new("orders.group-discounts", "Group category discounts", "/admin/orders/group-discounts", Order: 19, ParentKey: "orders", RequiredPermission: Permissions.CatalogView),
+        new("orders.reviews", "Product reviews", "/admin/orders/reviews", Order: 20, ParentKey: "orders", RequiredPermission: Permissions.CustomersView),
+        new("orders.stockalerts", "Back-in-stock requests", "/admin/orders/stock-alerts", Order: 20, ParentKey: "orders", RequiredPermission: Permissions.CatalogView),
+        new("orders.wishlists", "Wishlists", "/admin/orders/wishlists", Order: 20, ParentKey: "orders", RequiredPermission: Permissions.CustomersView),
+        new("orders.vouchers", "Gift vouchers", "/admin/orders/vouchers", Order: 20, ParentKey: "orders", RequiredPermission: Permissions.OrdersView),
+        new("orders.unreconciled", "Unreconciled payments", "/admin/orders/unreconciled", Order: 21, ParentKey: "orders", BadgeKey: "unreconciled", RequiredPermission: Permissions.OrdersView),
+        new("orders.disputes", "Disputes", "/admin/orders/disputes", Order: 22, ParentKey: "orders", BadgeKey: "disputes", RequiredPermission: Permissions.OrdersView),
+        new("orders.returns", "Return requests", "/admin/orders/return-requests", Order: 23, ParentKey: "orders", BadgeKey: "return-requests", RequiredPermission: Permissions.OrdersView),
     ];
 }
 

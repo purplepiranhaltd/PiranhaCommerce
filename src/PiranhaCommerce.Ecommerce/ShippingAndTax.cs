@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -312,15 +313,19 @@ internal static class TaxLookup
 public interface IShippingService
 {
     Task<IReadOnlyList<ShippingMethodDto>> ListAsync(bool activeOnly, CancellationToken ct = default);
+    [RequiresPermission(Permissions.SettingsManage)]
     Task<ShippingMethodDto> CreateAsync(ShippingMethodInput input, CancellationToken ct = default);
 
     /// <summary>The method's rate rows, oldest first by country then weight. Null when the method does not exist.</summary>
     Task<IReadOnlyList<ShippingRateDto>?> GetRatesAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>Replaces all the method's rates (an empty list goes back to the flat price). Null when the method does not exist; a validation error when bands overlap.</summary>
+    [RequiresPermission(Permissions.SettingsManage)]
     Task<IReadOnlyList<ShippingRateDto>?> SetRatesAsync(Guid id, ShippingRatesInput input, CancellationToken ct = default);
+    [RequiresPermission(Permissions.SettingsManage)]
     Task<ShippingMethodDto?> UpdateAsync(Guid id, ShippingMethodInput input, CancellationToken ct = default);
     /// <summary>Orders keep their own copy of the method name and price, so deleting is always safe.</summary>
+    [RequiresPermission(Permissions.SettingsManage)]
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 }
 
@@ -407,15 +412,21 @@ internal sealed class ShippingService(PiranhaCommerceDbContext db) : IShippingSe
 public interface ITaxService
 {
     Task<IReadOnlyList<TaxClassDto>> ListClassesAsync(CancellationToken ct = default);
+    [RequiresPermission(Permissions.SettingsManage)]
     Task<TaxClassDto> CreateClassAsync(TaxClassInput input, CancellationToken ct = default);
+    [RequiresPermission(Permissions.SettingsManage)]
     Task<TaxClassDto?> UpdateClassAsync(Guid id, TaxClassInput input, CancellationToken ct = default);
     /// <summary>Conflict when it is the default class or any rule or product still uses it. False when not found.</summary>
+    [RequiresPermission(Permissions.SettingsManage)]
     Task<bool> DeleteClassAsync(Guid id, CancellationToken ct = default);
 
     Task<IReadOnlyList<TaxRuleDto>> ListAsync(CancellationToken ct = default);
     /// <summary>Validation error when the class already has a rule for that country.</summary>
+    [RequiresPermission(Permissions.SettingsManage)]
     Task<TaxRuleDto> CreateAsync(TaxRuleInput input, CancellationToken ct = default);
+    [RequiresPermission(Permissions.SettingsManage)]
     Task<TaxRuleDto?> UpdateAsync(Guid id, TaxRuleInput input, CancellationToken ct = default);
+    [RequiresPermission(Permissions.SettingsManage)]
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 }
 

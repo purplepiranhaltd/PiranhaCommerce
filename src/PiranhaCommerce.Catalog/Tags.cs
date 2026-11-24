@@ -66,18 +66,22 @@ public interface ITagService
     Task<IReadOnlyList<TagDto>> ListAsync(CancellationToken ct = default);
     Task<TagDto?> GetAsync(Guid id, CancellationToken ct = default);
     Task<TagDto?> GetBySlugAsync(string slug, CancellationToken ct = default);
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<TagDto> CreateAsync(TagInput input, CancellationToken ct = default);
 
     /// <summary>Renames a tag everywhere it is used. A PUT replaces: a slug left out is made from the name again.</summary>
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<TagDto?> UpdateAsync(Guid id, TagInput input, CancellationToken ct = default);
 
     /// <summary>False when not found. The tag is taken off every product that has it: it is only a label.</summary>
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>Null when the product does not exist. For a variant, its parent's tags.</summary>
     Task<ProductTagsDto?> GetProductAsync(Guid productId, CancellationToken ct = default);
 
     /// <summary>Null when the product does not exist. A validation error for a variant, a bad name, or more than 50. Names that match no tag make one.</summary>
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<ProductTagsDto?> SetProductAsync(Guid productId, IReadOnlyCollection<string> names, CancellationToken ct = default);
 
     /// <summary>Each product's tag names, by name (a variant shows its parent's). Products with none are left out. Used by the catalogue export.</summary>

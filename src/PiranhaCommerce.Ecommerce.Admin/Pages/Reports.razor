@@ -1,4 +1,5 @@
 @page "/admin/orders/reports"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = PiranhaCommerce.Core.Identity.PermissionPolicies.ReportsView)]
 @using System.Text
 @using Microsoft.JSInterop
 @using PiranhaCommerce.Core.Files

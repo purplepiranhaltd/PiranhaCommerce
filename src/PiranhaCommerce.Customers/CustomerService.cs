@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PiranhaCommerce.Core.Paging;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Customers;
 
@@ -12,22 +13,28 @@ public interface ICustomerService
     Task<CustomerDto?> GetAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>A duplicate email (any letter case) is a validation error on <c>Email</c>.</summary>
+    [RequiresPermission(Permissions.CustomersManage)]
     Task<CustomerDto> CreateAsync(CustomerInput input, CancellationToken ct = default);
     /// <summary>Switching the customer off or on is recorded in their sign-in history against <paramref name="actor"/>.</summary>
+    [RequiresPermission(Permissions.CustomersManage)]
     Task<CustomerDto?> UpdateAsync(Guid id, CustomerInput input, string? actor = null, CancellationToken ct = default);
 
     /// <summary>Deletes the customer and their address book. False when not found.</summary>
+    [RequiresPermission(Permissions.CustomersManage)]
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>Null when the customer does not exist.</summary>
     Task<IReadOnlyList<AddressDto>?> ListAddressesAsync(Guid customerId, CancellationToken ct = default);
 
     /// <summary>Null when the customer does not exist.</summary>
+    [RequiresPermission(Permissions.CustomersManage)]
     Task<AddressDto?> AddAddressAsync(Guid customerId, AddressInput input, CancellationToken ct = default);
 
     /// <summary>Null when the customer or the address (of that customer) does not exist.</summary>
+    [RequiresPermission(Permissions.CustomersManage)]
     Task<AddressDto?> UpdateAddressAsync(Guid customerId, Guid addressId, AddressInput input, CancellationToken ct = default);
 
+    [RequiresPermission(Permissions.CustomersManage)]
     Task<bool> DeleteAddressAsync(Guid customerId, Guid addressId, CancellationToken ct = default);
 }
 

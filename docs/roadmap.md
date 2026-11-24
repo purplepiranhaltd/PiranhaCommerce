@@ -34,7 +34,7 @@ Also open from the comparison, with where each stands:
 - **Payments:** other gateways (PayPal, Adyen and others). Stripe, gift vouchers, refunds, disputes and reconciliation are built.
 - **Shipping:** live carrier rates and labels (item 7). Zones, rates and tracking links are built.
 - **Currency and language:** multi-currency and translations (item 8).
-- **Accounts:** social sign-in and two-factor, reward points, customer-defined attributes, and finer staff permissions than administrator or read-only.
+- **Accounts:** social sign-in and two-factor, reward points, customer-defined attributes. Finer staff permissions are built (see the staff guide).
 - **Marketing and content:** a newsletter list (nopCommerce 4.90 has several), multiple wishlists per shopper, request-a-quote, and AI help with product text. Blogs, news, polls, forums and themes are out of scope.
 - **Databases:** a MySQL package (and MariaDB if it comes free), alongside SQL Server, Azure SQL and PostgreSQL. Planned as one more provider package, like `PiranhaCommerce.Data.PostgreSql`: `PiranhaCommerce.Data.MySql` with an `AddPiranhaCommerceMySql()`
   registration, a host-owned migration set in its own project (as `PiranhaCommerce.Web.Migrations.PostgreSql` is), and a CI job that runs the whole integration suite against MySQL.
@@ -65,7 +65,6 @@ How the open questions were settled, so they can be revisited:
 Not built:
 
 - Signing in *at* a location (a location claim in the token) and a till that implies one: this is for EPOS, which can add it on top of the assignment.
-- Permissions finer than "administrator or read-only" (for example, can send but not adjust).
 - Receiving a transfer in parts over several visits, and a write-off record for the difference (today the difference is on the transfer, not on a shelf).
 - Transfers raised by the receiving site as a request, and approval before stock leaves.
 

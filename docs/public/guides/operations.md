@@ -101,6 +101,8 @@ The menu on the left is made from the entries each package adds (`IAdminMenuCont
 - **Icons.** A section can name one in `Icon`: `home`, `box`, `cart`, `users`, `chart`, `mail`, `shield` or `plug`. A name that is not one of these shows a dot.
 - **Reports.** The admin provides a Reports section of its own. A package adds a report by giving its entry `ParentKey: "reports"` while it stays in its own package: Reports > Orders comes from the ecommerce admin, and Reports > Low stock and Negative stock from the catalogue admin. The section is left out when nothing is in it.
 
+Each entry can name the permission it needs in `RequiredPermission`. People without it do not see the entry, and a section with nothing left in it is hidden. An entry that names none is shown to administrators only. See [Staff and permissions](staff.md).
+
 ## Admin menu badges
 
 A menu entry can show a count of things waiting for a person. A plugin sets `AdminMenuItem.BadgeKey` and registers an `IAdminBadgeProvider`. Zero shows nothing, and a failing provider is logged and skipped.

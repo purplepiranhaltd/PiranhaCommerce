@@ -4,6 +4,7 @@ using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Paging;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -107,9 +108,11 @@ public interface IReturnRequestService
     Task<ReturnRequestDto?> RequestAsync(Guid orderId, ReturnRequestInput input, CancellationToken ct = default);
 
     /// <summary>Says yes, and emails the buyer. Conflict unless it is still Requested. Null when not found.</summary>
+    [RequiresPermission(Permissions.OrdersFulfil)]
     Task<ReturnRequestDto?> ApproveAsync(Guid id, ReturnResponseInput input, string? actor = null, CancellationToken ct = default);
 
     /// <summary>Says no, and emails the buyer. Conflict unless it is still Requested. Null when not found.</summary>
+    [RequiresPermission(Permissions.OrdersFulfil)]
     Task<ReturnRequestDto?> RejectAsync(Guid id, ReturnResponseInput input, string? actor = null, CancellationToken ct = default);
 
     /// <summary>The buyer withdraws a request nobody has answered. False when it is not that order's; conflict once answered.</summary>

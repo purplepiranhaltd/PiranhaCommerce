@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PiranhaCommerce.Core.Paging;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Catalog;
 
@@ -18,6 +19,7 @@ public interface IStockService
     /// transient-failure retries (a movement is never applied twice). Null when the product does not exist. Throws
     /// <see cref="PiranhaCommerceConflictException"/> when it would go below zero and <see cref="StockAdjustmentInput.AllowNegative"/> is false.
     /// </summary>
+    [RequiresPermission(Permissions.StockAdjust)]
     Task<StockAdjustmentResult?> AdjustAsync(Guid productId, StockAdjustmentInput input, string? actor = null, CancellationToken ct = default);
 
     /// <summary>

@@ -4,6 +4,7 @@ using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Paging;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -58,12 +59,14 @@ public interface IUnreconciledPaymentService
     /// Marks it dealt with, with a note of what was done (the money is not moved: that happened at the gateway or by hand). Conflict when
     /// it is already resolved. Null when not found.
     /// </summary>
+    [RequiresPermission(Permissions.OrdersRefund)]
     Task<UnreconciledPaymentDto?> ResolveAsync(Guid id, ResolveUnreconciledInput input, string? actor = null, CancellationToken ct = default);
 
     /// <summary>
     /// Tries to book it again (for example after the order was corrected). On success it is resolved with the new payment. Conflict, with
     /// the reason, when it still cannot be booked. Null when not found.
     /// </summary>
+    [RequiresPermission(Permissions.OrdersRefund)]
     Task<UnreconciledPaymentDto?> RetryAsync(Guid id, string? actor = null, CancellationToken ct = default);
 }
 

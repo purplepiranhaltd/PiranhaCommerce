@@ -1,0 +1,195 @@
+@page "/admin/staff"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = PiranhaCommerce.Core.Identity.PermissionPolicies.StaffManage)]
+@using PiranhaCommerce.Admin.Services
+@using PiranhaCommerce.Core.Identity
+@using PiranhaCommerce.Core.Validation
+@inject AdminScopeRunner Scope
+@inject PermissionCatalog Catalog
+
+<PageTitle>Staff and roles - PiranhaCommerce</PageTitle>
+<h1>Staff and roles</h1>
+<p class="pc-muted">
+    A role is a set of things a member of staff may do. Give each person one or more roles. Administrator can do everything and cannot be changed.
+    Someone with no role can sign in but sees nothing.
+</p>
+
+@if (_error is not null) { <p class="pc-error" role="alert">@_error</p> }
+@if (_message is not null) { <p role="status">@_message</p> }
+
+@if (_roles is null || _staff is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else
+{
+    <h2>Staff</h2>
+    <table class="pc-table">
+        <thead><tr><th>Person</th><th>Roles</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var u in _staff)
+        {
+            <tr>
+                <td>@u.Email @(u.Active ? "" : "(switched off)")<br /><span class="pc-muted">@u.DisplayName</span></td>
+                <td>
+                    @foreach (var r in _roles)
+                    {
+                        <label style="display:inline-block;margin-right:1rem">
+                            <input type="checkbox" checked="@_userRoles[u.Id].Contains(r.Name)" @onchange="e => ToggleUserRole(u.Id, r.Name, (bool)e.Value!)" /> @r.Name
+                        </label>
+                    }
+                </td>
+                <td class="actions">
+                    <button @onclick="() => SaveUserAsync(u)">Save roles</button>
+                    <button class="secondary" @onclick="() => ToggleActiveAsync(u)">@(u.Active ? "Switch off" : "Switch on")</button>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+
+    <h3>Add a person</h3>
+    <div class="pc-form-row">
+        <label>Email <input type="email" @bind="_newEmail" /></label>
+        <label>Name <input @bind="_newName" /></label>
+        <label>Password <input type="password" @bind="_newPassword" autocomplete="new-password" /></label>
+        <button @onclick="CreateUserAsync">Add</button>
+    </div>
+
+    <h2>Roles</h2>
+    <table class="pc-table">
+        <thead><tr><th>Role</th><th>People</th><th>Can</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var r in _roles)
+        {
+            <tr>
+                <td>@r.Name</td>
+                <td>@r.Members</td>
+                <td class="pc-muted">@(r.IsAdministrator ? "Everything" : r.Permissions.Count == 0 ? "Nothing yet" : string.Join(", ", r.Permissions.Select(Title)))</td>
+                <td class="actions">
+                    @if (!r.IsAdministrator)
+                    {
+                        <button @onclick="() => Edit(r)">Edit</button>
+                        <button class="secondary" @onclick="() => DeleteRoleAsync(r)">Delete</button>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    <p>
+        <button @onclick="() => Edit(null)">New role</button>
+        @if (!_roles.Any(r => r.Name == "Fulfilment"))
+        {
+            <button class="secondary" @onclick="AddStartingRolesAsync">Add suggested roles</button>
+        }
+    </p>
+
+    @if (_editing)
+    {
+        <h3>@(_editName is null ? "New role" : "Edit " + _editName)</h3>
+        <label>Name <input @bind="_name" maxlength="60" /></label>
+        @foreach (var group in Catalog.Groups)
+        {
+            <fieldset>
+                <legend>@group.Key</legend>
+                @foreach (var p in group)
+                {
+                    <label style="display:block">
+                        <input type="checkbox" checked="@_ticked.Contains(p.Key)" @onchange="e => Tick(p.Key, (bool)e.Value!)" />
+                        <strong>@p.Title</strong> <span class="pc-muted">@p.Description</span>
+                    </label>
+                }
+            </fieldset>
+        }
+        <p><button @onclick="SaveRoleAsync">Save role</button> <button class="secondary" @onclick="() => _editing = false">Cancel</button></p>
+    }
+}
+
+@code {
+    private IReadOnlyList<StaffRoleDto>? _roles;
+    private IReadOnlyList<StaffUserDto>? _staff;
+    private readonly Dictionary<Guid, HashSet<string>> _userRoles = [];
+    private string? _error, _message, _editName, _name, _newEmail, _newName, _newPassword;
+    private bool _editing;
+    private readonly HashSet<string> _ticked = [];
+
+    // Suggested starting points. Each is only a set of ticks the person can change afterwards.
+    private static readonly (string Name, string[] Keys)[] Suggested =
+    [
+        ("Fulfilment", [Permissions.OrdersView, Permissions.OrdersFulfil, Permissions.CatalogView]),
+        ("Catalogue editor", [Permissions.CatalogView, Permissions.CatalogEdit, Permissions.PricesManage, Permissions.StockAdjust, Permissions.StockTransfer]),
+        ("Customer service", [Permissions.OrdersView, Permissions.OrdersFulfil, Permissions.OrdersRefund, Permissions.CustomersView, Permissions.CustomersManage, Permissions.ReviewsModerate]),
+        ("Viewer", [Permissions.CatalogView, Permissions.OrdersView, Permissions.CustomersView, Permissions.ReportsView]),
+    ];
+
+    private string Title(string key) => Catalog.Find(key)?.Title ?? key;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _roles = await Scope.RunAsync<IStaffAdminService, IReadOnlyList<StaffRoleDto>>(s => s.ListRolesAsync());
+            _staff = await Scope.RunAsync<IStaffAdminService, IReadOnlyList<StaffUserDto>>(s => s.ListStaffAsync());
+            _userRoles.Clear();
+            foreach (var u in _staff) _userRoles[u.Id] = [.. u.Roles];
+        }
+        catch (Exception ex) { _error = Describe(ex); }
+    }
+
+    private async Task Run(Func<Task> action, string done)
+    {
+        _error = _message = null;
+        try { await action(); _message = done; await LoadAsync(); }
+        catch (Exception ex) { _error = Describe(ex); }
+    }
+
+    private static string Describe(Exception ex) => ex switch
+    {
+        PiranhaCommerceValidationException v => string.Join(" ", v.Errors.SelectMany(e => e.Value)),
+        PiranhaCommerceConflictException or PiranhaCommerceForbiddenException => ex.Message,
+        _ => "Something went wrong. Try again."
+    };
+
+    private void ToggleUserRole(Guid id, string role, bool on) { if (on) _userRoles[id].Add(role); else _userRoles[id].Remove(role); }
+    private void Tick(string key, bool on) { if (on) _ticked.Add(key); else _ticked.Remove(key); }
+
+    private Task SaveUserAsync(StaffUserDto u) =>
+        Run(() => Scope.RunAsync<IStaffAdminService, StaffUserDto?>(s => s.SetRolesAsync(u.Id, _userRoles[u.Id].ToList())), $"Saved the roles for {u.Email}.");
+
+    private Task ToggleActiveAsync(StaffUserDto u) =>
+        Run(() => Scope.RunAsync<IStaffAdminService, StaffUserDto?>(s => s.SetActiveAsync(u.Id, !u.Active)), u.Active ? $"{u.Email} is switched off." : $"{u.Email} is switched on.");
+
+    private Task CreateUserAsync() => Run(async () =>
+    {
+        await Scope.RunAsync<IStaffAdminService, StaffUserDto>(s => s.CreateStaffAsync(new StaffUserInput(_newEmail ?? "", _newName, _newPassword ?? "", [])));
+        _newEmail = _newName = _newPassword = null;
+    }, "Added. Now give them a role.");
+
+    private void Edit(StaffRoleDto? role)
+    {
+        _error = _message = null;
+        _editing = true;
+        _editName = role?.Name;
+        _name = role?.Name;
+        _ticked.Clear();
+        foreach (var k in role?.Permissions ?? []) _ticked.Add(k);
+    }
+
+    private Task SaveRoleAsync() => Run(async () =>
+    {
+        await Scope.RunAsync<IStaffAdminService, StaffRoleDto>(s => s.SaveRoleAsync(new StaffRoleInput(_name ?? "", _ticked.ToList()), _editName));
+        _editing = false;
+    }, "Saved the role.");
+
+    private Task DeleteRoleAsync(StaffRoleDto r) =>
+        Run(() => Scope.RunAsync<IStaffAdminService, bool>(s => s.DeleteRoleAsync(r.Name)), $"Deleted {r.Name}.");
+
+    private Task AddStartingRolesAsync() => Run(async () =>
+    {
+        foreach (var (name, keys) in Suggested)
+            if (!_roles!.Any(r => r.Name == name))
+                await Scope.RunAsync<IStaffAdminService, StaffRoleDto>(s => s.SaveRoleAsync(new StaffRoleInput(name, keys)));
+    }, "Added the suggested roles. Change them however you like.");
+}

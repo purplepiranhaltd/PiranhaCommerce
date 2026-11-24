@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -125,10 +126,13 @@ public interface IPromotionService
     Task<IReadOnlyList<PromotionDto>> ListAsync(CancellationToken ct = default);
     Task<PromotionDto?> GetAsync(Guid id, CancellationToken ct = default);
     /// <summary>Validation error when the code is taken (whatever the letter case), the percentage is over 100, or the dates are backwards.</summary>
+    [RequiresPermission(Permissions.PricesManage)]
     Task<PromotionDto> CreateAsync(PromotionInput input, CancellationToken ct = default);
     /// <summary>The code itself cannot be changed. Null when not found.</summary>
+    [RequiresPermission(Permissions.PricesManage)]
     Task<PromotionDto?> UpdateAsync(Guid id, PromotionInput input, CancellationToken ct = default);
     /// <summary>Orders keep their own copy of the code and discount, so deleting is always safe.</summary>
+    [RequiresPermission(Permissions.PricesManage)]
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 }
 

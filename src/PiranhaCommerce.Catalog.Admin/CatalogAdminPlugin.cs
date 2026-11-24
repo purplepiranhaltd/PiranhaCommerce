@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using PiranhaCommerce.Catalog.Admin.Pages;
 using PiranhaCommerce.Core.Admin;
 using PiranhaCommerce.Core.Plugins;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Catalog.Admin;
 
@@ -27,17 +28,17 @@ internal sealed class CatalogAdminMenu : IAdminMenuContributor
     public IEnumerable<AdminMenuItem> GetMenuItems() =>
     [
         new("catalog", "Catalog", Icon: "box", Order: 10),
-        new("catalog.products", "Products", "/admin/catalog/products", Order: 11, ParentKey: "catalog"),
-        new("catalog.categories", "Categories", "/admin/catalog/categories", Order: 12, ParentKey: "catalog"),
-        new("catalog.brands", "Brands", "/admin/catalog/brands", Order: 12, ParentKey: "catalog"),
-        new("catalog.specifications", "Specifications", "/admin/catalog/specifications", Order: 12, ParentKey: "catalog"),
-        new("catalog.tags", "Tags", "/admin/catalog/tags", Order: 12, ParentKey: "catalog"),
-        new("reports.negative-stock", "Negative stock", "/admin/catalog/negative-stock", Order: 32, ParentKey: "reports"),
-        new("reports.low-stock", "Low stock", "/admin/catalog/low-stock", Order: 31, ParentKey: "reports"),
-        new("catalog.stock-locations", "Stock locations", "/admin/catalog/stock-locations", Order: 14, ParentKey: "catalog"),
-        new("catalog.stock-transfers", "Stock transfers", "/admin/catalog/stock-transfers", Order: 15, ParentKey: "catalog", BadgeKey: "stock-transfers"),
-        new("catalog.staff-locations", "Staff locations", "/admin/catalog/staff-locations", Order: 16, ParentKey: "catalog"),
-        new("catalog.import-export", "Import and export", "/admin/catalog/import-export", Order: 17, ParentKey: "catalog"),
+        new("catalog.products", "Products", "/admin/catalog/products", Order: 11, ParentKey: "catalog", RequiredPermission: Permissions.CatalogView),
+        new("catalog.categories", "Categories", "/admin/catalog/categories", Order: 12, ParentKey: "catalog", RequiredPermission: Permissions.CatalogView),
+        new("catalog.brands", "Brands", "/admin/catalog/brands", Order: 12, ParentKey: "catalog", RequiredPermission: Permissions.CatalogView),
+        new("catalog.specifications", "Specifications", "/admin/catalog/specifications", Order: 12, ParentKey: "catalog", RequiredPermission: Permissions.CatalogView),
+        new("catalog.tags", "Tags", "/admin/catalog/tags", Order: 12, ParentKey: "catalog", RequiredPermission: Permissions.CatalogView),
+        new("reports.negative-stock", "Negative stock", "/admin/catalog/negative-stock", Order: 32, ParentKey: "reports", RequiredPermission: Permissions.CatalogView),
+        new("reports.low-stock", "Low stock", "/admin/catalog/low-stock", Order: 31, ParentKey: "reports", RequiredPermission: Permissions.CatalogView),
+        new("catalog.stock-locations", "Stock locations", "/admin/catalog/stock-locations", Order: 14, ParentKey: "catalog", RequiredPermission: Permissions.CatalogView),
+        new("catalog.stock-transfers", "Stock transfers", "/admin/catalog/stock-transfers", Order: 15, ParentKey: "catalog", BadgeKey: "stock-transfers", RequiredPermission: Permissions.CatalogView),
+        new("catalog.staff-locations", "Staff locations", "/admin/catalog/staff-locations", Order: 16, ParentKey: "catalog", RequiredPermission: Permissions.StaffManage),
+        new("catalog.import-export", "Import and export", "/admin/catalog/import-export", Order: 17, ParentKey: "catalog", RequiredPermission: Permissions.CatalogView),
     ];
 }
 

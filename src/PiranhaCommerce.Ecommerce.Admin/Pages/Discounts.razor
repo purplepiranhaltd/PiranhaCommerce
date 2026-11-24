@@ -1,4 +1,5 @@
 @page "/admin/orders/discounts"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = PiranhaCommerce.Core.Identity.PermissionPolicies.CatalogView)]
 @using PiranhaCommerce.Catalog
 @using PiranhaCommerce.Core.Validation
 @inject AdminScopeRunner Scope

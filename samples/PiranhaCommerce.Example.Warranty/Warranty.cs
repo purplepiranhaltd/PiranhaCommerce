@@ -36,6 +36,7 @@ public interface IWarrantyService
 {
     /// <summary>Null when the product does not exist; zero months when none was set.</summary>
     Task<WarrantyDto?> GetAsync(Guid productId, CancellationToken ct = default);
+    [RequiresPermission(WarrantyPermissions.Edit)] // the admin refuses this call for anyone without it, on whichever page it is made
     Task<WarrantyDto?> SetAsync(Guid productId, WarrantyInput input, CancellationToken ct = default);
 }
 

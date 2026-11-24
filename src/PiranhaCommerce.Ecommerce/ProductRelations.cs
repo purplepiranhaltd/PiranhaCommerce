@@ -65,6 +65,7 @@ public interface IProductRelationService
     /// Replaces the product's suggestions. Null when the product does not exist. Validation error for a product suggested for itself, one that does not exist,
     /// a variant (suggest the main product), or the same product twice in a list.
     /// </summary>
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<ProductRelationsDto?> SetAsync(Guid productId, ProductRelationsInput input, CancellationToken ct = default);
 
     /// <summary>What to show shoppers on a product's page. Null when the product does not exist or is not on sale.</summary>

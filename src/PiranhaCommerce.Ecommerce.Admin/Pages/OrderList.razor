@@ -1,4 +1,5 @@
 @page "/admin/orders"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = PiranhaCommerce.Core.Identity.PermissionPolicies.OrdersView)]
 @inject AdminScopeRunner Scope
 
 <PageTitle>Orders - PiranhaCommerce</PageTitle>

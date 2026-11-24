@@ -30,13 +30,15 @@ public static class PiranhaCommerceAdminExtensions
         services.ConfigureApplicationCookie(o =>
         {
             o.LoginPath = "/admin/login";
-            o.AccessDeniedPath = "/admin/login";
+            o.ReturnUrlParameter = "returnUrl";
+            o.AccessDeniedPath = "/admin/not-allowed"; // signed in, but the role does not allow this page
             o.Cookie.Name = ".PiranhaCommerce.Admin";
             o.ExpireTimeSpan = TimeSpan.FromHours(8);
             o.SlidingExpiration = true;
         });
         new IdentityBuilder(typeof(PiranhaCommerceUser), typeof(PiranhaCommerceRole), services).AddSignInManager();
 
+        services.AddSingleton<IAdminMenuContributor, AdminCoreMenu>();
         services.AddScoped<AdminMenuService>();
         services.AddScoped<AdminScopeRunner>();
         return builder;

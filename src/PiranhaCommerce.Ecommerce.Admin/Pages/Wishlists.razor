@@ -1,4 +1,5 @@
 @page "/admin/orders/wishlists"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = PiranhaCommerce.Core.Identity.PermissionPolicies.CustomersView)]
 @inject AdminScopeRunner Scope
 
 <PageTitle>Wishlists - PiranhaCommerce</PageTitle>

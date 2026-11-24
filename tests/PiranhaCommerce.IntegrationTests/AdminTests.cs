@@ -152,7 +152,7 @@ public partial class AdminTests(PiranhaCommerceFactory factory) : IClassFixture<
         Assert.DoesNotContain("/admin/orders/reports", Section(dashboard, "orders"));
 
         // Every section has an icon, and on the dashboard they are all closed.
-        Assert.Equal(7, System.Text.RegularExpressions.Regex.Matches(dashboard, "class=\"pc-nav-toggle\"").Count);
+        Assert.Equal(8, System.Text.RegularExpressions.Regex.Matches(dashboard, "class=\"pc-nav-toggle\"").Count); // including the admin's own Staff section
         Assert.Equal(System.Text.RegularExpressions.Regex.Matches(dashboard, "class=\"pc-nav-toggle").Count, System.Text.RegularExpressions.Regex.Matches(dashboard, "aria-expanded=\"false\"").Count);
         Assert.Contains("<svg class=\"pc-icon\"", dashboard);
 
@@ -205,8 +205,10 @@ public partial class AdminTests(PiranhaCommerceFactory factory) : IClassFixture<
         var browser = NewBrowser();
         Assert.Equal(HttpStatusCode.Redirect, (await PostLoginAsync(browser, email, password)).StatusCode);
 
-        var page = await browser.GetAsync("/admin/catalog/products");
-        Assert.Contains("does not have permission", await page.Content.ReadAsStringAsync());
+        // A viewer may open the catalogue but not the staff page: the admin says so rather than showing it.
+        var page = await browser.GetAsync("/admin/staff");
+        Assert.Equal(HttpStatusCode.Redirect, page.StatusCode);
+        Assert.Contains("/admin/not-allowed", page.Headers.Location!.OriginalString);
     }
 
     [Theory]

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using PiranhaCommerce.Core.Files;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Catalog;
 
@@ -65,6 +66,7 @@ public interface ICatalogTransferService
     /// Creates and updates products from a CSV file. Rows are checked first, in a transaction that is rolled back; only if every row is fine (or
     /// <see cref="ProductImportRequest.SkipInvalid"/> is set) are they applied for real, each row on its own. A file that cannot be read at all is a validation error.
     /// </summary>
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<ProductImportResultDto> ImportProductsAsync(Stream csv, ProductImportRequest request, CancellationToken ct = default);
 }
 

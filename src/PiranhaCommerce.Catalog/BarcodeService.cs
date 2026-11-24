@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Catalog;
 
@@ -13,6 +14,7 @@ public interface IBarcodeService
     /// Replaces the product's barcodes. Null when the product does not exist. Invalid codes are a validation error;
     /// a code already used by another product (in any equivalent GTIN form) is a <see cref="PiranhaCommerceConflictException"/>.
     /// </summary>
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<ProductBarcodesDto?> SetAsync(Guid productId, IReadOnlyCollection<string> codes, CancellationToken ct = default);
 
     /// <summary>Finds the product a scanned code belongs to (matches equivalent GTIN forms). Null when unknown.</summary>

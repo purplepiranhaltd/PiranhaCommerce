@@ -1,0 +1,16 @@
+@page "/admin/not-allowed"
+@layout Layout.LoginLayout
+@attribute [AllowAnonymous]
+@attribute [ExcludeFromInteractiveRouting]
+@using Microsoft.AspNetCore.Authorization
+
+<PageTitle>Not allowed - PiranhaCommerce</PageTitle>
+
+<div class="pc-card">
+    <p class="pc-login-logo"><img src="_content/PiranhaCommerce.Admin/logo-mark.svg" alt="PiranhaCommerce" width="96" height="48" /></p>
+    <h1>Not allowed</h1>
+    <p class="pc-error" role="alert">Your account does not have permission to open this page.</p>
+    <p>Ask an administrator to give your role the permission, or go back to somewhere you can use.</p>
+    <p><a href="/admin">Back to the dashboard</a></p>
+    <form method="post" action="/admin/logout"><button type="submit">Sign out</button></form>
+</div>

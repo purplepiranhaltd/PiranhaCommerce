@@ -392,9 +392,11 @@ public interface IEmailTemplateService
     /// Saves new wording. A template that does not parse, or cannot be rendered with the email's sample data, is a validation error and
     /// nothing is saved. Null when no installed package declares that key.
     /// </summary>
+    [RequiresPermission(Permissions.SettingsManage)]
     Task<EmailTemplateDto?> SaveAsync(string key, EmailTemplateInput input, string? actor = null, CancellationToken ct = default);
 
     /// <summary>Throws away the edit, so the shipped wording is used again. Null when no package declares the key.</summary>
+    [RequiresPermission(Permissions.SettingsManage)]
     Task<EmailTemplateDto?> ResetAsync(string key, CancellationToken ct = default);
 
     /// <summary>Renders the given wording (or, with null, what is saved now) with the email's sample data. Does not save.</summary>

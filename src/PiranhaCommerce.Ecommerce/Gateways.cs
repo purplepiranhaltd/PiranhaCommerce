@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -143,6 +144,7 @@ public interface IGatewayService
     /// Opens a payment of whatever is still owed. Validation error for an unknown or non-gateway provider; conflict when nothing is
     /// owed or the order is cancelled. Null when the order does not exist.
     /// </summary>
+    [RequiresPermission(Permissions.OrdersFulfil)]
     Task<PaymentSessionDto?> StartAsync(Guid orderId, string provider, CancellationToken ct = default);
 
     /// <summary>
@@ -150,6 +152,7 @@ public interface IGatewayService
     /// Validation error when the payment is not on this order or its provider cannot refund; conflict when the amount is more than
     /// can still be returned through that provider, or the gateway refuses.
     /// </summary>
+    [RequiresPermission(Permissions.OrdersRefund)]
     Task<RefundResultDto?> RefundAsync(Guid orderId, Guid paymentId, RefundStartInput input, string? actor = null, CancellationToken ct = default);
 
     /// <summary>

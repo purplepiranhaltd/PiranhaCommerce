@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PiranhaCommerce.Catalog;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -11,6 +12,7 @@ public interface IProductListingService
     Task<ProductListingDto?> GetAsync(Guid productId, CancellationToken ct = default);
 
     /// <summary>Creates or updates the listing. Null when the product does not exist.</summary>
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<ProductListingDto?> SetAsync(Guid productId, ProductListingInput input, CancellationToken ct = default);
 }
 

@@ -1,4 +1,6 @@
 @using PiranhaCommerce.Admin.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@using PiranhaCommerce.Core.Identity
 @implements IDisposable
 <nav class="pc-admin-nav" aria-label="Admin">
     <div class="pc-nav-group">
@@ -38,8 +40,11 @@
 @code {
     [Inject] private AdminMenuService Service { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private AuthenticationStateProvider Auth { get; set; } = default!;
+    [Inject] private StaffPermissionService Permissions { get; set; } = default!;
 
-    private IReadOnlyList<AdminMenuItem> Menu => Service.GetMenu();
+    /// <summary>What this person may open, so a person never sees a link that leads to "not allowed".</summary>
+    private IReadOnlyList<AdminMenuItem> Menu { get; set; } = [];
     private IReadOnlyDictionary<string, int> _badges = new Dictionary<string, int>();
 
     /// <summary>The sections the person has opened, plus the one the current page is in.</summary>
@@ -64,6 +69,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadMenuAsync();
         OpenCurrentSection();
         Navigation.LocationChanged += OnLocationChanged;
         await RefreshAsync();
@@ -86,8 +92,15 @@
         catch (Exception) { /* the circuit has gone */ }
     }
 
+    private async Task LoadMenuAsync()
+    {
+        var access = await Permissions.GetAsync((await Auth.GetAuthenticationStateAsync()).User);
+        Menu = Service.GetMenuFor(access);
+    }
+
     private async Task RefreshAsync()
     {
+        await LoadMenuAsync(); // permissions can change while someone is signed in
         try { _badges = await Service.GetBadgesAsync(); }
         catch (Exception) { _badges = new Dictionary<string, int>(); }
     }

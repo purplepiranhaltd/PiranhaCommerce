@@ -7,6 +7,7 @@ using PiranhaCommerce.Catalog;
 using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -178,6 +179,7 @@ public interface IFulfilmentService
     /// Records a parcel leaving. Only an order being processed can ship. When the last line has gone the order becomes completed, in
     /// the same transaction. Null when the order does not exist; conflict when it cannot be shipped or would send more than was bought.
     /// </summary>
+    [RequiresPermission(Permissions.OrdersFulfil)]
     Task<ShipmentDto?> ShipAsync(Guid orderId, ShipmentInput input, string? actor = null, CancellationToken ct = default);
 
     /// <summary>Oldest first. Null when the order does not exist.</summary>
@@ -187,6 +189,7 @@ public interface IFulfilmentService
     /// Records goods that came back, putting the chosen lines back on the shelf, in one transaction. Only what was shipped (and not
     /// already returned) can come back. Does not move any money: it suggests a refund, which staff then make.
     /// </summary>
+    [RequiresPermission(Permissions.OrdersFulfil)]
     Task<ReturnDto?> RecordReturnAsync(Guid orderId, ReturnInput input, string? actor = null, CancellationToken ct = default);
 }
 

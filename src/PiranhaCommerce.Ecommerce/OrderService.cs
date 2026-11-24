@@ -9,6 +9,7 @@ using PiranhaCommerce.Core.Paging;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Customers;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -33,12 +34,14 @@ public interface IOrderService
     /// Checking out the same basket again returns the same order. Null when the basket does not exist. Conflict when stock is
     /// short, or the basket is empty or holds something no longer published.
     /// </summary>
+    [RequiresPermission(Permissions.OrdersCreate)]
     Task<OrderDto?> CheckoutAsync(Guid basketId, CheckoutInput input, string? actor = null, CancellationToken ct = default);
 
     /// <summary>
     /// Moves an order to a later stage (see <see cref="OrderStages.Next"/>). Cancelling puts the stock back, once, in the same
     /// transaction. Null when the order does not exist; conflict when the move is not allowed from the current stage.
     /// </summary>
+    [RequiresPermission(Permissions.OrdersFulfil)]
     Task<OrderDto?> ChangeStageAsync(Guid id, OrderStage to, string? actor = null, CancellationToken ct = default);
 }
 

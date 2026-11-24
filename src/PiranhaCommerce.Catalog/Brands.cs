@@ -77,16 +77,20 @@ public interface IBrandService
     Task<IReadOnlyList<BrandDto>> ListAsync(CancellationToken ct = default);
     Task<BrandDto?> GetAsync(Guid id, CancellationToken ct = default);
     Task<BrandDto?> GetBySlugAsync(string slug, CancellationToken ct = default);
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<BrandDto> CreateAsync(BrandInput input, CancellationToken ct = default);
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<BrandDto?> UpdateAsync(Guid id, BrandInput input, CancellationToken ct = default);
 
     /// <summary>False when not found. Throws <see cref="PiranhaCommerceConflictException"/> while products still carry the brand.</summary>
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>Null when the product does not exist. For a variant, its parent's brand.</summary>
     Task<ProductBrandDto?> GetProductBrandAsync(Guid productId, CancellationToken ct = default);
 
     /// <summary>Null when the product does not exist. A validation error for an unknown brand, or for a variant (set it on the parent).</summary>
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<ProductBrandDto?> SetProductBrandAsync(Guid productId, Guid? brandId, CancellationToken ct = default);
 
     /// <summary>The brand with this name (any letter case), or null.</summary>

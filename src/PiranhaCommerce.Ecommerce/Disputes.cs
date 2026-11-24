@@ -6,6 +6,7 @@ using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Paging;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -61,6 +62,7 @@ public interface IDisputeService
     /// Sends evidence for an open dispute through its provider. Validation error when the provider cannot take evidence from here, nothing is
     /// filled in, or the dispute has already been answered; conflict when it is no longer open. Null when the dispute does not exist.
     /// </summary>
+    [RequiresPermission(Permissions.OrdersRefund)]
     Task<PaymentDisputeDto?> SubmitEvidenceAsync(Guid disputeId, DisputeEvidenceInput input, CancellationToken ct = default);
 
     /// <param name="status">null for all. Newest first.</param>
@@ -76,11 +78,13 @@ public interface IDisputeService
     /// Attaches a PDF, JPEG or PNG document (one per kind) to an open dispute whose evidence has not been sent. It goes to the provider with the next save or send.
     /// Validation error for a wrong type, an empty or too big file; conflict when the dispute is decided, the evidence has been sent, or there is one of that kind already. Null when the dispute does not exist.
     /// </summary>
+    [RequiresPermission(Permissions.OrdersRefund)]
     Task<DisputeFileDto?> AddFileAsync(Guid disputeId, DisputeEvidenceKind kind, Stream content, string fileName, string? actor, CancellationToken ct = default);
 
     Task<DisputeFileDownload?> OpenFileAsync(Guid disputeId, Guid fileId, CancellationToken ct = default);
 
     /// <summary>Removes a document; conflict once the evidence has been sent.</summary>
+    [RequiresPermission(Permissions.OrdersRefund)]
     Task<bool> DeleteFileAsync(Guid disputeId, Guid fileId, CancellationToken ct = default);
 
     /// <summary>How many are still open (for a badge).</summary>

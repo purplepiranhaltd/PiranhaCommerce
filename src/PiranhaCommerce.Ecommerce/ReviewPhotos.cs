@@ -55,6 +55,7 @@ public interface IReviewPhotoService
     Task<bool> DeleteOwnAsync(Guid customerId, Guid reviewId, Guid photoId, CancellationToken ct = default);
 
     /// <summary>Staff take a photo off any review, without touching the review's state. False when there is no such photo.</summary>
+    [RequiresPermission(Permissions.ReviewsModerate)]
     Task<bool> DeleteAsync(Guid reviewId, Guid photoId, CancellationToken ct = default);
 
     /// <summary>The photo for a shop page: only when its review is approved and its product is on sale.</summary>

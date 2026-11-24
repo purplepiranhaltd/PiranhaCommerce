@@ -6,6 +6,7 @@ using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Files;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Catalog;
 
@@ -88,10 +89,14 @@ public interface IProductImageService
     Task<ProductImagesDto?> ListAsync(Guid productId, CancellationToken ct = default);
 
     /// <summary>Null when the product does not exist. A validation error for a file that is too big, not an image, or one too many.</summary>
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<ProductImageDto?> AddAsync(Guid productId, Stream content, string? fileName, string? altText, CancellationToken ct = default);
 
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<ProductImageDto?> UpdateAsync(Guid productId, Guid imageId, ProductImageInput input, CancellationToken ct = default);
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<ProductImagesDto?> ReorderAsync(Guid productId, IReadOnlyCollection<Guid> imageIds, CancellationToken ct = default);
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<bool> DeleteAsync(Guid productId, Guid imageId, CancellationToken ct = default);
 
     /// <summary>The picture (at the smallest made size that is at least <paramref name="width"/> wide, else the original), or null.</summary>

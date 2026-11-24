@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using PiranhaCommerce.Core.Admin;
 using PiranhaCommerce.Core.Plugins;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Webhooks.Admin;
 
@@ -23,6 +24,6 @@ internal sealed class WebhooksAdminMenu : IAdminMenuContributor
     public IEnumerable<AdminMenuItem> GetMenuItems() =>
     [
         new("webhooks", "Webhooks", Icon: "plug", Order: 92),
-        new("webhooks.endpoints", "Endpoints and deliveries", "/admin/webhooks", Order: 93, ParentKey: "webhooks"),
+        new("webhooks.endpoints", "Endpoints and deliveries", "/admin/webhooks", Order: 93, ParentKey: "webhooks", RequiredPermission: Permissions.WebhooksManage),
     ];
 }

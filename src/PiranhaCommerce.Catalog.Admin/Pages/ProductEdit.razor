@@ -1,5 +1,6 @@
 @page "/admin/catalog/products/new"
 @page "/admin/catalog/products/{Id:guid}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = PiranhaCommerce.Core.Identity.PermissionPolicies.CatalogView)]
 @inject AdminScopeRunner Scope
 @inject NavigationManager Navigation
 

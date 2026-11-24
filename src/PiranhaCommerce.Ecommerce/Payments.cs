@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -95,9 +96,11 @@ public interface IPaymentService
     /// Records money received. Conflict when it would take the order past its total, the order is cancelled, or the provider
     /// reference was already recorded. Null when the order does not exist.
     /// </summary>
+    [RequiresPermission(Permissions.OrdersFulfil)]
     Task<PaymentDto?> RecordPaymentAsync(Guid orderId, PaymentInput input, string? actor = null, CancellationToken ct = default);
 
     /// <summary>Records money returned. Conflict when it would return more than has been received. Null when the order does not exist.</summary>
+    [RequiresPermission(Permissions.OrdersRefund)]
     Task<PaymentDto?> RecordRefundAsync(Guid orderId, PaymentInput input, string? actor = null, CancellationToken ct = default);
 
     /// <summary>
@@ -105,6 +108,7 @@ public interface IPaymentService
     /// order a refund. Never more than the voucher paid and has not already been returned (cancelling counts), nor more than is refundable.
     /// Conflict when the order was not paid with a voucher or the amount is too much. Null when the order does not exist.
     /// </summary>
+    [RequiresPermission(Permissions.OrdersRefund)]
     Task<PaymentDto?> RefundToVoucherAsync(Guid orderId, RefundToVoucherInput input, string? actor = null, CancellationToken ct = default);
 }
 

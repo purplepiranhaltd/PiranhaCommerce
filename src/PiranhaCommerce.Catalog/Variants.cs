@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Catalog;
 
@@ -131,12 +132,19 @@ public static class ProductVariants
 public interface IProductVariantService
 {
     Task<ProductVariantsDto?> GetAsync(Guid productId, CancellationToken ct = default);
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<ProductVariantsDto?> AddOptionAsync(Guid productId, ProductOptionInput input, CancellationToken ct = default);
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<ProductVariantsDto?> RenameOptionAsync(Guid productId, Guid optionId, ProductOptionRenameInput input, CancellationToken ct = default);
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<ProductVariantsDto?> DeleteOptionAsync(Guid productId, Guid optionId, CancellationToken ct = default);
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<ProductVariantsDto?> AddValueAsync(Guid productId, Guid optionId, ProductOptionValueInput input, CancellationToken ct = default);
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<ProductVariantsDto?> DeleteValueAsync(Guid productId, Guid optionId, Guid valueId, CancellationToken ct = default);
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<ProductVariantsDto?> AddVariantAsync(Guid productId, ProductVariantInput input, CancellationToken ct = default);
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<ProductVariantsDto?> GenerateAsync(Guid productId, GenerateVariantsInput input, CancellationToken ct = default);
 }
 

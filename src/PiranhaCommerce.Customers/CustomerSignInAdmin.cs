@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Customers;
 
@@ -62,24 +63,29 @@ public interface ICustomerSignInAdminService
     Task<IReadOnlyDictionary<Guid, SignInState>> GetStatesAsync(IReadOnlyCollection<Guid> customerIds, CancellationToken ct = default);
 
     /// <summary>Clears a lockout and the count of wrong passwords. False when there is no sign-in.</summary>
+    [RequiresPermission(Permissions.CustomersManage)]
     Task<bool> UnlockAsync(Guid customerId, string? actor = null, CancellationToken ct = default);
 
     /// <summary>Ends every live session at once (a token is refused on its next call). They can sign in again. False when there is no sign-in.</summary>
+    [RequiresPermission(Permissions.CustomersManage)]
     Task<bool> SignOutEverywhereAsync(Guid customerId, string? actor = null, CancellationToken ct = default);
 
     /// <summary>
     /// Emails them a link to choose a password. For a customer with no sign-in this is the invitation: following the link creates it,
     /// the email address being the proof. Null when the customer does not exist.
     /// </summary>
+    [RequiresPermission(Permissions.CustomersManage)]
     Task<ResetLinkOutcome?> SendResetLinkAsync(Guid customerId, string? actor = null, CancellationToken ct = default);
 
     /// <summary>
     /// Deletes the sign-in (the customer, their addresses and orders stay) and spends any link already emailed, so an old one cannot bring
     /// it back. They can still ask for a new link themselves. False when there was none.
     /// </summary>
+    [RequiresPermission(Permissions.CustomersManage)]
     Task<bool> RemoveAsync(Guid customerId, string? actor = null, CancellationToken ct = default);
 
     /// <summary>Staff vouch for the address (they checked it another way). False when there is no sign-in.</summary>
+    [RequiresPermission(Permissions.CustomersManage)]
     Task<bool> MarkEmailVerifiedAsync(Guid customerId, string? actor = null, CancellationToken ct = default);
 
     /// <summary>What staff have done about this customer's sign-in, newest first (at most <paramref name="limit"/>, default 50). Null when the customer does not exist.</summary>

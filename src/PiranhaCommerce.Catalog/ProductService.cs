@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PiranhaCommerce.Core.Paging;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Catalog;
 
@@ -11,8 +12,11 @@ public interface IProductService
     Task<PagedResult<ProductDto>> ListAsync(int? page, int? pageSize, string? search, CancellationToken ct = default);
     Task<ProductDto?> GetAsync(Guid id, CancellationToken ct = default);
     Task<ProductDto?> GetBySlugAsync(string slug, CancellationToken ct = default);
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<ProductDto> CreateAsync(ProductInput input, CancellationToken ct = default);
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<ProductDto?> UpdateAsync(Guid id, ProductInput input, CancellationToken ct = default);
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 }
 

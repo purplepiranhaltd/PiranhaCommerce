@@ -59,24 +59,29 @@ public interface ICustomerGroupService
     Task<CustomerGroupDto?> GetAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>Validation error when the name is taken (whatever the letter case).</summary>
+    [RequiresPermission(Permissions.CustomersManage)]
     Task<CustomerGroupDto> CreateAsync(CustomerGroupInput input, CancellationToken ct = default);
 
     /// <summary>Null when not found. Validation error when the new name is another group's.</summary>
+    [RequiresPermission(Permissions.CustomersManage)]
     Task<CustomerGroupDto?> UpdateAsync(Guid id, CustomerGroupInput input, CancellationToken ct = default);
 
     /// <summary>
     /// Deletes the group and its memberships (the customers are untouched). Conflict when something still depends on the group (a promotion
     /// limited to it). False when not found.
     /// </summary>
+    [RequiresPermission(Permissions.CustomersManage)]
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>By email. Null when the group does not exist.</summary>
     Task<PagedResult<CustomerGroupMemberDto>?> ListMembersAsync(Guid groupId, int? page, int? pageSize, CancellationToken ct = default);
 
     /// <summary>Adds the customer; already a member is fine. Null when the group or customer does not exist.</summary>
+    [RequiresPermission(Permissions.CustomersManage)]
     Task<CustomerGroupMemberDto?> AddMemberAsync(Guid groupId, Guid customerId, string? actor = null, CancellationToken ct = default);
 
     /// <summary>Takes the customer out; not a member is fine. False when the group does not exist.</summary>
+    [RequiresPermission(Permissions.CustomersManage)]
     Task<bool> RemoveMemberAsync(Guid groupId, Guid customerId, CancellationToken ct = default);
 
     /// <summary>The groups a customer belongs to, by name. Null when the customer does not exist.</summary>

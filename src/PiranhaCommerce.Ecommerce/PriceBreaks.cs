@@ -67,6 +67,7 @@ public interface IPriceBreakService
     Task<IReadOnlyList<PriceBreakDto>?> ListAsync(Guid productId, CancellationToken ct = default);
 
     /// <summary>Replaces the product's breaks. Null when the product does not exist; validation error for a bad entry, a duplicate quantity (for the same group) or an unknown group.</summary>
+    [RequiresPermission(Permissions.PricesManage)]
     Task<IReadOnlyList<PriceBreakDto>?> SetAsync(Guid productId, PriceBreaksInput input, CancellationToken ct = default);
 }
 

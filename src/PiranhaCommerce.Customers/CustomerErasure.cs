@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Customers;
 
@@ -67,6 +68,7 @@ public interface ICustomerErasureService
     /// Everything held about the customer, for staff: the record (including staff-only notes), addresses, and each package's part.
     /// Null when the customer does not exist.
     /// </summary>
+    [RequiresPermission(Permissions.CustomersManage)]
     Task<CustomerExportDto?> ExportAsync(Guid customerId, CancellationToken ct = default);
 
     /// <summary>
@@ -74,6 +76,7 @@ public interface ICustomerErasureService
     /// one transaction. Null when the customer does not exist. Validation error when the confirmation email is wrong; conflict (with the
     /// reasons) when a contributor says it cannot be done yet.
     /// </summary>
+    [RequiresPermission(Permissions.CustomersManage)]
     Task<CustomerErasureResultDto?> EraseAsync(Guid customerId, EraseCustomerInput input, string? actor = null, CancellationToken ct = default);
 }
 

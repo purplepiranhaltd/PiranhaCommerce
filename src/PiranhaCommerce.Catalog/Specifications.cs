@@ -107,23 +107,30 @@ public interface ISpecificationService
     Task<IReadOnlyList<SpecAttributeDto>> ListAsync(CancellationToken ct = default);
     Task<SpecAttributeDto?> GetAsync(Guid id, CancellationToken ct = default);
     Task<SpecAttributeDto?> GetBySlugAsync(string slug, CancellationToken ct = default);
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<SpecAttributeDto> CreateAsync(SpecAttributeInput input, CancellationToken ct = default);
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<SpecAttributeDto?> UpdateAsync(Guid id, SpecAttributeInput input, CancellationToken ct = default);
 
     /// <summary>False when not found. Throws <see cref="PiranhaCommerceConflictException"/> while any product has one of its values; otherwise its values go with it.</summary>
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>Null when the attribute does not exist.</summary>
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<SpecValueDto?> AddValueAsync(Guid attributeId, SpecValueInput input, CancellationToken ct = default);
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<SpecValueDto?> UpdateValueAsync(Guid attributeId, Guid valueId, SpecValueInput input, CancellationToken ct = default);
 
     /// <summary>False when not found. Throws <see cref="PiranhaCommerceConflictException"/> while any product has the value.</summary>
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<bool> DeleteValueAsync(Guid attributeId, Guid valueId, CancellationToken ct = default);
 
     /// <summary>Null when the product does not exist. For a variant, its parent's.</summary>
     Task<ProductSpecsDto?> GetProductAsync(Guid productId, CancellationToken ct = default);
 
     /// <summary>Null when the product does not exist. A validation error for an unknown value, or for a variant.</summary>
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<ProductSpecsDto?> SetProductAsync(Guid productId, IReadOnlyCollection<Guid> valueIds, CancellationToken ct = default);
 
     /// <summary>Each product's values as "Attribute: Value" labels, attributes in display order (a variant shows its parent's). Products with none are left out. Used by the catalogue export.</summary>

@@ -159,10 +159,13 @@ public interface IDiscountRuleService
     Task<IReadOnlyList<DiscountRuleDto>> ListAsync(CancellationToken ct = default);
     Task<DiscountRuleDto?> GetAsync(Guid id, CancellationToken ct = default);
     /// <summary>Validation error for a bad rule, a code already used (as a discount or a promo code), or a product, category or group that does not exist.</summary>
+    [RequiresPermission(Permissions.PricesManage)]
     Task<DiscountRuleDto> CreateAsync(DiscountRuleInput input, CancellationToken ct = default);
     /// <summary>Replaces everything (the targets too). Null when not found. The uses so far are kept.</summary>
+    [RequiresPermission(Permissions.PricesManage)]
     Task<DiscountRuleDto?> UpdateAsync(Guid id, DiscountRuleInput input, CancellationToken ct = default);
     /// <summary>Orders keep their own copy of what they were given, so deleting is always safe.</summary>
+    [RequiresPermission(Permissions.PricesManage)]
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 }
 

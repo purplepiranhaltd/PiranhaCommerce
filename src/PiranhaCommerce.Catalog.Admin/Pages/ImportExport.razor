@@ -1,4 +1,5 @@
 @page "/admin/catalog/import-export"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = PiranhaCommerce.Core.Identity.PermissionPolicies.CatalogView)]
 @using Microsoft.JSInterop
 @using PiranhaCommerce.Core.Validation
 @using Microsoft.AspNetCore.Components.Authorization

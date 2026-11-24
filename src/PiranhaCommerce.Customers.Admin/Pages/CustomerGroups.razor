@@ -1,4 +1,5 @@
 @page "/admin/customers/groups"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = PiranhaCommerce.Core.Identity.PermissionPolicies.CustomersView)]
 @using PiranhaCommerce.Core.Paging
 @inject AdminScopeRunner Scope
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider Auth

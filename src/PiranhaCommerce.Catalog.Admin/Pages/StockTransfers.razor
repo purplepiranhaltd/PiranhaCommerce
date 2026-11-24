@@ -1,4 +1,5 @@
 @page "/admin/catalog/stock-transfers"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = PiranhaCommerce.Core.Identity.PermissionPolicies.CatalogView)]
 @using PiranhaCommerce.Core.Paging
 @using Microsoft.AspNetCore.Components.Authorization
 @inject AdminScopeRunner Scope

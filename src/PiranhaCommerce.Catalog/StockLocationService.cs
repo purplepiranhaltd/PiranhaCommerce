@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Catalog;
 
@@ -10,9 +11,11 @@ public interface IStockLocationService
     Task<StockLocationDto?> GetAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>A duplicate code (case-insensitive) is a <see cref="PiranhaCommerceConflictException"/>.</summary>
+    [RequiresPermission(Permissions.StockAdjust)]
     Task<StockLocationDto> CreateAsync(StockLocationInput input, CancellationToken ct = default);
 
     /// <summary>Renames or (de)activates; the code never changes. The default location cannot be deactivated. Null when not found.</summary>
+    [RequiresPermission(Permissions.StockAdjust)]
     Task<StockLocationDto?> UpdateAsync(Guid id, StockLocationInput input, CancellationToken ct = default);
 }
 

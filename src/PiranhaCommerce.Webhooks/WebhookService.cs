@@ -7,6 +7,7 @@ using PiranhaCommerce.Core.Events;
 using PiranhaCommerce.Core.Paging;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Webhooks;
 
@@ -16,21 +17,26 @@ public interface IWebhookService
     Task<WebhookEndpointDto?> GetAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>The result carries the new signing secret, once. Validation error for a bad address or an event type that does not exist.</summary>
+    [RequiresPermission(Permissions.WebhooksManage)]
     Task<WebhookEndpointDto> CreateAsync(WebhookEndpointInput input, CancellationToken ct = default);
 
     /// <summary>The secret is kept. Null when not found.</summary>
+    [RequiresPermission(Permissions.WebhooksManage)]
     Task<WebhookEndpointDto?> UpdateAsync(Guid id, WebhookEndpointInput input, CancellationToken ct = default);
 
     /// <summary>Makes a new secret (the old one stops working at once) and returns it, once. Null when not found.</summary>
+    [RequiresPermission(Permissions.WebhooksManage)]
     Task<WebhookEndpointDto?> RotateSecretAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>Also deletes its deliveries.</summary>
+    [RequiresPermission(Permissions.WebhooksManage)]
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>Newest first. Null when the endpoint does not exist.</summary>
     Task<PagedResult<WebhookDeliveryDto>?> ListDeliveriesAsync(Guid endpointId, WebhookDeliveryStatus? status, int? page, int? pageSize, CancellationToken ct = default);
 
     /// <summary>Puts a delivery (failed, or even a successful one) back to be sent again, with its full set of attempts. Null when not found.</summary>
+    [RequiresPermission(Permissions.WebhooksManage)]
     Task<WebhookDeliveryDto?> RedeliverAsync(Guid deliveryId, CancellationToken ct = default);
 
     /// <summary>The event types that can be chosen.</summary>

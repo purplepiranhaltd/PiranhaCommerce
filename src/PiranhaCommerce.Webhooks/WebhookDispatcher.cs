@@ -7,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Webhooks;
 
@@ -19,6 +20,7 @@ public interface IWebhookDispatcher
     Task<DispatchResult> DispatchDueAsync(CancellationToken ct = default);
 
     /// <summary>Sends a <c>webhook.test</c> event to one endpoint now, whether or not it is switched on, and returns what happened. Null when the endpoint does not exist.</summary>
+    [RequiresPermission(Permissions.WebhooksManage)]
     Task<WebhookDeliveryDto?> SendTestAsync(Guid endpointId, CancellationToken ct = default);
 
     /// <summary>Deletes events and finished deliveries older than the retention period. Returns how many events went.</summary>

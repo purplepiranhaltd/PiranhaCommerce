@@ -138,13 +138,17 @@ public interface IReviewService
     Task<IReadOnlyList<ReviewDto>> ListOwnAsync(Guid customerId, CancellationToken ct = default);
 
     Task<PagedResult<ReviewDto>> ListAsync(ReviewStatus? status, Guid? productId, int? page, int? pageSize, CancellationToken ct = default);
+    [RequiresPermission(Permissions.ReviewsModerate)]
     Task<ReviewDto?> SetStatusAsync(Guid reviewId, ReviewStatus status, string? actor, CancellationToken ct = default);
+    [RequiresPermission(Permissions.ReviewsModerate)]
     Task<bool> DeleteAsync(Guid reviewId, CancellationToken ct = default);
 
     /// <summary>Sets (or replaces) the shop's reply to a review, whatever its status; shoppers see it once the review is approved. Null when there is no such review. A validation error for an empty reply.</summary>
+    [RequiresPermission(Permissions.ReviewsModerate)]
     Task<ReviewDto?> SetReplyAsync(Guid reviewId, string body, string? actor, CancellationToken ct = default);
 
     /// <summary>Removes the reply. Null when there is no such review; removing a reply that is not there is not an error.</summary>
+    [RequiresPermission(Permissions.ReviewsModerate)]
     Task<ReviewDto?> DeleteReplyAsync(Guid reviewId, CancellationToken ct = default);
 }
 

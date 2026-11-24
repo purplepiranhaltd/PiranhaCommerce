@@ -1,4 +1,5 @@
 @page "/admin/webhooks"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = PiranhaCommerce.Core.Identity.PermissionPolicies.WebhooksManage)]
 @inject AdminScopeRunner Scope
 
 <PageTitle>Webhooks - PiranhaCommerce</PageTitle>

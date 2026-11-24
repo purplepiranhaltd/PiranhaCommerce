@@ -1,5 +1,6 @@
 @page "/admin/customers/new"
 @page "/admin/customers/{Id:guid}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = PiranhaCommerce.Core.Identity.PermissionPolicies.CustomersView)]
 @inject AdminScopeRunner Scope
 @inject NavigationManager Navigation
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider Auth

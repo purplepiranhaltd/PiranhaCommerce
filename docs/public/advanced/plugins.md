@@ -36,5 +36,10 @@ on the product edit page (`IAdminSlotContributor` into `AdminSlots.ProductEditPa
 3. **Add a migration in the host** (`dotnet ef migrations add AddYourPlugin`, once per provider). The host owns the schema, so a new
    plugin shows up as a pending model change until you do, and CI's drift check will tell you.
 4. Give Razor components an explicit `@namespace` so they do not depend on the project they are compiled into.
+5. **Name the permission your endpoints, pages and services need.** An endpoint, page or menu entry that names none is for administrators
+   only, so a plugin that forgets is locked rather than open. Declare your own permission with an `IPermissionContributor` (the sample
+   adds `warranty.edit`, which implies `catalog.view`), then use it: `RequirePermission(...)` on the endpoints,
+   `[Authorize(Policy = PermissionPolicies.For("..."))]` on admin pages, `RequiredPermission:` on menu entries, and
+   `[RequiresPermission("...")]` on the service-interface methods that change data. See [Staff and permissions](../guides/staff.md).
 
 Removing a plugin is also a host migration: remove the registration, then add a migration that drops its tables.

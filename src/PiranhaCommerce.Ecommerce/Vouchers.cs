@@ -8,6 +8,7 @@ using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Paging;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -127,12 +128,15 @@ public interface IVoucherService
     Task<VoucherDto?> FindByCodeAsync(string code, CancellationToken ct = default);
 
     /// <summary>Creates a voucher and returns its code, the only time the code is ever visible.</summary>
+    [RequiresPermission(Permissions.VouchersManage)]
     Task<VoucherIssuedDto> IssueAsync(VoucherIssueInput input, string? actor = null, CancellationToken ct = default);
 
     /// <summary>Switches a voucher off or on, changes its expiry or note. The balance only changes through <see cref="AdjustAsync"/>. Null when not found.</summary>
+    [RequiresPermission(Permissions.VouchersManage)]
     Task<VoucherDto?> UpdateAsync(Guid id, VoucherUpdateInput input, CancellationToken ct = default);
 
     /// <summary>Adds or removes value, with a reason, in the ledger. Conflict when it would take the balance below zero. Null when not found.</summary>
+    [RequiresPermission(Permissions.VouchersManage)]
     Task<VoucherDto?> AdjustAsync(Guid id, VoucherAdjustInput input, string? actor = null, CancellationToken ct = default);
 }
 

@@ -134,6 +134,7 @@ public interface IStaffLocationService
     Task<IReadOnlyList<StaffLocationsDto>> ListAsync(CancellationToken ct = default);
 
     /// <summary>Replaces the locations a user is limited to. An empty list removes the limit. Null when the user does not exist.</summary>
+    [RequiresPermission(Permissions.StaffManage)]
     Task<StaffLocationsDto?> SetAsync(Guid userId, IReadOnlyList<Guid> locationIds, CancellationToken ct = default);
 
     /// <summary>True when the user may act at the location: they have no limit, or the location is one of theirs.</summary>
@@ -191,15 +192,18 @@ public interface IStockTransferService
     /// Sends stock: it leaves the sending location now (refused when there is not enough there) and is in transit until received. The caller must be
     /// allowed to act at the sending location.
     /// </summary>
+    [RequiresPermission(Permissions.StockTransfer)]
     Task<StockTransferDto> SendAsync(StockTransferInput input, StockActor actor, CancellationToken ct = default);
 
     /// <summary>
     /// Receives an in-transit transfer at its destination: what arrived joins that location's stock. The caller must be allowed to act there and,
     /// unless <see cref="StockOptions.AllowSameUserToReceive"/> is set, must not be the person who sent it. Null when it does not exist; conflict when it is no longer in transit.
     /// </summary>
+    [RequiresPermission(Permissions.StockTransfer)]
     Task<StockTransferDto?> ReceiveAsync(Guid id, StockTransferReceiveInput input, StockActor actor, CancellationToken ct = default);
 
     /// <summary>Cancels a transfer still in transit: the stock goes back to the sending location. Allowed at either end.</summary>
+    [RequiresPermission(Permissions.StockTransfer)]
     Task<StockTransferDto?> CancelAsync(Guid id, StockActor actor, CancellationToken ct = default);
 
     /// <summary>How many transfers are still in transit (for the menu badge).</summary>

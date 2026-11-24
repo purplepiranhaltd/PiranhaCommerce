@@ -78,15 +78,22 @@ public interface ISaleService
     /// <summary>Newest start first. <paramref name="status"/> null for all.</summary>
     Task<IReadOnlyList<SaleDto>> ListAsync(SaleStatus? status, CancellationToken ct = default);
     Task<SaleDto?> GetAsync(Guid id, CancellationToken ct = default);
+    [RequiresPermission(Permissions.PricesManage)]
     Task<SaleDto> CreateAsync(SaleInput input, CancellationToken ct = default);
+    [RequiresPermission(Permissions.PricesManage)]
     Task<SaleDto?> UpdateAsync(Guid id, SaleInput input, CancellationToken ct = default);
+    [RequiresPermission(Permissions.PricesManage)]
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>Puts a product in the sale (or changes its fixed price). Null when the sale or product does not exist.</summary>
+    [RequiresPermission(Permissions.PricesManage)]
     Task<SaleDto?> SetProductAsync(Guid saleId, Guid productId, SaleProductInput input, CancellationToken ct = default);
+    [RequiresPermission(Permissions.PricesManage)]
     Task<SaleDto?> RemoveProductAsync(Guid saleId, Guid productId, CancellationToken ct = default);
     /// <summary>Puts a category (and everything under it) in the sale. Null when the sale or category does not exist.</summary>
+    [RequiresPermission(Permissions.PricesManage)]
     Task<SaleDto?> AddCategoryAsync(Guid saleId, Guid categoryId, CancellationToken ct = default);
+    [RequiresPermission(Permissions.PricesManage)]
     Task<SaleDto?> RemoveCategoryAsync(Guid saleId, Guid categoryId, CancellationToken ct = default);
 }
 

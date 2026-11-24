@@ -70,6 +70,7 @@ public interface IStockAlertService
     Task<IReadOnlyList<StockAlertDemandDto>> DemandAsync(CancellationToken ct = default);
 
     Task<PagedResult<StockAlertDto>> ListAsync(Guid? productId, int? page, int? pageSize, CancellationToken ct = default);
+    [RequiresPermission(Permissions.CatalogEdit)]
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 }
 

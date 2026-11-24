@@ -64,18 +64,22 @@ public interface IGroupPricingService
     Task<IReadOnlyList<ProductGroupPriceDto>?> ListForProductAsync(Guid productId, CancellationToken ct = default);
 
     /// <summary>Sets (or replaces) the fixed price for a group. Null when the product or group does not exist.</summary>
+    [RequiresPermission(Permissions.PricesManage)]
     Task<ProductGroupPriceDto?> SetAsync(Guid productId, Guid groupId, GroupPriceInput input, CancellationToken ct = default);
 
     /// <summary>Removes the fixed price (the group's percentage applies again). False when there was none.</summary>
+    [RequiresPermission(Permissions.PricesManage)]
     Task<bool> RemoveAsync(Guid productId, Guid groupId, CancellationToken ct = default);
 
     /// <summary>The category discounts set for a group, by category name. Null when the group does not exist.</summary>
     Task<IReadOnlyList<GroupCategoryDiscountDto>?> ListCategoryDiscountsAsync(Guid groupId, CancellationToken ct = default);
 
     /// <summary>Sets (or replaces) the group's percentage for a category and everything under it. Null when the group or category does not exist.</summary>
+    [RequiresPermission(Permissions.PricesManage)]
     Task<GroupCategoryDiscountDto?> SetCategoryDiscountAsync(Guid groupId, Guid categoryId, GroupCategoryDiscountInput input, CancellationToken ct = default);
 
     /// <summary>Removes it (the group's own percentage applies there again). False when there was none.</summary>
+    [RequiresPermission(Permissions.PricesManage)]
     Task<bool> RemoveCategoryDiscountAsync(Guid groupId, Guid categoryId, CancellationToken ct = default);
 
     /// <summary>The prices this customer pays (a null customer pays the regular price). Products that do not exist are left out. At most 200 at a time.</summary>

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using PiranhaCommerce.Core.Admin;
 using PiranhaCommerce.Core.Plugins;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Email.Smtp.Admin;
 
@@ -23,6 +24,6 @@ internal sealed class SmtpEmailAdminMenu : IAdminMenuContributor
     public IEnumerable<AdminMenuItem> GetMenuItems() =>
     [
         new("email", "Email", Icon: "mail", Order: 40),
-        new("email.templates", "Email templates", "/admin/email/templates", Order: 41, ParentKey: "email"),
+        new("email.templates", "Email templates", "/admin/email/templates", Order: 41, ParentKey: "email", RequiredPermission: Permissions.Access),
     ];
 }
