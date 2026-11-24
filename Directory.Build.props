@@ -13,11 +13,19 @@
     <RepositoryUrl>https://github.com/purplepiranhaltd/PiranhaCommerce</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>ecommerce;commerce;shop;blazor;aspnetcore;efcore;sqlserver;postgresql</PackageTags>
+    <!-- Symbols and source links, so a consumer can step into the code (Source Link for GitHub is part of the .NET SDK). -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <VersionPrefix>0.1.0</VersionPrefix>
     <VersionSuffix>alpha</VersionSuffix>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <!-- The PiranhaCommerce Attribution Licence (a custom licence, so a file rather than an SPDX expression). -->
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
   </PropertyGroup>
   <ItemGroup Condition="'$(IsPackable)' != 'false'">
     <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Visible="false" />

@@ -1,0 +1,137 @@
+name: Release
+
+# Publishes the packages to nuget.org and creates a GitHub release.
+#
+#   git tag v0.1.0-alpha.1 && git push origin v0.1.0-alpha.1
+#
+# The version is the tag without its "v" (so v1.2.0 publishes 1.2.0, and v1.2.0-beta.1 publishes a prerelease).
+# "Run workflow" from the Actions tab does everything except publish, so a release can be rehearsed first.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to rehearse, without the "v" (for example 0.1.0-alpha.1)
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DB_PASSWORD: Ci_Passw0rd_for_tests # throwaway: the container only lives for this job
+
+jobs:
+  pack:
+    name: Check, pack and verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Work out the version
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then v="${GITHUB_REF_NAME#v}"; else v="${{ inputs.version }}"; fi
+          # A semantic version: 1.2.3 or 1.2.3-label.4
+          if ! echo "$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::'$v' is not a version such as 1.2.3 or 1.2.3-alpha.1"; exit 1
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Version: $v"
+
+      # A release must be a commit whose tests already passed, so a tag can never publish something untested.
+      - name: The commit passed CI
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 60); do
+            result=$(gh run list --workflow ci.yml --commit "$GITHUB_SHA" --json status,conclusion --jq 'map(select(.status=="completed"))[0].conclusion // "pending"')
+            echo "CI for $GITHUB_SHA: $result"
+            [ "$result" = "success" ] && exit 0
+            [ "$result" != "pending" ] && { echo "::error::CI did not pass for this commit"; exit 1; }
+            sleep 30
+          done
+          echo "::error::CI did not finish in time"; exit 1
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Start SQL Server
+        run: |
+          docker run -d --name db -e ACCEPT_EULA=Y -e "MSSQL_SA_PASSWORD=$DB_PASSWORD" -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest
+          for i in $(seq 1 40); do
+            docker exec db /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$DB_PASSWORD" -Q "SELECT 1" >/dev/null 2>&1 && exit 0
+            sleep 3
+          done
+          docker logs db; exit 1
+
+      # Packs every library at the release version, then builds, runs and smoke-tests an app that references only those packages.
+      - name: Pack, then verify from a consumer app
+        shell: pwsh
+        env:
+          Version: ${{ steps.version.outputs.version }}
+        run: ./build/verify-packages.ps1 -ConnectionString "Server=localhost,1433;User Id=sa;Password=$env:DB_PASSWORD;TrustServerCertificate=True;Database=PiranhaCommercePkgVerify_release"
+
+      - name: Every package has the release version
+        shell: bash
+        run: |
+          count=$(ls artifacts/packages/*.nupkg | wc -l)
+          wrong=$(ls artifacts/packages/*.nupkg | grep -vc -- "\.${{ steps.version.outputs.version }}\.nupkg$" || true)
+          echo "$count packages, $wrong with another version"
+          [ "$count" -gt 0 ] && [ "$wrong" -eq 0 ]
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: nuget-packages
+          path: |
+            artifacts/packages/*.nupkg
+            artifacts/packages/*.snupkg
+
+  publish:
+    name: Publish to nuget.org and GitHub
+    needs: pack
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    # Add required reviewers to this environment in the repository settings to approve each release by hand.
+    environment: nuget
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: nuget-packages
+          path: packages
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Push to nuget.org
+        shell: bash
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          if [ -z "$NUGET_API_KEY" ]; then echo "::error::The NUGET_API_KEY secret is not set (repository settings, Secrets and variables, Actions)."; exit 1; fi
+          # --skip-duplicate makes a re-run safe; the symbol packages (.snupkg) go with their packages.
+          dotnet nuget push "packages/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      - name: GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.pack.outputs.version }}
+        run: |
+          flags=""; case "$VERSION" in *-*) flags="--prerelease";; esac
+          gh release create "$GITHUB_REF_NAME" packages/*.nupkg --repo "$GITHUB_REPOSITORY" --title "PiranhaCommerce $VERSION" --generate-notes $flags

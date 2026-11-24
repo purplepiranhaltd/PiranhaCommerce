@@ -48,4 +48,20 @@ cache), publishes it, runs the published output and smoke-tests the API, sign-in
   model has changed without a migration for that provider.
 - **packages**: runs `build/verify-packages.ps1` against a SQL Server container and uploads the `.nupkg` files.
 
-The workflow itself has not been run on GitHub yet; its steps were exercised locally in Docker.
+## Releasing
+
+`.github/workflows/release.yml` publishes the packages. Push a tag that starts with `v` and the workflow does the rest:
+
+```
+git tag v0.1.0-alpha.1
+git push origin v0.1.0-alpha.1
+```
+
+- The **version is the tag without the `v`**, so `v1.2.0` publishes `1.2.0` and `v1.2.0-beta.1` publishes a prerelease. Every package gets that version, whatever `VersionPrefix` says in `Directory.Build.props`.
+- The workflow first checks that the tagged commit **passed CI**, packs every library, and runs the same consumer-app check as above against the packed files.
+- It then pushes the `.nupkg` files (and their `.snupkg` symbol packages, which let a consumer step into the source) to nuget.org and creates a GitHub release with the packages attached. A version with a `-label` is marked as a prerelease.
+- **One-off setup:** add a nuget.org API key as the repository secret `NUGET_API_KEY` (allowed to push `PiranhaCommerce.*`). Reserve the `PiranhaCommerce.` package prefix on nuget.org so nobody else can publish under it. The publish step runs in a GitHub environment called `nuget`; add required reviewers to it if you want to approve each release by hand.
+- **Rehearse first:** *Run workflow* on the Actions tab, with a version, does everything except publish.
+- A release cannot be taken back: nuget.org lets you hide a version ("unlist") but never reuse its number.
+
+The CI and release workflows have been run on GitHub; the release rehearsal is the check that a tag will pack and verify.
