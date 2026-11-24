@@ -9,6 +9,9 @@ public static class PostgreSqlExtensions
     /// <summary>Migrations live in the host application; pass the host assembly, e.g. <c>typeof(Program).Assembly</c>.</summary>
     public static PiranhaCommerceBuilder AddPiranhaCommercePostgreSql(this PiranhaCommerceBuilder builder, string connectionString, Assembly migrationsAssembly)
         => builder.AddPiranhaCommerceData(o => o.UseNpgsql(connectionString, npg =>
-            npg.MigrationsAssembly(migrationsAssembly.GetName().Name)));
+        {
+            npg.MigrationsAssembly(migrationsAssembly.GetName().Name);
+            npg.MigrationsHistoryTable(PiranhaCommerceDbContext.MigrationsHistoryTable, PiranhaCommerceDbContext.CoreSchema);
+        }));
 }
 

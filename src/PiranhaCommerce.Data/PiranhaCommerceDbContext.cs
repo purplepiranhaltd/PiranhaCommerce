@@ -11,6 +11,9 @@ public class PiranhaCommerceDbContext(DbContextOptions<PiranhaCommerceDbContext>
 {
     public const string CoreSchema = "core";
 
+    /// <summary>EF Core keeps the list of applied migrations here (core.Migrations), not in the default dbo.__EFMigrationsHistory, so the schema holds only our own tables.</summary>
+    public const string MigrationsHistoryTable = "Migrations";
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder); // Identity first, then packages/plugins.

@@ -24,3 +24,22 @@ PiranhaCommerce__Provider=PostgreSql ConnectionStrings__PiranhaCommerce="Host=..
 
 `dotnet ef migrations has-pending-model-changes` (same arguments) reports drift; run it for both providers in CI.
 Plugin authors cannot ship schema changes themselves; they document required model changes in release notes.
+
+## Where EF Core keeps the list of applied migrations
+
+PiranhaCommerce keeps it in **`core.Migrations`**, beside the other `core` tables, instead of EF Core's default `dbo.__EFMigrationsHistory` (`public.__EFMigrationsHistory` on PostgreSQL). The provider packages set this for you, so a host that calls `AddPiranhaCommerceSqlServer` or `AddPiranhaCommercePostgreSql` needs to do nothing.
+
+A database that was set up before this change has the list in the old place, so EF Core would think nothing had been applied and try to create the tables again. Move the table once, before starting the new version:
+
+```sql
+-- SQL Server and Azure SQL
+IF SCHEMA_ID('core') IS NULL EXEC('CREATE SCHEMA core');
+ALTER SCHEMA core TRANSFER dbo.__EFMigrationsHistory;
+EXEC sp_rename 'core.__EFMigrationsHistory', 'Migrations';
+
+-- PostgreSQL
+CREATE SCHEMA IF NOT EXISTS core;
+ALTER TABLE public."__EFMigrationsHistory" SET SCHEMA core;
+ALTER TABLE core."__EFMigrationsHistory" RENAME TO "Migrations";
+```
+

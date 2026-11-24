@@ -15,6 +15,7 @@ public static class SqlServerExtensions
         => builder.AddPiranhaCommerceData(o => o.UseSqlServer(connectionString, sql =>
         {
             sql.MigrationsAssembly(migrationsAssembly.GetName().Name);
+            sql.MigrationsHistoryTable(PiranhaCommerceDbContext.MigrationsHistoryTable, PiranhaCommerceDbContext.CoreSchema);
             sql.EnableRetryOnFailure(); // transient fault handling for Azure SQL
         }));
 }
