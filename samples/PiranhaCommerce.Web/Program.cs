@@ -18,24 +18,24 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("PiranhaCommerce")
     ?? throw new InvalidOperationException("ConnectionStrings:PiranhaCommerce is not configured.");
 
-var piranha = builder.Services.AddPiranhaCore();
+var piranha = builder.Services.AddPiranhaCommerceCore();
 
 // One migration set per database provider, each in an assembly the host owns (it knows which plugins are installed).
 switch (builder.Configuration["PiranhaCommerce:Provider"] ?? "SqlServer")
 {
     case "SqlServer":   // also Azure SQL
-        piranha.AddPiranhaSqlServer(connectionString, typeof(Program).Assembly);
+        piranha.AddPiranhaCommerceSqlServer(connectionString, typeof(Program).Assembly);
         break;
     case "PostgreSql":
-        piranha.AddPiranhaPostgreSql(connectionString, typeof(PiranhaCommerce.Web.Migrations.PostgreSql.MigrationsAssemblyMarker).Assembly);
+        piranha.AddPiranhaCommercePostgreSql(connectionString, typeof(PiranhaCommerce.Web.Migrations.PostgreSql.MigrationsAssemblyMarker).Assembly);
         break;
     default:
         throw new InvalidOperationException("PiranhaCommerce:Provider must be SqlServer or PostgreSql.");
 }
 
 piranha
-    .AddPiranhaApi()
-    .AddPiranhaAdmin()
+    .AddPiranhaCommerceApi()
+    .AddPiranhaCommerceAdmin()
     // Plugins are compiled in via NuGet, never uploaded. Each plugin registers the plugins it requires
     // (here: Catalog and Catalog.Admin), so only the ones you want are listed.
     .AddPlugin<EcommercePlugin>()
@@ -82,8 +82,8 @@ app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
-app.MapPiranhaApi();
-app.MapPiranhaAdmin();
+app.MapPiranhaCommerceApi();
+app.MapPiranhaCommerceAdmin();
 // The sample shop front: server-rendered pages that call the shop services in-process (no JavaScript needed).
 app.MapRazorComponents<ShopApp>();
 ShopForms.Map(app);

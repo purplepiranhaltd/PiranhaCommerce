@@ -21,7 +21,7 @@ package build files exist). The admin logs a warning at startup if the script is
 Accounts lock for a while after 5 wrong passwords. On top of that, `POST /api/v1/auth/token` and the admin sign-in form allow
 10 attempts a minute per client address (answer `429` with `Retry-After`). Change it under `PiranhaCommerce:RateLimit`
 (`SignInAttempts`, `WindowSeconds`, or `Enabled: false` if a gateway already limits). It is on automatically once
-`AddPiranhaApi()` is called; the host does not need to add middleware.
+`AddPiranhaCommerceApi()` is called; the host does not need to add middleware.
 
 The limit counts the address the app sees. **Behind a load balancer or reverse proxy** (Azure App Service, Front Door, nginx),
 configure forwarded headers so the app sees the real client. Otherwise every visitor shares the proxy's address and ten sign-ins

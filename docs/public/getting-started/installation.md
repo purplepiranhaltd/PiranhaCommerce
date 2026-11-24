@@ -36,15 +36,30 @@ dotnet test
 Create an ASP.NET Core web application, reference the packages you want (see [the packages](packages.md)) and register them:
 
 ```csharp
-builder.Services.AddPiranhaCore()
-    .AddPiranhaSqlServer(connectionString, typeof(Program).Assembly)
-    .AddPiranhaApi()
-    .AddPiranhaAdmin()
+builder.Services.AddPiranhaCommerceCore()
+    .AddPiranhaCommerceSqlServer(connectionString, typeof(Program).Assembly)
+    .AddPiranhaCommerceApi()
+    .AddPiranhaCommerceAdmin()
     .AddPlugin<EcommercePlugin>()
     .AddPlugin<EcommerceAdminPlugin>();
 ```
 
 A plugin lists the plugins it needs, and they are registered automatically, so naming `EcommercePlugin` brings in the catalogue and customers.
+
+After `builder.Build()`, add the middleware and map the endpoints:
+
+```csharp
+app.UseStaticFiles();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseAntiforgery();
+
+app.MapStaticAssets();
+app.MapPiranhaCommerceApi();     // the REST API, under /api/v1 unless you pass another prefix
+app.MapPiranhaCommerceAdmin();   // the admin, under /admin
+```
+
+`MapPiranhaCommerceApi` and `MapPiranhaCommerceAdmin` are the only mapping calls, and each goes with its `Add` call above: leave out `AddPiranhaCommerceApi()` and you leave out `MapPiranhaCommerceApi()`. The authentication, authorization and antiforgery calls must come before them, in that order. The sample host (`samples/PiranhaCommerce.Web/Program.cs`) shows the whole file.
 
 Then:
 

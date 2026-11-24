@@ -9,10 +9,10 @@ description: How packages plug in, and how to write your own.
 Plugins are NuGet packages referenced at build time and registered in `Program.cs`:
 
 ```csharp
-builder.Services.AddPiranhaCore()
-    .AddPiranhaSqlServer(connectionString)
-    .AddPiranhaApi()
-    .AddPiranhaAdmin()
+builder.Services.AddPiranhaCommerceCore()
+    .AddPiranhaCommerceSqlServer(connectionString)
+    .AddPiranhaCommerceApi()
+    .AddPiranhaCommerceAdmin()
     .AddPlugin<EcommercePlugin>()
     .AddPlugin<EcommerceAdminPlugin>();
 ```

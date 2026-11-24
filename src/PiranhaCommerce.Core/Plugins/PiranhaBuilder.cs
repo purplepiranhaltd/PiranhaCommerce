@@ -2,7 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace PiranhaCommerce.Core.Plugins;
 
-/// <summary>Fluent builder returned by <c>AddPiranhaCore()</c>; packages add extension methods to it.</summary>
+/// <summary>Fluent builder returned by <c>AddPiranhaCommerceCore()</c>; packages add extension methods to it.</summary>
 public sealed class PiranhaBuilder
 {
     private readonly List<IPiranhaPlugin> _plugins = [];

@@ -14,7 +14,7 @@ namespace PiranhaCommerce.Admin;
 
 public static class PiranhaAdminExtensions
 {
-    public static PiranhaBuilder AddPiranhaAdmin(this PiranhaBuilder builder)
+    public static PiranhaBuilder AddPiranhaCommerceAdmin(this PiranhaBuilder builder)
     {
         var services = builder.Services;
         services.AddRazorComponents().AddInteractiveServerComponents();
@@ -46,7 +46,7 @@ public static class PiranhaAdminExtensions
     /// Maps the admin UI under <c>/admin</c>, including pages from every registered <see cref="AdminPageAssembly"/>.
     /// The host must call UseAuthentication, UseAuthorization and UseAntiforgery (in that order) first.
     /// </summary>
-    public static IEndpointRouteBuilder MapPiranhaAdmin(this IEndpointRouteBuilder app)
+    public static IEndpointRouteBuilder MapPiranhaCommerceAdmin(this IEndpointRouteBuilder app)
     {
         WarnIfBlazorScriptMissing(app.ServiceProvider);
 

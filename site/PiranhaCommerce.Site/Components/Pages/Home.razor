@@ -42,10 +42,10 @@
             <li>Write your own plugin with tables, endpoints and admin pages</li>
         </ul>
     </div>
-    <pre class="code"><code>builder.Services.AddPiranhaCore()
-    .AddPiranhaSqlServer(connectionString, typeof(Program).Assembly)
-    .AddPiranhaApi()
-    .AddPiranhaAdmin()
+    <pre class="code"><code>builder.Services.AddPiranhaCommerceCore()
+    .AddPiranhaCommerceSqlServer(connectionString, typeof(Program).Assembly)
+    .AddPiranhaCommerceApi()
+    .AddPiranhaCommerceAdmin()
     .AddPlugin&lt;EcommercePlugin&gt;()
     .AddPlugin&lt;EcommerceAdminPlugin&gt;();</code></pre>
 </section>

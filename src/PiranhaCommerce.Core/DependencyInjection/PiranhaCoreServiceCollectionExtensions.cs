@@ -8,13 +8,13 @@ namespace PiranhaCommerce.Core.DependencyInjection;
 
 public static class PiranhaCoreServiceCollectionExtensions
 {
-    public static PiranhaBuilder AddPiranhaCore(this IServiceCollection services)
+    public static PiranhaBuilder AddPiranhaCommerceCore(this IServiceCollection services)
     {
         var builder = new PiranhaBuilder(services);
         services.TryAddSingleton(builder);
         services.TryAddSingleton<IPluginCatalog, PluginCatalog>();
-        services.AddPiranhaEmailDefaults(); // an email plugin registers its own IEmailSender afterwards and wins
-        services.AddPiranhaFileDefaults(); // a storage plugin registers its own IFileStore afterwards and wins
+        services.AddPiranhaCommerceEmailDefaults(); // an email plugin registers its own IEmailSender afterwards and wins
+        services.AddPiranhaCommerceFileDefaults(); // a storage plugin registers its own IFileStore afterwards and wins
         return builder;
     }
 }

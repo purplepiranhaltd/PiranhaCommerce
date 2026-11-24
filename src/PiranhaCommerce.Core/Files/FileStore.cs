@@ -70,7 +70,7 @@ public interface IImageProcessor
 public static class FileStoreServiceCollectionExtensions
 {
     /// <summary>Registers the defaults a storage or imaging package replaces by registering its own afterwards.</summary>
-    public static IServiceCollection AddPiranhaFileDefaults(this IServiceCollection services)
+    public static IServiceCollection AddPiranhaCommerceFileDefaults(this IServiceCollection services)
     {
         services.TryAddSingleton<IFileStore, NoFileStore>();
         return services;

@@ -96,7 +96,7 @@ public static class UndeliverableAddress
 public static class EmailServiceCollectionExtensions
 {
     /// <summary>Registers the do-nothing default unless a real sender is already registered, and the template catalog. Safe to call more than once.</summary>
-    public static IServiceCollection AddPiranhaEmailDefaults(this IServiceCollection services)
+    public static IServiceCollection AddPiranhaCommerceEmailDefaults(this IServiceCollection services)
     {
         services.TryAddSingleton<IEmailSender, NoEmailSender>();
         services.TryAddSingleton<IEmailTemplateCatalog, EmailTemplateCatalog>();

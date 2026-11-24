@@ -16,13 +16,13 @@ public class PluginTests
 
     private sealed class FakePlugin() : TestPlugin("Fake");
 
-    private static PiranhaBuilder NewBuilder() => new ServiceCollection().AddPiranhaCore();
+    private static PiranhaBuilder NewBuilder() => new ServiceCollection().AddPiranhaCommerceCore();
 
     [Fact]
     public void Registered_plugin_appears_in_catalog()
     {
         var services = new ServiceCollection();
-        services.AddPiranhaCore().AddPlugin<FakePlugin>();
+        services.AddPiranhaCommerceCore().AddPlugin<FakePlugin>();
         using var sp = services.BuildServiceProvider();
         var plugin = Assert.Single(sp.GetRequiredService<IPluginCatalog>().Plugins);
         Assert.Equal("Fake", plugin.Id);

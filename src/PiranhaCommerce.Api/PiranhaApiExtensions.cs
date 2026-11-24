@@ -31,7 +31,7 @@ public static class PiranhaApiExtensions
     public const string JwtScheme = "PiranhaJwt";
     public const string CustomerJwtScheme = "PiranhaCustomerJwt";
 
-    public static PiranhaBuilder AddPiranhaApi(this PiranhaBuilder builder)
+    public static PiranhaBuilder AddPiranhaCommerceApi(this PiranhaBuilder builder)
     {
         var services = builder.Services;
         services.AddOpenApi();
@@ -86,7 +86,7 @@ public static class PiranhaApiExtensions
     /// Maps <c>POST {prefix}/auth/token</c> (anonymous) and every contributor's endpoints. The group requires
     /// a valid JWT (401, never a login redirect); contributors tighten writes with <see cref="ApiPolicies.Write"/>.
     /// </summary>
-    public static IEndpointRouteBuilder MapPiranhaApi(this IEndpointRouteBuilder app, string prefix = "/api/v1")
+    public static IEndpointRouteBuilder MapPiranhaCommerceApi(this IEndpointRouteBuilder app, string prefix = "/api/v1")
     {
         var root = app.MapGroup(prefix);
 

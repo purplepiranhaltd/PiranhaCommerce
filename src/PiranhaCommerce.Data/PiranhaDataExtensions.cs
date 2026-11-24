@@ -12,7 +12,7 @@ public static class PiranhaDataExtensions
     /// Registers the shared DbContext and Identity stores. Pass a provider configuration,
     /// e.g. <c>o =&gt; o.UseSqlServer(cs)</c>, or use the provider packages.
     /// </summary>
-    public static PiranhaBuilder AddPiranhaData(this PiranhaBuilder builder, Action<DbContextOptionsBuilder> configureProvider)
+    public static PiranhaBuilder AddPiranhaCommerceData(this PiranhaBuilder builder, Action<DbContextOptionsBuilder> configureProvider)
     {
         // Plugins (the audit log) can add EF interceptors by registering them as ISaveChangesInterceptor.
         builder.Services.AddDbContext<PiranhaDbContext>((sp, o) =>

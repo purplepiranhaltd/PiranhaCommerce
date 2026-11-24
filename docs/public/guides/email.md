@@ -9,7 +9,7 @@ The platform sends email only through `IEmailSender` (`PiranhaCommerce.Core.Emai
 Until you register a sender, mail is **not sent** and a warning is logged, without the content, which may hold a reset link. To send real mail, add a plugin or your own class:
 
 ```csharp
-builder.Services.AddSingleton<IEmailSender, MySmtpSender>();   // after AddPiranhaCore(): the last registration wins
+builder.Services.AddSingleton<IEmailSender, MySmtpSender>();   // after AddPiranhaCommerceCore(): the last registration wins
 ```
 
 ## An email is a key plus data, never words

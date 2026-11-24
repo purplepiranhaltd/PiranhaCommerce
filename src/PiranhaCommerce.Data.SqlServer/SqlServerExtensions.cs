@@ -11,8 +11,8 @@ public static class SqlServerExtensions
     /// Migrations live in the host application (it knows which plugins are installed), so
     /// pass the host assembly, e.g. <c>typeof(Program).Assembly</c>.
     /// </summary>
-    public static PiranhaBuilder AddPiranhaSqlServer(this PiranhaBuilder builder, string connectionString, Assembly migrationsAssembly)
-        => builder.AddPiranhaData(o => o.UseSqlServer(connectionString, sql =>
+    public static PiranhaBuilder AddPiranhaCommerceSqlServer(this PiranhaBuilder builder, string connectionString, Assembly migrationsAssembly)
+        => builder.AddPiranhaCommerceData(o => o.UseSqlServer(connectionString, sql =>
         {
             sql.MigrationsAssembly(migrationsAssembly.GetName().Name);
             sql.EnableRetryOnFailure(); // transient fault handling for Azure SQL

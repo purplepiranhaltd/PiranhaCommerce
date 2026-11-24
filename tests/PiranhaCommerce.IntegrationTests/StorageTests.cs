@@ -32,7 +32,7 @@ public class StorageTests
     public void With_no_storage_plugin_every_file_call_says_so()
     {
         var services = new ServiceCollection();
-        PiranhaCommerce.Core.DependencyInjection.PiranhaCoreServiceCollectionExtensions.AddPiranhaCore(services);
+        PiranhaCommerce.Core.DependencyInjection.PiranhaCoreServiceCollectionExtensions.AddPiranhaCommerceCore(services);
         var store = services.BuildServiceProvider().GetRequiredService<IFileStore>();
         Assert.Throws<InvalidOperationException>(() => store.OpenAsync("a/b").GetAwaiter().GetResult());
     }
