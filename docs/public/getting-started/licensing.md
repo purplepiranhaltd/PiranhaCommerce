@@ -33,8 +33,10 @@ This is not an OSI "open source" licence, because of the attribution condition, 
 - **The admin and the sample shop** show it for you. Leave it in place.
 - **A shop front you build yourself** must add it. In a Razor page or component, use `<PiranhaCommerce.Admin.Components.Attribution />` (or add `@using PiranhaCommerce.Admin.Components` and write `<Attribution />`). Anywhere else, use the HTML in `PiranhaCommerceAttribution.Html` from `PiranhaCommerce.Core.Identity`:
 
+The link opens in a new tab so shoppers and staff do not lose their place. (Keep `rel="noopener"` with `target="_blank"`.)
+
 ```html
-<a class="pc-attribution" href="https://piranhacommerce.com">Built on PiranhaCommerce</a>
+<a class="pc-attribution" href="https://piranhacommerce.com" target="_blank" rel="noopener">Built on PiranhaCommerce</a>
 ```
 
 ## Removing it: the Commercial Licence

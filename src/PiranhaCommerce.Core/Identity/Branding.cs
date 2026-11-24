@@ -6,8 +6,8 @@ public static class PiranhaCommerceAttribution
     public const string Text = "Built on PiranhaCommerce";
     public const string Url = "https://piranhacommerce.com";
 
-    /// <summary>The notice as HTML, for a shop front that is not built with Razor components.</summary>
-    public const string Html = "<a class=\"pc-attribution\" href=\"" + Url + "\">" + Text + "</a>";
+    /// <summary>The notice as HTML, for a shop front that is not built with Razor components. It opens in a new tab, so a shopper does not lose their place in the shop.</summary>
+    public const string Html = "<a class=\"pc-attribution\" href=\"" + Url + "\" target=\"_blank\" rel=\"noopener\">" + Text + "</a>";
 }
 
 /// <summary>Settings under <c>PiranhaCommerce:Branding</c>.</summary>

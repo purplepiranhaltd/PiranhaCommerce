@@ -16,6 +16,7 @@ public class AttributionTests(PiranhaCommerceFactory factory) : IClassFixture<Pi
         var shop = await (await factory.CreateClient().GetAsync("/")).Content.ReadAsStringAsync();
         Assert.Contains(Notice, shop);
         Assert.Contains(Link, shop);
+        Assert.Matches("<a[^>]*href=\"https://piranhacommerce.com\"[^>]*target=\"_blank\"[^>]*rel=\"noopener\"", shop); // opens in a new tab, safely
 
         var login = await (await factory.CreateClient().GetAsync("/admin/login")).Content.ReadAsStringAsync();
         Assert.Contains(Notice, login);
@@ -50,6 +51,7 @@ public class AttributionTests(PiranhaCommerceFactory factory) : IClassFixture<Pi
         Assert.Equal("Built on PiranhaCommerce", PiranhaCommerce.Core.Identity.PiranhaCommerceAttribution.Text);
         Assert.Equal("https://piranhacommerce.com", PiranhaCommerce.Core.Identity.PiranhaCommerceAttribution.Url);
         Assert.Contains(Notice, PiranhaCommerce.Core.Identity.PiranhaCommerceAttribution.Html);
+        Assert.Contains("target=\"_blank\" rel=\"noopener\"", PiranhaCommerce.Core.Identity.PiranhaCommerceAttribution.Html);
         var licence = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "LICENSE"));
         Assert.Contains("Built on PiranhaCommerce", licence);
         Assert.Contains("https://piranhacommerce.com", licence);
