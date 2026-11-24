@@ -36,6 +36,11 @@ Also open from the comparison, with where each stands:
 - **Currency and language:** multi-currency and translations (item 8).
 - **Accounts:** social sign-in and two-factor, reward points, customer-defined attributes, and finer staff permissions than administrator or read-only.
 - **Marketing and content:** a newsletter list (nopCommerce 4.90 has several), multiple wishlists per shopper, request-a-quote, and AI help with product text. Blogs, news, polls, forums and themes are out of scope.
+- **Databases:** a MySQL package (and MariaDB if it comes free), alongside SQL Server, Azure SQL and PostgreSQL. Planned as one more provider package, like `PiranhaCommerce.Data.PostgreSql`: `PiranhaCommerce.Data.MySql` with an `AddPiranhaMySql()`
+  registration, a host-owned migration set in its own project (as `PiranhaCommerce.Web.Migrations.PostgreSql` is), and a CI job that runs the whole integration suite against MySQL.
+  To settle first: which EF Core provider to use (the Oracle one or Pomelo) and whether it supports the EF Core version we are on; the minimum MySQL version; and the collation, since the suite
+  already catches providers that sort or compare text differently (PostgreSQL sorts case-sensitively; our sorts are done in code for that reason). Also check decimal precision for money,
+  `DateTimeOffset` handling, and any cascade or index rules that differ. Done when the full suite passes on MySQL in CI and the docs list it as supported.
 - **Operations:** message queueing with retries, a scheduled task view, search-engine integration (Elasticsearch and the like), and a shared (Redis) rate limiter.
 - **Selling through others:** multi-store and vendors who sign in to manage their own products and orders (item 10).
 - **Ecosystem and accessibility:** nopCommerce has fifteen-plus years in production, a plugin and theme marketplace and a partner network, and 4.90 added accessibility changes for the European Accessibility Act. PiranhaCommerce has none of these; an accessibility pass on the admin and the sample shop is worth doing.
