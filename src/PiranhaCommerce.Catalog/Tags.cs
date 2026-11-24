@@ -101,7 +101,11 @@ internal sealed class TagService(PiranhaDbContext db) : ITagService
         tags.Select(t => new TagDto(t.Id, t.Name, t.Slug, db.Set<ProductTag>().Count(l => l.TagId == t.Id), t.CreatedUtc, t.UpdatedUtc));
 
     public async Task<IReadOnlyList<TagDto>> ListAsync(CancellationToken ct = default) =>
-        await Project(db.Set<Tag>().AsNoTracking().OrderBy(t => t.Name).ThenBy(t => t.Id)).ToListAsync(ct);
+        ByName(await Project(db.Set<Tag>().AsNoTracking()).ToListAsync(ct), t => t.Name, t => t.Id);
+
+    /// <summary>Tag names in one order on every database: SQL Server ignores letter case when sorting text and PostgreSQL does not, so the sort is done here.</summary>
+    internal static List<T> ByName<T>(IEnumerable<T> items, Func<T, string> name, Func<T, Guid> id) =>
+        items.OrderBy(name, StringComparer.OrdinalIgnoreCase).ThenBy(name, StringComparer.Ordinal).ThenBy(id).ToList();
 
     public Task<TagDto?> GetAsync(Guid id, CancellationToken ct = default) =>
         Project(db.Set<Tag>().AsNoTracking().Where(t => t.Id == id)).FirstOrDefaultAsync(ct);
@@ -159,8 +163,8 @@ internal sealed class TagService(PiranhaDbContext db) : ITagService
         var parentId = await db.Set<ProductVariant>().AsNoTracking().Where(v => v.ProductId == productId).Select(v => (Guid?)v.ParentProductId).FirstOrDefaultAsync(ct);
         var holder = parentId ?? productId;
         var tags = await db.Set<ProductTag>().AsNoTracking().Where(l => l.ProductId == holder)
-            .Join(db.Set<Tag>(), l => l.TagId, t => t.Id, (l, t) => new { t.Id, t.Name, t.Slug }).OrderBy(t => t.Name).ThenBy(t => t.Id).ToListAsync(ct);
-        return new ProductTagsDto(productId, parentId is not null, tags.Select(t => new TagRefDto(t.Id, t.Name, t.Slug)).ToList());
+            .Join(db.Set<Tag>(), l => l.TagId, t => t.Id, (l, t) => new { t.Id, t.Name, t.Slug }).ToListAsync(ct);
+        return new ProductTagsDto(productId, parentId is not null, ByName(tags, t => t.Name, t => t.Id).Select(t => new TagRefDto(t.Id, t.Name, t.Slug)).ToList());
     }
 
     public async Task<ProductTagsDto?> SetProductAsync(Guid productId, IReadOnlyCollection<string> names, CancellationToken ct = default)
@@ -219,7 +223,7 @@ internal sealed class TagService(PiranhaDbContext db) : ITagService
         var holders = productIds.Select(i => parents.GetValueOrDefault(i, i)).Distinct().ToList();
         var rows = await db.Set<ProductTag>().AsNoTracking().Where(l => holders.Contains(l.ProductId))
             .Join(db.Set<Tag>(), l => l.TagId, t => t.Id, (l, t) => new { l.ProductId, t.Name }).ToListAsync(ct);
-        var byHolder = rows.GroupBy(r => r.ProductId).ToDictionary(g => g.Key, g => (IReadOnlyList<string>)g.Select(r => r.Name).Order().ToList());
+        var byHolder = rows.GroupBy(r => r.ProductId).ToDictionary(g => g.Key, g => (IReadOnlyList<string>)g.Select(r => r.Name).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ThenBy(n => n, StringComparer.Ordinal).ToList());
         foreach (var id in productIds)
             if (byHolder.TryGetValue(parents.GetValueOrDefault(id, id), out var names)) result[id] = names;
         return result;

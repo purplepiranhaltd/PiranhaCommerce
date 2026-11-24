@@ -325,8 +325,8 @@ internal sealed class ShopCatalogueService(PiranhaDbContext db, IGroupPricingSer
         var counts = await Listed().SelectMany(p => db.Set<ProductTag>().Where(l => l.ProductId == p.Id).Select(l => l.TagId)).GroupBy(id => id)
             .Select(g => new { Id = g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Id, x => x.N, ct);
         var ids = counts.Keys.ToList();
-        var tags = await db.Set<Tag>().AsNoTracking().Where(t => ids.Contains(t.Id)).OrderBy(t => t.Name).ThenBy(t => t.Id).Select(t => new { t.Id, t.Name, t.Slug }).ToListAsync(ct);
-        return tags.Select(t => new ShopTagDto(t.Id, t.Name, t.Slug, counts[t.Id])).ToList();
+        var tags = await db.Set<Tag>().AsNoTracking().Where(t => ids.Contains(t.Id)).Select(t => new { t.Id, t.Name, t.Slug }).ToListAsync(ct);
+        return tags.OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase).ThenBy(t => t.Name, StringComparer.Ordinal).ThenBy(t => t.Id).Select(t => new ShopTagDto(t.Id, t.Name, t.Slug, counts[t.Id])).ToList();
     }
 
     public async Task<IReadOnlyList<ShopFacetDto>> FacetsAsync(ShopProductQuery q, CancellationToken ct = default)
@@ -459,7 +459,7 @@ internal sealed class ShopCatalogueService(PiranhaDbContext db, IGroupPricingSer
 
     private async Task<IReadOnlyList<ShopTagRefDto>> TagsOfAsync(Guid productId, CancellationToken ct) =>
         await db.Set<ProductTag>().AsNoTracking().Where(l => l.ProductId == productId).Join(db.Set<Tag>(), l => l.TagId, t => t.Id, (l, t) => new { t.Name, t.Slug })
-            .OrderBy(t => t.Name).Select(t => new ShopTagRefDto(t.Name, t.Slug)).ToListAsync(ct);
+            .Select(t => new ShopTagRefDto(t.Name, t.Slug)).ToListAsync(ct) is { } rows ? rows.OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase).ThenBy(t => t.Name, StringComparer.Ordinal).ToList() : [];
 
     /// <summary>The product's specification table: each attribute it has values for (filterable or not), by display order.</summary>
     private async Task<IReadOnlyList<ShopSpecDto>> SpecsOfAsync(Guid productId, CancellationToken ct)
