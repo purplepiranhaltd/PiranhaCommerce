@@ -10,7 +10,7 @@
 [CmdletBinding()]
 param(
     [string]$ConnectionString,
-    [string]$WorkDir = (Join-Path ([IO.Path]::GetTempPath()) "piranha-pkg-verify-$([guid]::NewGuid().ToString('N').Substring(0,8))"),
+    [string]$WorkDir = (Join-Path ([IO.Path]::GetTempPath()) "piranhacommerce-pkg-verify-$([guid]::NewGuid().ToString('N').Substring(0,8))"),
     [switch]$KeepWorkDir,
     # Negative test: build the host WITHOUT the RequiresAspNetWebAssets property and expect the startup warning + missing script.
     [switch]$OmitWebAssetsProperty
@@ -20,7 +20,7 @@ $repo = Resolve-Path (Join-Path $PSScriptRoot '..')
 $packages = Join-Path $repo 'artifacts/packages'
 $ownsDb = -not $ConnectionString
 if ($ownsDb) {
-    $dbName = "PiranhaPkgVerify_$([guid]::NewGuid().ToString('N'))"
+    $dbName = "PiranhaCommercePkgVerify_$([guid]::NewGuid().ToString('N'))"
     $ConnectionString = "Server=(localdb)\MSSQLLocalDB;Database=$dbName;Trusted_Connection=True;TrustServerCertificate=True"
 }
 

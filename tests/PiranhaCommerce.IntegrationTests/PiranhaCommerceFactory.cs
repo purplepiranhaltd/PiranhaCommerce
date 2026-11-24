@@ -25,16 +25,16 @@ public class PiranhaCommerceFactory: WebApplicationFactory<Program>, IAsyncLifet
     public const string AdminEmail = "admin@piranha.local";
     public const string AdminPassword = "Dev-Passw0rd!";
 
-    // PIRANHA_TEST_PROVIDER=PostgreSql + PIRANHA_TEST_PG_SERVER="Host=...;Port=...;Username=...;Password=..." runs the whole suite
-    // against PostgreSQL (a uniquely named database is created per fixture). Default: SQL Server LocalDB, or PIRANHA_TEST_SQLSERVER.
-    private static readonly string Provider = Environment.GetEnvironmentVariable("PIRANHA_TEST_PROVIDER") ?? "SqlServer";
-    // PIRANHA_TEST_SQLSERVER_DATABASE=<name> runs against that EXISTING database and never drops it (for servers where the test
+    // PIRANHACOMMERCE_TEST_PROVIDER=PostgreSql + PIRANHACOMMERCE_TEST_PG_SERVER="Host=...;Port=...;Username=...;Password=..." runs the whole suite
+    // against PostgreSQL (a uniquely named database is created per fixture). Default: SQL Server LocalDB, or PIRANHACOMMERCE_TEST_SQLSERVER.
+    private static readonly string Provider = Environment.GetEnvironmentVariable("PIRANHACOMMERCE_TEST_PROVIDER") ?? "SqlServer";
+    // PIRANHACOMMERCE_TEST_SQLSERVER_DATABASE=<name> runs against that EXISTING database and never drops it (for servers where the test
     // login cannot create databases, e.g. Azure SQL). The tests then leave their rows behind: use a disposable dev database.
-    private static readonly string? ExistingDatabase = Environment.GetEnvironmentVariable("PIRANHA_TEST_SQLSERVER_DATABASE");
+    private static readonly string? ExistingDatabase = Environment.GetEnvironmentVariable("PIRANHACOMMERCE_TEST_SQLSERVER_DATABASE");
 
     /// <summary>True when every test class shares one existing database (so a test must not change store-wide settings such as tax rules).</summary>
     public static bool UsesSharedDatabase => ExistingDatabase is not null;
-    private readonly string _database = ExistingDatabase is { Length: > 0 } ? ExistingDatabase : $"PiranhaTests_{Guid.NewGuid():N}";
+    private readonly string _database = ExistingDatabase is { Length: > 0 } ? ExistingDatabase : $"PiranhaCommerceTests_{Guid.NewGuid():N}";
 
     private string ConnectionString
     {
@@ -42,14 +42,14 @@ public class PiranhaCommerceFactory: WebApplicationFactory<Program>, IAsyncLifet
         {
             if (Provider == "PostgreSql")
             {
-                var server = Environment.GetEnvironmentVariable("PIRANHA_TEST_PG_SERVER")
-                    ?? throw new InvalidOperationException("Set PIRANHA_TEST_PG_SERVER for PostgreSQL runs.");
+                var server = Environment.GetEnvironmentVariable("PIRANHACOMMERCE_TEST_PG_SERVER")
+                    ?? throw new InvalidOperationException("Set PIRANHACOMMERCE_TEST_PG_SERVER for PostgreSQL runs.");
                 // Generous open/command timeouts: ~10 fixtures create databases and run migrations in parallel on one container.
                 return $"{server};Database={_database.ToLowerInvariant()};Timeout=60;Command Timeout=60";
             }
-            // PIRANHA_TEST_SQLSERVER="Server=host,port;User Id=sa;Password=...;TrustServerCertificate=True" targets a real SQL Server
+            // PIRANHACOMMERCE_TEST_SQLSERVER="Server=host,port;User Id=sa;Password=...;TrustServerCertificate=True" targets a real SQL Server
             // (CI on Linux); otherwise LocalDB.
-            if (Environment.GetEnvironmentVariable("PIRANHA_TEST_SQLSERVER") is { Length: > 0 } sql)
+            if (Environment.GetEnvironmentVariable("PIRANHACOMMERCE_TEST_SQLSERVER") is { Length: > 0 } sql)
                 return $"{sql};Database={_database}";
             return $@"Server=(localdb)\MSSQLLocalDB;Database={_database};Trusted_Connection=True;TrustServerCertificate=True";
         }
@@ -78,7 +78,7 @@ public class PiranhaCommerceFactory: WebApplicationFactory<Program>, IAsyncLifet
     protected virtual int SignInAttempts => 100_000;
     protected virtual string? AlertEmail => null;
     /// <summary>Where this factory's uploaded files go (its own folder, so tests never share files).</summary>
-    internal string FilesFolder { get; } = Path.Combine(Path.GetTempPath(), "piranha-test-files-" + Guid.NewGuid().ToString("N"));
+    internal string FilesFolder { get; } = Path.Combine(Path.GetTempPath(), "piranhacommerce-test-files-" + Guid.NewGuid().ToString("N"));
 
     protected virtual IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?>();
 

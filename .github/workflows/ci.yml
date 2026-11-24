@@ -23,10 +23,10 @@ jobs:
       matrix:
         provider: [SqlServer, PostgreSql]
     env:
-      PIRANHA_TEST_PROVIDER: ${{ matrix.provider }}
-      PIRANHA_TEST_SQLSERVER: Server=localhost,1433;User Id=sa;Password=Ci_Passw0rd_for_tests;TrustServerCertificate=True
-      PIRANHA_TEST_PG_SERVER: Host=localhost;Port=5432;Username=postgres;Password=Ci_Passw0rd_for_tests
-      PIRANHA_TEST_AZURITE: UseDevelopmentStorage=true
+      PIRANHACOMMERCE_TEST_PROVIDER: ${{ matrix.provider }}
+      PIRANHACOMMERCE_TEST_SQLSERVER: Server=localhost,1433;User Id=sa;Password=Ci_Passw0rd_for_tests;TrustServerCertificate=True
+      PIRANHACOMMERCE_TEST_PG_SERVER: Host=localhost;Port=5432;Username=postgres;Password=Ci_Passw0rd_for_tests
+      PIRANHACOMMERCE_TEST_AZURITE: UseDevelopmentStorage=true
     steps:
       - uses: actions/checkout@v7
 
@@ -117,7 +117,7 @@ jobs:
 
       - name: Pack, then build/publish/run an app that references only the packages
         shell: pwsh
-        run: ./build/verify-packages.ps1 -ConnectionString "Server=localhost,1433;User Id=sa;Password=$env:DB_PASSWORD;TrustServerCertificate=True;Database=PiranhaPkgVerify_ci"
+        run: ./build/verify-packages.ps1 -ConnectionString "Server=localhost,1433;User Id=sa;Password=$env:DB_PASSWORD;TrustServerCertificate=True;Database=PiranhaCommercePkgVerify_ci"
 
       - name: Upload packages
         uses: actions/upload-artifact@v7

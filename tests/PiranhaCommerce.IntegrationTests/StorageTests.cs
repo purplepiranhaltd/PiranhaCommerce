@@ -40,7 +40,7 @@ public class StorageTests
     /// <summary>The connection string of the Azurite emulator CI starts, or the developer's own (the standard local port); null when there is none to talk to.</summary>
     private static string? Azurite()
     {
-        if (Environment.GetEnvironmentVariable("PIRANHA_TEST_AZURITE") is { Length: > 0 } configured) return configured; // CI sets this: it must then work
+        if (Environment.GetEnvironmentVariable("PIRANHACOMMERCE_TEST_AZURITE") is { Length: > 0 } configured) return configured; // CI sets this: it must then work
         try
         {
             using var tcp = new TcpClient();
