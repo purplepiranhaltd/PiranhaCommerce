@@ -45,7 +45,7 @@ else
                 <InputCheckbox @bind-Value="_input.Active" /> Active
             </label>
 
-            <button type="submit" disabled="@_saving">Save</button>
+            <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button type="submit" disabled="@_saving">Save</button></PiranhaCommerce.Admin.Components.Can>
             <a class="pc-button secondary" href="/admin/customers">Cancel</a>
         </EditForm>
     </div>

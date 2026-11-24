@@ -1,0 +1,19 @@
+@namespace PiranhaCommerce.Admin.Components
+@using PiranhaCommerce.Admin.Services
+@inject AdminScopeRunner Scope
+
+@* Shows its content only to someone who holds the permission. This hides what they could not use; the service still refuses the call either way.
+   <Can Permission="@Permissions.CatalogEdit"><button>Delete</button></Can> *@
+@if (_allowed)
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter, EditorRequired] public string Permission { get; set; } = "";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private bool _allowed;
+
+    protected override async Task OnParametersSetAsync() => _allowed = await Scope.CanAsync(Permission);
+}

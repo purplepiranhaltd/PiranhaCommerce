@@ -39,7 +39,7 @@ else
             <p><em>Note from the buyer:</em> @_order.Notes</p>
         }
 
-        @if (_order.NextStages.Count > 0)
+        @if (_order.NextStages.Count > 0 && _canFulfil)
         {
             <div class="pc-toolbar">
                 @foreach (var next in _order.NextStages)
@@ -146,7 +146,7 @@ else
         {
             <p class="pc-muted">Move the order to Processing, then record each parcel here as it leaves.</p>
         }
-        else if (_order.Stage == OrderStage.Processing)
+        else if (_order.Stage == OrderStage.Processing && _canFulfil)
         {
             @if (_carriers.Count > 0)
             {
@@ -212,7 +212,7 @@ else
                         <td>@rq.Reason@(string.IsNullOrWhiteSpace(rq.Note) ? "" : " (" + rq.Note + ")")</td>
                         <td>@rq.Status@(string.IsNullOrWhiteSpace(rq.ResponseNote) ? "" : ": " + rq.ResponseNote)</td>
                         <td class="actions">
-                            @if (rq.Status == ReturnRequestStatus.Requested)
+                            @if (rq.Status == ReturnRequestStatus.Requested && _canFulfil)
                             {
                                 <input type="text" maxlength="1000" placeholder="Message to the buyer (optional)" @bind="_answerNote" aria-label="Message to the buyer" />
                                 <button type="button" disabled="@_busy" @onclick="() => AnswerAsync(request, true)">Approve</button>
@@ -232,7 +232,7 @@ else
         {
             <p role="status">@_returnNotice</p>
         }
-        @if (_order.Lines.Any(x => x.QuantityShipped > x.QuantityReturned))
+        @if (_canFulfil && _order.Lines.Any(x => x.QuantityShipped > x.QuantityReturned))
         {
             <p class="pc-muted">Record goods when they arrive back. This puts the chosen items back on the shelf; it does not refund anything (do that under Payment).</p>
             <table class="pc-table">
@@ -332,7 +332,7 @@ else
                 </tbody>
             </table>
         }
-        @if (VoucherReturnable > 0)
+        @if (VoucherReturnable > 0 && _canRefund)
         {
             <h3>Return to the gift voucher</h3>
             <p class="pc-muted">
@@ -342,7 +342,7 @@ else
             <label>Amount <input type="number" step="0.01" min="0.01" @bind="_voucherAmount" /></label>
             <button type="button" class="secondary" disabled="@_busy" @onclick="ReturnToVoucherAsync">Return to gift voucher</button>
         }
-        @if (_refundable.Count > 0 && _order.AmountPaid - _order.AmountRefunded > 0)
+        @if (_canRefund && _refundable.Count > 0 && _order.AmountPaid - _order.AmountRefunded > 0)
         {
             <h3>Refund to the buyer's card</h3>
             <p class="pc-muted">
@@ -366,6 +366,8 @@ else
             <hr />
             <h3>Record a payment or refund made elsewhere</h3>
         }
+        @if (_canFulfil || _canRefund)
+        {
         <EditForm Model="_payment" OnValidSubmit="() => RecordAsync(false)" FormName="payment">
             <DataAnnotationsValidator />
             <label>Amount <InputNumber @bind-Value="_payment.Amount" /></label>
@@ -380,9 +382,10 @@ else
             </label>
             <label>Reference (receipt or bank reference, optional) <InputText @bind-Value="_payment.Reference" /></label>
             <label>Note (optional) <InputText @bind-Value="_payment.Note" /></label>
-            <button type="submit" disabled="@_busy">Record payment</button>
-            <button type="button" class="secondary" disabled="@_busy" @onclick="() => RecordAsync(true)">Record refund</button>
+            @if (_canFulfil) { <button type="submit" disabled="@_busy">Record payment</button> }
+            @if (_canRefund) { <button type="button" class="secondary" disabled="@_busy" @onclick="() => RecordAsync(true)">Record refund</button> }
         </EditForm>
+        }
     </div>
 
     <div class="pc-card">
@@ -428,8 +431,13 @@ else
 
     private void SetRestock(Guid id, bool on) { if (on) _noRestock.Remove(id); else _noRestock.Add(id); }
 
+    private bool _canFulfil, _canRefund;
+
     protected override async Task OnParametersSetAsync()
     {
+        // Hide what this person could not use; the service refuses it anyway.
+        _canFulfil = await Scope.CanAsync(PiranhaCommerce.Core.Identity.Permissions.OrdersFulfil);
+        _canRefund = await Scope.CanAsync(PiranhaCommerce.Core.Identity.Permissions.OrdersRefund);
         _order = await Scope.RunAsync<IOrderService, OrderDto?>(s => s.GetAsync(Id));
         _carriers = await Scope.RunAsync<IShippingCarrierService, IReadOnlyList<ShippingCarrierDto>>(s => s.ListAsync(true));
         _notFound = _order is null;

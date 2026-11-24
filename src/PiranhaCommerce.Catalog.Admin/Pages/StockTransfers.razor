@@ -62,7 +62,7 @@
             }
             </tbody>
         </table>
-        <button @onclick="SendAsync" disabled="@_busy">Send transfer</button>
+        <PiranhaCommerce.Admin.Components.Can Permission="stock.transfer"><button @onclick="SendAsync" disabled="@_busy">Send transfer</button></PiranhaCommerce.Admin.Components.Can>
     }
 </div>
 
@@ -122,8 +122,10 @@ else
             @if (t.Status == StockTransferStatus.InTransit)
             {
                 <div class="pc-toolbar">
-                    <button @onclick="() => ReceiveAsync(t)" disabled="@_busy">Receive</button>
-                    <button class="secondary" @onclick="() => CancelAsync(t)" disabled="@_busy">Cancel transfer</button>
+                    <PiranhaCommerce.Admin.Components.Can Permission="stock.transfer">
+                        <button @onclick="() => ReceiveAsync(t)" disabled="@_busy">Receive</button>
+                        <button class="secondary" @onclick="() => CancelAsync(t)" disabled="@_busy">Cancel transfer</button>
+                    </PiranhaCommerce.Admin.Components.Can>
                 </div>
             }
         </div>

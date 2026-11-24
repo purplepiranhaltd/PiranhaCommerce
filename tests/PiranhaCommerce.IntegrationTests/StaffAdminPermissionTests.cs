@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
@@ -104,6 +105,49 @@ public partial class StaffAdminPermissionTests(PiranhaCommerceFactory factory) :
             }
         }
         Assert.True(problems.Count == 0, string.Join("\n", problems));
+    }
+
+    [Fact]
+    public async Task The_order_page_hides_the_buttons_a_person_could_not_use()
+    {
+        var api = await factory.CreateAuthenticatedApiClientAsync();
+        var product = (await (await api.PostAsJsonAsync("/api/v1/products",
+            new PiranhaCommerce.Catalog.ProductInput { Name = "Hidden " + Guid.NewGuid().ToString("N")[..8], Price = 9m })).Content
+            .ReadFromJsonAsync<PiranhaCommerce.Catalog.ProductDto>())!;
+        await api.PutAsJsonAsync($"/api/v1/products/{product.Id}/listing", new PiranhaCommerce.Ecommerce.ProductListingInput { Published = true });
+        await api.PostAsJsonAsync($"/api/v1/products/{product.Id}/stock/adjustments", new PiranhaCommerce.Catalog.StockAdjustmentInput { Delta = 5, Reason = "Delivery" });
+        var json = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web) { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
+        var basket = (await (await api.PostAsJsonAsync("/api/v1/baskets", new PiranhaCommerce.Ecommerce.BasketCreateInput())).Content
+            .ReadFromJsonAsync<PiranhaCommerce.Ecommerce.BasketDto>(json))!;
+        await api.PutAsJsonAsync($"/api/v1/baskets/{basket.Id}/lines/{product.Id}", new PiranhaCommerce.Ecommerce.BasketLineInput { Quantity = 1 });
+        var placed = await api.PostAsJsonAsync($"/api/v1/baskets/{basket.Id}/checkout", new PiranhaCommerce.Ecommerce.CheckoutInput
+        {
+            Email = $"hide-{Guid.NewGuid():N}@example.com",
+            ShippingAddress = new PiranhaCommerce.Customers.AddressInput { Recipient = "Ada", Line1 = "1 High St", City = "Leeds", CountryCode = "GB" },
+        });
+        var order = (await placed.Content.ReadFromJsonAsync<PiranhaCommerce.Ecommerce.OrderDto>(json))!;
+
+        async Task<string> PageFor(params string[] permissions)
+        {
+            var (email, password) = await factory.CreateStaffAsync(permissions);
+            var browser = await SignInAsync(email, password);
+            return await (await browser.GetAsync($"/admin/orders/{order.Id}")).Content.ReadAsStringAsync();
+        }
+
+        var viewer = await PageFor(Permissions.OrdersView);
+        Assert.Contains($"Order {order.Reference}", viewer);
+        Assert.DoesNotContain("Mark as processing", viewer);
+        Assert.DoesNotContain("Record payment", viewer);
+        Assert.DoesNotContain("Record refund", viewer);
+
+        var fulfiller = await PageFor(Permissions.OrdersFulfil);
+        Assert.Contains("Mark as processing", fulfiller);
+        Assert.Contains("Record payment", fulfiller);
+        Assert.DoesNotContain("Record refund", fulfiller);
+
+        var refunder = await PageFor(Permissions.OrdersRefund);
+        Assert.DoesNotContain("Mark as processing", refunder);
+        Assert.Contains("Record refund", refunder);
     }
 
     // ---- the guard that stops a service call from the admin ----

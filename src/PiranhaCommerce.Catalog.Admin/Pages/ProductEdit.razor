@@ -51,7 +51,7 @@ else
                 <InputTextArea @bind-Value="_input.MetaDescription" rows="2" />
             </label>
 
-            <button type="submit" disabled="@_saving">Save</button>
+            <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button type="submit" disabled="@_saving">Save</button></PiranhaCommerce.Admin.Components.Can>
             <a class="pc-button secondary" href="/admin/catalog/products">Cancel</a>
         </EditForm>
     </div>

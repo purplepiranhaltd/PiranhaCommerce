@@ -39,7 +39,7 @@
             <input type="number" step="0.0001" aria-label="Change in quantity (negative to remove)" placeholder="+/- quantity" style="width:9rem" @bind="_delta" />
             <input aria-label="Reason" placeholder="Reason (e.g. Delivery, Stocktake)" @bind="_reason" />
             <input aria-label="Reference" placeholder="Reference (optional)" @bind="_reference" />
-            <button type="button" @onclick="AdjustAsync" disabled="@_saving">Apply</button>
+            <PiranhaCommerce.Admin.Components.Can Permission="stock.adjust"><button type="button" @onclick="AdjustAsync" disabled="@_saving">Apply</button></PiranhaCommerce.Admin.Components.Can>
         </div>
         @if (_message is not null)
         {

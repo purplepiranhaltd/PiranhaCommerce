@@ -48,7 +48,7 @@ else
                     }
                     else
                     {
-                        <button class="secondary" @onclick="() => _confirmDelete = p.Id">Delete</button>
+                        <PiranhaCommerce.Admin.Components.Can Permission="catalog.edit"><button class="secondary" @onclick="() => _confirmDelete = p.Id">Delete</button></PiranhaCommerce.Admin.Components.Can>
                     }
                 </td>
             </tr>

@@ -32,7 +32,7 @@
         <ValidationMessage For="() => _input.Value" />
         <label>Expires (optional) <InputDate TValue="DateTimeOffset?" @bind-Value="_input.ExpiresUtc" /></label>
         <label>Note (optional) <InputText @bind-Value="_input.Note" /></label>
-        <button type="submit" disabled="@_busy">Issue voucher</button>
+        <PiranhaCommerce.Admin.Components.Can Permission="vouchers.manage"><button type="submit" disabled="@_busy">Issue voucher</button></PiranhaCommerce.Admin.Components.Can>
     </EditForm>
 </div>
 
@@ -59,7 +59,7 @@ else
                 <td>@(v.Active ? "Yes" : "No")</td>
                 <td>@v.Note</td>
                 <td class="actions">
-                    <button class="secondary" @onclick="() => ToggleAsync(v)">@(v.Active ? "Switch off" : "Switch on")</button>
+                    <PiranhaCommerce.Admin.Components.Can Permission="vouchers.manage"><button class="secondary" @onclick="() => ToggleAsync(v)">@(v.Active ? "Switch off" : "Switch on")</button></PiranhaCommerce.Admin.Components.Can>
                     <button class="secondary" @onclick="() => ShowAsync(v.Id)">History</button>
                 </td>
             </tr>
@@ -86,7 +86,7 @@ else
             <label>Add or remove value (negative removes) <InputNumber @bind-Value="_adjust.Amount" /></label>
             <label>Reason <InputText @bind-Value="_adjust.Reason" /></label>
             <ValidationMessage For="() => _adjust.Reason" />
-            <button type="submit" disabled="@_busy">Adjust</button>
+            <PiranhaCommerce.Admin.Components.Can Permission="vouchers.manage"><button type="submit" disabled="@_busy">Adjust</button></PiranhaCommerce.Admin.Components.Can>
             <button type="button" class="secondary" @onclick="() => _detail = null">Close</button>
         </EditForm>
     </div>
