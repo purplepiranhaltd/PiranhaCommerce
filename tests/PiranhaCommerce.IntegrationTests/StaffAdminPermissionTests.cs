@@ -199,7 +199,7 @@ public partial class StaffAdminPermissionTests(PiranhaCommerceFactory factory) :
         "IProductService", "IProductVariantService", "IPromotionService", "IReportService", "IReturnRequestService", "IReviewPhotoService", "IReviewService",
         "ISaleService", "IShippingCarrierService", "IShippingService", "IShippingZoneService", "ISpecificationService", "IStaffLocationService", "IStockAlertService",
         "IStockLocationService", "IStockService", "IStockTransferService", "ITagService", "ITaxService", "IUnreconciledPaymentService", "IVoucherService",
-        "IWarrantyService", "IStaffAdminService", "IWebhookDispatcher", "IWebhookService", "IWishlistService", "IAuditService",
+        "IWarrantyService", "IStaffAdminService", "IApiKeyService", "IWebhookDispatcher", "IWebhookService", "IWishlistService", "IAuditService",
     ];
 
     private static readonly string[] ReadPrefixes = ["Get", "List", "Find", "Count", "Export", "Preview", "Providers"];

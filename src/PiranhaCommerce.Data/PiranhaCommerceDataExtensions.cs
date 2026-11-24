@@ -29,6 +29,9 @@ public static class PiranhaCommerceDataExtensions
             .AddRoles<PiranhaCommerceRole>()
             .AddEntityFrameworkStores<PiranhaCommerceDbContext>();
         builder.Services.AddScoped<ICredentialChecker, CredentialChecker>();
+        builder.Services.AddScoped<ApiKeyService>();
+        builder.Services.AddScoped<IApiKeyService>(sp => sp.GetRequiredService<ApiKeyService>());
+        builder.Services.AddScoped<IApiKeyAuthenticator>(sp => sp.GetRequiredService<ApiKeyService>());
         return builder;
     }
 

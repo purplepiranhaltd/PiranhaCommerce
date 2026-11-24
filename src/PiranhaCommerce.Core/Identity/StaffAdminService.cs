@@ -134,7 +134,7 @@ internal sealed class StaffAdminService(
     public async Task<IReadOnlyList<StaffUserDto>> ListStaffAsync(CancellationToken ct = default)
     {
         var result = new List<StaffUserDto>();
-        foreach (var user in users.Users.ToList()) result.Add(await ToDtoAsync(user));
+        foreach (var user in users.Users.ToList().Where(u => !IsServiceAccount(u))) result.Add(await ToDtoAsync(user)); // API keys have their own page
         return result.OrderBy(u => u.Email, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
@@ -191,9 +191,11 @@ internal sealed class StaffAdminService(
     /// <summary>Someone must always be able to run the shop: refuse a change that would leave no active administrator.</summary>
     private async Task EnsureAnotherAdministratorAsync(PiranhaCommerceUser leaving)
     {
-        var others = (await users.GetUsersInRoleAsync(Administrator)).Where(u => u.Active && u.Id != leaving.Id).ToList();
+        var others = (await users.GetUsersInRoleAsync(Administrator)).Where(u => u.Active && u.Id != leaving.Id && !IsServiceAccount(u)).ToList(); // a key is not a person who can sign in
         if (others.Count == 0) throw new PiranhaCommerceConflictException("There must always be at least one active administrator. Make someone else an administrator first.");
     }
+
+    private static bool IsServiceAccount(PiranhaCommerceUser u) => u.Email?.EndsWith(ApiKeyFormat.ServiceDomain, StringComparison.OrdinalIgnoreCase) == true;
 
     private async Task<List<string>> ValidRolesAsync(IReadOnlyList<string> names, string field)
     {

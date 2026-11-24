@@ -57,6 +57,8 @@ public static class PiranhaCommerceApiExtensions
                 RoleClaimType = "role",
                 ClockSkew = TimeSpan.FromMinutes(1),
             };
+            // An API key is accepted on the same scheme, as "Authorization: Bearer pck_..." or "X-Api-Key: pck_...". Anything else is a token.
+            o.Events = new JwtBearerEvents { OnMessageReceived = ApiKeySignIn.AcceptAsync };
         });
 
         // Shoppers: own scheme, own audience and own key, so a shopper token cannot open the staff API (or the reverse).

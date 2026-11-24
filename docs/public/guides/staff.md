@@ -47,6 +47,17 @@ Reading is controlled too. Someone with only `orders.fulfil` sees orders but not
 
 The API enforces the same permissions. Call `POST /api/v1/auth/token` as the person and the token works for exactly what their roles allow, as they change. A call without the permission returns `403`. An endpoint a package adds without naming a permission is treated as administrator-only, so a forgotten annotation fails closed.
 
+## API keys
+
+A key lets another system (a warehouse system, an accounts package) call the API without a person's password. Open **Staff > API keys**, say what the key is for, tick the roles it acts with and choose **Make key**. The key is shown once; copy it then, because only a fingerprint is kept and it cannot be read again.
+
+- **Use it** as `Authorization: Bearer pck_...` or as an `X-Api-Key: pck_...` header, on the same `/api/v1` endpoints a person uses. It can do what its roles allow and nothing else: a key with no role can do nothing. Give each integration its own key and the least it needs.
+- **It is not a person.** It cannot sign in to the admin, it does not appear in the staff list, and it does not count as an administrator for the "at least one administrator" rule.
+- **Changes are recorded under its name** in the audit log.
+- **Revoke it** when it is lost or no longer needed: it stops working at once and cannot be switched back on, so make a new one. A key can also be given an expiry date.
+- **Changing the key's roles** takes effect on the next call.
+- **Storefront calls are not for keys.** A key cannot act as a shopper.
+
 ## Adding a permission from a package
 
 Declare it with an `IPermissionContributor`, state what it implies, then use it on your endpoints, pages and services. It then appears in the role editor under your group with no other registration.

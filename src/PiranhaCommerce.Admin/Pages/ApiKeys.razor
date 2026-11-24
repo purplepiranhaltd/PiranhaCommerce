@@ -1,0 +1,126 @@
+@page "/admin/staff/api-keys"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = PiranhaCommerce.Core.Identity.PermissionPolicies.StaffManage)]
+@using PiranhaCommerce.Admin.Services
+@using PiranhaCommerce.Core.Identity
+@using PiranhaCommerce.Core.Validation
+@inject AdminScopeRunner Scope
+
+<PageTitle>API keys - PiranhaCommerce</PageTitle>
+<h1>API keys</h1>
+<p class="pc-muted">
+    A key lets another system call the API without a person signing in. It acts with the roles you give it and can do nothing else, and what it
+    changes shows in the audit log under its name. Send it as <code>Authorization: Bearer pck_...</code> or <code>X-Api-Key: pck_...</code>.
+</p>
+
+@if (_error is not null) { <p class="pc-error" role="alert">@_error</p> }
+
+@if (_secret is not null)
+{
+    <div class="pc-card">
+        <p><strong>Copy the key now.</strong> It is shown once and cannot be read again. If it is lost, revoke it and make another.</p>
+        <p><code>@_secret</code></p>
+        <button type="button" class="secondary" @onclick="() => _secret = null">I have copied it</button>
+    </div>
+}
+
+@if (_keys is null || _roles is null)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>Name</th><th>Key</th><th>Roles</th><th>Last used</th><th>Expires</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var k in _keys)
+        {
+            <tr>
+                <td>@k.Name @(k.RevokedUtc is not null ? "(revoked)" : k.IsActive(DateTimeOffset.UtcNow) ? "" : "(expired)")</td>
+                <td><code>@k.Prefix</code></td>
+                <td>@(k.Roles.Count == 0 ? "None: it can do nothing" : string.Join(", ", k.Roles))</td>
+                <td>@(k.LastUsedUtc is null ? "Never" : k.LastUsedUtc.Value.ToString("dd MMM yyyy HH:mm") + " UTC")</td>
+                <td>@(k.ExpiresUtc is null ? "Never" : k.ExpiresUtc.Value.ToString("dd MMM yyyy"))</td>
+                <td class="actions">
+                    @if (k.RevokedUtc is null)
+                    {
+                        <PiranhaCommerce.Admin.Components.Can Permission="staff.manage">
+                            <button class="secondary" @onclick="() => RevokeAsync(k)">Revoke</button>
+                        </PiranhaCommerce.Admin.Components.Can>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+
+    <h2>New key</h2>
+    <div class="pc-form-row">
+        <label>What it is for <input @bind="_name" maxlength="100" placeholder="Warehouse system" /></label>
+        <label>Expires (optional) <input type="date" @bind="_expires" /></label>
+    </div>
+    <p>Roles the key acts with:</p>
+    @foreach (var r in _roles)
+    {
+        <label style="display:inline-block;margin-right:1rem">
+            <input type="checkbox" checked="@_chosen.Contains(r.Name)" @onchange="e => Toggle(r.Name, (bool)e.Value!)" /> @r.Name
+        </label>
+    }
+    <p class="pc-muted">Give a key the least it needs. Administrator lets it do everything.</p>
+    <PiranhaCommerce.Admin.Components.Can Permission="staff.manage">
+        <button @onclick="CreateAsync">Make key</button>
+    </PiranhaCommerce.Admin.Components.Can>
+}
+
+@code {
+    private IReadOnlyList<ApiKeyDto>? _keys;
+    private IReadOnlyList<StaffRoleDto>? _roles;
+    private readonly HashSet<string> _chosen = [];
+    private string? _error, _secret, _name;
+    private DateTime? _expires;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _keys = await Scope.RunAsync<IApiKeyService, IReadOnlyList<ApiKeyDto>>(s => s.ListAsync());
+            _roles = await Scope.RunAsync<IStaffAdminService, IReadOnlyList<StaffRoleDto>>(s => s.ListRolesAsync());
+        }
+        catch (Exception ex) { _error = Describe(ex); }
+    }
+
+    private static string Describe(Exception ex) => ex switch
+    {
+        PiranhaCommerceValidationException v => string.Join(" ", v.Errors.SelectMany(e => e.Value)),
+        PiranhaCommerceConflictException or PiranhaCommerceForbiddenException => ex.Message,
+        _ => "Something went wrong. Try again."
+    };
+
+    private void Toggle(string role, bool on) { if (on) _chosen.Add(role); else _chosen.Remove(role); }
+
+    private async Task CreateAsync()
+    {
+        _error = null;
+        try
+        {
+            DateTimeOffset? expires = _expires is { } d ? new DateTimeOffset(d.Date.AddDays(1), TimeSpan.Zero) : null; // good through the day chosen
+            var made = await Scope.RunAsync<IApiKeyService, ApiKeyCreated>(s => s.CreateAsync(new ApiKeyInput(_name ?? "", _chosen.ToList(), expires)));
+            _secret = made.Secret;
+            _name = null; _expires = null; _chosen.Clear();
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = Describe(ex); }
+    }
+
+    private async Task RevokeAsync(ApiKeyDto key)
+    {
+        _error = null;
+        try
+        {
+            await Scope.RunAsync<IApiKeyService, bool>(s => s.RevokeAsync(key.Id));
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = Describe(ex); }
+    }
+}

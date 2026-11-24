@@ -23,6 +23,17 @@ public class PiranhaCommerceDbContext(DbContextOptions<PiranhaCommerceDbContext>
         modelBuilder.Entity<IdentityUserToken<Guid>>().ToTable("UserToken", CoreSchema);
         modelBuilder.Entity<IdentityRoleClaim<Guid>>().ToTable("RoleClaim", CoreSchema);
 
+        modelBuilder.Entity<ApiKey>(b =>
+        {
+            b.ToTable("ApiKey", CoreSchema);
+            b.HasKey(k => k.Id);
+            b.Property(k => k.Name).HasMaxLength(100).IsRequired();
+            b.Property(k => k.Prefix).HasMaxLength(16).IsRequired();
+            b.Property(k => k.SecretHash).HasMaxLength(64).IsRequired();
+            b.HasIndex(k => k.Prefix);
+            b.HasIndex(k => k.UserId);
+        });
+
         foreach (var contributor in contributors)
             contributor.OnModelCreating(modelBuilder);
     }

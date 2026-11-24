@@ -10,5 +10,6 @@ internal sealed class AdminCoreMenu : IAdminMenuContributor
     [
         new("staff", "Staff", Icon: "users", Order: 85),
         new("staff.roles", "Staff and roles", "/admin/staff", Order: 86, ParentKey: "staff", RequiredPermission: Permissions.StaffManage),
+        new("staff.apikeys", "API keys", "/admin/staff/api-keys", Order: 87, ParentKey: "staff", RequiredPermission: Permissions.StaffManage),
     ];
 }
