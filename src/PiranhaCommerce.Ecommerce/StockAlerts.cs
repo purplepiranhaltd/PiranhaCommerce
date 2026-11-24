@@ -17,6 +17,7 @@ using PiranhaCommerce.Core.Paging;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Customers;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -255,11 +256,11 @@ internal sealed class StockAlertEndpoints : IApiEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
-        var g = api.MapGroup("/stock-alerts").WithTags("Back-in-stock requests");
+        var g = api.MapGroup("/stock-alerts").WithTags("Back-in-stock requests").RequirePermission(Permissions.CatalogView);
         g.MapGet("/demand", async (IStockAlertService svc, CancellationToken ct) => Results.Ok(await svc.DemandAsync(ct)));
         g.MapGet("/", async (Guid? productId, int? page, int? pageSize, IStockAlertService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(productId, page, pageSize, ct)));
         g.MapDelete("/{id:guid}", async (Guid id, IStockAlertService svc, CancellationToken ct) =>
-            await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound()).RequirePermission(Permissions.CatalogEdit);
     }
 }
 

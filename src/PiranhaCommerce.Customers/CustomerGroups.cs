@@ -9,6 +9,7 @@ using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Paging;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Customers;
 
@@ -211,7 +212,7 @@ internal sealed class CustomerGroupEndpoints : IApiEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
-        var groups = api.MapGroup("/customer-groups").WithTags("Customer groups");
+        var groups = api.MapGroup("/customer-groups").WithTags("Customer groups").RequirePermission(Permissions.CustomersView);
 
         groups.MapGet("/", async (ICustomerGroupService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(ct)));
         groups.MapGet("/{id:guid}", async (Guid id, ICustomerGroupService svc, CancellationToken ct) =>
@@ -220,20 +221,20 @@ internal sealed class CustomerGroupEndpoints : IApiEndpointContributor
             {
                 var created = await svc.CreateAsync(input, ct);
                 return Results.Created($"/api/v1/customer-groups/{created.Id}", created);
-            }).RequireAuthorization(ApiPolicies.Write);
+            }).RequirePermission(Permissions.CustomersManage);
         groups.MapPut("/{id:guid}", async (Guid id, CustomerGroupInput input, ICustomerGroupService svc, CancellationToken ct) =>
-            await svc.UpdateAsync(id, input, ct) is { } g ? Results.Ok(g) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.UpdateAsync(id, input, ct) is { } g ? Results.Ok(g) : Results.NotFound()).RequirePermission(Permissions.CustomersManage);
         groups.MapDelete("/{id:guid}", async (Guid id, ICustomerGroupService svc, CancellationToken ct) =>
-            await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound()).RequirePermission(Permissions.CustomersManage);
 
         groups.MapGet("/{id:guid}/members", async (Guid id, int? page, int? pageSize, ICustomerGroupService svc, CancellationToken ct) =>
             await svc.ListMembersAsync(id, page, pageSize, ct) is { } list ? Results.Ok(list) : Results.NotFound());
         groups.MapPut("/{id:guid}/members/{customerId:guid}", async (Guid id, Guid customerId, HttpContext http, ICustomerGroupService svc, CancellationToken ct) =>
-            await svc.AddMemberAsync(id, customerId, http.User.FindFirst("email")?.Value, ct) is { } m ? Results.Ok(m) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.AddMemberAsync(id, customerId, http.User.FindFirst("email")?.Value, ct) is { } m ? Results.Ok(m) : Results.NotFound()).RequirePermission(Permissions.CustomersManage);
         groups.MapDelete("/{id:guid}/members/{customerId:guid}", async (Guid id, Guid customerId, ICustomerGroupService svc, CancellationToken ct) =>
-            await svc.RemoveMemberAsync(id, customerId, ct) ? Results.NoContent() : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.RemoveMemberAsync(id, customerId, ct) ? Results.NoContent() : Results.NotFound()).RequirePermission(Permissions.CustomersManage);
 
         api.MapGet("/customers/{id:guid}/groups", async (Guid id, ICustomerGroupService svc, CancellationToken ct) =>
-            await svc.GroupsOfAsync(id, ct) is { } list ? Results.Ok(list) : Results.NotFound()).WithTags("Customer groups");
+            await svc.GroupsOfAsync(id, ct) is { } list ? Results.Ok(list) : Results.NotFound()).WithTags("Customer groups").RequirePermission(Permissions.CustomersView);
     }
 }

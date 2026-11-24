@@ -9,6 +9,7 @@ using PiranhaCommerce.Core.Audit;
 using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Catalog;
 
@@ -333,7 +334,7 @@ internal sealed class SpecificationApiEndpoints : IApiEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
-        var specs = api.MapGroup("/specifications").WithTags("Specifications");
+        var specs = api.MapGroup("/specifications").WithTags("Specifications").RequirePermission(Permissions.CatalogView);
 
         specs.MapGet("/", async (ISpecificationService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(ct)));
 
@@ -348,35 +349,35 @@ internal sealed class SpecificationApiEndpoints : IApiEndpointContributor
                 var created = await svc.CreateAsync(input, ct);
                 return Results.Created($"/api/v1/specifications/{created.Id}", created);
             })
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CatalogEdit);
 
         specs.MapPut("/{id:guid}", async (Guid id, SpecAttributeInput input, ISpecificationService svc, CancellationToken ct) =>
                 await svc.UpdateAsync(id, input, ct) is { } a ? Results.Ok(a) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CatalogEdit);
 
         specs.MapDelete("/{id:guid}", async (Guid id, ISpecificationService svc, CancellationToken ct) =>
                 await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CatalogEdit);
 
         specs.MapPost("/{id:guid}/values", async (Guid id, SpecValueInput input, ISpecificationService svc, CancellationToken ct) =>
                 await svc.AddValueAsync(id, input, ct) is { } v ? Results.Created($"/api/v1/specifications/{id}/values/{v.Id}", v) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CatalogEdit);
 
         specs.MapPut("/{id:guid}/values/{valueId:guid}", async (Guid id, Guid valueId, SpecValueInput input, ISpecificationService svc, CancellationToken ct) =>
                 await svc.UpdateValueAsync(id, valueId, input, ct) is { } v ? Results.Ok(v) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CatalogEdit);
 
         specs.MapDelete("/{id:guid}/values/{valueId:guid}", async (Guid id, Guid valueId, ISpecificationService svc, CancellationToken ct) =>
                 await svc.DeleteValueAsync(id, valueId, ct) ? Results.NoContent() : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CatalogEdit);
 
-        var product = api.MapGroup("/products/{productId:guid}/specifications").WithTags("Product specifications");
+        var product = api.MapGroup("/products/{productId:guid}/specifications").WithTags("Product specifications").RequirePermission(Permissions.CatalogView);
 
         product.MapGet("/", async (Guid productId, ISpecificationService svc, CancellationToken ct) =>
             await svc.GetProductAsync(productId, ct) is { } r ? Results.Ok(r) : Results.NotFound());
 
         product.MapPut("/", async (Guid productId, ProductSpecsInput input, ISpecificationService svc, CancellationToken ct) =>
                 await svc.SetProductAsync(productId, input.ValueIds, ct) is { } r ? Results.Ok(r) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CatalogEdit);
     }
 }

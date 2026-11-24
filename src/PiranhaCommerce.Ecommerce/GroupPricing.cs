@@ -9,6 +9,7 @@ using PiranhaCommerce.Catalog;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Customers;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -299,34 +300,34 @@ internal sealed class GroupPricingEndpoints : IApiEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
-        var group = api.MapGroup("/products/{productId:guid}/group-prices").WithTags("Group prices");
+        var group = api.MapGroup("/products/{productId:guid}/group-prices").WithTags("Group prices").RequirePermission(Permissions.CatalogView);
 
         group.MapGet("/", async (Guid productId, IGroupPricingService svc, CancellationToken ct) =>
             await svc.ListForProductAsync(productId, ct) is { } rows ? Results.Ok(rows) : Results.NotFound());
 
         group.MapPut("/{groupId:guid}", async (Guid productId, Guid groupId, GroupPriceInput input, IGroupPricingService svc, CancellationToken ct) =>
                 await svc.SetAsync(productId, groupId, input, ct) is { } row ? Results.Ok(row) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.PricesManage);
 
         group.MapDelete("/{groupId:guid}", async (Guid productId, Guid groupId, IGroupPricingService svc, CancellationToken ct) =>
                 await svc.RemoveAsync(productId, groupId, ct) ? Results.NoContent() : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.PricesManage);
 
         // A group's percentage off a whole category (and its sub-categories).
-        var cats = api.MapGroup("/customer-groups/{groupId:guid}/category-discounts").WithTags("Group prices");
+        var cats = api.MapGroup("/customer-groups/{groupId:guid}/category-discounts").WithTags("Group prices").RequirePermission(Permissions.CatalogView);
         cats.MapGet("/", async (Guid groupId, IGroupPricingService svc, CancellationToken ct) =>
             await svc.ListCategoryDiscountsAsync(groupId, ct) is { } rows ? Results.Ok(rows) : Results.NotFound());
         cats.MapPut("/{categoryId:guid}", async (Guid groupId, Guid categoryId, GroupCategoryDiscountInput input, IGroupPricingService svc, CancellationToken ct) =>
                 await svc.SetCategoryDiscountAsync(groupId, categoryId, input, ct) is { } row ? Results.Ok(row) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.PricesManage);
         cats.MapDelete("/{categoryId:guid}", async (Guid groupId, Guid categoryId, IGroupPricingService svc, CancellationToken ct) =>
                 await svc.RemoveCategoryDiscountAsync(groupId, categoryId, ct) ? Results.NoContent() : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.PricesManage);
 
         // For a shop front that shows prices on a shopper's behalf: what this customer pays for these products.
         api.MapGet("/customers/{customerId:guid}/prices", async (Guid customerId, Guid[]? productIds, string? countryCode, IGroupPricingService svc, CancellationToken ct) =>
                 Results.Ok(await svc.PricesAsync(customerId, productIds ?? [], countryCode, ct)))
-            .WithTags("Group prices");
+            .WithTags("Group prices").RequirePermission(Permissions.CatalogView);
     }
 }
 

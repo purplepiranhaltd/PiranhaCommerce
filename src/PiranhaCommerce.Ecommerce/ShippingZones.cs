@@ -8,6 +8,7 @@ using PiranhaCommerce.Core.Audit;
 using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -326,30 +327,30 @@ internal sealed class ShippingZoneAndCarrierEndpoints : IApiEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
-        var zones = api.MapGroup("/shipping-zones").WithTags("Shipping");
+        var zones = api.MapGroup("/shipping-zones").WithTags("Shipping").RequirePermission(Permissions.Access);
         zones.MapGet("/", async (IShippingZoneService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(ct)));
         zones.MapGet("/{id:guid}", async (Guid id, IShippingZoneService svc, CancellationToken ct) => await svc.GetAsync(id, ct) is { } z ? Results.Ok(z) : Results.NotFound());
         zones.MapPost("/", async (ShippingZoneInput input, IShippingZoneService svc, CancellationToken ct) =>
         {
             var z = await svc.CreateAsync(input, ct);
             return Results.Created($"/api/v1/shipping-zones/{z.Id}", z);
-        }).RequireAuthorization(ApiPolicies.Write);
+        }).RequirePermission(Permissions.SettingsManage);
         zones.MapPut("/{id:guid}", async (Guid id, ShippingZoneInput input, IShippingZoneService svc, CancellationToken ct) =>
-            await svc.UpdateAsync(id, input, ct) is { } z ? Results.Ok(z) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.UpdateAsync(id, input, ct) is { } z ? Results.Ok(z) : Results.NotFound()).RequirePermission(Permissions.SettingsManage);
         zones.MapDelete("/{id:guid}", async (Guid id, IShippingZoneService svc, CancellationToken ct) =>
-            await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound()).RequirePermission(Permissions.SettingsManage);
 
-        var carriers = api.MapGroup("/shipping-carriers").WithTags("Shipping");
+        var carriers = api.MapGroup("/shipping-carriers").WithTags("Shipping").RequirePermission(Permissions.Access);
         carriers.MapGet("/", async (bool? activeOnly, IShippingCarrierService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(activeOnly ?? false, ct)));
         carriers.MapGet("/{id:guid}", async (Guid id, IShippingCarrierService svc, CancellationToken ct) => await svc.GetAsync(id, ct) is { } c ? Results.Ok(c) : Results.NotFound());
         carriers.MapPost("/", async (ShippingCarrierInput input, IShippingCarrierService svc, CancellationToken ct) =>
         {
             var c = await svc.CreateAsync(input, ct);
             return Results.Created($"/api/v1/shipping-carriers/{c.Id}", c);
-        }).RequireAuthorization(ApiPolicies.Write);
+        }).RequirePermission(Permissions.SettingsManage);
         carriers.MapPut("/{id:guid}", async (Guid id, ShippingCarrierInput input, IShippingCarrierService svc, CancellationToken ct) =>
-            await svc.UpdateAsync(id, input, ct) is { } c ? Results.Ok(c) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.UpdateAsync(id, input, ct) is { } c ? Results.Ok(c) : Results.NotFound()).RequirePermission(Permissions.SettingsManage);
         carriers.MapDelete("/{id:guid}", async (Guid id, IShippingCarrierService svc, CancellationToken ct) =>
-            await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound()).RequirePermission(Permissions.SettingsManage);
     }
 }

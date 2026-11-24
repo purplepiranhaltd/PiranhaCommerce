@@ -8,6 +8,7 @@ using PiranhaCommerce.Api;
 using PiranhaCommerce.Core.Audit;
 using PiranhaCommerce.Core.Plugins;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Audit;
 
@@ -53,5 +54,5 @@ internal sealed class AuditApiEndpoints : IApiEndpointContributor
         // The log names staff and shows what they changed: administrators only.
         api.MapGet("/audit", async (int? page, int? pageSize, string? entityType, string? entityId, string? actor, DateOnly? from, DateOnly? to, IAuditService svc, CancellationToken ct) =>
                 Results.Ok(await svc.ListAsync(page, pageSize, entityType, entityId, actor, from, to, ct)))
-            .RequireAuthorization(ApiPolicies.Write).WithTags("Audit");
+            .RequirePermission(Permissions.AuditView).WithTags("Audit");
 }

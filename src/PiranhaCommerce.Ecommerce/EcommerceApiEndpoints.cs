@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using PiranhaCommerce.Api;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -9,56 +10,56 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
-        var listing = api.MapGroup("/products/{productId:guid}/listing").WithTags("Product listings");
+        var listing = api.MapGroup("/products/{productId:guid}/listing").WithTags("Product listings").RequirePermission(Permissions.CatalogView);
 
         listing.MapGet("/", async (Guid productId, IProductListingService svc, CancellationToken ct) =>
             await svc.GetAsync(productId, ct) is { } l ? Results.Ok(l) : Results.NotFound());
 
         listing.MapPut("/", async (Guid productId, ProductListingInput input, IProductListingService svc, CancellationToken ct) =>
                 await svc.SetAsync(productId, input, ct) is { } l ? Results.Ok(l) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CatalogEdit);
 
         // Baskets sit behind the same API authorisation as everything else: there is no storefront identity yet, so a storefront
         // backend calls with its own token and keeps the (unguessable) basket id for the shopper. See docs/roadmap.md.
-        var baskets = api.MapGroup("/baskets").WithTags("Baskets");
+        var baskets = api.MapGroup("/baskets").WithTags("Baskets").RequirePermission(Permissions.OrdersView);
 
         baskets.MapPost("/", async (BasketCreateInput? input, IBasketService svc, CancellationToken ct) =>
             {
                 var created = await svc.CreateAsync(input ?? new BasketCreateInput(), ct);
                 return Results.Created($"/api/v1/baskets/{created.Id}", created);
             })
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.OrdersCreate);
 
         baskets.MapGet("/{id:guid}", async (Guid id, IBasketService svc, CancellationToken ct) =>
             await svc.GetAsync(id, ct) is { } b ? Results.Ok(b) : Results.NotFound());
 
         baskets.MapPut("/{id:guid}/lines/{productId:guid}", async (Guid id, Guid productId, BasketLineInput input, IBasketService svc, CancellationToken ct) =>
                 await svc.SetLineAsync(id, productId, input, ct) is { } b ? Results.Ok(b) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.OrdersCreate);
 
         baskets.MapDelete("/{id:guid}/lines/{productId:guid}", async (Guid id, Guid productId, IBasketService svc, CancellationToken ct) =>
                 await svc.SetLineAsync(id, productId, new BasketLineInput { Quantity = 0 }, ct) is { } b ? Results.Ok(b) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.OrdersCreate);
 
         baskets.MapPost("/{id:guid}/checkout", async (Guid id, CheckoutInput input, IOrderService svc, HttpContext http, CancellationToken ct) =>
                 await svc.CheckoutAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } o ? Results.Ok(o) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.OrdersCreate);
 
         baskets.MapPost("/{id:guid}/promo", async (Guid id, CodeInput input, IBasketService svc, CancellationToken ct) =>
                 await svc.SetPromotionAsync(id, input.Code, ct) is { } b ? Results.Ok(b) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.OrdersCreate);
 
         baskets.MapDelete("/{id:guid}/promo", async (Guid id, IBasketService svc, CancellationToken ct) =>
                 await svc.SetPromotionAsync(id, null, ct) is { } b ? Results.Ok(b) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.OrdersCreate);
 
         baskets.MapPost("/{id:guid}/voucher", async (Guid id, CodeInput input, IBasketService svc, CancellationToken ct) =>
                 await svc.SetVoucherAsync(id, input.Code, ct) is { } b ? Results.Ok(b) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.OrdersCreate);
 
         baskets.MapDelete("/{id:guid}/voucher", async (Guid id, IBasketService svc, CancellationToken ct) =>
                 await svc.SetVoucherAsync(id, null, ct) is { } b ? Results.Ok(b) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.OrdersCreate);
 
         baskets.MapGet("/{id:guid}/shipping-options", async (Guid id, string countryCode, string? postalCode, IBasketService svc, CancellationToken ct) =>
             await svc.ShippingOptionsAsync(id, countryCode, postalCode, ct) is { } o ? Results.Ok(o) : Results.NotFound());
@@ -66,7 +67,7 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
         baskets.MapPost("/{id:guid}/quote", async (Guid id, QuoteInput input, IBasketService svc, CancellationToken ct) =>
             await svc.QuoteAsync(id, input, ct) is { } q ? Results.Ok(q) : Results.NotFound());
 
-        var shipping = api.MapGroup("/shipping-methods").WithTags("Shipping");
+        var shipping = api.MapGroup("/shipping-methods").WithTags("Shipping").RequirePermission(Permissions.Access);
 
         shipping.MapGet("/", async (bool? activeOnly, IShippingService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListAsync(activeOnly ?? false, ct)));
@@ -76,24 +77,24 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
                 var m = await svc.CreateAsync(input, ct);
                 return Results.Created($"/api/v1/shipping-methods/{m.Id}", m);
             })
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.SettingsManage);
 
         shipping.MapGet("/{id:guid}/rates", async (Guid id, IShippingService svc, CancellationToken ct) =>
             await svc.GetRatesAsync(id, ct) is { } r ? Results.Ok(r) : Results.NotFound());
 
         shipping.MapPut("/{id:guid}/rates", async (Guid id, ShippingRatesInput input, IShippingService svc, CancellationToken ct) =>
                 await svc.SetRatesAsync(id, input, ct) is { } r ? Results.Ok(r) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.SettingsManage);
 
         shipping.MapPut("/{id:guid}", async (Guid id, ShippingMethodInput input, IShippingService svc, CancellationToken ct) =>
                 await svc.UpdateAsync(id, input, ct) is { } m ? Results.Ok(m) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.SettingsManage);
 
         shipping.MapDelete("/{id:guid}", async (Guid id, IShippingService svc, CancellationToken ct) =>
                 await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.SettingsManage);
 
-        var vouchers = api.MapGroup("/vouchers").WithTags("Gift vouchers");
+        var vouchers = api.MapGroup("/vouchers").WithTags("Gift vouchers").RequirePermission(Permissions.OrdersView);
 
         vouchers.MapGet("/", async (int? page, int? pageSize, string? search, IVoucherService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListAsync(page, pageSize, search, ct)));
@@ -109,17 +110,17 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
                 var issued = await svc.IssueAsync(input, http.User.FindFirst("email")?.Value, ct);
                 return Results.Created($"/api/v1/vouchers/{issued.Voucher.Id}", issued);
             })
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.VouchersManage);
 
         vouchers.MapPut("/{id:guid}", async (Guid id, VoucherUpdateInput input, IVoucherService svc, CancellationToken ct) =>
                 await svc.UpdateAsync(id, input, ct) is { } v ? Results.Ok(v) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.VouchersManage);
 
         vouchers.MapPost("/{id:guid}/adjustments", async (Guid id, VoucherAdjustInput input, IVoucherService svc, HttpContext http, CancellationToken ct) =>
                 await svc.AdjustAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } v ? Results.Ok(v) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.VouchersManage);
 
-        var promotions = api.MapGroup("/promotions").WithTags("Promotions");
+        var promotions = api.MapGroup("/promotions").WithTags("Promotions").RequirePermission(Permissions.CatalogView);
 
         promotions.MapGet("/", async (IPromotionService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(ct)));
 
@@ -131,17 +132,17 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
                 var p = await svc.CreateAsync(input, ct);
                 return Results.Created($"/api/v1/promotions/{p.Id}", p);
             })
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.PricesManage);
 
         promotions.MapPut("/{id:guid}", async (Guid id, PromotionInput input, IPromotionService svc, CancellationToken ct) =>
                 await svc.UpdateAsync(id, input, ct) is { } p ? Results.Ok(p) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.PricesManage);
 
         promotions.MapDelete("/{id:guid}", async (Guid id, IPromotionService svc, CancellationToken ct) =>
                 await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.PricesManage);
 
-        var classes = api.MapGroup("/tax-classes").WithTags("Tax");
+        var classes = api.MapGroup("/tax-classes").WithTags("Tax").RequirePermission(Permissions.Access);
 
         classes.MapGet("/", async (ITaxService svc, CancellationToken ct) => Results.Ok(await svc.ListClassesAsync(ct)));
 
@@ -150,17 +151,17 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
                 var c = await svc.CreateClassAsync(input, ct);
                 return Results.Created($"/api/v1/tax-classes/{c.Id}", c);
             })
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.SettingsManage);
 
         classes.MapPut("/{id:guid}", async (Guid id, TaxClassInput input, ITaxService svc, CancellationToken ct) =>
                 await svc.UpdateClassAsync(id, input, ct) is { } c ? Results.Ok(c) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.SettingsManage);
 
         classes.MapDelete("/{id:guid}", async (Guid id, ITaxService svc, CancellationToken ct) =>
                 await svc.DeleteClassAsync(id, ct) ? Results.NoContent() : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.SettingsManage);
 
-        var tax = api.MapGroup("/tax-rules").WithTags("Tax");
+        var tax = api.MapGroup("/tax-rules").WithTags("Tax").RequirePermission(Permissions.Access);
 
         tax.MapGet("/", async (ITaxService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(ct)));
 
@@ -169,17 +170,17 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
                 var r = await svc.CreateAsync(input, ct);
                 return Results.Created($"/api/v1/tax-rules/{r.Id}", r);
             })
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.SettingsManage);
 
         tax.MapPut("/{id:guid}", async (Guid id, TaxRuleInput input, ITaxService svc, CancellationToken ct) =>
                 await svc.UpdateAsync(id, input, ct) is { } r ? Results.Ok(r) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.SettingsManage);
 
         tax.MapDelete("/{id:guid}", async (Guid id, ITaxService svc, CancellationToken ct) =>
                 await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.SettingsManage);
 
-        var orders = api.MapGroup("/orders").WithTags("Orders");
+        var orders = api.MapGroup("/orders").WithTags("Orders").RequirePermission(Permissions.OrdersView);
 
         orders.MapGet("/", async (int? page, int? pageSize, OrderStage? stage, string? search, IOrderService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListAsync(page, pageSize, stage, search, ct)));
@@ -196,15 +197,15 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
         orders.MapPost("/{id:guid}/payments", async (Guid id, PaymentInput input, IPaymentService svc, HttpContext http, CancellationToken ct) =>
                 await svc.RecordPaymentAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } p
                     ? Results.Created($"/api/v1/orders/{id}/payments/{p.Id}", p) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.OrdersFulfil);
 
-        var disputes = api.MapGroup("/disputes").WithTags("Payments");
+        var disputes = api.MapGroup("/disputes").WithTags("Payments").RequirePermission(Permissions.OrdersView);
         disputes.MapGet("/", async (DisputeStatus? status, int? page, int? pageSize, IDisputeService svc, CancellationToken ct) =>
-            Results.Ok(await svc.ListAsync(status, page, pageSize, ct))).RequireAuthorization(ApiPolicies.Read);
+            Results.Ok(await svc.ListAsync(status, page, pageSize, ct)));
         disputes.MapPost("/{id:guid}/evidence", async (Guid id, DisputeEvidenceInput input, IDisputeService svc, CancellationToken ct) =>
-            await svc.SubmitEvidenceAsync(id, input, ct) is { } d ? Results.Ok(d) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.SubmitEvidenceAsync(id, input, ct) is { } d ? Results.Ok(d) : Results.NotFound()).RequirePermission(Permissions.OrdersRefund);
         disputes.MapGet("/{id:guid}/files", async (Guid id, IDisputeService svc, CancellationToken ct) =>
-            await svc.ListFilesAsync(id, ct) is { } list ? Results.Ok(list) : Results.NotFound()).RequireAuthorization(ApiPolicies.Read);
+            await svc.ListFilesAsync(id, ct) is { } list ? Results.Ok(list) : Results.NotFound());
         // multipart/form-data with a file; kind says what it is evidence of (Receipt, ShippingDocumentation, CustomerCommunication, ...).
         disputes.MapPost("/{id:guid}/files", async (Guid id, DisputeEvidenceKind kind, IFormFile file, IDisputeService svc, HttpContext http, CancellationToken ct) =>
             {
@@ -212,65 +213,65 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
                 var actor = http.User.FindFirst("email")?.Value;
                 return await svc.AddFileAsync(id, kind, stream, file.FileName, actor, ct) is { } f
                     ? Results.Created($"/api/v1/disputes/{id}/files/{f.Id}", f) : Results.NotFound();
-            }).RequireAuthorization(ApiPolicies.Write).DisableAntiforgery();
+            }).RequirePermission(Permissions.OrdersRefund).DisableAntiforgery();
         disputes.MapGet("/{id:guid}/files/{fileId:guid}", async (Guid id, Guid fileId, IDisputeService svc, HttpContext http, CancellationToken ct) =>
             {
                 var download = await svc.OpenFileAsync(id, fileId, ct);
                 if (download is null) return Results.NotFound();
                 http.Response.Headers["X-Content-Type-Options"] = "nosniff";
                 return Results.File(download.Content, download.ContentType, download.FileName);
-            }).RequireAuthorization(ApiPolicies.Read);
+            });
         disputes.MapDelete("/{id:guid}/files/{fileId:guid}", async (Guid id, Guid fileId, IDisputeService svc, CancellationToken ct) =>
-            await svc.DeleteFileAsync(id, fileId, ct) ? Results.NoContent() : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.DeleteFileAsync(id, fileId, ct) ? Results.NoContent() : Results.NotFound()).RequirePermission(Permissions.OrdersRefund);
         orders.MapGet("/{id:guid}/disputes", async (Guid id, IDisputeService svc, CancellationToken ct) =>
-            await svc.ListForOrderAsync(id, ct) is { } list ? Results.Ok(list) : Results.NotFound()).RequireAuthorization(ApiPolicies.Read);
+            await svc.ListForOrderAsync(id, ct) is { } list ? Results.Ok(list) : Results.NotFound());
 
-        var requests = api.MapGroup("/return-requests").WithTags("Return requests");
+        var requests = api.MapGroup("/return-requests").WithTags("Return requests").RequirePermission(Permissions.OrdersView);
         requests.MapGet("/", async (ReturnRequestStatus? status, int? page, int? pageSize, IReturnRequestService svc, CancellationToken ct) =>
-            Results.Ok(await svc.ListAsync(status, page, pageSize, ct))).RequireAuthorization(ApiPolicies.Read);
+            Results.Ok(await svc.ListAsync(status, page, pageSize, ct)));
         requests.MapGet("/{id:guid}", async (Guid id, IReturnRequestService svc, CancellationToken ct) =>
-            await svc.GetAsync(id, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequireAuthorization(ApiPolicies.Read);
+            await svc.GetAsync(id, ct) is { } r ? Results.Ok(r) : Results.NotFound());
         requests.MapPost("/{id:guid}/approve", async (Guid id, ReturnResponseInput input, IReturnRequestService svc, HttpContext http, CancellationToken ct) =>
-            await svc.ApproveAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.ApproveAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequirePermission(Permissions.OrdersFulfil);
         requests.MapPost("/{id:guid}/reject", async (Guid id, ReturnResponseInput input, IReturnRequestService svc, HttpContext http, CancellationToken ct) =>
-            await svc.RejectAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.RejectAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequirePermission(Permissions.OrdersFulfil);
         orders.MapGet("/{id:guid}/return-requests", async (Guid id, IReturnRequestService svc, CancellationToken ct) =>
-            await svc.ListForOrderAsync(id, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequireAuthorization(ApiPolicies.Read);
+            await svc.ListForOrderAsync(id, ct) is { } r ? Results.Ok(r) : Results.NotFound());
 
         orders.MapPost("/{id:guid}/refunds/voucher", async (Guid id, RefundToVoucherInput input, IPaymentService svc, HttpContext http, CancellationToken ct) =>
             {
                 var payment = await svc.RefundToVoucherAsync(id, input, http.User.FindFirst("email")?.Value, ct);
                 return payment is null ? Results.NotFound() : Results.Created($"/api/v1/orders/{id}/payments", payment);
             })
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.OrdersRefund);
 
         orders.MapPost("/{id:guid}/refunds", async (Guid id, PaymentInput input, IPaymentService svc, HttpContext http, CancellationToken ct) =>
                 await svc.RecordRefundAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } p
                     ? Results.Created($"/api/v1/orders/{id}/payments/{p.Id}", p) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.OrdersRefund);
 
         orders.MapPost("/{id:guid}/payments/start", async (Guid id, StartPaymentInput input, IGatewayService svc, CancellationToken ct) =>
                 await svc.StartAsync(id, input.Provider, ct) is { } s ? Results.Ok(s) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.OrdersFulfil);
 
         // Refunds through the provider itself (money goes back to the buyer's card), booked as a normal refund.
         orders.MapPost("/{id:guid}/payments/{paymentId:guid}/refund", async (Guid id, Guid paymentId, RefundStartInput input, IGatewayService svc, HttpContext http, CancellationToken ct) =>
                 await svc.RefundAsync(id, paymentId, input, http.User.FindFirst("email")?.Value, ct) is { } r ? Results.Ok(r) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.OrdersRefund);
 
         orders.MapGet("/{id:guid}/shipments", async (Guid id, IFulfilmentService svc, CancellationToken ct) =>
             await svc.ListShipmentsAsync(id, ct) is { } list ? Results.Ok(list) : Results.NotFound());
 
         orders.MapPost("/{id:guid}/shipments", async (Guid id, ShipmentInput input, IFulfilmentService svc, HttpContext http, CancellationToken ct) =>
                 await svc.ShipAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } s ? Results.Created($"/api/v1/orders/{id}/shipments/{s.Id}", s) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.OrdersFulfil);
 
         orders.MapGet("/{id:guid}/returns", async (Guid id, IFulfilmentService svc, CancellationToken ct) =>
             await svc.ListReturnsAsync(id, ct) is { } list ? Results.Ok(list) : Results.NotFound());
 
         orders.MapPost("/{id:guid}/returns", async (Guid id, ReturnInput input, IFulfilmentService svc, HttpContext http, CancellationToken ct) =>
                 await svc.RecordReturnAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } r ? Results.Created($"/api/v1/orders/{id}/returns/{r.Id}", r) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.OrdersFulfil);
 
         // Public on purpose: a gateway cannot sign in. The gateway plugin verifies the webhook's signature, and nothing is trusted without it.
         api.MapPost("/payments/webhooks/{provider}", async (string provider, HttpContext http, IGatewayService svc, CancellationToken ct) =>
@@ -298,7 +299,7 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
             .AllowAnonymous().WithTags("Payments");
 
         // Money a gateway confirmed that could not be booked against an order: the list a person works through.
-        var unreconciled = api.MapGroup("/unreconciled-payments").WithTags("Payments");
+        var unreconciled = api.MapGroup("/unreconciled-payments").WithTags("Payments").RequirePermission(Permissions.OrdersView);
 
         unreconciled.MapGet("/", async (int? page, int? pageSize, bool? resolved, IUnreconciledPaymentService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListAsync(page, pageSize, resolved ?? false, ct)));
@@ -310,16 +311,16 @@ internal sealed class EcommerceApiEndpoints : IApiEndpointContributor
 
         unreconciled.MapPost("/{id:guid}/resolve", async (Guid id, ResolveUnreconciledInput input, IUnreconciledPaymentService svc, HttpContext http, CancellationToken ct) =>
                 await svc.ResolveAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } u ? Results.Ok(u) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.OrdersRefund);
 
         unreconciled.MapPost("/{id:guid}/retry", async (Guid id, IUnreconciledPaymentService svc, HttpContext http, CancellationToken ct) =>
                 await svc.RetryAsync(id, http.User.FindFirst("email")?.Value, ct) is { } u ? Results.Ok(u) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.OrdersRefund);
 
-        api.MapGet("/payment-providers", (IPaymentService svc) => Results.Ok(svc.Providers())).WithTags("Payments");
+        api.MapGet("/payment-providers", (IPaymentService svc) => Results.Ok(svc.Providers())).WithTags("Payments").RequirePermission(Permissions.OrdersView);
 
         orders.MapPost("/{id:guid}/stage", async (Guid id, OrderStageInput input, IOrderService svc, HttpContext http, CancellationToken ct) =>
                 await svc.ChangeStageAsync(id, input.Stage, http.User.FindFirst("email")?.Value, ct) is { } o ? Results.Ok(o) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.OrdersFulfil);
     }
 }

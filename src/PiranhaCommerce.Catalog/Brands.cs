@@ -8,6 +8,7 @@ using PiranhaCommerce.Core.Audit;
 using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Catalog;
 
@@ -227,7 +228,7 @@ internal sealed class BrandApiEndpoints : IApiEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
-        var brands = api.MapGroup("/brands").WithTags("Brands");
+        var brands = api.MapGroup("/brands").WithTags("Brands").RequirePermission(Permissions.CatalogView);
 
         brands.MapGet("/", async (IBrandService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(ct)));
 
@@ -242,23 +243,23 @@ internal sealed class BrandApiEndpoints : IApiEndpointContributor
                 var created = await svc.CreateAsync(input, ct);
                 return Results.Created($"/api/v1/brands/{created.Id}", created);
             })
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CatalogEdit);
 
         brands.MapPut("/{id:guid}", async (Guid id, BrandInput input, IBrandService svc, CancellationToken ct) =>
                 await svc.UpdateAsync(id, input, ct) is { } b ? Results.Ok(b) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CatalogEdit);
 
         brands.MapDelete("/{id:guid}", async (Guid id, IBrandService svc, CancellationToken ct) =>
                 await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CatalogEdit);
 
-        var productBrand = api.MapGroup("/products/{productId:guid}/brand").WithTags("Product brand");
+        var productBrand = api.MapGroup("/products/{productId:guid}/brand").WithTags("Product brand").RequirePermission(Permissions.CatalogView);
 
         productBrand.MapGet("/", async (Guid productId, IBrandService svc, CancellationToken ct) =>
             await svc.GetProductBrandAsync(productId, ct) is { } r ? Results.Ok(r) : Results.NotFound());
 
         productBrand.MapPut("/", async (Guid productId, ProductBrandInput input, IBrandService svc, CancellationToken ct) =>
                 await svc.SetProductBrandAsync(productId, input.BrandId, ct) is { } r ? Results.Ok(r) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CatalogEdit);
     }
 }

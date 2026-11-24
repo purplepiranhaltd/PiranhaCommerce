@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using PiranhaCommerce.Api;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Catalog;
 
@@ -9,7 +10,7 @@ internal sealed class StockApiEndpoints : IApiEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
-        var group = api.MapGroup("/products/{productId:guid}/stock").WithTags("Stock");
+        var group = api.MapGroup("/products/{productId:guid}/stock").WithTags("Stock").RequirePermission(Permissions.CatalogView);
 
         group.MapGet("/", async (Guid productId, IStockService svc, CancellationToken ct) =>
             await svc.GetLevelAsync(productId, ct) is { } l ? Results.Ok(l) : Results.NotFound());
@@ -25,18 +26,18 @@ internal sealed class StockApiEndpoints : IApiEndpointContributor
                     throw new PiranhaCommerce.Core.Validation.PiranhaCommerceForbiddenException("You are not assigned to that location, so you cannot adjust its stock.");
                 return await svc.AdjustAsync(productId, input, actor.Name, ct) is { } r ? Results.Ok(r) : Results.NotFound();
             })
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.StockAdjust);
 
         // Products below zero at any location: the "recount needed" report.
         api.MapGet("/stock/negative", async (IStockService svc, CancellationToken ct) => Results.Ok(await svc.ListNegativeAsync(ct)))
-            .WithTags("Stock");
+            .WithTags("Stock").RequirePermission(Permissions.CatalogView);
 
         // Products with a threshold or less on hand (default 5): the "reorder" report.
         api.MapGet("/stock/low", async (decimal? threshold, IStockService svc, CancellationToken ct) => Results.Ok(await svc.ListLowAsync(threshold ?? 5m, ct)))
-            .WithTags("Stock");
+            .WithTags("Stock").RequirePermission(Permissions.CatalogView);
 
         // Locations are deactivated rather than deleted: the ledger refers to them.
-        var locations = api.MapGroup("/stock-locations").WithTags("Stock locations");
+        var locations = api.MapGroup("/stock-locations").WithTags("Stock locations").RequirePermission(Permissions.CatalogView);
 
         locations.MapGet("/", async (IStockLocationService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(ct)));
 
@@ -48,10 +49,10 @@ internal sealed class StockApiEndpoints : IApiEndpointContributor
                 var created = await svc.CreateAsync(input, ct);
                 return Results.Created($"/api/v1/stock-locations/{created.Id}", created);
             })
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.StockAdjust);
 
         locations.MapPut("/{id:guid}", async (Guid id, StockLocationInput input, IStockLocationService svc, CancellationToken ct) =>
                 await svc.UpdateAsync(id, input, ct) is { } l ? Results.Ok(l) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.StockAdjust);
     }
 }

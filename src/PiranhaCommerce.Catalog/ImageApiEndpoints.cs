@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using PiranhaCommerce.Api;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Catalog;
 
@@ -10,7 +11,7 @@ internal sealed class ImageApiEndpoints : IApiEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
-        var g = api.MapGroup("/products/{productId:guid}/images").WithTags("Product images");
+        var g = api.MapGroup("/products/{productId:guid}/images").WithTags("Product images").RequirePermission(Permissions.CatalogView);
 
         // A variant with no pictures of its own returns its parent's, marked inherited.
         g.MapGet("/", async (Guid productId, IProductImageService svc, CancellationToken ct) =>
@@ -23,19 +24,19 @@ internal sealed class ImageApiEndpoints : IApiEndpointContributor
                 return await svc.AddAsync(productId, stream, file.FileName, altText, ct) is { } r
                     ? Results.Created($"/api/v1/products/{productId}/images", r) : Results.NotFound();
             })
-            .DisableAntiforgery().RequireAuthorization(ApiPolicies.Write);
+            .DisableAntiforgery().RequirePermission(Permissions.CatalogEdit);
 
         g.MapPut("/order", async (Guid productId, ProductImageOrderInput input, IProductImageService svc, CancellationToken ct) =>
                 await svc.ReorderAsync(productId, input.ImageIds, ct) is { } r ? Results.Ok(r) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CatalogEdit);
 
         g.MapPut("/{imageId:guid}", async (Guid productId, Guid imageId, ProductImageInput input, IProductImageService svc, CancellationToken ct) =>
                 await svc.UpdateAsync(productId, imageId, input, ct) is { } r ? Results.Ok(r) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CatalogEdit);
 
         g.MapDelete("/{imageId:guid}", async (Guid productId, Guid imageId, IProductImageService svc, CancellationToken ct) =>
                 await svc.DeleteAsync(productId, imageId, ct) ? Results.NoContent() : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CatalogEdit);
     }
 }
 

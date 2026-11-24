@@ -10,6 +10,7 @@ using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Customers;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -184,11 +185,11 @@ internal sealed class ProductRelationEndpoints : IApiEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
-        var g = api.MapGroup("/products/{productId:guid}/relations").WithTags("Related products");
+        var g = api.MapGroup("/products/{productId:guid}/relations").WithTags("Related products").RequirePermission(Permissions.CatalogView);
         g.MapGet("/", async (Guid productId, IProductRelationService svc, CancellationToken ct) =>
             await svc.GetAsync(productId, ct) is { } r ? Results.Ok(r) : Results.NotFound());
         g.MapPut("/", async (Guid productId, ProductRelationsInput input, IProductRelationService svc, CancellationToken ct) =>
-            await svc.SetAsync(productId, input, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.SetAsync(productId, input, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequirePermission(Permissions.CatalogEdit);
     }
 }
 

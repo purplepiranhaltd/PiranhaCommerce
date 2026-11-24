@@ -16,6 +16,7 @@ using PiranhaCommerce.Core.Paging;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Customers;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -424,17 +425,17 @@ internal sealed class ReviewEndpoints : IApiEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
-        var g = api.MapGroup("/reviews").WithTags("Reviews");
+        var g = api.MapGroup("/reviews").WithTags("Reviews").RequirePermission(Permissions.CustomersView);
         g.MapGet("/", async (ReviewStatus? status, Guid? productId, int? page, int? pageSize, IReviewService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListAsync(status, productId, page, pageSize, ct)));
         g.MapPut("/{id:guid}/status", async (Guid id, ReviewStatusInput input, ClaimsPrincipal user, IReviewService svc, CancellationToken ct) =>
-            await svc.SetStatusAsync(id, input.Status, user.Identity?.Name, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.SetStatusAsync(id, input.Status, user.Identity?.Name, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequirePermission(Permissions.ReviewsModerate);
         g.MapPut("/{id:guid}/reply", async (Guid id, ReviewReplyInput input, ClaimsPrincipal user, IReviewService svc, CancellationToken ct) =>
-            await svc.SetReplyAsync(id, input.Body, user.Identity?.Name, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.SetReplyAsync(id, input.Body, user.Identity?.Name, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequirePermission(Permissions.ReviewsModerate);
         g.MapDelete("/{id:guid}/reply", async (Guid id, IReviewService svc, CancellationToken ct) =>
-            await svc.DeleteReplyAsync(id, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.DeleteReplyAsync(id, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequirePermission(Permissions.ReviewsModerate);
         g.MapDelete("/{id:guid}", async (Guid id, IReviewService svc, CancellationToken ct) =>
-            await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound()).RequirePermission(Permissions.ReviewsModerate);
     }
 }
 

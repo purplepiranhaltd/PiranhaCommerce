@@ -12,6 +12,7 @@ using PiranhaCommerce.Core.Admin;
 using PiranhaCommerce.Core.Plugins;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Example.Warranty;
 
@@ -75,13 +76,25 @@ internal sealed class WarrantyEndpoints : IApiEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
-        var g = api.MapGroup("/products/{productId:guid}/warranty").WithTags("Warranty");
+        var g = api.MapGroup("/products/{productId:guid}/warranty").WithTags("Warranty").RequirePermission(Permissions.CatalogView);
         g.MapGet("/", async (Guid productId, IWarrantyService svc, CancellationToken ct) =>
             await svc.GetAsync(productId, ct) is { } w ? Results.Ok(w) : Results.NotFound());
         g.MapPut("/", async (Guid productId, WarrantyInput input, IWarrantyService svc, CancellationToken ct) =>
                 await svc.SetAsync(productId, input, ct) is { } w ? Results.Ok(w) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(WarrantyPermissions.Edit);
     }
+}
+
+/// <summary>A plugin adds its own permission like this; administrators hold it automatically, and the role editor lists it.</summary>
+internal static class WarrantyPermissions
+{
+    public const string Edit = "warranty.edit";
+}
+
+internal sealed class WarrantyPermissionContributor : IPermissionContributor
+{
+    public IEnumerable<Permission> GetPermissions() =>
+        [new(WarrantyPermissions.Edit, "Edit warranty terms", "Catalogue", "Set the warranty offered on a product.", [Permissions.CatalogView])];
 }
 
 internal sealed class WarrantySlots : IAdminSlotContributor
@@ -100,6 +113,7 @@ public sealed class WarrantyPlugin : IPiranhaCommercePlugin
     {
         services.AddSingleton<IModelContributor, WarrantyModel>();
         services.AddSingleton<IApiEndpointContributor, WarrantyEndpoints>();
+        services.AddSingleton<IPermissionContributor, WarrantyPermissionContributor>();
         services.AddSingleton<IAdminSlotContributor, WarrantySlots>();
         services.AddScoped<IWarrantyService, WarrantyService>();
     }

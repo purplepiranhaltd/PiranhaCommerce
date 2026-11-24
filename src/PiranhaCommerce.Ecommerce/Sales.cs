@@ -9,6 +9,7 @@ using PiranhaCommerce.Catalog;
 using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -275,26 +276,26 @@ internal sealed class SaleEndpoints : IApiEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
-        var sales = api.MapGroup("/sales").WithTags("Sales");
+        var sales = api.MapGroup("/sales").WithTags("Sales").RequirePermission(Permissions.CatalogView);
         sales.MapGet("/", async (SaleStatus? status, ISaleService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(status, ct)));
         sales.MapGet("/{id:guid}", async (Guid id, ISaleService svc, CancellationToken ct) => await svc.GetAsync(id, ct) is { } s ? Results.Ok(s) : Results.NotFound());
         sales.MapPost("/", async (SaleInput input, ISaleService svc, CancellationToken ct) =>
         {
             var created = await svc.CreateAsync(input, ct);
             return Results.Created($"/api/v1/sales/{created.Id}", created);
-        }).RequireAuthorization(ApiPolicies.Write);
+        }).RequirePermission(Permissions.PricesManage);
         sales.MapPut("/{id:guid}", async (Guid id, SaleInput input, ISaleService svc, CancellationToken ct) =>
-            await svc.UpdateAsync(id, input, ct) is { } s ? Results.Ok(s) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.UpdateAsync(id, input, ct) is { } s ? Results.Ok(s) : Results.NotFound()).RequirePermission(Permissions.PricesManage);
         sales.MapDelete("/{id:guid}", async (Guid id, ISaleService svc, CancellationToken ct) =>
-            await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound()).RequirePermission(Permissions.PricesManage);
         sales.MapPut("/{id:guid}/products/{productId:guid}", async (Guid id, Guid productId, SaleProductInput input, ISaleService svc, CancellationToken ct) =>
-            await svc.SetProductAsync(id, productId, input, ct) is { } s ? Results.Ok(s) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.SetProductAsync(id, productId, input, ct) is { } s ? Results.Ok(s) : Results.NotFound()).RequirePermission(Permissions.PricesManage);
         sales.MapDelete("/{id:guid}/products/{productId:guid}", async (Guid id, Guid productId, ISaleService svc, CancellationToken ct) =>
-            await svc.RemoveProductAsync(id, productId, ct) is { } s ? Results.Ok(s) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.RemoveProductAsync(id, productId, ct) is { } s ? Results.Ok(s) : Results.NotFound()).RequirePermission(Permissions.PricesManage);
         sales.MapPut("/{id:guid}/categories/{categoryId:guid}", async (Guid id, Guid categoryId, ISaleService svc, CancellationToken ct) =>
-            await svc.AddCategoryAsync(id, categoryId, ct) is { } s ? Results.Ok(s) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.AddCategoryAsync(id, categoryId, ct) is { } s ? Results.Ok(s) : Results.NotFound()).RequirePermission(Permissions.PricesManage);
         sales.MapDelete("/{id:guid}/categories/{categoryId:guid}", async (Guid id, Guid categoryId, ISaleService svc, CancellationToken ct) =>
-            await svc.RemoveCategoryAsync(id, categoryId, ct) is { } s ? Results.Ok(s) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.RemoveCategoryAsync(id, categoryId, ct) is { } s ? Results.Ok(s) : Results.NotFound()).RequirePermission(Permissions.PricesManage);
     }
 }
 

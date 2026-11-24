@@ -12,6 +12,7 @@ using PiranhaCommerce.Core.Files;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Customers;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -186,11 +187,11 @@ internal sealed class ReviewPhotoEndpoints : IApiEndpointContributor
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
         // Staff see any photo, so they can look before approving; they can take one off without rejecting the whole review.
-        var g = api.MapGroup("/reviews/{reviewId:guid}/photos").WithTags("Reviews");
+        var g = api.MapGroup("/reviews/{reviewId:guid}/photos").WithTags("Reviews").RequirePermission(Permissions.CustomersView);
         g.MapGet("/{photoId:guid}", async (Guid reviewId, Guid photoId, int? width, HttpContext http, IReviewPhotoService svc, CancellationToken ct) =>
             await Send(await svc.OpenAnyAsync(photoId, width, ct), http, "private, no-store"));
         g.MapDelete("/{photoId:guid}", async (Guid reviewId, Guid photoId, IReviewPhotoService svc, CancellationToken ct) =>
-            await svc.DeleteAsync(reviewId, photoId, ct) ? Results.NoContent() : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.DeleteAsync(reviewId, photoId, ct) ? Results.NoContent() : Results.NotFound()).RequirePermission(Permissions.ReviewsModerate);
     }
 
     internal static async Task<IResult> Send(ImageFile? file, HttpContext http, string cacheControl)

@@ -95,6 +95,7 @@ public static class PiranhaCommerceApiExtensions
             .AllowAnonymous().WithTags("Auth");
 
         var api = root.MapGroup("").RequireAuthorization(ApiPolicies.Read).AddEndpointFilter<AuditActorFilter>().AddEndpointFilter<PiranhaCommerceExceptionFilter>();
+        ((IEndpointConventionBuilder)api).Finally(PermissionEndpointExtensions.RequireAdministratorUnlessPermissionNamed); // an endpoint that names no permission is for administrators only
         foreach (var c in app.ServiceProvider.GetServices<IApiEndpointContributor>())
             c.MapEndpoints(api);
 

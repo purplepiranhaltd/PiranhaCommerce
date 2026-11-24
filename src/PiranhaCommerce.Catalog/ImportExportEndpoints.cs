@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using PiranhaCommerce.Api;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Catalog;
 
@@ -9,7 +10,7 @@ internal sealed class ImportExportEndpoints : IApiEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
-        var g = api.MapGroup("/products").WithTags("Catalogue import and export");
+        var g = api.MapGroup("/products").WithTags("Catalogue import and export").RequirePermission(Permissions.CatalogView);
 
         // The whole catalogue as a CSV file (or the products matching search). Variants follow their parent.
         g.MapGet("/export", (string? search, ICatalogTransferService svc) =>
@@ -23,6 +24,6 @@ internal sealed class ImportExportEndpoints : IApiEndpointContributor
                 await using var stream = file.OpenReadStream();
                 return Results.Ok(await svc.ImportProductsAsync(stream, new ProductImportRequest(dryRun ?? false, skipInvalid ?? false, actor.Name, canAdjust), ct));
             })
-            .DisableAntiforgery().RequireAuthorization(ApiPolicies.Write);
+            .DisableAntiforgery().RequirePermission(Permissions.CatalogEdit);
     }
 }

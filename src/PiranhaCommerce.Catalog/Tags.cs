@@ -8,6 +8,7 @@ using PiranhaCommerce.Core.Audit;
 using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Catalog;
 
@@ -234,7 +235,7 @@ internal sealed class TagApiEndpoints : IApiEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
-        var tags = api.MapGroup("/tags").WithTags("Tags");
+        var tags = api.MapGroup("/tags").WithTags("Tags").RequirePermission(Permissions.CatalogView);
 
         tags.MapGet("/", async (ITagService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(ct)));
 
@@ -249,23 +250,23 @@ internal sealed class TagApiEndpoints : IApiEndpointContributor
                 var created = await svc.CreateAsync(input, ct);
                 return Results.Created($"/api/v1/tags/{created.Id}", created);
             })
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CatalogEdit);
 
         tags.MapPut("/{id:guid}", async (Guid id, TagInput input, ITagService svc, CancellationToken ct) =>
                 await svc.UpdateAsync(id, input, ct) is { } t ? Results.Ok(t) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CatalogEdit);
 
         tags.MapDelete("/{id:guid}", async (Guid id, ITagService svc, CancellationToken ct) =>
                 await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CatalogEdit);
 
-        var product = api.MapGroup("/products/{productId:guid}/tags").WithTags("Product tags");
+        var product = api.MapGroup("/products/{productId:guid}/tags").WithTags("Product tags").RequirePermission(Permissions.CatalogView);
 
         product.MapGet("/", async (Guid productId, ITagService svc, CancellationToken ct) =>
             await svc.GetProductAsync(productId, ct) is { } r ? Results.Ok(r) : Results.NotFound());
 
         product.MapPut("/", async (Guid productId, ProductTagsInput input, ITagService svc, CancellationToken ct) =>
                 await svc.SetProductAsync(productId, input.Tags, ct) is { } r ? Results.Ok(r) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CatalogEdit);
     }
 }

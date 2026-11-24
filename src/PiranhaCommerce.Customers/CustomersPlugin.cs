@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using PiranhaCommerce.Api;
 using PiranhaCommerce.Core.Plugins;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Customers;
 
@@ -139,7 +140,7 @@ internal sealed class CustomerApiEndpoints : IApiEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
-        var customers = api.MapGroup("/customers").WithTags("Customers");
+        var customers = api.MapGroup("/customers").WithTags("Customers").RequirePermission(Permissions.CustomersView);
 
         customers.MapGet("/", async (int? page, int? pageSize, string? search, ICustomerService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListAsync(page, pageSize, search, ct)));
@@ -152,15 +153,15 @@ internal sealed class CustomerApiEndpoints : IApiEndpointContributor
                 var created = await svc.CreateAsync(input, ct);
                 return Results.Created($"/api/v1/customers/{created.Id}", created);
             })
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CustomersManage);
 
         customers.MapPut("/{id:guid}", async (Guid id, CustomerInput input, HttpContext http, ICustomerService svc, CancellationToken ct) =>
                 await svc.UpdateAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } c ? Results.Ok(c) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CustomersManage);
 
         customers.MapDelete("/{id:guid}", async (Guid id, ICustomerService svc, CancellationToken ct) =>
                 await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CustomersManage);
 
         // Their sign-in, for staff: see it, unlock it, end its sessions, send a reset link (or first invitation), remove it. Disabling is the Active flag.
         customers.MapGet("/{id:guid}/sign-in", async (Guid id, ICustomerSignInAdminService svc, CancellationToken ct) =>
@@ -171,23 +172,23 @@ internal sealed class CustomerApiEndpoints : IApiEndpointContributor
 
         customers.MapPost("/{id:guid}/sign-in/unlock", async (Guid id, HttpContext http, ICustomerSignInAdminService svc, CancellationToken ct) =>
                 await svc.UnlockAsync(id, http.User.FindFirst("email")?.Value, ct) ? Results.NoContent() : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CustomersManage);
 
         customers.MapPost("/{id:guid}/sign-in/sign-out", async (Guid id, HttpContext http, ICustomerSignInAdminService svc, CancellationToken ct) =>
                 await svc.SignOutEverywhereAsync(id, http.User.FindFirst("email")?.Value, ct) ? Results.NoContent() : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CustomersManage);
 
         customers.MapPost("/{id:guid}/sign-in/reset-link", async (Guid id, HttpContext http, ICustomerSignInAdminService svc, CancellationToken ct) =>
                 await svc.SendResetLinkAsync(id, http.User.FindFirst("email")?.Value, ct) is { } outcome ? Results.Ok(new ResetLinkResultDto(outcome == ResetLinkOutcome.Sent, outcome)) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CustomersManage);
 
         customers.MapPost("/{id:guid}/sign-in/verify-email", async (Guid id, HttpContext http, ICustomerSignInAdminService svc, CancellationToken ct) =>
                 await svc.MarkEmailVerifiedAsync(id, http.User.FindFirst("email")?.Value, ct) ? Results.NoContent() : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CustomersManage);
 
         customers.MapDelete("/{id:guid}/sign-in", async (Guid id, HttpContext http, ICustomerSignInAdminService svc, CancellationToken ct) =>
                 await svc.RemoveAsync(id, http.User.FindFirst("email")?.Value, ct) ? Results.NoContent() : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CustomersManage);
 
         // Privacy: everything held about a customer, and erasing them. Orders are anonymised, never deleted (the shop keeps its accounts).
         customers.MapGet("/{id:guid}/export", async (Guid id, ICustomerErasureService svc, CancellationToken ct) =>
@@ -195,9 +196,9 @@ internal sealed class CustomerApiEndpoints : IApiEndpointContributor
 
         customers.MapPost("/{id:guid}/erase", async (Guid id, EraseCustomerInput input, ICustomerErasureService svc, HttpContext http, CancellationToken ct) =>
                 await svc.EraseAsync(id, input, http.User.FindFirst("email")?.Value, ct) is { } result ? Results.Ok(result) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CustomersManage);
 
-        var addresses = api.MapGroup("/customers/{customerId:guid}/addresses").WithTags("Customer addresses");
+        var addresses = api.MapGroup("/customers/{customerId:guid}/addresses").WithTags("Customer addresses").RequirePermission(Permissions.CustomersView);
 
         addresses.MapGet("/", async (Guid customerId, ICustomerService svc, CancellationToken ct) =>
             await svc.ListAddressesAsync(customerId, ct) is { } list ? Results.Ok(list) : Results.NotFound());
@@ -206,14 +207,14 @@ internal sealed class CustomerApiEndpoints : IApiEndpointContributor
                 await svc.AddAddressAsync(customerId, input, ct) is { } a
                     ? Results.Created($"/api/v1/customers/{customerId}/addresses/{a.Id}", a)
                     : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CustomersManage);
 
         addresses.MapPut("/{addressId:guid}", async (Guid customerId, Guid addressId, AddressInput input, ICustomerService svc, CancellationToken ct) =>
                 await svc.UpdateAddressAsync(customerId, addressId, input, ct) is { } a ? Results.Ok(a) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CustomersManage);
 
         addresses.MapDelete("/{addressId:guid}", async (Guid customerId, Guid addressId, ICustomerService svc, CancellationToken ct) =>
                 await svc.DeleteAddressAsync(customerId, addressId, ct) ? Results.NoContent() : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.CustomersManage);
     }
 }

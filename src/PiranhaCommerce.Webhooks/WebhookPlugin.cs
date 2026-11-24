@@ -7,6 +7,7 @@ using PiranhaCommerce.Api;
 using PiranhaCommerce.Core.Events;
 using PiranhaCommerce.Core.Plugins;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Webhooks;
 
@@ -73,7 +74,7 @@ internal sealed class WebhookApiEndpoints : IApiEndpointContributor
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
         // Addresses, delivery logs and signing keys: administrators only, for reading as well.
-        var g = api.MapGroup("/webhooks").WithTags("Webhooks").RequireAuthorization(ApiPolicies.Write);
+        var g = api.MapGroup("/webhooks").WithTags("Webhooks").RequirePermission(Permissions.WebhooksManage);
         g.MapGet("/event-types", (IWebhookService svc) => Results.Ok(svc.EventTypes()));
         g.MapGet("/", async (IWebhookService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(ct)));
         g.MapGet("/{id:guid}", async (Guid id, IWebhookService svc, CancellationToken ct) => await svc.GetAsync(id, ct) is { } e ? Results.Ok(e) : Results.NotFound());
@@ -92,6 +93,6 @@ internal sealed class WebhookApiEndpoints : IApiEndpointContributor
         g.MapGet("/{id:guid}/deliveries", async (Guid id, WebhookDeliveryStatus? status, int? page, int? pageSize, IWebhookService svc, CancellationToken ct) =>
             await svc.ListDeliveriesAsync(id, status, page, pageSize, ct) is { } list ? Results.Ok(list) : Results.NotFound());
         api.MapPost("/webhook-deliveries/{id:guid}/redeliver", async (Guid id, IWebhookService svc, CancellationToken ct) =>
-            await svc.RedeliverAsync(id, ct) is { } d ? Results.Ok(d) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write).WithTags("Webhooks");
+            await svc.RedeliverAsync(id, ct) is { } d ? Results.Ok(d) : Results.NotFound()).RequirePermission(Permissions.WebhooksManage).WithTags("Webhooks");
     }
 }

@@ -126,15 +126,54 @@ public class PiranhaCommerceFactory: WebApplicationFactory<Program>, IAsyncLifet
         return (user.Id, email, password);
     }
 
-    /// <summary>Creates a user with no roles (can authenticate, but is not an administrator).</summary>
-    public async Task<(string Email, string Password)> CreateReadOnlyUserAsync()
+    /// <summary>The user the "read-only" tests sign in as: every view permission and nothing that changes anything.</summary>
+    public static readonly string[] ViewPermissions =
+    [
+        Permissions.CatalogView, Permissions.OrdersView, Permissions.CustomersView, Permissions.ReportsView,
+    ];
+
+    /// <summary>Creates a read-only user: a role with every view permission (and no permission that changes anything).</summary>
+    public Task<(string Email, string Password)> CreateReadOnlyUserAsync() => CreateStaffAsync(ViewPermissions);
+
+    /// <summary>Creates a user who can sign in but holds no role at all, so no permission.</summary>
+    public async Task<(string Email, string Password)> CreateUserWithNoRoleAsync()
+    {
+        var (email, password, _) = await CreateStaffCoreAsync(null);
+        return (email, password);
+    }
+
+    /// <summary>Creates a user whose own role holds exactly these permissions.</summary>
+    public async Task<(string Email, string Password)> CreateStaffAsync(params string[] permissions)
+    {
+        var (email, password, _) = await CreateStaffCoreAsync(permissions);
+        return (email, password);
+    }
+
+    /// <summary>As <see cref="CreateStaffAsync"/>, also returning the user's id and the name of the role, so a test can change the role later.</summary>
+    public async Task<(string Email, string Password, Guid UserId, string Role)> CreateStaffWithRoleAsync(params string[] permissions)
+    {
+        var (email, password, ids) = await CreateStaffCoreAsync(permissions);
+        return (email, password, ids!.Value.UserId, ids.Value.Role);
+    }
+
+    private async Task<(string Email, string Password, (Guid UserId, string Role)? Ids)> CreateStaffCoreAsync(string[]? permissions)
     {
         using var scope = Services.CreateScope();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<PiranhaCommerceUser>>();
+        var roles = scope.ServiceProvider.GetRequiredService<RoleManager<PiranhaCommerceRole>>();
         var email = $"viewer-{Guid.NewGuid():N}@piranhacommerce.local";
         const string password = "Viewer-Passw0rd!";
-        var result = await users.CreateAsync(new PiranhaCommerceUser { UserName = email, Email = email, EmailConfirmed = true }, password);
+        var user = new PiranhaCommerceUser { UserName = email, Email = email, EmailConfirmed = true };
+        var result = await users.CreateAsync(user, password);
         Assert.True(result.Succeeded, string.Join(";", result.Errors.Select(e => e.Description)));
-        return (email, password);
+        if (permissions is null) return (email, password, null);
+
+        var roleName = $"Role-{Guid.NewGuid():N}";
+        var role = new PiranhaCommerceRole(roleName);
+        Assert.True((await roles.CreateAsync(role)).Succeeded);
+        foreach (var key in permissions)
+            Assert.True((await roles.AddClaimAsync(role, new System.Security.Claims.Claim(StaffPermissionService.ClaimType, key))).Succeeded);
+        Assert.True((await users.AddToRoleAsync(user, roleName)).Succeeded);
+        return (email, password, (user.Id, roleName));
     }
 }

@@ -10,6 +10,7 @@ using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Customers;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -294,7 +295,7 @@ internal sealed class DiscountRuleEndpoints : IApiEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
-        var g = api.MapGroup("/discounts").WithTags("Discounts");
+        var g = api.MapGroup("/discounts").WithTags("Discounts").RequirePermission(Permissions.CatalogView);
         g.MapGet("/", async (IDiscountRuleService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(ct)));
         g.MapGet("/{id:guid}", async (Guid id, IDiscountRuleService svc, CancellationToken ct) =>
             await svc.GetAsync(id, ct) is { } r ? Results.Ok(r) : Results.NotFound());
@@ -302,10 +303,10 @@ internal sealed class DiscountRuleEndpoints : IApiEndpointContributor
         {
             var created = await svc.CreateAsync(input, ct);
             return Results.Created($"/api/v1/discounts/{created.Id}", created);
-        }).RequireAuthorization(ApiPolicies.Write);
+        }).RequirePermission(Permissions.PricesManage);
         g.MapPut("/{id:guid}", async (Guid id, DiscountRuleInput input, IDiscountRuleService svc, CancellationToken ct) =>
-            await svc.UpdateAsync(id, input, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.UpdateAsync(id, input, ct) is { } r ? Results.Ok(r) : Results.NotFound()).RequirePermission(Permissions.PricesManage);
         g.MapDelete("/{id:guid}", async (Guid id, IDiscountRuleService svc, CancellationToken ct) =>
-            await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound()).RequireAuthorization(ApiPolicies.Write);
+            await svc.DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound()).RequirePermission(Permissions.PricesManage);
     }
 }

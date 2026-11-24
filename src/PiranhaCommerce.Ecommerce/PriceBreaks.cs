@@ -10,6 +10,7 @@ using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Customers;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -173,11 +174,11 @@ internal sealed class PriceBreakEndpoints : IApiEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
-        var g = api.MapGroup("/products/{productId:guid}/price-breaks").WithTags("Quantity breaks");
+        var g = api.MapGroup("/products/{productId:guid}/price-breaks").WithTags("Quantity breaks").RequirePermission(Permissions.CatalogView);
         g.MapGet("/", async (Guid productId, IPriceBreakService svc, CancellationToken ct) =>
             await svc.ListAsync(productId, ct) is { } rows ? Results.Ok(rows) : Results.NotFound());
         g.MapPut("/", async (Guid productId, PriceBreaksInput input, IPriceBreakService svc, CancellationToken ct) =>
                 await svc.SetAsync(productId, input, ct) is { } rows ? Results.Ok(rows) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.PricesManage);
     }
 }

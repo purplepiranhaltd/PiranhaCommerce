@@ -9,6 +9,7 @@ using PiranhaCommerce.Api;
 using PiranhaCommerce.Core.Email;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Email.Smtp;
 
@@ -496,7 +497,7 @@ internal sealed class EmailTemplateApiEndpoints : IApiEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
-        var templates = api.MapGroup("/email-templates").WithTags("Email templates");
+        var templates = api.MapGroup("/email-templates").WithTags("Email templates").RequirePermission(Permissions.Access);
 
         templates.MapGet("/", async (IEmailTemplateService svc, CancellationToken ct) => Results.Ok(await svc.ListAsync(ct)));
 
@@ -505,12 +506,12 @@ internal sealed class EmailTemplateApiEndpoints : IApiEndpointContributor
 
         templates.MapPut("/{key}", async (string key, EmailTemplateInput input, IEmailTemplateService svc, HttpContext http, CancellationToken ct) =>
                 await svc.SaveAsync(key, input, http.User.FindFirst("email")?.Value, ct) is { } t ? Results.Ok(t) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.SettingsManage);
 
         // Reset to the shipped wording.
         templates.MapDelete("/{key}", async (string key, IEmailTemplateService svc, CancellationToken ct) =>
                 await svc.ResetAsync(key, ct) is { } t ? Results.Ok(t) : Results.NotFound())
-            .RequireAuthorization(ApiPolicies.Write);
+            .RequirePermission(Permissions.SettingsManage);
 
         templates.MapPost("/{key}/preview", async (string key, EmailTemplateInput? input, IEmailTemplateService svc, CancellationToken ct) =>
             await svc.PreviewAsync(key, input, ct) is { } p ? Results.Ok(p) : Results.NotFound());

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Routing;
 using PiranhaCommerce.Api;
 using PiranhaCommerce.Core.Files;
 using PiranhaCommerce.Core.Validation;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -16,7 +17,7 @@ internal sealed class ReportEndpoints : IApiEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
-        var g = api.MapGroup("/reports").WithTags("Reports");
+        var g = api.MapGroup("/reports").WithTags("Reports").RequirePermission(Permissions.ReportsView);
 
         g.MapGet("/sales", async (DateOnly? from, DateOnly? to, ReportInterval? interval, string? format, IReportService svc, CancellationToken ct) =>
             Answer(await svc.SalesAsync(from, to, interval ?? ReportInterval.Day, ct), ReportTables.Of, format, "sales"));

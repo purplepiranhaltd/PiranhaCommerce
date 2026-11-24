@@ -10,6 +10,7 @@ using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Customers;
 using PiranhaCommerce.Data;
+using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Ecommerce;
 
@@ -140,7 +141,7 @@ internal sealed class WishlistEndpoints : IApiEndpointContributor
 {
     public void MapEndpoints(IEndpointRouteBuilder api)
     {
-        api.MapGet("/wishlists/demand", async (IWishlistService svc, CancellationToken ct) => Results.Ok(await svc.DemandAsync(ct))).WithTags("Wishlists");
+        api.MapGet("/wishlists/demand", async (IWishlistService svc, CancellationToken ct) => Results.Ok(await svc.DemandAsync(ct))).WithTags("Wishlists").RequirePermission(Permissions.CustomersView);
     }
 }
 
