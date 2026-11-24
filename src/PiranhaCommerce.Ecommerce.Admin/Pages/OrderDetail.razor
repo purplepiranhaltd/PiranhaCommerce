@@ -478,8 +478,8 @@ else
             _order = await Scope.RunAsync<IOrderService, OrderDto?>(s => s.GetAsync(Id)) ?? _order;
             await LoadPaymentsAsync();
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
-        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceConflictException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = "Could not return it: " + ex.Message; }
         finally { _busy = false; }
     }
@@ -497,8 +497,8 @@ else
             _order = await Scope.RunAsync<IOrderService, OrderDto?>(s => s.GetAsync(Id)) ?? _order;
             await LoadPaymentsAsync();
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
-        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceConflictException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = "Could not record that: " + ex.Message; }
         finally { _busy = false; }
     }
@@ -518,8 +518,8 @@ else
             await Scope.RunAsync<IFulfilmentService, ShipmentDto?>(s => s.ShipAsync(Id, input, actor));
             _sendQty.Clear(); _carrier = _trackingNumber = _trackingUrl = null; _carrierId = null;
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
-        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceConflictException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = "Could not record that: " + ex.Message; }
         finally { _busy = false; }
         await ReloadAsync();
@@ -551,8 +551,8 @@ else
             _answerNote = null;
             await LoadPaymentsAsync();
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
-        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceConflictException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = "Could not answer that: " + ex.Message; }
         finally { _busy = false; }
     }
@@ -583,8 +583,8 @@ else
                 _returnQty.Clear(); _noRestock.Clear(); _returnReason = _returnNote = null; _returnShipping = false; _returnRequestId = null;
             }
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
-        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceConflictException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = "Could not record that: " + ex.Message; }
         finally { _busy = false; }
         var suggested = _refundAmount;
@@ -613,8 +613,8 @@ else
                 _refundAmount = 0;
             }
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
-        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceConflictException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = "Could not refund: " + ex.Message; }
         finally { _busy = false; }
         var kept = _refundAmount;
@@ -633,7 +633,7 @@ else
             var updated = await Scope.RunAsync<IOrderService, OrderDto?>(s => s.ChangeStageAsync(Id, to, actor));
             if (updated is null) _notFound = true; else { _order = updated; await LoadPaymentsAsync(); }
         }
-        catch (PiranhaConflictException ex)
+        catch (PiranhaCommerceConflictException ex)
         {
             _error = ex.Message;
             _order = await Scope.RunAsync<IOrderService, OrderDto?>(s => s.GetAsync(Id)) ?? _order; // show what it is now

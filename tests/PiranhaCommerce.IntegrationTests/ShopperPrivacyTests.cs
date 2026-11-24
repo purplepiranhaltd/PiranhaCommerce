@@ -15,7 +15,7 @@ namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>A shopper seeing everything held about them, and erasing their own account (password required).</summary>
 [Collection(OrderSettings.Name)]
-public class ShopperPrivacyTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class ShopperPrivacyTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private const string Password = "a-long-enough-password";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
@@ -94,7 +94,7 @@ public class ShopperPrivacyTests(PiranhaFactory factory) : IClassFixture<Piranha
         Assert.Equal(("erased@erased.invalid", "Erased", order.Total), (after.Email, after.ShippingAddress!.Line1, after.Total));
 
         using var scope = factory.Services.CreateScope();
-        var record = await scope.ServiceProvider.GetRequiredService<PiranhaDbContext>().Set<CustomerErasure>().AsNoTracking().SingleAsync(e => e.CustomerId == s.Id);
+        var record = await scope.ServiceProvider.GetRequiredService<PiranhaCommerceDbContext>().Set<CustomerErasure>().AsNoTracking().SingleAsync(e => e.CustomerId == s.Id);
         Assert.Equal("customer (self-service)", record.Actor);
     }
 

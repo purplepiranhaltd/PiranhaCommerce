@@ -12,7 +12,7 @@ namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Product reviews: written by signed-in shoppers, approved by staff, read by anyone. Reviews are on the parent product, and verified purchases are worked out, not claimed.</summary>
 [Collection(OrderSettings.Name)]
-public class ReviewTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class ReviewTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];

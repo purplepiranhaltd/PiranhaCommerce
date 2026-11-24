@@ -188,7 +188,7 @@ public interface ICustomerAccountService
 }
 
 internal sealed partial class CustomerAccountService(
-    PiranhaDbContext db, IOptions<CustomerAccountOptions> options, IEmailSender email, ILogger<CustomerAccountService> logger) : ICustomerAccountService
+    PiranhaCommerceDbContext db, IOptions<CustomerAccountOptions> options, IEmailSender email, ILogger<CustomerAccountService> logger) : ICustomerAccountService
 {
     private static readonly PasswordHasher<CustomerLogin> Hasher = new();
     private static readonly CustomerLogin Dummy = new();
@@ -452,12 +452,12 @@ internal sealed partial class CustomerAccountService(
     {
         var min = options.Value.MinPasswordLength;
         if (password.Length < min)
-            throw new PiranhaValidationException(field, $"Use at least {min} characters.");
+            throw new PiranhaCommerceValidationException(field, $"Use at least {min} characters.");
         if (string.Equals(password.Trim(), email.Trim(), StringComparison.OrdinalIgnoreCase))
-            throw new PiranhaValidationException(field, "The password cannot be your email address.");
+            throw new PiranhaCommerceValidationException(field, "The password cannot be your email address.");
     }
 
-    private static PiranhaValidationException Taken()
+    private static PiranhaCommerceValidationException Taken()
         => new(nameof(RegisterInput.Email), "An account cannot be created with that email address. If you have an account or have ordered before, use forgot password to set a password.");
 
     private static string Normalize(string email) => email.Trim().ToUpperInvariant();

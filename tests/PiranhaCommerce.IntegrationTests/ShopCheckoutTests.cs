@@ -12,7 +12,7 @@ using PiranhaCommerce.Web.SampleData;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>The sample shop's basket and guest checkout, driven the way a browser does it: fetch a page, take its antiforgery token, post its form, follow the redirect.</summary>
-public partial class ShopCheckoutTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public partial class ShopCheckoutTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
 
@@ -53,7 +53,7 @@ public partial class ShopCheckoutTests(PiranhaFactory factory) : IClassFixture<P
     [Fact]
     public async Task A_guest_fills_a_basket_uses_a_code_picks_delivery_and_places_the_order_through_the_shops_own_forms()
     {
-        if (PiranhaFactory.UsesSharedDatabase) return;
+        if (PiranhaCommerceFactory.UsesSharedDatabase) return;
         var browser = await BrowserAsync();
         var lipstick = await Product("velvet-matte-lipstick");
         var ruby = lipstick.Variants.Single(v => v.Values[0].Value == "Ruby Red");
@@ -129,7 +129,7 @@ public partial class ShopCheckoutTests(PiranhaFactory factory) : IClassFixture<P
     [Fact]
     public async Task The_shops_forms_refuse_what_they_should()
     {
-        if (PiranhaFactory.UsesSharedDatabase) return;
+        if (PiranhaCommerceFactory.UsesSharedDatabase) return;
         var browser = await BrowserAsync();
         var lipstick = await Product("velvet-matte-lipstick");
         var plumNoir = lipstick.Variants.Single(v => v.Values[0].Value == "Plum Noir");   // sold out
@@ -202,7 +202,7 @@ public partial class ShopCheckoutTests(PiranhaFactory factory) : IClassFixture<P
     [Fact]
     public async Task Posting_forms_over_and_over_is_slowed_down_before_it_fills_the_basket_table()
     {
-        if (PiranhaFactory.UsesSharedDatabase) return;
+        if (PiranhaCommerceFactory.UsesSharedDatabase) return;
         await factory.Services.GetRequiredService<SampleDataSeeder>().SeedAsync();
         using var limited = factory.WithWebHostBuilder(b => b.UseSetting("PiranhaCommerce:Shop:FormsPerMinute", "5"));
         var browser = limited.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });

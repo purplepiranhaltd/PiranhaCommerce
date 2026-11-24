@@ -59,7 +59,7 @@ else
             _items = await Scope.RunAsync<IStockService, IReadOnlyList<LowStockDto>>(s => s.ListLowAsync(level));
             _shown = level;
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); _items ??= []; }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); _items ??= []; }
         catch (Exception ex) { _error = "Could not load the report: " + ex.Message; _items ??= []; }
         finally { _loading = false; }
     }

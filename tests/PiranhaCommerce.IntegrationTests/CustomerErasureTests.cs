@@ -14,7 +14,7 @@ namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Exporting everything held about a customer, and erasing them: orders are anonymised, never deleted.</summary>
 [Collection(OrderSettings.Name)]
-public class CustomerErasureTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class CustomerErasureTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private const string Password = "a-long-enough-password";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
@@ -141,7 +141,7 @@ public class CustomerErasureTests(PiranhaFactory factory) : IClassFixture<Piranh
 
         // A record that it happened, with no personal data in it.
         using var scope = factory.Services.CreateScope();
-        var record = await scope.ServiceProvider.GetRequiredService<PiranhaDbContext>().Set<CustomerErasure>().AsNoTracking().SingleAsync(e => e.CustomerId == ada.Id);
+        var record = await scope.ServiceProvider.GetRequiredService<PiranhaCommerceDbContext>().Set<CustomerErasure>().AsNoTracking().SingleAsync(e => e.CustomerId == ada.Id);
         Assert.Equal(("admin@piranha.local", "orders: 3"), (record.Actor, record.Details));
 
         // Erasing again is simply "not found".

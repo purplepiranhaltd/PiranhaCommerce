@@ -1,7 +1,7 @@
 namespace PiranhaCommerce.Api.Auth;
 
 /// <summary>Bound from <c>PiranhaCommerce:Jwt</c>. The signing key must be at least 32 characters; supply it from secrets/Key Vault in production.</summary>
-public sealed class PiranhaJwtOptions
+public sealed class PiranhaCommerceJwtOptions
 {
     public const string SectionName = "PiranhaCommerce:Jwt";
 

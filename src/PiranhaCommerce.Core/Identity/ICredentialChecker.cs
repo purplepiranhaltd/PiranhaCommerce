@@ -12,7 +12,7 @@ public enum CredentialStatus
     LockedOut,
 }
 
-public sealed record CredentialResult(CredentialStatus Status, PiranhaUser? User)
+public sealed record CredentialResult(CredentialStatus Status, PiranhaCommerceUser? User)
 {
     public bool Succeeded => Status == CredentialStatus.Valid;
 }

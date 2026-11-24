@@ -26,7 +26,7 @@ namespace PiranhaCommerce.IntegrationTests;
 /// test classes (a real Azure SQL database) cannot change the answer.
 /// </summary>
 [Collection(OrderSettings.Name)]
-public class WebhookTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>, IAsyncLifetime
+public class WebhookTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>, IAsyncLifetime
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];
@@ -94,7 +94,7 @@ public class WebhookTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory
     private async Task<DispatchResult> Dispatch(Receiver receiver, Clock clock, int maxAttempts = 8)
     {
         using var scope = factory.Services.CreateScope();
-        var d = new WebhookDispatcher(scope.ServiceProvider.GetRequiredService<PiranhaDbContext>(), receiver, Options.Create(new WebhookOptions { MaxAttempts = maxAttempts }), NullLogger<WebhookDispatcher>.Instance, clock);
+        var d = new WebhookDispatcher(scope.ServiceProvider.GetRequiredService<PiranhaCommerceDbContext>(), receiver, Options.Create(new WebhookOptions { MaxAttempts = maxAttempts }), NullLogger<WebhookDispatcher>.Instance, clock);
         return await d.DispatchDueAsync();
     }
 
@@ -287,7 +287,7 @@ public class WebhookTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory
         var customer = await Read<CustomerDto>(await _c.PostAsJsonAsync("/api/v1/customers", new CustomerInput { Email = $"short-{Tag()}@example.com" }));
 
         using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<PiranhaDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<PiranhaCommerceDbContext>();
         Assert.Equal(HttpStatusCode.Conflict, (await TryPlace(p, 5, customer.Id)).StatusCode); // only one in stock
         var mention = customer.Id.ToString();
         Assert.False(await db.Set<WebhookEvent>().AsNoTracking().AnyAsync(e => e.Payload.Contains(mention)));
@@ -325,7 +325,7 @@ public class WebhookTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory
         Assert.True((await _c.PutAsJsonAsync($"/api/v1/webhooks/{endpoint.Id}", new WebhookEndpointInput { Url = endpoint.Url, Active = false }, Json)).IsSuccessStatusCode);
 
         using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<PiranhaDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<PiranhaCommerceDbContext>();
         var receiver = new Receiver();
         var clock = new Clock();
         var dispatcher = new WebhookDispatcher(db, receiver, Options.Create(new WebhookOptions { RetentionDays = 30 }), NullLogger<WebhookDispatcher>.Instance, clock);

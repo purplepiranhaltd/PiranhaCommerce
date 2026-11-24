@@ -160,31 +160,31 @@ public interface IGatewayService
 }
 
 internal sealed class GatewayService(
-    PiranhaDbContext db, IEnumerable<IPaymentGateway> gateways, IPaymentService payments, OrderMailer mailer, ILogger<GatewayService> logger, IEventPublisher? events = null) : IGatewayService
+    PiranhaCommerceDbContext db, IEnumerable<IPaymentGateway> gateways, IPaymentService payments, OrderMailer mailer, ILogger<GatewayService> logger, IEventPublisher? events = null) : IGatewayService
 {
     private IPaymentGateway? Find(string provider) =>
         gateways.FirstOrDefault(g => string.Equals(g.Name, provider?.Trim(), StringComparison.OrdinalIgnoreCase));
 
     public async Task<PaymentSessionDto?> StartAsync(Guid orderId, string provider, CancellationToken ct = default)
     {
-        var gateway = Find(provider) ?? throw new PiranhaValidationException(nameof(StartPaymentInput.Provider), "That is not a payment gateway.");
+        var gateway = Find(provider) ?? throw new PiranhaCommerceValidationException(nameof(StartPaymentInput.Provider), "That is not a payment gateway.");
 
         var order = await db.Set<Order>().AsNoTracking().Where(o => o.Id == orderId)
             .Select(o => new { o.Number, o.Total, o.Stage, o.Currency, o.Email }).FirstOrDefaultAsync(ct);
         if (order is null) return null;
-        if (order.Stage == OrderStage.Cancelled) throw new PiranhaConflictException("A cancelled order cannot take payment.");
+        if (order.Stage == OrderStage.Cancelled) throw new PiranhaCommerceConflictException("A cancelled order cannot take payment.");
 
         var sums = await db.Set<Payment>().AsNoTracking().Where(p => p.OrderId == orderId)
             .GroupBy(p => p.Kind).Select(g => new { Kind = g.Key, Sum = g.Sum(p => p.Amount) }).ToListAsync(ct);
         var outstanding = order.Total - (sums.Where(s => s.Kind == PaymentKind.Payment).Sum(s => s.Sum) - sums.Where(s => s.Kind == PaymentKind.Refund).Sum(s => s.Sum));
-        if (outstanding <= 0) throw new PiranhaConflictException("Nothing is owed on this order.");
+        if (outstanding <= 0) throw new PiranhaCommerceConflictException("Nothing is owed on this order.");
 
         GatewaySession session;
         try { session = await gateway.StartAsync(new GatewayStartRequest(orderId, OrderNumbers.Format(order.Number), outstanding, order.Currency, order.Email), ct); }
         catch (GatewayException ex)
         {
             logger.LogError(ex, "Gateway {Gateway} could not start a payment for order {OrderId}: {Reason}", gateway.Name, orderId, ex.Message);
-            throw new PiranhaConflictException("The payment service could not start this payment. Please try again shortly.");
+            throw new PiranhaCommerceConflictException("The payment service could not start this payment. Please try again shortly.");
         }
         return new PaymentSessionDto(gateway.Name, outstanding, order.Currency, session.RedirectUrl, session.ProviderReference);
     }
@@ -242,7 +242,7 @@ internal sealed class GatewayService(
                 .ExecuteUpdateAsync(s => s.SetProperty(u => u.ResolvedUtc, (DateTimeOffset?)now).SetProperty(u => u.Resolution, "Booked when the gateway sent it again."), ct);
             return BookOutcome.Recorded;
         }
-        catch (Exception ex) when (ex is PiranhaConflictException or PiranhaValidationException)
+        catch (Exception ex) when (ex is PiranhaCommerceConflictException or PiranhaCommerceValidationException)
         {
             // A simultaneous replay can win the race for the same reference: that is "already recorded", not a problem.
             if (await db.Set<Payment>().AsNoTracking().AnyAsync(p => p.Provider == gateway.Name && p.Reference == e.Reference, ct)) return BookOutcome.AlreadyRecorded;
@@ -260,23 +260,23 @@ internal sealed class GatewayService(
     {
         ModelValidator.ValidateOrThrow(input);
         if (decimal.Round(input.Amount, 2) != input.Amount)
-            throw new PiranhaValidationException(nameof(RefundStartInput.Amount), "Use at most two decimal places.");
+            throw new PiranhaCommerceValidationException(nameof(RefundStartInput.Amount), "Use at most two decimal places.");
 
         var order = await db.Set<Order>().AsNoTracking().Where(o => o.Id == orderId).Select(o => new { o.Currency }).FirstOrDefaultAsync(ct);
         if (order is null) return null;
 
         var payment = await db.Set<Payment>().AsNoTracking().FirstOrDefaultAsync(p => p.Id == paymentId && p.OrderId == orderId && p.Kind == PaymentKind.Payment, ct)
-                      ?? throw new PiranhaValidationException("PaymentId", "That is not a payment on this order.");
+                      ?? throw new PiranhaCommerceValidationException("PaymentId", "That is not a payment on this order.");
         var gateway = gateways.OfType<IRefundingGateway>().FirstOrDefault(g => g.Name == payment.Provider);
         if (gateway is null || string.IsNullOrWhiteSpace(payment.Reference))
-            throw new PiranhaValidationException("PaymentId", "That payment was not taken through a provider that can refund it. Record the refund you made yourself instead.");
+            throw new PiranhaCommerceValidationException("PaymentId", "That payment was not taken through a provider that can refund it. Record the refund you made yourself instead.");
 
         // Only what this provider took and has not already given back; the gateway enforces its own limit per payment as well.
         var sums = await db.Set<Payment>().AsNoTracking().Where(p => p.OrderId == orderId && p.Provider == gateway.Name)
             .GroupBy(p => p.Kind).Select(g => new { Kind = g.Key, Sum = g.Sum(p => p.Amount) }).ToListAsync(ct);
         var refundable = sums.Where(x => x.Kind == PaymentKind.Payment).Sum(x => x.Sum) - sums.Where(x => x.Kind == PaymentKind.Refund).Sum(x => x.Sum);
         if (input.Amount > refundable)
-            throw new PiranhaConflictException($"That is more than can be refunded through {gateway.DisplayName}: {refundable:N2} {order.Currency} taken and not yet returned.");
+            throw new PiranhaCommerceConflictException($"That is more than can be refunded through {gateway.DisplayName}: {refundable:N2} {order.Currency} taken and not yet returned.");
 
         var key = string.IsNullOrWhiteSpace(input.IdempotencyKey) ? Guid.NewGuid().ToString("N") : input.IdempotencyKey.Trim();
         GatewayRefund result;
@@ -284,7 +284,7 @@ internal sealed class GatewayService(
         catch (GatewayException ex)
         {
             logger.LogError(ex, "Gateway {Gateway} could not refund {Amount} on order {OrderId}: {Reason}", gateway.Name, input.Amount, orderId, ex.Message);
-            throw new PiranhaConflictException("The payment service could not make this refund. Nothing has been refunded; check the payment in the provider's dashboard before trying again.");
+            throw new PiranhaCommerceConflictException("The payment service could not make this refund. Nothing has been refunded; check the payment in the provider's dashboard before trying again.");
         }
 
         // Still being processed: nothing is booked yet. Its webhook books it when it succeeds (and not at all if it fails).

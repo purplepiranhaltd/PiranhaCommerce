@@ -10,7 +10,7 @@ namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Shipping zones (countries and postcode areas), rates set by zone, and carriers with tracking links. An active shipping method changes every checkout, so these run alone and remove what they make.</summary>
 [Collection(OrderSettings.Name)]
-public class ShippingZoneTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>, IAsyncLifetime
+public class ShippingZoneTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>, IAsyncLifetime
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..6];

@@ -12,7 +12,7 @@ using PiranhaCommerce.Ecommerce;
 namespace PiranhaCommerce.IntegrationTests;
 
 [Collection(OrderSettings.Name)]
-public class PaymentTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class PaymentTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
 
@@ -55,7 +55,7 @@ public class PaymentTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory
         var first = await Pay(c, order.Id, 40m, "RCPT-" + Tag());
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
         var dto = await Read<PaymentDto>(first);
-        Assert.Equal((PaymentKind.Payment, "manual", "GBP", PiranhaFactory.AdminEmail), (dto.Kind, dto.Provider, dto.Currency, dto.Actor));
+        Assert.Equal((PaymentKind.Payment, "manual", "GBP", PiranhaCommerceFactory.AdminEmail), (dto.Kind, dto.Provider, dto.Currency, dto.Actor));
         Assert.Equal(PaymentStatus.PartlyPaid, (await Get(c, order.Id)).PaymentStatus);
 
         Assert.Equal(HttpStatusCode.Created, (await Pay(c, order.Id, 60m)).StatusCode);
@@ -167,7 +167,7 @@ public class PaymentTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory
     public async Task Payment_can_be_required_before_an_order_is_processed()
     {
         using var strict = factory.WithWebHostBuilder(b => b.UseSetting("PiranhaCommerce:Ecommerce:RequirePaymentBeforeProcessing", "true"));
-        var token = await (await strict.CreateClient().PostAsJsonAsync("/api/v1/auth/token", new TokenRequest(PiranhaFactory.AdminEmail, PiranhaFactory.AdminPassword)))
+        var token = await (await strict.CreateClient().PostAsJsonAsync("/api/v1/auth/token", new TokenRequest(PiranhaCommerceFactory.AdminEmail, PiranhaCommerceFactory.AdminPassword)))
             .Content.ReadFromJsonAsync<TokenResponse>();
         var c = strict.CreateClient();
         c.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token!.AccessToken);

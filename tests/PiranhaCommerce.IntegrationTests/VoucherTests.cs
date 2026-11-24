@@ -10,7 +10,7 @@ namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Gift vouchers: a way of paying after tax. Store-wide settings are touched, so these run one at a time.</summary>
 [Collection(OrderSettings.Name)]
-public class VoucherTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class VoucherTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
 

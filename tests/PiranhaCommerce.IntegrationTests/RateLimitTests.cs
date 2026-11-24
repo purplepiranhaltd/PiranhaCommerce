@@ -5,7 +5,7 @@ using PiranhaCommerce.Api.Auth;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>A host that allows only 5 sign-in attempts a minute per client.</summary>
-public sealed class StrictRateLimitFactory : PiranhaFactory
+public sealed class StrictRateLimitFactory : PiranhaCommerceFactory
 {
     protected override int SignInAttempts => 5;
 }
@@ -28,7 +28,7 @@ public class RateLimitTests(StrictRateLimitFactory factory) : IClassFixture<Stri
         Assert.True(refused.Headers.Contains("Retry-After"));
 
         // Once limited, even the right password waits: the limit applies to the client, not the account.
-        var right = await client.PostAsJsonAsync("/api/v1/auth/token", new TokenRequest(PiranhaFactory.AdminEmail, PiranhaFactory.AdminPassword));
+        var right = await client.PostAsJsonAsync("/api/v1/auth/token", new TokenRequest(PiranhaCommerceFactory.AdminEmail, PiranhaCommerceFactory.AdminPassword));
         Assert.Equal(HttpStatusCode.TooManyRequests, right.StatusCode);
     }
 

@@ -9,7 +9,7 @@ internal static class EmailContract
     /// The variable names are a public contract (SMTP templates and Mailjet templates refer to them): a message must carry exactly the
     /// names its descriptor lists, so a rename in the code cannot silently break someone's template.
     /// </summary>
-    public static void AssertMatchesDescriptor(PiranhaFactory factory, EmailMessage message)
+    public static void AssertMatchesDescriptor(PiranhaCommerceFactory factory, EmailMessage message)
     {
         var descriptor = factory.Services.GetRequiredService<IEmailTemplateCatalog>().Find(message.TemplateKey);
         Assert.NotNull(descriptor);

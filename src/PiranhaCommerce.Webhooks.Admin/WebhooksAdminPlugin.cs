@@ -5,11 +5,11 @@ using PiranhaCommerce.Core.Plugins;
 namespace PiranhaCommerce.Webhooks.Admin;
 
 /// <summary>The webhooks page (Settings > Webhooks).</summary>
-public sealed class WebhooksAdminPlugin : IPiranhaPlugin
+public sealed class WebhooksAdminPlugin : IPiranhaCommercePlugin
 {
     public PluginInfo Info { get; } = new("PiranhaCommerce.Webhooks.Admin", "Webhooks Admin", "0.1.0", "Admin page for webhook endpoints and their deliveries.");
 
-    public IReadOnlyList<IPiranhaPlugin> Requires { get; } = [new WebhookPlugin()];
+    public IReadOnlyList<IPiranhaCommercePlugin> Requires { get; } = [new WebhookPlugin()];
 
     public void ConfigureServices(IServiceCollection services)
     {

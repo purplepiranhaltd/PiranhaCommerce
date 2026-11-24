@@ -68,7 +68,7 @@
             var r = await Scope.RunAsync<ISpecificationService, ProductSpecsDto?>(s => s.SetProductAsync(ProductId, ids));
             _message = r is null ? "Product no longer exists." : "Saved.";
         }
-        catch (PiranhaValidationException ex) { _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceValidationException ex) { _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
         catch (Exception ex) { _message = "Could not save: " + ex.Message; }
         finally { _saving = false; }
     }

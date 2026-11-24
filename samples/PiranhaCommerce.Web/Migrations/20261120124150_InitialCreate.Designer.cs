@@ -11,7 +11,7 @@ using PiranhaCommerce.Data;
 
 namespace PiranhaCommerce.Web.Migrations
 {
-    [DbContext(typeof(PiranhaDbContext))]
+    [DbContext(typeof(PiranhaCommerceDbContext))]
     [Migration("20261120124150_InitialCreate")]
     partial class InitialCreate
     {

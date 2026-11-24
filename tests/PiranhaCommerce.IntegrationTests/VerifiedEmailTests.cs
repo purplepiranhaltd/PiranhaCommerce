@@ -7,7 +7,7 @@ using PiranhaCommerce.Customers;
 
 namespace PiranhaCommerce.IntegrationTests;
 
-public sealed class VerifiedEmailFactory : PiranhaFactory
+public sealed class VerifiedEmailFactory : PiranhaCommerceFactory
 {
     protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?> { ["PiranhaCommerce:Customers:RequireVerifiedEmail"] = "true" };
 }

@@ -18,22 +18,22 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("PiranhaCommerce")
     ?? throw new InvalidOperationException("ConnectionStrings:PiranhaCommerce is not configured.");
 
-var piranha = builder.Services.AddPiranhaCommerceCore();
+var commerce = builder.Services.AddPiranhaCommerceCore();
 
 // One migration set per database provider, each in an assembly the host owns (it knows which plugins are installed).
 switch (builder.Configuration["PiranhaCommerce:Provider"] ?? "SqlServer")
 {
     case "SqlServer":   // also Azure SQL
-        piranha.AddPiranhaCommerceSqlServer(connectionString, typeof(Program).Assembly);
+        commerce.AddPiranhaCommerceSqlServer(connectionString, typeof(Program).Assembly);
         break;
     case "PostgreSql":
-        piranha.AddPiranhaCommercePostgreSql(connectionString, typeof(PiranhaCommerce.Web.Migrations.PostgreSql.MigrationsAssemblyMarker).Assembly);
+        commerce.AddPiranhaCommercePostgreSql(connectionString, typeof(PiranhaCommerce.Web.Migrations.PostgreSql.MigrationsAssemblyMarker).Assembly);
         break;
     default:
         throw new InvalidOperationException("PiranhaCommerce:Provider must be SqlServer or PostgreSql.");
 }
 
-piranha
+commerce
     .AddPiranhaCommerceApi()
     .AddPiranhaCommerceAdmin()
     // Plugins are compiled in via NuGet, never uploaded. Each plugin registers the plugins it requires
@@ -65,7 +65,7 @@ if (app.Environment.IsDevelopment() && !EF.IsDesignTime) // EF tooling executes 
 {
     // Development convenience only: production deployments apply migrations as a deployment step.
     using (var scope = app.Services.CreateScope())
-        await scope.ServiceProvider.GetRequiredService<PiranhaDbContext>().Database.MigrateAsync();
+        await scope.ServiceProvider.GetRequiredService<PiranhaCommerceDbContext>().Database.MigrateAsync();
 
     var seed = app.Configuration.GetSection("PiranhaCommerce:SeedAdmin");
     if (seed["Email"] is { Length: > 0 } email && seed["Password"] is { Length: > 0 } password)

@@ -77,7 +77,7 @@ public interface ICustomerErasureService
     Task<CustomerErasureResultDto?> EraseAsync(Guid customerId, EraseCustomerInput input, string? actor = null, CancellationToken ct = default);
 }
 
-internal sealed class CustomerErasureService(PiranhaDbContext db, IEnumerable<ICustomerDataContributor> contributors) : ICustomerErasureService
+internal sealed class CustomerErasureService(PiranhaCommerceDbContext db, IEnumerable<ICustomerDataContributor> contributors) : ICustomerErasureService
 {
     private sealed class MissingException : Exception;
 
@@ -109,7 +109,7 @@ internal sealed class CustomerErasureService(PiranhaDbContext db, IEnumerable<IC
         var email = await db.Set<Customer>().AsNoTracking().Where(c => c.Id == customerId).Select(c => c.Email).FirstOrDefaultAsync(ct);
         if (email is null) return null;
         if (!string.Equals(input.ConfirmEmail.Trim(), email, StringComparison.OrdinalIgnoreCase))
-            throw new PiranhaValidationException(nameof(EraseCustomerInput.ConfirmEmail), "That is not this customer's email address.");
+            throw new PiranhaCommerceValidationException(nameof(EraseCustomerInput.ConfirmEmail), "That is not this customer's email address.");
 
         var erasedUtc = DateTimeOffset.UtcNow;
         var changed = new Dictionary<string, int>();
@@ -132,7 +132,7 @@ internal sealed class CustomerErasureService(PiranhaDbContext db, IEnumerable<IC
                     var reasons = new List<string>();
                     foreach (var contributor in contributors) reasons.AddRange(await contributor.CheckErasureAsync(subject, token));
                     if (reasons.Count > 0)
-                        throw new PiranhaConflictException("This customer's data cannot be erased yet: " + string.Join(" ", reasons));
+                        throw new PiranhaCommerceConflictException("This customer's data cannot be erased yet: " + string.Join(" ", reasons));
 
                     foreach (var contributor in contributors.OrderBy(x => x.Name, StringComparer.Ordinal))
                         changed[contributor.Name] = await contributor.EraseAsync(subject, token);
@@ -159,7 +159,7 @@ internal sealed class CustomerErasureService(PiranhaDbContext db, IEnumerable<IC
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
-            throw new PiranhaConflictException("The erasure could not be completed and nothing was changed. Please try again.");
+            throw new PiranhaCommerceConflictException("The erasure could not be completed and nothing was changed. Please try again.");
         }
 
         return new CustomerErasureResultDto(customerId, erasedUtc, changed);

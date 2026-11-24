@@ -73,7 +73,7 @@ public sealed class ShopFront(
         var firstMethod = (await baskets.ShippingOptionsAsync(id, country) ?? []).FirstOrDefault()?.Id;
         QuoteDto? quote = null;
         try { quote = await baskets.QuoteAsync(id, new QuoteInput { ShippingMethodId = firstMethod, CountryCode = country }); }
-        catch (PiranhaValidationException) { } // no method serves the home country: lines are shown without tax detail
+        catch (PiranhaCommerceValidationException) { } // no method serves the home country: lines are shown without tax detail
         var lines = new List<BasketLineView>();
         foreach (var line in basket.Lines)
         {

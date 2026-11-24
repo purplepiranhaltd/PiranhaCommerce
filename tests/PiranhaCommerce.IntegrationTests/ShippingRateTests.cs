@@ -11,7 +11,7 @@ namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Shipping that depends on where the parcel goes and what it weighs. Store-wide settings, so one at a time like the other shipping tests.</summary>
 [Collection(OrderSettings.Name)]
-public class ShippingRateTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class ShippingRateTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];

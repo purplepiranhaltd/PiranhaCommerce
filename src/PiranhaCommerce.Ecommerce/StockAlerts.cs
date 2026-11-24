@@ -72,7 +72,7 @@ public interface IStockAlertService
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 }
 
-internal sealed class StockAlertService(PiranhaDbContext db, IOptions<EcommerceOptions> options) : IStockAlertService
+internal sealed class StockAlertService(PiranhaCommerceDbContext db, IOptions<EcommerceOptions> options) : IStockAlertService
 {
     /// <summary>The most products one address can be waiting for at once: nobody can use the shop to flood an inbox.</summary>
     public const int MaxWaitingPerAddress = 25;
@@ -84,11 +84,11 @@ internal sealed class StockAlertService(PiranhaDbContext db, IOptions<EcommerceO
         var normalized = email.ToLowerInvariant();
 
         if (!await db.Set<ProductListing>().AsNoTracking().AnyAsync(l => l.ProductId == input.ProductId && l.Published, ct))
-            throw new PiranhaValidationException(nameof(StockAlertInput.ProductId), "That product cannot be asked about.");
+            throw new PiranhaCommerceValidationException(nameof(StockAlertInput.ProductId), "That product cannot be asked about.");
         if (await ProductVariants.HasOptionsAsync(db, input.ProductId, ct))
-            throw new PiranhaValidationException(nameof(StockAlertInput.ProductId), "Choose one of the product's variants.");
+            throw new PiranhaCommerceValidationException(nameof(StockAlertInput.ProductId), "Choose one of the product's variants.");
         if (await StockAlerts.IsAvailableAsync(db, options.Value, input.ProductId, ct))
-            throw new PiranhaConflictException("This is in stock now.");
+            throw new PiranhaCommerceConflictException("This is in stock now.");
 
         var existing = await db.Set<StockAlertSubscription>().FirstOrDefaultAsync(s => s.ProductId == input.ProductId && s.NormalizedEmail == normalized, ct);
         if (existing is not null)
@@ -97,7 +97,7 @@ internal sealed class StockAlertService(PiranhaDbContext db, IOptions<EcommerceO
             return;
         }
         if (await db.Set<StockAlertSubscription>().CountAsync(s => s.NormalizedEmail == normalized && s.NotifiedUtc == null, ct) >= MaxWaitingPerAddress)
-            throw new PiranhaConflictException("This address is already waiting for as many products as it can.");
+            throw new PiranhaCommerceConflictException("This address is already waiting for as many products as it can.");
 
         db.Add(new StockAlertSubscription
         {
@@ -139,7 +139,7 @@ internal sealed class StockAlertService(PiranhaDbContext db, IOptions<EcommerceO
 internal static class StockAlerts
 {
     /// <summary>Whether online orders can take this product now: stock at the location checkout takes from.</summary>
-    public static Task<bool> IsAvailableAsync(PiranhaDbContext db, EcommerceOptions options, Guid productId, CancellationToken ct)
+    public static Task<bool> IsAvailableAsync(PiranhaCommerceDbContext db, EcommerceOptions options, Guid productId, CancellationToken ct)
     {
         var location = options.StockLocationId ?? StockLocations.DefaultId;
         return db.Set<StockLevel>().AsNoTracking().AnyAsync(l => l.ProductId == productId && l.LocationId == location && l.Quantity > 0, ct);
@@ -156,7 +156,7 @@ public interface IStockAlertNotifier
 /// Looks for products that are back in stock rather than listening for every kind of stock change (adjustments, cancellations, returns, transfers, imports all add stock).
 /// Each waiting request is claimed with a conditional update before its email goes out, and marked done afterwards; a failed send is tried again once the claim expires.
 /// </summary>
-public sealed class StockAlertNotifier(PiranhaDbContext db, IEmailSender email, IOptions<EcommerceOptions> options, ILogger<StockAlertNotifier> logger, TimeProvider? time = null) : IStockAlertNotifier
+public sealed class StockAlertNotifier(PiranhaCommerceDbContext db, IEmailSender email, IOptions<EcommerceOptions> options, ILogger<StockAlertNotifier> logger, TimeProvider? time = null) : IStockAlertNotifier
 {
     private static readonly TimeSpan Lease = TimeSpan.FromMinutes(10);
     private const int BatchSize = 200;
@@ -230,7 +230,7 @@ internal sealed class StockAlertBackgroundService(IServiceScopeFactory scopes, I
 }
 
 /// <summary>Requests are listed in an export and removed on erasure, matched by account or by email address (any letter case).</summary>
-internal sealed class StockAlertCustomerData(PiranhaDbContext db) : ICustomerDataContributor
+internal sealed class StockAlertCustomerData(PiranhaCommerceDbContext db) : ICustomerDataContributor
 {
     public string Name => "stockAlerts";
 

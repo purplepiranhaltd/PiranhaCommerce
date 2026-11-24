@@ -10,7 +10,7 @@ using PiranhaCommerce.Data;
 namespace PiranhaCommerce.Customers;
 
 /// <summary>Customers and address books, shared by every sales channel (Ecommerce today, EPOS later).</summary>
-public sealed class CustomersPlugin : IPiranhaPlugin
+public sealed class CustomersPlugin : IPiranhaCommercePlugin
 {
     public PluginInfo Info { get; } = new("PiranhaCommerce.Customers", "Customers", "0.1.0", "Customers shared by all sales channels.");
 

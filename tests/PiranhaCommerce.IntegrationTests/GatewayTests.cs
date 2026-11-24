@@ -63,7 +63,7 @@ public sealed class TestGateway : IRefundingGateway, IDisputeEvidenceGateway
 }
 
 [Collection(OrderSettings.Name)]
-public class GatewayTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class GatewayTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];

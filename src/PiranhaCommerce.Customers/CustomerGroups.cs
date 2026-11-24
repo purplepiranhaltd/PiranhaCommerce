@@ -82,14 +82,14 @@ public interface ICustomerGroupService
     Task<IReadOnlyList<CustomerGroupRefDto>?> GroupsOfAsync(Guid customerId, CancellationToken ct = default);
 }
 
-internal sealed class CustomerGroupService(PiranhaDbContext db) : ICustomerGroupService
+internal sealed class CustomerGroupService(PiranhaCommerceDbContext db) : ICustomerGroupService
 {
     private static string Normalize(string name) => name.Trim().ToUpperInvariant();
 
     private static void CheckPercent(CustomerGroupInput input)
     {
         if (decimal.Round(input.DiscountPercent, 2) != input.DiscountPercent)
-            throw new PiranhaValidationException(nameof(CustomerGroupInput.DiscountPercent), "The percentage can have at most 2 decimal places.");
+            throw new PiranhaCommerceValidationException(nameof(CustomerGroupInput.DiscountPercent), "The percentage can have at most 2 decimal places.");
     }
 
     public async Task<IReadOnlyList<CustomerGroupDto>> ListAsync(CancellationToken ct = default)
@@ -117,7 +117,7 @@ internal sealed class CustomerGroupService(PiranhaDbContext db) : ICustomerGroup
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
-            throw new PiranhaValidationException(nameof(CustomerGroupInput.Name), "There is already a group with that name.");
+            throw new PiranhaCommerceValidationException(nameof(CustomerGroupInput.Name), "There is already a group with that name.");
         }
         return new CustomerGroupDto(g.Id, g.Name, g.Description, 0, g.CreatedUtc, g.DiscountPercent);
     }
@@ -136,7 +136,7 @@ internal sealed class CustomerGroupService(PiranhaDbContext db) : ICustomerGroup
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
-            throw new PiranhaValidationException(nameof(CustomerGroupInput.Name), "There is already a group with that name.");
+            throw new PiranhaCommerceValidationException(nameof(CustomerGroupInput.Name), "There is already a group with that name.");
         }
         return await GetAsync(id, ct);
     }
@@ -149,7 +149,7 @@ internal sealed class CustomerGroupService(PiranhaDbContext db) : ICustomerGroup
         {
             db.ChangeTracker.Clear();
             if (!await db.Set<CustomerGroup>().AnyAsync(g => g.Id == id, ct)) return false; // deleted by someone else meanwhile
-            throw new PiranhaConflictException("Something still uses this group (a promotion limited to it). Remove that first.");
+            throw new PiranhaCommerceConflictException("Something still uses this group (a promotion limited to it). Remove that first.");
         }
     }
 

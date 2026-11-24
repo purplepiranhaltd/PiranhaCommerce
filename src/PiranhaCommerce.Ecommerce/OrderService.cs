@@ -43,7 +43,7 @@ public interface IOrderService
 }
 
 internal sealed partial class OrderService(
-    PiranhaDbContext db, IStockService stock, ICustomerService customers, IOptions<EcommerceOptions> options,
+    PiranhaCommerceDbContext db, IStockService stock, ICustomerService customers, IOptions<EcommerceOptions> options,
     IEmailSender email, OrderMailer mailer, ILogger<OrderService> logger, IAuditTrail? trail = null, IEventPublisher? events = null) : IOrderService
 {
     public async Task<PagedResult<OrderSummaryDto>> ListAsync(int? page, int? pageSize, OrderStage? stage, string? search, CancellationToken ct = default)
@@ -123,11 +123,11 @@ internal sealed partial class OrderService(
         if (basket.Status == BasketStatus.CheckedOut) return await GetAsync(basket.OrderId!.Value, ct); // already done: same answer again
 
         if (input.CustomerId is { } customerId && await customers.GetAsync(customerId, ct) is null)
-            throw new PiranhaValidationException(nameof(CheckoutInput.CustomerId), "That customer does not exist.");
+            throw new PiranhaCommerceValidationException(nameof(CheckoutInput.CustomerId), "That customer does not exist.");
 
         var locationId = options.Value.StockLocationId ?? StockLocations.DefaultId;
         var productIds = await db.Set<BasketLine>().AsNoTracking().Where(l => l.BasketId == basketId).Select(l => l.ProductId).ToListAsync(ct);
-        if (productIds.Count == 0) throw new PiranhaConflictException("The basket is empty.");
+        if (productIds.Count == 0) throw new PiranhaCommerceConflictException("The basket is empty.");
         await stock.EnsureLevelsAsync(productIds, locationId, ct); // before the transaction: a failed insert would abort a PostgreSQL one
 
         var orderId = Guid.NewGuid(); // fixed outside the retried delegate so a retry after an ambiguous commit can recognise its own success
@@ -150,14 +150,14 @@ internal sealed partial class OrderService(
                         .Join(db.Set<Product>(), l => l.ProductId, p => p.Id, (l, p) => new { p.Id, p.Name, p.Sku, p.Price, l.Quantity })
                         .OrderBy(x => x.Name).ThenBy(x => x.Id)
                         .ToListAsync(token);
-                    if (lines.Count == 0) throw new PiranhaConflictException("The basket is empty.");
+                    if (lines.Count == 0) throw new PiranhaCommerceConflictException("The basket is empty.");
                     // The buyer's group prices, decided here in the transaction exactly as the basket and quote show them.
                     var buyer = input.CustomerId ?? await db.Set<Basket>().AsNoTracking().Where(b => b.Id == basketId).Select(b => b.CustomerId).FirstAsync(token);
                     var lineIds = lines.Select(l => l.Id).ToList();
                     var limits = await db.Set<ProductListing>().AsNoTracking().Where(l => lineIds.Contains(l.ProductId)).Select(l => new { l.ProductId, l.MinOrderQuantity, l.MaxOrderQuantity }).ToDictionaryAsync(l => l.ProductId, token);
                     foreach (var l in lines)
                         if (limits.TryGetValue(l.Id, out var lim) && OrderQuantityRules.Problem(l.Name, l.Quantity, lim.MinOrderQuantity, lim.MaxOrderQuantity) is { } outOfRange)
-                            throw new PiranhaConflictException(outOfRange + " Change the quantity in the basket to continue.");
+                            throw new PiranhaCommerceConflictException(outOfRange + " Change the quantity in the basket to continue.");
                     var pay = await GroupPricing.EffectiveAsync(db, buyer, lines.Select(l => (l.Id, l.Price)).ToList(), token, lines.ToDictionary(l => l.Id, l => l.Quantity));
                     lines = lines.Select(l => new { l.Id, l.Name, l.Sku, Price = pay[l.Id], l.Quantity }).ToList();
                     var productIdsInBasket = lines.Select(x => x.Id).ToList();
@@ -165,7 +165,7 @@ internal sealed partial class OrderService(
                         .Select(l => l.ProductId).ToListAsync(token)).ToHashSet();
                     var unavailable = lines.FirstOrDefault(l => !published.Contains(l.Id));
                     if (unavailable is not null)
-                        throw new PiranhaConflictException($"\"{unavailable.Name}\" is no longer available. Remove it from the basket to continue.");
+                        throw new PiranhaCommerceConflictException($"\"{unavailable.Name}\" is no longer available. Remove it from the basket to continue.");
 
                     // 2b. Shipping and tax, from the current rules, by the same calculator the quote uses.
                     var subtotal = lines.Sum(l => l.Price * l.Quantity);
@@ -176,7 +176,7 @@ internal sealed partial class OrderService(
                     {
                         var weight = await ShippingPricing.WeightAsync(db, lines.Select(l => (l.Id, l.Quantity)).ToList(), token);
                         shippingPrice = await ShippingPricing.PriceAsync(db, method, country, input.ShippingAddress.PostalCode, weight, token)
-                            ?? throw new PiranhaValidationException(nameof(CheckoutInput.ShippingMethodId), "That shipping method is not available for this destination and basket.");
+                            ?? throw new PiranhaCommerceValidationException(nameof(CheckoutInput.ShippingMethodId), "That shipping method is not available for this destination and basket.");
                     }
 
                     // 2a. The promo code, if the basket holds one: checked again NOW, and one use spent with a single conditional
@@ -190,24 +190,24 @@ internal sealed partial class OrderService(
                     plan = await DiscountEngine.PlanAsync(db, input.CustomerId ?? held.CustomerId, promoCode,
                         lines.Select(l => new EngineLine(l.Id, l.Quantity, l.Price, l.Price * l.Quantity)).ToList(), DateTimeOffset.UtcNow, token);
                     if (plan.CodeProblem is { } codeProblem)
-                        throw new PiranhaConflictException($"The discount code on this basket cannot be used: {codeProblem} Remove it to continue.");
+                        throw new PiranhaCommerceConflictException($"The discount code on this basket cannot be used: {codeProblem} Remove it to continue.");
                     foreach (var applied in plan.Applied)
                     {
                         // One use spent per discount that applied, with a conditional update so a limited discount cannot be over-used by simultaneous orders.
                         var spent = await db.Set<DiscountRule>()
                             .Where(r => r.Id == applied.RuleId && r.Active && (r.MaxRedemptions == null || r.Redeemed < r.MaxRedemptions))
                             .ExecuteUpdateAsync(s => s.SetProperty(r => r.Redeemed, r => r.Redeemed + 1), token);
-                        if (spent == 0) throw new PiranhaConflictException($"The discount \"{applied.Name}\" has been used up. Try again.");
+                        if (spent == 0) throw new PiranhaCommerceConflictException($"The discount \"{applied.Name}\" has been used up. Try again.");
                     }
                     if (promoCode is not null && !plan.CodeIsDiscount)
                     {
                         promo = await db.Set<Promotion>().AsNoTracking().FirstOrDefaultAsync(p => p.Code == promoCode, token);
                         if (PromotionRules.Problem(promo, subtotal, DateTimeOffset.UtcNow, await PromotionEligibility.Async(db, promo, input.CustomerId ?? held.CustomerId, token)) is { } problem)
-                            throw new PiranhaConflictException($"The promotion code on this basket cannot be used: {problem} Remove it to continue.");
+                            throw new PiranhaCommerceConflictException($"The promotion code on this basket cannot be used: {problem} Remove it to continue.");
                         var used = await db.Set<Promotion>()
                             .Where(p => p.Id == promo!.Id && p.Active && (p.MaxRedemptions == null || p.Redeemed < p.MaxRedemptions))
                             .ExecuteUpdateAsync(s => s.SetProperty(p => p.Redeemed, p => p.Redeemed + 1), token);
-                        if (used == 0) throw new PiranhaConflictException("That promotion code has been used up. Remove it to continue.");
+                        if (used == 0) throw new PiranhaCommerceConflictException("That promotion code has been used up. Remove it to continue.");
                         discount = PromotionRules.Discount(promo!, subtotal - plan.Total);
                     }
 
@@ -277,14 +277,14 @@ internal sealed partial class OrderService(
                         var voucher = await db.Set<GiftVoucher>().AsNoTracking().FirstOrDefaultAsync(v => v.Id == voucherId, token);
                         var at = DateTimeOffset.UtcNow;
                         if (VoucherRules.Problem(voucher, currency, at) is not null)
-                            throw new PiranhaConflictException("The gift voucher on this basket cannot be used. Remove it to continue.");
+                            throw new PiranhaCommerceConflictException("The gift voucher on this basket cannot be used. Remove it to continue.");
                         var pays = Math.Min(voucher!.Balance, calc.Total);
                         if (pays > 0)
                         {
                             var spent = await db.Set<GiftVoucher>()
                                 .Where(v => v.Id == voucherId && v.Active && v.Balance >= pays && v.Currency == currency && (v.ExpiresUtc == null || v.ExpiresUtc > at))
                                 .ExecuteUpdateAsync(s => s.SetProperty(v => v.Balance, v => v.Balance - pays), token);
-                            if (spent == 0) throw new PiranhaConflictException("The gift voucher balance changed. Check the basket and try again.");
+                            if (spent == 0) throw new PiranhaCommerceConflictException("The gift voucher balance changed. Check the basket and try again.");
                             db.Add(new VoucherEntry { VoucherId = voucherId, Amount = -pays, Kind = VoucherEntryKinds.Redeemed, OrderId = orderId, Reference = reference, Actor = actor, CreatedUtc = at });
                             events?.Publish(EcommerceEvents.PaymentReceived, new { orderId, number, reference = OrderNumbers.Format(number), kind = PaymentKind.Payment, provider = "voucher", amount = pays, currency });
                             db.Add(new Payment
@@ -310,12 +310,12 @@ internal sealed partial class OrderService(
             db.ChangeTracker.Clear();
             var winner = await db.Set<Basket>().AsNoTracking().Where(b => b.Id == basketId).Select(b => b.OrderId).FirstOrDefaultAsync(ct);
             if (winner is { } id) return await GetAsync(id, ct);
-            throw new PiranhaConflictException("This basket is being checked out. Try again in a moment.");
+            throw new PiranhaCommerceConflictException("This basket is being checked out. Try again in a moment.");
         }
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
-            throw new PiranhaConflictException("The order could not be placed because something in the basket changed. Please try again.");
+            throw new PiranhaCommerceConflictException("The order could not be placed because something in the basket changed. Please try again.");
         }
 
         var placed = await GetAsync(orderId, ct);
@@ -337,15 +337,15 @@ internal sealed partial class OrderService(
         var current = await db.Set<Order>().AsNoTracking().Where(o => o.Id == id).Select(o => new { o.Stage, o.Number, o.Currency, o.PromotionId, o.VoucherId, o.VoucherPaid }).FirstOrDefaultAsync(ct);
         if (current is null) return null;
         if (!OrderStages.Next(current.Stage).Contains(to))
-            throw new PiranhaConflictException($"An order that is {current.Stage} cannot be moved to {to}.");
-        if (onlyIfUnpaid && current.Stage != OrderStage.Placed) throw new PiranhaConflictException("The order has moved on.");
+            throw new PiranhaCommerceConflictException($"An order that is {current.Stage} cannot be moved to {to}.");
+        if (onlyIfUnpaid && current.Stage != OrderStage.Placed) throw new PiranhaCommerceConflictException("The order has moved on.");
 
         if (to == OrderStage.Processing && options.Value.RequirePaymentBeforeProcessing)
         {
             var total = await db.Set<Order>().AsNoTracking().Where(o => o.Id == id).Select(o => o.Total).FirstAsync(ct);
             var (paid, refunded) = await PaymentSumsAsync(id, ct);
             if (PaymentTotals.StatusOf(total, paid, refunded) != PaymentStatus.Paid)
-                throw new PiranhaConflictException("This order must be paid in full before it can be processed.");
+                throw new PiranhaCommerceConflictException("This order must be paid in full before it can be processed.");
         }
 
         var from = current.Stage;
@@ -368,7 +368,7 @@ internal sealed partial class OrderService(
                     // Only one caller can move the order out of `from`; a second, simultaneous cancel changes 0 rows and must not restock.
                     var moved = await db.Set<Order>().Where(o => o.Id == id && o.Stage == from)
                         .ExecuteUpdateAsync(s => s.SetProperty(o => o.Stage, to).SetProperty(o => o.UpdatedUtc, (DateTimeOffset?)now), token);
-                    if (moved == 0) throw new PiranhaConflictException("The order was changed by someone else. Reload it and try again.");
+                    if (moved == 0) throw new PiranhaCommerceConflictException("The order was changed by someone else. Reload it and try again.");
                     if (trail is not null) await trail.RecordUpdateAsync("Order", id.ToString(), current.Number.ToString(), [new AuditChange("Stage", from.ToString(), to.ToString())], token);
                     if (events is not null)
                     {
@@ -378,12 +378,12 @@ internal sealed partial class OrderService(
 
                     // A payment is booked under this same row lock, so it is either seen here (and this rolls back) or is refused as a payment on a cancelled order.
                     if (onlyIfUnpaid && await db.Set<Payment>().AsNoTracking().AnyAsync(p => p.OrderId == id, token))
-                        throw new PiranhaConflictException("The order has been paid.");
+                        throw new PiranhaCommerceConflictException("The order has been paid.");
 
                     // Read AFTER the order row is held: a parcel being recorded at the same moment has either finished (and is seen)
                     // or is waiting behind this and will find the order no longer processing.
                     if (to == OrderStage.Cancelled && await db.Set<OrderLine>().AsNoTracking().AnyAsync(l => l.OrderId == id && l.QuantityShipped > 0, token))
-                        throw new PiranhaConflictException("Part of this order has already been sent, so it cannot be cancelled. Record a return for what comes back.");
+                        throw new PiranhaCommerceConflictException("Part of this order has already been sent, so it cannot be cancelled. Record a return for what comes back.");
 
                     // Completing by hand says everything has gone: record what was not yet recorded as one shipment, so "completed"
                     // always means every line is shipped (and returns can then be recorded against it).
@@ -459,7 +459,7 @@ internal sealed partial class OrderService(
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
-            throw new PiranhaConflictException("The order could not be updated. Please try again.");
+            throw new PiranhaCommerceConflictException("The order could not be updated. Please try again.");
         }
         if (to == OrderStage.Cancelled) await mailer.CancelledAsync(id, ct); // only the caller that moved the stage gets here
         return await GetAsync(id, ct);
@@ -470,17 +470,17 @@ internal sealed partial class OrderService(
     {
         var active = await db.Set<ShippingMethod>().AsNoTracking().Where(m => m.Active).ToListAsync(ct);
         if (active.Count == 0) return null;
-        if (id is null) throw new PiranhaValidationException(nameof(CheckoutInput.ShippingMethodId), "Choose a shipping method.");
+        if (id is null) throw new PiranhaCommerceValidationException(nameof(CheckoutInput.ShippingMethodId), "Choose a shipping method.");
         return active.FirstOrDefault(m => m.Id == id)
-               ?? throw new PiranhaValidationException(nameof(CheckoutInput.ShippingMethodId), "That shipping method is not available.");
+               ?? throw new PiranhaCommerceValidationException(nameof(CheckoutInput.ShippingMethodId), "That shipping method is not available.");
     }
 
     private static void ValidateAddress(AddressInput address, string field)
     {
         try { ModelValidator.ValidateOrThrow(address); }
-        catch (PiranhaValidationException ex)
+        catch (PiranhaCommerceValidationException ex)
         {
-            throw new PiranhaValidationException(ex.Errors.ToDictionary(e => $"{field}.{e.Key}", e => e.Value));
+            throw new PiranhaCommerceValidationException(ex.Errors.ToDictionary(e => $"{field}.{e.Key}", e => e.Value));
         }
     }
 

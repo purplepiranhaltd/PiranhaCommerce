@@ -37,7 +37,7 @@ public interface IProductImportExtension
 
     /// <summary>
     /// Applies the cells of one row. <paramref name="cells"/> holds only the columns that had something in them: a value, or null when the cell said
-    /// <c>[clear]</c>. Throws <see cref="PiranhaValidationException"/> for a value that cannot be used; the whole row is then undone.
+    /// <c>[clear]</c>. Throws <see cref="PiranhaCommerceValidationException"/> for a value that cannot be used; the whole row is then undone.
     /// </summary>
     Task ImportAsync(Guid productId, IReadOnlyDictionary<string, string?> cells, bool created, CancellationToken ct = default);
 }
@@ -69,7 +69,7 @@ public interface ICatalogTransferService
 }
 
 internal sealed class CatalogTransferService(
-    PiranhaDbContext db,
+    PiranhaCommerceDbContext db,
     IProductService products,
     ICategoryService categories,
     IBrandService brands,
@@ -228,7 +228,7 @@ internal sealed class CatalogTransferService(
             int read;
             while ((read = await csv.ReadAsync(chunk, ct)) > 0)
             {
-                if (buffer.Length + read > opts.MaxBytes) throw new PiranhaValidationException("file", $"A file can be at most {opts.MaxBytes / (1024 * 1024d):0.#} MB.");
+                if (buffer.Length + read > opts.MaxBytes) throw new PiranhaCommerceValidationException("file", $"A file can be at most {opts.MaxBytes / (1024 * 1024d):0.#} MB.");
                 buffer.Write(chunk, 0, read);
             }
             text = new UTF8Encoding(false, throwOnInvalidBytes: false).GetString(buffer.ToArray());
@@ -236,19 +236,19 @@ internal sealed class CatalogTransferService(
 
         List<List<string>> table;
         try { table = Csv.Parse(text); }
-        catch (FormatException ex) { throw new PiranhaValidationException("file", "That is not a readable CSV file: " + ex.Message); }
-        if (table.Count == 0) throw new PiranhaValidationException("file", "The file is empty.");
+        catch (FormatException ex) { throw new PiranhaCommerceValidationException("file", "That is not a readable CSV file: " + ex.Message); }
+        if (table.Count == 0) throw new PiranhaCommerceValidationException("file", "The file is empty.");
 
         var header = table[0].Select(h => h.Trim().ToLowerInvariant().Replace(' ', '_').Replace('-', '_')).ToList();
         var known = AllColumns.ToHashSet();
         var unknown = header.Where(h => h.Length > 0 && !known.Contains(h)).ToList();
-        if (unknown.Count > 0) throw new PiranhaValidationException("file", "Unknown column" + (unknown.Count > 1 ? "s" : "") + ": " + string.Join(", ", unknown) + ". Use the columns of an export.");
+        if (unknown.Count > 0) throw new PiranhaCommerceValidationException("file", "Unknown column" + (unknown.Count > 1 ? "s" : "") + ": " + string.Join(", ", unknown) + ". Use the columns of an export.");
         var dup = header.Where(h => h.Length > 0).GroupBy(h => h).FirstOrDefault(g => g.Count() > 1);
-        if (dup is not null) throw new PiranhaValidationException("file", $"The column {dup.Key} appears twice.");
-        if (!header.Contains("sku") && !header.Contains("id")) throw new PiranhaValidationException("file", "The file needs an sku column (or an id column) to say which product each row is.");
-        if (table.Count - 1 > opts.MaxRows) throw new PiranhaValidationException("file", $"A file can have at most {opts.MaxRows} rows.");
+        if (dup is not null) throw new PiranhaCommerceValidationException("file", $"The column {dup.Key} appears twice.");
+        if (!header.Contains("sku") && !header.Contains("id")) throw new PiranhaCommerceValidationException("file", "The file needs an sku column (or an id column) to say which product each row is.");
+        if (table.Count - 1 > opts.MaxRows) throw new PiranhaCommerceValidationException("file", $"A file can have at most {opts.MaxRows} rows.");
         if (request.CanAdjustStock == false && header.Contains("stock"))
-            throw new PiranhaForbiddenException("You are not assigned to the default stock location, so you cannot change stock by import. Remove the stock column.");
+            throw new PiranhaCommerceForbiddenException("You are not assigned to the default stock location, so you cannot change stock by import. Remove the stock column.");
 
         var rows = new List<ImportRow>();
         for (var i = 1; i < table.Count; i++)
@@ -363,8 +363,8 @@ internal sealed class CatalogTransferService(
     {
         switch (ex)
         {
-            case RowProblem or PiranhaConflictException: return ex.Message;
-            case PiranhaValidationException v: return string.Join(" ", v.Errors.SelectMany(e => e.Value.Select(m => string.IsNullOrEmpty(e.Key) ? m : $"{e.Key}: {m}")));
+            case RowProblem or PiranhaCommerceConflictException: return ex.Message;
+            case PiranhaCommerceValidationException v: return string.Join(" ", v.Errors.SelectMany(e => e.Value.Select(m => string.IsNullOrEmpty(e.Key) ? m : $"{e.Key}: {m}")));
             default:
                 logger.LogError(ex, "Unexpected error importing a catalogue row");
                 return "Unexpected error (see the server log).";

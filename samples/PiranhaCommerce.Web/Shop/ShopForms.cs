@@ -34,28 +34,28 @@ internal static class ShopForms
             var back = form["returnTo"].ToString();
             try
             {
-                if (!Guid.TryParse(form["productId"], out var productId)) throw new PiranhaValidationException("productId", "Choose what to add.");
+                if (!Guid.TryParse(form["productId"], out var productId)) throw new PiranhaCommerceValidationException("productId", "Choose what to add.");
                 var quantity = Count(form["quantity"], 1);
-                if (quantity < 1) throw new PiranhaValidationException("quantity", "Choose how many you want.");
+                if (quantity < 1) throw new PiranhaCommerceValidationException("quantity", "Choose how many you want.");
 
                 // What is on the shelf: a sold-out shade or a quantity beyond what is left is refused here with a reason (checkout checks again).
                 var customerId = (await shopBaskets.ShopperAsync(ct))?.Id;
-                var product = await catalogue.GetAsync(productId, customerId, null, ct) ?? throw new PiranhaValidationException("productId", "That product is not on sale.");
+                var product = await catalogue.GetAsync(productId, customerId, null, ct) ?? throw new PiranhaCommerceValidationException("productId", "That product is not on sale.");
                 var variant = product.Variants.FirstOrDefault(v => v.ProductId == productId);
-                if (variant is null && product.HasVariants) throw new PiranhaValidationException("productId", "Choose an option first.");
-                if (!(variant?.Available ?? product.Available)) throw new PiranhaValidationException("productId", "Sorry, that is sold out.");
+                if (variant is null && product.HasVariants) throw new PiranhaCommerceValidationException("productId", "Choose an option first.");
+                if (!(variant?.Available ?? product.Available)) throw new PiranhaCommerceValidationException("productId", "Sorry, that is sold out.");
                 var left = variant is not null ? variant.Left : product.Left;
 
                 var basket = await shopBaskets.CurrentOrNewAsync(ct);
                 var have = basket.Lines.FirstOrDefault(l => l.ProductId == productId)?.Quantity ?? 0;
                 if (left is { } few && have + quantity > few)
-                    throw new PiranhaValidationException("quantity", few == 0 ? "Sorry, that is sold out." : $"Only {few} left" + (have > 0 ? $", and you already have {have} in your basket." : "."));
+                    throw new PiranhaCommerceValidationException("quantity", few == 0 ? "Sorry, that is sold out." : $"Only {few} left" + (have > 0 ? $", and you already have {have} in your basket." : "."));
 
                 await baskets.SetLineAsync(basket.Id, productId, new BasketLineInput { Quantity = Math.Min(have + quantity, BasketLineInput.Max) }, ct);
                 return Results.Redirect("/basket");
             }
-            catch (PiranhaValidationException e) { return Results.Redirect(session.Back(back, new Flash(Message(e)))); }
-            catch (PiranhaConflictException e) { return Results.Redirect(session.Back(back, new Flash(e.Message))); }
+            catch (PiranhaCommerceValidationException e) { return Results.Redirect(session.Back(back, new Flash(Message(e)))); }
+            catch (PiranhaCommerceConflictException e) { return Results.Redirect(session.Back(back, new Flash(e.Message))); }
         });
 
         shop.MapPost("/set", async (IFormCollection form, ShopSession session, ShopBaskets shopBaskets, IBasketService baskets, CancellationToken ct) =>
@@ -66,8 +66,8 @@ internal static class ShopForms
                     await baskets.SetLineAsync(basket.Id, productId, new BasketLineInput { Quantity = Math.Clamp(Count(form["quantity"], 0), 0, 99) }, ct);
                 return Results.Redirect("/basket");
             }
-            catch (PiranhaValidationException e) { return Results.Redirect(session.Back("/basket", new Flash(Message(e)))); }
-            catch (PiranhaConflictException e) { return Results.Redirect(session.Back("/basket", new Flash(e.Message))); }
+            catch (PiranhaCommerceValidationException e) { return Results.Redirect(session.Back("/basket", new Flash(Message(e)))); }
+            catch (PiranhaCommerceConflictException e) { return Results.Redirect(session.Back("/basket", new Flash(e.Message))); }
         });
 
         shop.MapPost("/promo", async (IFormCollection form, ShopSession session, ShopBaskets shopBaskets, IBasketService baskets, CancellationToken ct) =>
@@ -78,8 +78,8 @@ internal static class ShopForms
                     await baskets.SetPromotionAsync(basket.Id, form["remove"].Count > 0 ? null : form["code"].ToString().Trim(), ct);
                 return Results.Redirect("/basket");
             }
-            catch (PiranhaValidationException e) { return Results.Redirect(session.Back("/basket", new Flash(Message(e)))); }
-            catch (PiranhaConflictException e) { return Results.Redirect(session.Back("/basket", new Flash(e.Message))); }
+            catch (PiranhaCommerceValidationException e) { return Results.Redirect(session.Back("/basket", new Flash(Message(e)))); }
+            catch (PiranhaCommerceConflictException e) { return Results.Redirect(session.Back("/basket", new Flash(e.Message))); }
         });
     }
 
@@ -99,7 +99,7 @@ internal static class ShopForms
             try
             {
                 var country = values["countryCode"].ToUpperInvariant();
-                if (!ShopCountries.All.Any(c => c.Code == country)) throw new PiranhaValidationException("countryCode", "Choose a country we deliver to.");
+                if (!ShopCountries.All.Any(c => c.Code == country)) throw new PiranhaCommerceValidationException("countryCode", "Choose a country we deliver to.");
                 var address = new AddressInput
                 {
                     Recipient = Blank(values["recipient"]), Line1 = values["line1"], Line2 = Blank(values["line2"]), City = values["city"],
@@ -111,7 +111,7 @@ internal static class ShopForms
                 session.SetDetails(new CheckoutDetails(values["email"], address.Recipient, address.Line1, address.Line2, address.City, address.Region, address.PostalCode, country));
                 return Results.Redirect("/checkout/delivery");
             }
-            catch (PiranhaValidationException e) { return Results.Redirect(session.Back("/checkout", new Flash(Message(e), null, values))); }
+            catch (PiranhaCommerceValidationException e) { return Results.Redirect(session.Back("/checkout", new Flash(Message(e), null, values))); }
         });
 
         // Step 2: the delivery method, and place the order. A signed-in shopper's order is theirs, with their account's email.
@@ -125,7 +125,7 @@ internal static class ShopForms
 
             try
             {
-                if (!Guid.TryParse(form["shippingMethodId"], out var method)) throw new PiranhaValidationException("shippingMethodId", "Choose a delivery method.");
+                if (!Guid.TryParse(form["shippingMethodId"], out var method)) throw new PiranhaCommerceValidationException("shippingMethodId", "Choose a delivery method.");
                 var order = await orders.CheckoutAsync(basket.Id, new CheckoutInput
                 {
                     Email = shopper?.Email ?? d.Email, CustomerId = shopper?.Id, ShippingMethodId = method, Notes = Blank(form["notes"].ToString().Trim()),
@@ -138,8 +138,8 @@ internal static class ShopForms
                 session.ForgetDetails();
                 return Results.Redirect("/order/confirmed");
             }
-            catch (PiranhaValidationException e) { return Results.Redirect(session.Back("/checkout/delivery", new Flash(Message(e)))); }
-            catch (PiranhaConflictException e) { return Results.Redirect(session.Back("/basket", new Flash(e.Message))); }
+            catch (PiranhaCommerceValidationException e) { return Results.Redirect(session.Back("/checkout/delivery", new Flash(Message(e)))); }
+            catch (PiranhaCommerceConflictException e) { return Results.Redirect(session.Back("/basket", new Flash(e.Message))); }
         });
     }
 
@@ -175,8 +175,8 @@ internal static class ShopForms
             {
                 await accounts.RegisterAsync(new RegisterInput { Email = values["registerEmail"], Password = password, FirstName = Blank(values["firstName"]), LastName = Blank(values["lastName"]) }, ct);
             }
-            catch (PiranhaValidationException e) { return Results.Redirect(session.Back("/account/sign-in", new Flash(Message(e), null, values))); }
-            catch (PiranhaConflictException)
+            catch (PiranhaCommerceValidationException e) { return Results.Redirect(session.Back("/account/sign-in", new Flash(Message(e), null, values))); }
+            catch (PiranhaCommerceConflictException)
             {
                 // The email already belongs to a customer (perhaps from an earlier guest order). Say what to do without saying whether they have a password.
                 return Results.Redirect(session.Back("/account/sign-in", new Flash("We could not create an account with that email. If you have shopped here before, use \"Forgot your password?\" to set one.", null, values)));
@@ -201,7 +201,7 @@ internal static class ShopForms
         account.MapPost("/forgot", async (IFormCollection form, ShopSession session, ICustomerAccountService accounts, CancellationToken ct) =>
         {
             try { await accounts.RequestPasswordResetAsync(new ForgotPasswordInput { Email = form["email"].ToString().Trim() }, ct); }
-            catch (PiranhaValidationException) { }
+            catch (PiranhaCommerceValidationException) { }
             return Results.Redirect(session.Back("/account/forgot", new Flash(null, "If that address has an account, we have emailed a link to choose a new password.")));
         });
 
@@ -214,7 +214,7 @@ internal static class ShopForms
                     ? Results.Redirect(session.Back("/account/sign-in", new Flash(null, "Your password has been changed. You can sign in now.")))
                     : Results.Redirect(session.Back("/account/forgot", new Flash("That link is not valid or has expired. Ask for a new one.")));
             }
-            catch (PiranhaValidationException e)
+            catch (PiranhaCommerceValidationException e)
             {
                 var back = "/account/reset?email=" + Uri.EscapeDataString(input.Email) + "&token=" + Uri.EscapeDataString(input.Token);
                 return Results.Redirect(back + "&f=" + Uri.EscapeDataString(session.Protect(new Flash(Message(e)))));
@@ -233,12 +233,12 @@ internal static class ShopForms
             if (await shopBaskets.ShopperAsync(ct) is not { } shopper) return SignInFirst(back);
             try
             {
-                if (!Guid.TryParse(form["productId"], out var productId)) throw new PiranhaValidationException("productId", "Choose a product.");
+                if (!Guid.TryParse(form["productId"], out var productId)) throw new PiranhaCommerceValidationException("productId", "Choose a product.");
                 await wishlists.AddAsync(shopper.Id, productId, ct);
                 return Results.Redirect(session.Back(back, new Flash(null, "Saved to your wishlist.")));
             }
-            catch (PiranhaValidationException e) { return Results.Redirect(session.Back(back, new Flash(Message(e)))); }
-            catch (PiranhaConflictException e) { return Results.Redirect(session.Back(back, new Flash(e.Message))); }
+            catch (PiranhaCommerceValidationException e) { return Results.Redirect(session.Back(back, new Flash(Message(e)))); }
+            catch (PiranhaCommerceConflictException e) { return Results.Redirect(session.Back(back, new Flash(e.Message))); }
         });
 
         shop.MapPost("/wishlist/remove", async (IFormCollection form, ShopBaskets shopBaskets, IWishlistService wishlists, CancellationToken ct) =>
@@ -267,8 +267,8 @@ internal static class ShopForms
             var typed = new Dictionary<string, string> { ["rating"] = form["rating"].ToString(), ["title"] = form["title"].ToString().Trim(), ["body"] = form["body"].ToString().Trim() };
             try
             {
-                if (!Guid.TryParse(form["productId"], out var productId)) throw new PiranhaValidationException("productId", "Choose a product.");
-                if (!int.TryParse(typed["rating"], out var rating) || rating is < 1 or > 5) throw new PiranhaValidationException("rating", "Choose a rating from 1 to 5 stars.");
+                if (!Guid.TryParse(form["productId"], out var productId)) throw new PiranhaCommerceValidationException("productId", "Choose a product.");
+                if (!int.TryParse(typed["rating"], out var rating) || rating is < 1 or > 5) throw new PiranhaCommerceValidationException("rating", "Choose a rating from 1 to 5 stars.");
                 var input = new ReviewInput { ProductId = productId, Rating = rating, Title = Blank(typed["title"]), Body = Blank(typed["body"]) };
                 ModelValidator.ValidateOrThrow(input);
                 var created = await reviews.CreateAsync(shopper.Id, input, ct);
@@ -276,8 +276,8 @@ internal static class ShopForms
                 var thanks = options.Value.ReviewsNeedApproval ? "Thank you. Your review will appear once we have read it." : "Thank you. Your review is up.";
                 return Results.Redirect(session.Back(back, photoProblem is null ? new Flash(null, thanks) : new Flash(null, thanks + " " + photoProblem)));
             }
-            catch (PiranhaValidationException e) { return Results.Redirect(session.Back(back, new Flash(Message(e), null, typed))); }
-            catch (PiranhaConflictException e) { return Results.Redirect(session.Back(back, new Flash(e.Message))); }
+            catch (PiranhaCommerceValidationException e) { return Results.Redirect(session.Back(back, new Flash(Message(e), null, typed))); }
+            catch (PiranhaCommerceConflictException e) { return Results.Redirect(session.Back(back, new Flash(e.Message))); }
         });
 
         // "Helpful": one tap, a mark that can be taken back. The button says which; the answer is the same page.
@@ -287,11 +287,11 @@ internal static class ShopForms
             if (await shopBaskets.ShopperAsync(ct) is not { } shopper) return SignInFirst(back);
             try
             {
-                if (!Guid.TryParse(form["reviewId"], out var reviewId)) throw new PiranhaValidationException("reviewId", "Choose a review.");
+                if (!Guid.TryParse(form["reviewId"], out var reviewId)) throw new PiranhaCommerceValidationException("reviewId", "Choose a review.");
                 await reviews.SetHelpfulAsync(shopper.Id, reviewId, form["helpful"] == "true", ct);
                 return Results.Redirect(ShopSession.SafePath(back, "/") + "#reviews");
             }
-            catch (PiranhaValidationException e) { return Results.Redirect(session.Back(back, new Flash(Message(e)))); }
+            catch (PiranhaCommerceValidationException e) { return Results.Redirect(session.Back(back, new Flash(Message(e)))); }
         });
     }
 
@@ -305,12 +305,12 @@ internal static class ShopForms
             var email = shopper?.Email ?? form["email"].ToString().Trim();
             try
             {
-                if (!Guid.TryParse(form["productId"], out var productId)) throw new PiranhaValidationException("productId", "Choose a product.");
+                if (!Guid.TryParse(form["productId"], out var productId)) throw new PiranhaCommerceValidationException("productId", "Choose a product.");
                 await stockAlerts.SubscribeAsync(new StockAlertInput { ProductId = productId, Email = email }, shopper?.Id, ct);
                 return Results.Redirect(session.Back(back, new Flash(null, "Thank you. We will email you once, when it is back in stock.")));
             }
-            catch (PiranhaValidationException e) { return Results.Redirect(session.Back(back, new Flash(Message(e), null, new() { ["alertEmail"] = email }))); }
-            catch (PiranhaConflictException e) { return Results.Redirect(session.Back(back, new Flash(e.Message))); }
+            catch (PiranhaCommerceValidationException e) { return Results.Redirect(session.Back(back, new Flash(Message(e), null, new() { ["alertEmail"] = email }))); }
+            catch (PiranhaCommerceConflictException e) { return Results.Redirect(session.Back(back, new Flash(e.Message))); }
         });
 
         // The link in the email opens a page that asks first (mail scanners open links too, so opening one must change nothing); this does the removal.
@@ -345,7 +345,7 @@ internal static class ShopForms
                 await using var stream = file.OpenReadStream();
                 await photos.AddAsync(customerId, reviewId, stream, file.FileName, ct);
             }
-            catch (PiranhaValidationException e) { problems.Add($"\"{Path.GetFileName(file.FileName)}\" was not added: {Message(e)}"); }
+            catch (PiranhaCommerceValidationException e) { problems.Add($"\"{Path.GetFileName(file.FileName)}\" was not added: {Message(e)}"); }
         }
         return problems.Count == 0 ? null : string.Join(" ", problems);
     }
@@ -353,5 +353,5 @@ internal static class ShopForms
     private static string? Blank(string text) => string.IsNullOrWhiteSpace(text) ? null : text;
 
     /// <summary>The service's own words, one sentence per problem.</summary>
-    private static string Message(PiranhaValidationException e) => string.Join(" ", e.Errors.Values.SelectMany(v => v));
+    private static string Message(PiranhaCommerceValidationException e) => string.Join(" ", e.Errors.Values.SelectMany(v => v));
 }

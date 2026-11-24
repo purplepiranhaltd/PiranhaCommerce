@@ -12,12 +12,12 @@ public sealed record TokenRequest(string Email, string Password);
 /// <param name="RefreshToken">Shoppers only, and only when refresh tokens are switched on: swap it at the refresh endpoint for the next access token. Shown once.</param>
 public sealed record TokenResponse(string AccessToken, string TokenType, int ExpiresIn, string? RefreshToken = null);
 
-public sealed class JwtTokenService(IOptions<PiranhaJwtOptions> options, UserManager<PiranhaUser> users, ICredentialChecker credentials)
+public sealed class JwtTokenService(IOptions<PiranhaCommerceJwtOptions> options, UserManager<PiranhaCommerceUser> users, ICredentialChecker credentials)
 {
-    public static SymmetricSecurityKey GetKey(PiranhaJwtOptions o)
+    public static SymmetricSecurityKey GetKey(PiranhaCommerceJwtOptions o)
     {
         if (string.IsNullOrEmpty(o.SigningKey) || o.SigningKey.Length < 32)
-            throw new InvalidOperationException($"{PiranhaJwtOptions.SectionName}:SigningKey must be configured with at least 32 characters.");
+            throw new InvalidOperationException($"{PiranhaCommerceJwtOptions.SectionName}:SigningKey must be configured with at least 32 characters.");
         return new SymmetricSecurityKey(Encoding.UTF8.GetBytes(o.SigningKey));
     }
 

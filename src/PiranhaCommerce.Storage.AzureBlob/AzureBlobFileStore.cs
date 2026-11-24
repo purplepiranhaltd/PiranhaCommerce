@@ -71,7 +71,7 @@ internal sealed class AzureBlobFileStore(IOptions<AzureBlobOptions> options) : I
 }
 
 /// <summary>Stores files in Azure Blob Storage. Configure <see cref="AzureBlobOptions"/>. Use instead of the local disk package, not with it.</summary>
-public sealed class AzureBlobStoragePlugin : IPiranhaPlugin
+public sealed class AzureBlobStoragePlugin : IPiranhaCommercePlugin
 {
     public PluginInfo Info { get; } = new("PiranhaCommerce.Storage.AzureBlob", "Azure Blob storage", "0.1.0", "Keeps uploaded files in an Azure storage container.");
 

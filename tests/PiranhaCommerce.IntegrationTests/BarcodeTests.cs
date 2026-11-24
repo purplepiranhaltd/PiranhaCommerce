@@ -5,7 +5,7 @@ using PiranhaCommerce.Core.Validation;
 
 namespace PiranhaCommerce.IntegrationTests;
 
-public class BarcodeTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class BarcodeTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static string Tag() => Guid.NewGuid().ToString("N")[..10];
 
@@ -36,7 +36,7 @@ public class BarcodeTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory
     [InlineData("")]
     [InlineData("   ")]
     public void Rejects_bad_codes(string input) =>
-        Assert.Throws<PiranhaValidationException>(() => BarcodeNormalizer.Normalize(input));
+        Assert.Throws<PiranhaCommerceValidationException>(() => BarcodeNormalizer.Normalize(input));
 
     [Fact]
     public async Task Set_get_and_lookup_by_any_equivalent_form()

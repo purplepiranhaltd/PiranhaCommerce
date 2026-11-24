@@ -6,7 +6,7 @@ using PiranhaCommerce.Data;
 namespace PiranhaCommerce.Catalog;
 
 /// <summary>Shared product catalogue used by every sales channel (Ecommerce today, EPOS later).</summary>
-public sealed class CatalogPlugin : IPiranhaPlugin
+public sealed class CatalogPlugin : IPiranhaCommercePlugin
 {
     public PluginInfo Info { get; } = new("PiranhaCommerce.Catalog", "Catalog", "0.1.0", "Products shared by all sales channels.");
 

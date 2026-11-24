@@ -165,7 +165,7 @@ public interface IDiscountRuleService
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 }
 
-internal sealed class DiscountRuleService(PiranhaDbContext db) : IDiscountRuleService
+internal sealed class DiscountRuleService(PiranhaCommerceDbContext db) : IDiscountRuleService
 {
     public async Task<IReadOnlyList<DiscountRuleDto>> ListAsync(CancellationToken ct = default)
     {
@@ -248,7 +248,7 @@ internal sealed class DiscountRuleService(PiranhaDbContext db) : IDiscountRuleSe
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
-            throw new PiranhaValidationException(nameof(DiscountRuleInput.Code), "That code is already in use.");
+            throw new PiranhaCommerceValidationException(nameof(DiscountRuleInput.Code), "That code is already in use.");
         }
     }
 
@@ -259,16 +259,16 @@ internal sealed class DiscountRuleService(PiranhaDbContext db) : IDiscountRuleSe
         {
             var code = PromotionRules.Normalize(input.Code);
             if (await db.Set<Promotion>().AnyAsync(p => p.Code == code, ct) || await db.Set<DiscountRule>().AnyAsync(r => r.Code == code && r.Id != existingId, ct))
-                throw new PiranhaValidationException(nameof(DiscountRuleInput.Code), "That code is already in use.");
+                throw new PiranhaCommerceValidationException(nameof(DiscountRuleInput.Code), "That code is already in use.");
         }
         var products = input.ProductIds.Distinct().ToList();
         if (products.Count > 0 && await db.Set<Product>().CountAsync(p => products.Contains(p.Id), ct) != products.Count)
-            throw new PiranhaValidationException(nameof(DiscountRuleInput.ProductIds), "One of the products does not exist.");
+            throw new PiranhaCommerceValidationException(nameof(DiscountRuleInput.ProductIds), "One of the products does not exist.");
         var categories = input.CategoryIds.Distinct().ToList();
         if (categories.Count > 0 && await db.Set<Category>().CountAsync(c => categories.Contains(c.Id), ct) != categories.Count)
-            throw new PiranhaValidationException(nameof(DiscountRuleInput.CategoryIds), "One of the categories does not exist.");
+            throw new PiranhaCommerceValidationException(nameof(DiscountRuleInput.CategoryIds), "One of the categories does not exist.");
         if (input.CustomerGroupId is { } g && !await db.Set<CustomerGroup>().AnyAsync(x => x.Id == g, ct))
-            throw new PiranhaValidationException(nameof(DiscountRuleInput.CustomerGroupId), "That customer group does not exist.");
+            throw new PiranhaCommerceValidationException(nameof(DiscountRuleInput.CustomerGroupId), "That customer group does not exist.");
     }
 
     private async Task<IReadOnlyList<DiscountRuleDto>> ToDtosAsync(IReadOnlyList<DiscountRule> rules, CancellationToken ct)

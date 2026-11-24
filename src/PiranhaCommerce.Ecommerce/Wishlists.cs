@@ -59,7 +59,7 @@ public interface IWishlistService
     Task<IReadOnlyList<WishlistDemandDto>> DemandAsync(CancellationToken ct = default);
 }
 
-internal sealed class WishlistService(PiranhaDbContext db, IOptions<EcommerceOptions> options, IGroupPricingService pricing) : IWishlistService
+internal sealed class WishlistService(PiranhaCommerceDbContext db, IOptions<EcommerceOptions> options, IGroupPricingService pricing) : IWishlistService
 {
     /// <summary>The most products one wishlist holds.</summary>
     public const int MaxItems = 200;
@@ -88,12 +88,12 @@ internal sealed class WishlistService(PiranhaDbContext db, IOptions<EcommerceOpt
     {
         var product = await db.Set<Product>().AsNoTracking().Where(p => p.Id == productId).Select(p => new { p.Id }).FirstOrDefaultAsync(ct);
         if (product is null || !await db.Set<ProductListing>().AsNoTracking().AnyAsync(l => l.ProductId == productId && l.Published, ct))
-            throw new PiranhaValidationException(nameof(WishlistAddInput.ProductId), "That product cannot be added to a wishlist.");
+            throw new PiranhaCommerceValidationException(nameof(WishlistAddInput.ProductId), "That product cannot be added to a wishlist.");
 
         if (!await db.Set<WishlistItem>().AnyAsync(i => i.CustomerId == customerId && i.ProductId == productId, ct))
         {
             if (await db.Set<WishlistItem>().CountAsync(i => i.CustomerId == customerId, ct) >= MaxItems)
-                throw new PiranhaConflictException($"A wishlist holds up to {MaxItems} products. Remove some first.");
+                throw new PiranhaCommerceConflictException($"A wishlist holds up to {MaxItems} products. Remove some first.");
             db.Add(new WishlistItem { CustomerId = customerId, ProductId = productId, AddedUtc = DateTimeOffset.UtcNow, PriceWhenAdded = (await pricing.PricesAsync(customerId, [productId], null, ct)).First().Price });
             try { await db.SaveChangesAsync(ct); }
             catch (DbUpdateException) { db.ChangeTracker.Clear(); } // the same product added twice at once: the unique index keeps one
@@ -119,7 +119,7 @@ internal sealed class WishlistService(PiranhaDbContext db, IOptions<EcommerceOpt
 }
 
 /// <summary>The wishlist part of an export and an erasure: what the person saved is listed, and deleted on erasure.</summary>
-internal sealed class WishlistCustomerData(PiranhaDbContext db) : ICustomerDataContributor
+internal sealed class WishlistCustomerData(PiranhaCommerceDbContext db) : ICustomerDataContributor
 {
     public string Name => "wishlist";
 

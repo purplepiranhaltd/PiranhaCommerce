@@ -118,7 +118,7 @@ else
             if (_error is null) ResetForm();
             await LoadAsync();
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
         catch (Exception ex) { _error = "Could not save: " + ex.Message; }
         finally { _saving = false; }
     }
@@ -133,7 +133,7 @@ else
             if (_editingId == id) ResetForm();
             await LoadAsync();
         }
-        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (PiranhaCommerceConflictException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = "Could not delete: " + ex.Message; }
     }
 }

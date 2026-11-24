@@ -192,7 +192,7 @@ public interface IFulfilmentService
 
 internal static class ShipmentQueries
 {
-    public static async Task<List<ShipmentDto>> ForOrderAsync(PiranhaDbContext db, Guid orderId, CancellationToken ct)
+    public static async Task<List<ShipmentDto>> ForOrderAsync(PiranhaCommerceDbContext db, Guid orderId, CancellationToken ct)
     {
         var shipments = await db.Set<Shipment>().AsNoTracking().Where(s => s.OrderId == orderId).OrderBy(s => s.ShippedUtc).ThenBy(s => s.Id).ToListAsync(ct);
         if (shipments.Count == 0) return [];
@@ -207,7 +207,7 @@ internal static class ShipmentQueries
     public static ShipmentSummaryDto Summary(this ShipmentDto s) => new(s.Id, s.ShippedUtc, s.Carrier, s.TrackingNumber, s.TrackingUrl, s.Lines);
 }
 
-internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock, IOptions<EcommerceOptions> options, OrderMailer mailer, IAuditTrail? trail = null, IEventPublisher? events = null) : IFulfilmentService
+internal sealed class FulfilmentService(PiranhaCommerceDbContext db, IStockService stock, IOptions<EcommerceOptions> options, OrderMailer mailer, IAuditTrail? trail = null, IEventPublisher? events = null) : IFulfilmentService
 {
     public async Task<IReadOnlyList<ShipmentDto>?> ListShipmentsAsync(Guid orderId, CancellationToken ct = default)
     {
@@ -222,7 +222,7 @@ internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock
         var stage = await db.Set<Order>().AsNoTracking().Where(o => o.Id == orderId).Select(o => (OrderStage?)o.Stage).FirstOrDefaultAsync(ct);
         if (stage is null) return null;
         if (stage != OrderStage.Processing)
-            throw new PiranhaConflictException(stage == OrderStage.Placed
+            throw new PiranhaCommerceConflictException(stage == OrderStage.Placed
                 ? "Move the order to Processing before sending it."
                 : $"An order that is {stage} cannot be shipped.");
 
@@ -230,7 +230,7 @@ internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock
         if (input.CarrierId is { } carrierId)
         {
             var carrier = await db.Set<ShippingCarrier>().AsNoTracking().FirstOrDefaultAsync(c => c.Id == carrierId && c.Active, ct)
-                ?? throw new PiranhaValidationException(nameof(ShipmentInput.CarrierId), "Choose one of the shop's carriers that is switched on.");
+                ?? throw new PiranhaCommerceValidationException(nameof(ShipmentInput.CarrierId), "Choose one of the shop's carriers that is switched on.");
             input.Carrier = carrier.Name;
             if (string.IsNullOrWhiteSpace(input.TrackingUrl) && ShippingCarriers.TrackingUrl(carrier.TrackingUrlTemplate, input.TrackingNumber) is { Length: <= 500 } link) input.TrackingUrl = link;
         }
@@ -250,7 +250,7 @@ internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock
                     // first (or after), so a parcel can never leave from an order that has just been cancelled, and the reverse.
                     var held = await db.Set<Order>().Where(o => o.Id == orderId && o.Stage == OrderStage.Processing)
                         .ExecuteUpdateAsync(s => s.SetProperty(o => o.UpdatedUtc, (DateTimeOffset?)now), token);
-                    if (held == 0) throw new PiranhaConflictException("The order was changed by someone else. Reload it and try again.");
+                    if (held == 0) throw new PiranhaCommerceConflictException("The order was changed by someone else. Reload it and try again.");
 
                     var lines = await db.Set<OrderLine>().AsNoTracking().Where(l => l.OrderId == orderId).OrderBy(l => l.Position)
                         .Select(l => new { l.Id, l.Name, l.Quantity, l.QuantityShipped }).ToListAsync(token);
@@ -261,7 +261,7 @@ internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock
                         // The guard: only while it keeps shipped within what was bought, so two people cannot both send the last one.
                         var done = await db.Set<OrderLine>().Where(l => l.Id == lineId && l.OrderId == orderId && l.QuantityShipped + quantity <= l.Quantity)
                             .ExecuteUpdateAsync(s => s.SetProperty(l => l.QuantityShipped, l => l.QuantityShipped + quantity), token);
-                        if (done == 0) throw new PiranhaConflictException("That is more than is left to send. Reload the order and check what has already gone.");
+                        if (done == 0) throw new PiranhaCommerceConflictException("That is more than is left to send. Reload the order and check what has already gone.");
                     }
 
                     var parcel = shipment.ToEntity(wanted, now);
@@ -291,7 +291,7 @@ internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
-            throw new PiranhaConflictException("The shipment could not be recorded. Please try again.");
+            throw new PiranhaCommerceConflictException("The shipment could not be recorded. Please try again.");
         }
 
         var recorded = (await ShipmentQueries.ForOrderAsync(db, orderId, ct)).First(s => s.Id == shipmentId);
@@ -316,7 +316,7 @@ internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock
     {
         ModelValidator.ValidateOrThrow(input);
         if (input.Lines.Select(l => l.OrderLineId).Distinct().Count() != input.Lines.Count)
-            throw new PiranhaValidationException(nameof(ReturnInput.Lines), "List each item once.");
+            throw new PiranhaCommerceValidationException(nameof(ReturnInput.Lines), "List each item once.");
 
         var order = await db.Set<Order>().AsNoTracking().Where(o => o.Id == orderId).Select(o => new { o.Number, o.ShippingTotal, o.ShippingTax }).FirstOrDefaultAsync(ct);
         if (order is null) return null;
@@ -347,16 +347,16 @@ internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock
                     foreach (var item in input.Lines)
                     {
                         var line = lines.FirstOrDefault(l => l.Id == item.OrderLineId)
-                                   ?? throw new PiranhaValidationException(nameof(ReturnInput.Lines), "One of those items is not on this order.");
+                                   ?? throw new PiranhaCommerceValidationException(nameof(ReturnInput.Lines), "One of those items is not on this order.");
                         if (item.Quantity > line.QuantityShipped - line.QuantityReturned)
-                            throw new PiranhaConflictException(line.QuantityShipped == 0
+                            throw new PiranhaCommerceConflictException(line.QuantityShipped == 0
                                 ? $"\"{line.Name}\" has not been sent yet, so it cannot come back."
                                 : $"Only {line.QuantityShipped - line.QuantityReturned} of \"{line.Name}\" can still be returned.");
 
                         // The guard, as for shipping: shipped and returned never cross, however many people record at once.
                         var done = await db.Set<OrderLine>().Where(l => l.Id == line.Id && l.QuantityReturned + item.Quantity <= l.QuantityShipped)
                             .ExecuteUpdateAsync(s => s.SetProperty(l => l.QuantityReturned, l => l.QuantityReturned + item.Quantity), token);
-                        if (done == 0) throw new PiranhaConflictException("That is more than can still be returned. Reload the order and check.");
+                        if (done == 0) throw new PiranhaCommerceConflictException("That is more than can still be returned. Reload the order and check.");
 
                         suggested += RefundSuggestion.ForLine(line.LineTotal, line.DiscountAmount, line.TaxAmount, line.Quantity, line.QuantityReturned, item.Quantity);
                         returnLines.Add(new OrderReturnLine { OrderReturnId = returnId, OrderLineId = line.Id, Quantity = item.Quantity, Restocked = item.Restock });
@@ -368,13 +368,13 @@ internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock
                         // Only an approved request of this order, and only once: the conditional update decides between simultaneous recordings.
                         var marked = await db.Set<ReturnRequest>().Where(r => r.Id == requestId && r.OrderId == orderId && r.Status == ReturnRequestStatus.Approved)
                             .ExecuteUpdateAsync(s => s.SetProperty(r => r.Status, ReturnRequestStatus.Received).SetProperty(r => r.ReceivedReturnId, (Guid?)returnId), token);
-                        if (marked == 0) throw new PiranhaConflictException("That return request is not an approved one for this order, or has already been received.");
+                        if (marked == 0) throw new PiranhaCommerceConflictException("That return request is not an approved one for this order, or has already been received.");
                     }
 
                     if (input.IncludeShipping)
                     {
                         if (await db.Set<OrderReturn>().AsNoTracking().AnyAsync(r => r.OrderId == orderId && r.ShippingIncluded, token))
-                            throw new PiranhaConflictException("The delivery charge is already part of an earlier return on this order.");
+                            throw new PiranhaCommerceConflictException("The delivery charge is already part of an earlier return on this order.");
                         suggested += order.ShippingTotal + order.ShippingTax;
                     }
 
@@ -396,7 +396,7 @@ internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
-            throw new PiranhaConflictException("The return could not be recorded. Please try again.");
+            throw new PiranhaCommerceConflictException("The return could not be recorded. Please try again.");
         }
 
         return (await ListReturnsAsync(orderId, ct))!.First(r => r.Id == returnId);
@@ -410,17 +410,17 @@ internal sealed class FulfilmentService(PiranhaDbContext db, IStockService stock
             if (input.Lines is null or { Count: 0 })
             {
                 var all = remaining.Where(r => r.Remaining > 0).Select(r => (r.Id, r.Remaining)).ToList();
-                if (all.Count == 0) throw new PiranhaConflictException("Everything on this order has already been sent.");
+                if (all.Count == 0) throw new PiranhaCommerceConflictException("Everything on this order has already been sent.");
                 return all;
             }
             if (input.Lines.Select(l => l.OrderLineId).Distinct().Count() != input.Lines.Count)
-                throw new PiranhaValidationException(nameof(ShipmentInput.Lines), "List each item once.");
+                throw new PiranhaCommerceValidationException(nameof(ShipmentInput.Lines), "List each item once.");
             foreach (var l in input.Lines)
             {
                 var line = remaining.FirstOrDefault(r => r.Id == l.OrderLineId);
-                if (line.Id == Guid.Empty) throw new PiranhaValidationException(nameof(ShipmentInput.Lines), "One of those items is not on this order.");
+                if (line.Id == Guid.Empty) throw new PiranhaCommerceValidationException(nameof(ShipmentInput.Lines), "One of those items is not on this order.");
                 if (l.Quantity > line.Remaining)
-                    throw new PiranhaConflictException($"Only {line.Remaining} of that item is left to send.");
+                    throw new PiranhaCommerceConflictException($"Only {line.Remaining} of that item is left to send.");
             }
             return input.Lines.Select(l => (l.OrderLineId, l.Quantity)).ToList();
         }

@@ -136,7 +136,7 @@ public interface IVoucherService
     Task<VoucherDto?> AdjustAsync(Guid id, VoucherAdjustInput input, string? actor = null, CancellationToken ct = default);
 }
 
-internal sealed class VoucherService(PiranhaDbContext db, IOptions<EcommerceOptions> options) : IVoucherService
+internal sealed class VoucherService(PiranhaCommerceDbContext db, IOptions<EcommerceOptions> options) : IVoucherService
 {
     public async Task<PagedResult<VoucherDto>> ListAsync(int? page, int? pageSize, string? search, CancellationToken ct = default)
     {
@@ -173,7 +173,7 @@ internal sealed class VoucherService(PiranhaDbContext db, IOptions<EcommerceOpti
     {
         ModelValidator.ValidateOrThrow(input);
         if (input.ExpiresUtc is { } end && end <= DateTimeOffset.UtcNow)
-            throw new PiranhaValidationException(nameof(VoucherIssueInput.ExpiresUtc), "The expiry must be in the future.");
+            throw new PiranhaCommerceValidationException(nameof(VoucherIssueInput.ExpiresUtc), "The expiry must be in the future.");
 
         var code = VoucherRules.NewCode();
         var now = DateTimeOffset.UtcNow;
@@ -205,7 +205,7 @@ internal sealed class VoucherService(PiranhaDbContext db, IOptions<EcommerceOpti
     public async Task<VoucherDto?> AdjustAsync(Guid id, VoucherAdjustInput input, string? actor = null, CancellationToken ct = default)
     {
         ModelValidator.ValidateOrThrow(input);
-        if (input.Amount == 0) throw new PiranhaValidationException(nameof(VoucherAdjustInput.Amount), "Enter an amount other than zero.");
+        if (input.Amount == 0) throw new PiranhaCommerceValidationException(nameof(VoucherAdjustInput.Amount), "Enter an amount other than zero.");
         if (!await db.Set<GiftVoucher>().AnyAsync(v => v.Id == id, ct)) return null;
 
         var strategy = db.Database.CreateExecutionStrategy();
@@ -217,7 +217,7 @@ internal sealed class VoucherService(PiranhaDbContext db, IOptions<EcommerceOpti
                 // One conditional statement: the balance can never go negative, even with simultaneous spends and adjustments.
                 var changed = await db.Set<GiftVoucher>().Where(v => v.Id == id && v.Balance + input.Amount >= 0)
                     .ExecuteUpdateAsync(s => s.SetProperty(v => v.Balance, v => v.Balance + input.Amount).SetProperty(v => v.UpdatedUtc, (DateTimeOffset?)DateTimeOffset.UtcNow), token);
-                if (changed == 0) throw new PiranhaConflictException("That would take the voucher balance below zero.");
+                if (changed == 0) throw new PiranhaCommerceConflictException("That would take the voucher balance below zero.");
                 db.Add(new VoucherEntry { Id = entryId, VoucherId = id, Amount = input.Amount, Kind = VoucherEntryKinds.Adjusted, Reference = input.Reason.Trim(), Actor = actor, CreatedUtc = DateTimeOffset.UtcNow });
                 await db.SaveChangesAsync(token);
                 return true;

@@ -9,7 +9,7 @@ namespace PiranhaCommerce.Ecommerce;
 /// anonymised in place. Name, address lines, postcode, email and notes go; totals, lines, payments, shipments and the country (which
 /// tax reporting needs) stay.
 /// </summary>
-internal sealed class EcommerceCustomerData(PiranhaDbContext db) : ICustomerDataContributor
+internal sealed class EcommerceCustomerData(PiranhaCommerceDbContext db) : ICustomerDataContributor
 {
     /// <summary>A reserved, undeliverable address (RFC 2606): nothing sent to an erased order can ever reach anyone.</summary>
     public const string ErasedEmail = "erased@erased.invalid";

@@ -26,19 +26,19 @@ public static class BarcodeNormalizer
 {
     public const int MaxLength = 100;
 
-    /// <summary>Throws <see cref="PiranhaValidationException"/> for empty, over-long or bad-check-digit codes.</summary>
+    /// <summary>Throws <see cref="PiranhaCommerceValidationException"/> for empty, over-long or bad-check-digit codes.</summary>
     public static string Normalize(string? code, string field = "Code")
     {
         var c = code?.Trim();
         if (string.IsNullOrEmpty(c))
-            throw new PiranhaValidationException(field, "A barcode cannot be empty.");
+            throw new PiranhaCommerceValidationException(field, "A barcode cannot be empty.");
         if (c.Length > MaxLength)
-            throw new PiranhaValidationException(field, $"A barcode can be at most {MaxLength} characters.");
+            throw new PiranhaCommerceValidationException(field, $"A barcode can be at most {MaxLength} characters.");
 
         if (c.All(char.IsAsciiDigit) && c.Length is 8 or 12 or 13 or 14)
         {
             if (!HasValidCheckDigit(c))
-                throw new PiranhaValidationException(field, $"'{c}' is not a valid GTIN: the check digit is wrong.");
+                throw new PiranhaCommerceValidationException(field, $"'{c}' is not a valid GTIN: the check digit is wrong.");
             return c.PadLeft(14, '0');
         }
         return c.ToUpperInvariant();

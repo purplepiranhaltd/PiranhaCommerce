@@ -102,7 +102,7 @@ internal static class SalePricing
 
     /// <summary>For each product a running sale lowers, its sale price and when that sale ends. Products at their regular price are left out.</summary>
     public static async Task<Dictionary<Guid, (decimal Price, DateTimeOffset EndsUtc)>> ActiveAsync(
-        PiranhaDbContext db, IReadOnlyCollection<(Guid ProductId, decimal Price)> items, CancellationToken ct)
+        PiranhaCommerceDbContext db, IReadOnlyCollection<(Guid ProductId, decimal Price)> items, CancellationToken ct)
     {
         var result = new Dictionary<Guid, (decimal, DateTimeOffset)>();
         if (items.Count == 0) return result;
@@ -160,7 +160,7 @@ internal static class SalePricing
     }
 }
 
-internal sealed class SaleService(PiranhaDbContext db) : ISaleService
+internal sealed class SaleService(PiranhaCommerceDbContext db) : ISaleService
 {
     public async Task<IReadOnlyList<SaleDto>> ListAsync(SaleStatus? status, CancellationToken ct = default)
     {
@@ -200,7 +200,7 @@ internal sealed class SaleService(PiranhaDbContext db) : ISaleService
     public async Task<SaleDto?> SetProductAsync(Guid saleId, Guid productId, SaleProductInput input, CancellationToken ct = default)
     {
         ModelValidator.ValidateOrThrow(input);
-        if (input.Price is { } p && decimal.Round(p, 4) != p) throw new PiranhaValidationException(nameof(SaleProductInput.Price), "A price can have at most 4 decimal places.");
+        if (input.Price is { } p && decimal.Round(p, 4) != p) throw new PiranhaCommerceValidationException(nameof(SaleProductInput.Price), "A price can have at most 4 decimal places.");
         if (!await db.Set<Sale>().AnyAsync(s => s.Id == saleId, ct) || !await db.Set<Product>().AnyAsync(x => x.Id == productId, ct)) return null;
 
         var updated = await db.UpdateTrackedAsync<SaleProduct>(x => x.SaleId == saleId && x.ProductId == productId, x => x.Price = input.Price, ct);
@@ -250,9 +250,9 @@ internal sealed class SaleService(PiranhaDbContext db) : ISaleService
     private static void Check(SaleInput input)
     {
         ModelValidator.ValidateOrThrow(input);
-        if (string.IsNullOrWhiteSpace(input.Name)) throw new PiranhaValidationException(nameof(SaleInput.Name), "A sale needs a name.");
-        if (decimal.Round(input.Percent, 2) != input.Percent) throw new PiranhaValidationException(nameof(SaleInput.Percent), "The percentage can have at most 2 decimal places.");
-        if (input.EndsUtc <= input.StartsUtc) throw new PiranhaValidationException(nameof(SaleInput.EndsUtc), "The sale must end after it starts.");
+        if (string.IsNullOrWhiteSpace(input.Name)) throw new PiranhaCommerceValidationException(nameof(SaleInput.Name), "A sale needs a name.");
+        if (decimal.Round(input.Percent, 2) != input.Percent) throw new PiranhaCommerceValidationException(nameof(SaleInput.Percent), "The percentage can have at most 2 decimal places.");
+        if (input.EndsUtc <= input.StartsUtc) throw new PiranhaCommerceValidationException(nameof(SaleInput.EndsUtc), "The sale must end after it starts.");
     }
 
     private async Task<SaleDto> ToDtoAsync(Sale s, DateTimeOffset now, CancellationToken ct)

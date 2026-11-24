@@ -100,7 +100,7 @@ else
             }
             Navigation.NavigateTo("/admin/catalog/products");
         }
-        catch (PiranhaValidationException ex)
+        catch (PiranhaCommerceValidationException ex)
         {
             _serverErrors = ex.Errors.SelectMany(e => e.Value.Select(m => string.IsNullOrEmpty(e.Key) ? m : $"{e.Key}: {m}")).ToList();
         }

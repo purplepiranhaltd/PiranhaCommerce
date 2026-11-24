@@ -10,7 +10,7 @@ namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>A shopper finds their open basket again without remembering its id.</summary>
 [Collection(OrderSettings.Name)]
-public class CurrentBasketTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class CurrentBasketTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
 

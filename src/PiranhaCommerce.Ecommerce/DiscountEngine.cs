@@ -33,7 +33,7 @@ internal static class DiscountEngine
 {
     private static decimal Round(decimal v) => Math.Round(v, 2, MidpointRounding.AwayFromZero);
 
-    public static async Task<DiscountPlan> PlanAsync(PiranhaDbContext db, Guid? customerId, string? code, IReadOnlyList<EngineLine> lines, DateTimeOffset now, CancellationToken ct)
+    public static async Task<DiscountPlan> PlanAsync(PiranhaCommerceDbContext db, Guid? customerId, string? code, IReadOnlyList<EngineLine> lines, DateTimeOffset now, CancellationToken ct)
     {
         if (lines.Count == 0) return DiscountPlan.None(0);
         var normalized = string.IsNullOrWhiteSpace(code) ? null : PromotionRules.Normalize(code);

@@ -21,7 +21,7 @@ The shop front is yours. The packages give you the storefront API (`/api/v1/stor
 
 ## How it fits together
 
-- **One database.** Every package adds its tables to one shared `PiranhaDbContext` through model contributors. SQL Server, Azure SQL and PostgreSQL are supported.
+- **One database.** Every package adds its tables to one shared `PiranhaCommerceDbContext` through model contributors. SQL Server, Azure SQL and PostgreSQL are supported.
 - **The host owns the migrations**, because only the host knows which packages are installed. See [Migrations](../advanced/migrations.md).
 - **Plugins are compiled in.** There is no runtime upload or assembly scanning. See [The plugin model](../advanced/plugins.md).
 - **Optional means optional.** A package that depends on another one (for example, webhooks) takes it as an optional dependency, so leaving a package out never breaks the others.

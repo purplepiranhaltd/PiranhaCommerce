@@ -11,7 +11,7 @@ using PiranhaCommerce.Ecommerce;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Tags: free-form labels staff put on products (making them as they go), that shoppers browse and search by.</summary>
-public class TagTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class TagTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];

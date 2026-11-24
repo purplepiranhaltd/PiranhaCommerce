@@ -86,7 +86,7 @@
             _rows = saved.Select(b => new Row { MinQuantity = b.MinQuantity, Price = b.Price, Percent = b.Percent, GroupId = b.GroupId }).ToList();
             _message = "Saved.";
         }
-        catch (PiranhaValidationException ex) { _failed = true; _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceValidationException ex) { _failed = true; _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
         catch (Exception ex) { _failed = true; _message = "Could not save: " + ex.Message; }
         finally { _busy = false; }
     }

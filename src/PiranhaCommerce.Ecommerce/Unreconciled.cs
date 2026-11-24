@@ -70,26 +70,26 @@ public interface IUnreconciledPaymentService
 internal static class GatewayBooking
 {
     /// <summary>Books a confirmed gateway event against its order. Throws conflict or validation when it cannot be booked.</summary>
-    public static async Task BookAsync(PiranhaDbContext db, IPaymentService payments, string provider, string note, string actor, GatewayEvent e, CancellationToken ct)
+    public static async Task BookAsync(PiranhaCommerceDbContext db, IPaymentService payments, string provider, string note, string actor, GatewayEvent e, CancellationToken ct)
     {
         var orderCurrency = await db.Set<Order>().AsNoTracking().Where(o => o.Id == e.OrderId).Select(o => o.Currency).FirstOrDefaultAsync(ct);
-        if (orderCurrency is null) throw new PiranhaConflictException("No such order.");
+        if (orderCurrency is null) throw new PiranhaCommerceConflictException("No such order.");
         if (!string.Equals(orderCurrency, e.Currency, StringComparison.OrdinalIgnoreCase))
-            throw new PiranhaConflictException($"Currency {e.Currency} does not match the order's {orderCurrency}.");
+            throw new PiranhaCommerceConflictException($"Currency {e.Currency} does not match the order's {orderCurrency}.");
 
         if (e.Kind is GatewayEventKind.DisputeOpened or GatewayEventKind.DisputeWon or GatewayEventKind.RefundFailed)
-            throw new PiranhaConflictException("This is not money to book: deal with it at the provider, then resolve it here.");
+            throw new PiranhaCommerceConflictException("This is not money to book: deal with it at the provider, then resolve it here.");
 
         // A lost dispute is not the shop refunding: the buyer is not emailed as if they had been.
         var input = new PaymentInput { Amount = e.Amount, Provider = provider, Reference = e.Reference, Note = note, SuppressBuyerEmail = e.Kind == GatewayEventKind.DisputeLost };
         var saved = e.Kind == GatewayEventKind.PaymentConfirmed
             ? await payments.RecordPaymentAsync(e.OrderId, input, actor, ct)
             : await payments.RecordRefundAsync(e.OrderId, input, actor, ct);
-        if (saved is null) throw new PiranhaConflictException("No such order.");
+        if (saved is null) throw new PiranhaCommerceConflictException("No such order.");
     }
 }
 
-internal sealed class UnreconciledPaymentService(PiranhaDbContext db, IPaymentService payments) : IUnreconciledPaymentService
+internal sealed class UnreconciledPaymentService(PiranhaCommerceDbContext db, IPaymentService payments) : IUnreconciledPaymentService
 {
     public async Task<PagedResult<UnreconciledPaymentDto>> ListAsync(int? page, int? pageSize, bool? resolved, CancellationToken ct = default)
     {
@@ -113,7 +113,7 @@ internal sealed class UnreconciledPaymentService(PiranhaDbContext db, IPaymentSe
     public async Task<UnreconciledPaymentDto?> ResolveAsync(Guid id, ResolveUnreconciledInput input, string? actor = null, CancellationToken ct = default)
     {
         ModelValidator.ValidateOrThrow(input);
-        if (string.IsNullOrWhiteSpace(input.Resolution)) throw new PiranhaValidationException(nameof(input.Resolution), "Say what was done about it.");
+        if (string.IsNullOrWhiteSpace(input.Resolution)) throw new PiranhaCommerceValidationException(nameof(input.Resolution), "Say what was done about it.");
         var note = input.Resolution.Trim();
         var now = DateTimeOffset.UtcNow;
 
@@ -123,7 +123,7 @@ internal sealed class UnreconciledPaymentService(PiranhaDbContext db, IPaymentSe
         if (changed == 0)
         {
             if (!await db.Set<UnreconciledPayment>().AnyAsync(u => u.Id == id, ct)) return null;
-            throw new PiranhaConflictException("That has already been resolved.");
+            throw new PiranhaCommerceConflictException("That has already been resolved.");
         }
         return await GetAsync(id, ct);
     }
@@ -132,14 +132,14 @@ internal sealed class UnreconciledPaymentService(PiranhaDbContext db, IPaymentSe
     {
         var row = await db.Set<UnreconciledPayment>().AsNoTracking().FirstOrDefaultAsync(u => u.Id == id, ct);
         if (row is null) return null;
-        if (row.ResolvedUtc is not null) throw new PiranhaConflictException("That has already been resolved.");
+        if (row.ResolvedUtc is not null) throw new PiranhaCommerceConflictException("That has already been resolved.");
 
         var e = new GatewayEvent(row.Kind, row.OrderId, row.Amount, row.Currency, row.Reference);
         try
         {
             await GatewayBooking.BookAsync(db, payments, row.Provider, $"Confirmed by {row.Provider} (booked on retry)", actor ?? $"gateway:{row.Provider}", e, ct);
         }
-        catch (Exception ex) when (ex is PiranhaConflictException or PiranhaValidationException)
+        catch (Exception ex) when (ex is PiranhaCommerceConflictException or PiranhaCommerceValidationException)
         {
             // Booked by someone else in the meantime (the same reference exists): that is a resolution, not a failure.
             if (!await db.Set<Payment>().AsNoTracking().AnyAsync(p => p.Provider == row.Provider && p.Reference == row.Reference, ct))
@@ -147,7 +147,7 @@ internal sealed class UnreconciledPaymentService(PiranhaDbContext db, IPaymentSe
                 db.ChangeTracker.Clear();
                 var reason = Truncate(ex.Message, 500);
                 await db.Set<UnreconciledPayment>().Where(u => u.Id == id).ExecuteUpdateAsync(s => s.SetProperty(u => u.Reason, reason), ct);
-                throw new PiranhaConflictException($"Still cannot be booked: {ex.Message}");
+                throw new PiranhaCommerceConflictException($"Still cannot be booked: {ex.Message}");
             }
         }
 

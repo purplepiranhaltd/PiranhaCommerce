@@ -11,7 +11,7 @@ using PiranhaCommerce.Customers;
 
 namespace PiranhaCommerce.IntegrationTests;
 
-public class AuditTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class AuditTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];
@@ -29,7 +29,7 @@ public class AuditTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
 
         var log = await Log(c, "Product", p.Id);
         Assert.Equal([AuditAction.Created, AuditAction.Updated, AuditAction.Deleted], log.Select(e => e.Action));
-        Assert.All(log, e => { Assert.Equal(PiranhaFactory.AdminEmail, e.Actor); Assert.Equal(p.Name, e.Label); });
+        Assert.All(log, e => { Assert.Equal(PiranhaCommerceFactory.AdminEmail, e.Actor); Assert.Equal(p.Name, e.Label); });
         Assert.Contains(log[0].Changes, ch => ch is { Property: "Price", From: null, To: "10" });
         var update = Assert.Single(log[1].Changes);
         Assert.Equal(("Price", "10", "12.5"), (update.Property, update.From, update.To));
@@ -113,7 +113,7 @@ public class AuditTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
         var orderLog = await Log(c, "Order", order.Id);
         Assert.Contains(orderLog, e => e.Action == AuditAction.Created);
         var moved = Assert.Single(orderLog, e => e.Action == AuditAction.Updated && e.Changes.Any(ch => ch.Property == "Stage"));
-        Assert.Equal(PiranhaFactory.AdminEmail, moved.Actor);
+        Assert.Equal(PiranhaCommerceFactory.AdminEmail, moved.Actor);
         Assert.Contains(moved.Changes, ch => ch is { Property: "Stage", From: "Placed", To: "Processing" });
         Assert.DoesNotContain("example.com", await c.GetStringAsync($"/api/v1/audit?entityType=Order&entityId={order.Id}")); // the buyer's email is private
     }

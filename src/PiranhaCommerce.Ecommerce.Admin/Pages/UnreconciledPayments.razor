@@ -107,7 +107,7 @@ else
             var actor = await Auth.GetActorAsync();
             await Scope.RunAsync<IUnreconciledPaymentService, UnreconciledPaymentDto?>(s => s.RetryAsync(id, actor));
         }
-        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (PiranhaCommerceConflictException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = "Could not retry: " + ex.Message; }
         finally { _busy = false; }
         await LoadAsync();
@@ -123,8 +123,8 @@ else
             await Scope.RunAsync<IUnreconciledPaymentService, UnreconciledPaymentDto?>(s => s.ResolveAsync(id, new ResolveUnreconciledInput { Resolution = note }, actor));
             _resolving = null;
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
-        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceConflictException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = "Could not resolve: " + ex.Message; }
         finally { _busy = false; }
         await LoadAsync();

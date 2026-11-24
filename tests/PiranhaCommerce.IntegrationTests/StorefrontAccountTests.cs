@@ -6,7 +6,7 @@ using PiranhaCommerce.Customers;
 
 namespace PiranhaCommerce.IntegrationTests;
 
-public class StorefrontAccountTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class StorefrontAccountTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private const string Password = "a-long-enough-password";
 

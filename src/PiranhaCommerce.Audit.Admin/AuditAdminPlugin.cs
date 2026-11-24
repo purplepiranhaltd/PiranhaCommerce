@@ -5,11 +5,11 @@ using PiranhaCommerce.Core.Plugins;
 namespace PiranhaCommerce.Audit.Admin;
 
 /// <summary>The audit log page (Settings > Audit log).</summary>
-public sealed class AuditAdminPlugin : IPiranhaPlugin
+public sealed class AuditAdminPlugin : IPiranhaCommercePlugin
 {
     public PluginInfo Info { get; } = new("PiranhaCommerce.Audit.Admin", "Audit log Admin", "0.1.0", "Admin page for the audit log.");
 
-    public IReadOnlyList<IPiranhaPlugin> Requires { get; } = [new AuditPlugin()];
+    public IReadOnlyList<IPiranhaCommercePlugin> Requires { get; } = [new AuditPlugin()];
 
     public void ConfigureServices(IServiceCollection services)
     {

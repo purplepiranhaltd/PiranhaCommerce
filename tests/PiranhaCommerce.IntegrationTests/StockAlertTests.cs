@@ -17,7 +17,7 @@ using PiranhaCommerce.Ecommerce;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>"Tell me when it is back": requests from shoppers and guests, one email each when the product can be bought again, nothing sent twice.</summary>
-public class StockAlertTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class StockAlertTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];
@@ -60,7 +60,7 @@ public class StockAlertTests(PiranhaFactory factory) : IClassFixture<PiranhaFact
     private async Task<string> TokenAsync(Guid productId, string email)
     {
         using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<PiranhaDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<PiranhaCommerceDbContext>();
         var normalized = email.ToLowerInvariant();
         return await db.Set<StockAlertSubscription>().Where(s => s.ProductId == productId && s.NormalizedEmail == normalized).Select(s => s.UnsubscribeToken).SingleAsync();
     }
@@ -214,7 +214,7 @@ public class StockAlertTests(PiranhaFactory factory) : IClassFixture<PiranhaFact
         {
             using var scope = factory.Services.CreateScope();
             var sp = scope.ServiceProvider;
-            var notifier = new StockAlertNotifier(sp.GetRequiredService<PiranhaDbContext>(), sender, sp.GetRequiredService<IOptions<EcommerceOptions>>(), NullLogger<StockAlertNotifier>.Instance, clock);
+            var notifier = new StockAlertNotifier(sp.GetRequiredService<PiranhaCommerceDbContext>(), sender, sp.GetRequiredService<IOptions<EcommerceOptions>>(), NullLogger<StockAlertNotifier>.Instance, clock);
             return await notifier.RunOnceAsync();
         }
 

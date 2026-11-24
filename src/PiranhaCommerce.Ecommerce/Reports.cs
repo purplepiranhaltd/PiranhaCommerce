@@ -54,7 +54,7 @@ public interface IReportService
     Task<TaxReportDto> TaxAsync(DateOnly? from, DateOnly? to, CancellationToken ct = default);
 }
 
-internal sealed class ReportService(PiranhaDbContext db, IOptions<EcommerceOptions> options) : IReportService
+internal sealed class ReportService(PiranhaCommerceDbContext db, IOptions<EcommerceOptions> options) : IReportService
 {
     private const int MaxDays = 1100;
 
@@ -64,8 +64,8 @@ internal sealed class ReportService(PiranhaDbContext db, IOptions<EcommerceOptio
     {
         var end = to ?? DateOnly.FromDateTime(DateTime.UtcNow);
         var start = from ?? end.AddDays(-29);
-        if (start > end) throw new PiranhaValidationException("from", "The start date is after the end date.");
-        if (end.DayNumber - start.DayNumber >= MaxDays) throw new PiranhaValidationException("from", $"A report can cover at most {MaxDays} days.");
+        if (start > end) throw new PiranhaCommerceValidationException("from", "The start date is after the end date.");
+        if (end.DayNumber - start.DayNumber >= MaxDays) throw new PiranhaCommerceValidationException("from", $"A report can cover at most {MaxDays} days.");
         return (start, end, new DateTimeOffset(start.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero), new DateTimeOffset(end.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero));
     }
 
@@ -100,7 +100,7 @@ internal sealed class ReportService(PiranhaDbContext db, IOptions<EcommerceOptio
     public async Task<SalesReportDto> SalesAsync(DateOnly? from, DateOnly? to, ReportInterval interval, CancellationToken ct = default)
     {
         var (start, end, fromUtc, toUtc) = Range(from, to);
-        if (interval == ReportInterval.Day && end.DayNumber - start.DayNumber >= 366) throw new PiranhaValidationException("interval", "A daily report can cover at most a year: choose week or month.");
+        if (interval == ReportInterval.Day && end.DayNumber - start.DayNumber >= 366) throw new PiranhaCommerceValidationException("interval", "A daily report can cover at most a year: choose week or month.");
 
         var orders = await Orders(fromUtc, toUtc).Select(o => new { o.CreatedUtc, o.Subtotal, o.DiscountTotal, o.ShippingTotal, o.TaxTotal, o.Total }).ToListAsync(ct);
         var units = await (from l in db.Set<OrderLine>().AsNoTracking()
@@ -143,7 +143,7 @@ internal sealed class ReportService(PiranhaDbContext db, IOptions<EcommerceOptio
     public async Task<ProductSalesReportDto> ProductsAsync(DateOnly? from, DateOnly? to, ProductReportSort sort, int top, bool rollUpVariants, CancellationToken ct = default)
     {
         var (start, end, fromUtc, toUtc) = Range(from, to);
-        if (top is < 1 or > 1000) throw new PiranhaValidationException("top", "Ask for between 1 and 1000 products.");
+        if (top is < 1 or > 1000) throw new PiranhaCommerceValidationException("top", "Ask for between 1 and 1000 products.");
 
         List<Sold> sold;
         if (!rollUpVariants) sold = await SoldByProductAsync(fromUtc, toUtc, ct);
@@ -201,7 +201,7 @@ internal sealed class ReportService(PiranhaDbContext db, IOptions<EcommerceOptio
     public async Task<CustomerReportDto> CustomersAsync(DateOnly? from, DateOnly? to, int top, CancellationToken ct = default)
     {
         var (start, end, fromUtc, toUtc) = Range(from, to);
-        if (top is < 1 or > 1000) throw new PiranhaValidationException("top", "Ask for between 1 and 1000 customers.");
+        if (top is < 1 or > 1000) throw new PiranhaCommerceValidationException("top", "Ask for between 1 and 1000 customers.");
 
         var grouped = await Orders(fromUtc, toUtc).GroupBy(o => o.CustomerId)
             .Select(g => new { CustomerId = g.Key, Orders = g.Count(), Total = g.Sum(o => o.Total), Last = g.Max(o => o.CreatedUtc) }).ToListAsync(ct);

@@ -16,7 +16,7 @@ public interface IBasketHousekeeper
     Task<int> RemoveAbandonedAsync(TimeSpan olderThan, CancellationToken ct = default);
 }
 
-internal sealed class BasketHousekeeper(PiranhaDbContext db) : IBasketHousekeeper
+internal sealed class BasketHousekeeper(PiranhaCommerceDbContext db) : IBasketHousekeeper
 {
     /// <summary>Per statement, so a large backlog never holds one long lock.</summary>
     private const int BatchSize = 500;

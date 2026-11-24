@@ -11,7 +11,7 @@ using PiranhaCommerce.Ecommerce;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Brands: staff manage them and set one on a product, the catalogue import and export carry them, and shoppers filter by them.</summary>
-public class BrandTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class BrandTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];

@@ -11,7 +11,7 @@ namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>What a customer pays: group percentage, fixed price per product, best price wins, then a promo code on the result.</summary>
 [Collection(OrderSettings.Name)]
-public class GroupPricingTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class GroupPricingTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];

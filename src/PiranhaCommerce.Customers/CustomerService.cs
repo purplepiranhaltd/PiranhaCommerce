@@ -31,7 +31,7 @@ public interface ICustomerService
     Task<bool> DeleteAddressAsync(Guid customerId, Guid addressId, CancellationToken ct = default);
 }
 
-internal sealed class CustomerService(PiranhaDbContext db) : ICustomerService
+internal sealed class CustomerService(PiranhaCommerceDbContext db) : ICustomerService
 {
     public const int MaxAddresses = 50;
 
@@ -121,7 +121,7 @@ internal sealed class CustomerService(PiranhaDbContext db) : ICustomerService
         ModelValidator.ValidateOrThrow(input);
         if (!await db.Set<Customer>().AnyAsync(c => c.Id == customerId, ct)) return null;
         if (await db.Set<CustomerAddress>().CountAsync(a => a.CustomerId == customerId, ct) >= MaxAddresses)
-            throw new PiranhaValidationException("", $"A customer can have at most {MaxAddresses} addresses.");
+            throw new PiranhaCommerceValidationException("", $"A customer can have at most {MaxAddresses} addresses.");
 
         var entity = new CustomerAddress { CustomerId = customerId, Line1 = "", City = "", CountryCode = "" };
         Apply(entity, input);
@@ -149,7 +149,7 @@ internal sealed class CustomerService(PiranhaDbContext db) : ICustomerService
     {
         var normalized = Normalize(email);
         if (await db.Set<Customer>().AnyAsync(c => c.NormalizedEmail == normalized && c.Id != selfId, ct))
-            throw new PiranhaValidationException(nameof(CustomerInput.Email), "A customer with that email already exists.");
+            throw new PiranhaCommerceValidationException(nameof(CustomerInput.Email), "A customer with that email already exists.");
     }
 
     /// <summary>The unique index is the real guarantee; this turns a lost race into the same friendly error.</summary>
@@ -162,7 +162,7 @@ internal sealed class CustomerService(PiranhaDbContext db) : ICustomerService
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
-            throw new PiranhaValidationException(nameof(CustomerInput.Email), "A customer with that email already exists.");
+            throw new PiranhaCommerceValidationException(nameof(CustomerInput.Email), "A customer with that email already exists.");
         }
     }
 

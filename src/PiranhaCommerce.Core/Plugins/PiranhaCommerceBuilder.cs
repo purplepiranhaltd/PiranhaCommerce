@@ -3,25 +3,25 @@ using Microsoft.Extensions.DependencyInjection;
 namespace PiranhaCommerce.Core.Plugins;
 
 /// <summary>Fluent builder returned by <c>AddPiranhaCommerceCore()</c>; packages add extension methods to it.</summary>
-public sealed class PiranhaBuilder
+public sealed class PiranhaCommerceBuilder
 {
-    private readonly List<IPiranhaPlugin> _plugins = [];
+    private readonly List<IPiranhaCommercePlugin> _plugins = [];
     private readonly HashSet<string> _registering = new(StringComparer.OrdinalIgnoreCase);
 
-    public PiranhaBuilder(IServiceCollection services) => Services = services;
+    public PiranhaCommerceBuilder(IServiceCollection services) => Services = services;
 
     public IServiceCollection Services { get; }
 
     /// <summary>Registered plugins in registration order (required plugins come before the plugins that need them).</summary>
-    public IReadOnlyList<IPiranhaPlugin> Plugins => _plugins;
+    public IReadOnlyList<IPiranhaCommercePlugin> Plugins => _plugins;
 
-    public PiranhaBuilder AddPlugin<TPlugin>() where TPlugin : IPiranhaPlugin, new() => AddPlugin(new TPlugin());
+    public PiranhaCommerceBuilder AddPlugin<TPlugin>() where TPlugin : IPiranhaCommercePlugin, new() => AddPlugin(new TPlugin());
 
     /// <summary>
-    /// Registers a plugin after the plugins it <see cref="IPiranhaPlugin.Requires"/>. Registering a plugin that is
+    /// Registers a plugin after the plugins it <see cref="IPiranhaCommercePlugin.Requires"/>. Registering a plugin that is
     /// already registered (directly, or because another plugin required it) does nothing.
     /// </summary>
-    public PiranhaBuilder AddPlugin(IPiranhaPlugin plugin)
+    public PiranhaCommerceBuilder AddPlugin(IPiranhaCommercePlugin plugin)
     {
         var id = plugin.Info.Id;
         if (_plugins.Any(p => p.Info.Id.Equals(id, StringComparison.OrdinalIgnoreCase)))

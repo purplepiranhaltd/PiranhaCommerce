@@ -6,11 +6,11 @@ using PiranhaCommerce.Customers.Admin.Pages;
 namespace PiranhaCommerce.Customers.Admin;
 
 /// <summary>Admin pages for customers, plus the address book panel on the customer page.</summary>
-public sealed class CustomersAdminPlugin : IPiranhaPlugin
+public sealed class CustomersAdminPlugin : IPiranhaCommercePlugin
 {
     public PluginInfo Info { get; } = new("PiranhaCommerce.Customers.Admin", "Customers Admin", "0.1.0", "Admin pages for customers.");
 
-    public IReadOnlyList<IPiranhaPlugin> Requires { get; } = [new CustomersPlugin()];
+    public IReadOnlyList<IPiranhaCommercePlugin> Requires { get; } = [new CustomersPlugin()];
 
     public void ConfigureServices(IServiceCollection services)
     {

@@ -38,7 +38,7 @@ public interface IWarrantyService
     Task<WarrantyDto?> SetAsync(Guid productId, WarrantyInput input, CancellationToken ct = default);
 }
 
-internal sealed class WarrantyService(PiranhaDbContext db) : IWarrantyService
+internal sealed class WarrantyService(PiranhaCommerceDbContext db) : IWarrantyService
 {
     public async Task<WarrantyDto?> GetAsync(Guid productId, CancellationToken ct = default)
     {
@@ -90,11 +90,11 @@ internal sealed class WarrantySlots : IAdminSlotContributor
 }
 
 /// <summary>Adds a warranty to products: data, API and an admin panel, all contributed through the public plugin contracts.</summary>
-public sealed class WarrantyPlugin : IPiranhaPlugin
+public sealed class WarrantyPlugin : IPiranhaCommercePlugin
 {
     public PluginInfo Info { get; } = new("PiranhaCommerce.Example.Warranty", "Warranty (example)", "0.1.0", "Example plugin: product warranty terms.");
 
-    public IReadOnlyList<IPiranhaPlugin> Requires { get; } = [new CatalogAdminPlugin()];
+    public IReadOnlyList<IPiranhaCommercePlugin> Requires { get; } = [new CatalogAdminPlugin()];
 
     public void ConfigureServices(IServiceCollection services)
     {

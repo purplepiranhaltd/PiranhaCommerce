@@ -91,7 +91,7 @@
             await LoadAsync();
             _message = $"Saved the {row.GroupName} price.";
         }
-        catch (PiranhaCommerce.Core.Validation.PiranhaValidationException ex) { _message = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
+        catch (PiranhaCommerce.Core.Validation.PiranhaCommerceValidationException ex) { _message = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
         catch (Exception ex) { _message = "Could not save: " + ex.Message; }
         finally { _busy = false; }
     }

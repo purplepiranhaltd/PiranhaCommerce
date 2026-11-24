@@ -54,12 +54,12 @@ public interface IBasketService
     Task<QuoteDto?> QuoteAsync(Guid basketId, QuoteInput input, CancellationToken ct = default);
 }
 
-internal sealed partial class BasketService(PiranhaDbContext db, ICustomerService customers, IOptions<EcommerceOptions> options) : IBasketService
+internal sealed partial class BasketService(PiranhaCommerceDbContext db, ICustomerService customers, IOptions<EcommerceOptions> options) : IBasketService
 {
     public async Task<BasketDto> CreateAsync(BasketCreateInput input, CancellationToken ct = default)
     {
         if (input.CustomerId is { } customerId && await customers.GetAsync(customerId, ct) is null)
-            throw new PiranhaValidationException(nameof(BasketCreateInput.CustomerId), "That customer does not exist.");
+            throw new PiranhaCommerceValidationException(nameof(BasketCreateInput.CustomerId), "That customer does not exist.");
 
         var basket = new Basket { CustomerId = input.CustomerId };
         db.Add(basket);
@@ -115,7 +115,7 @@ internal sealed partial class BasketService(PiranhaDbContext db, ICustomerServic
             var hash = VoucherRules.Hash(code);
             var voucher = await db.Set<GiftVoucher>().AsNoTracking().FirstOrDefaultAsync(v => v.CodeHash == hash, ct);
             if (VoucherRules.Problem(voucher, options.Value.Currency, DateTimeOffset.UtcNow) is { } problem)
-                throw new PiranhaValidationException(nameof(CodeInput.Code), problem);
+                throw new PiranhaCommerceValidationException(nameof(CodeInput.Code), problem);
             voucherId = voucher!.Id;
         }
 
@@ -124,7 +124,7 @@ internal sealed partial class BasketService(PiranhaDbContext db, ICustomerServic
         if (changed == 0)
         {
             if (!await db.Set<Basket>().AnyAsync(b => b.Id == basketId, ct)) return null;
-            throw new PiranhaConflictException("This basket has been checked out and can no longer be changed.");
+            throw new PiranhaCommerceConflictException("This basket has been checked out and can no longer be changed.");
         }
         return await GetAsync(basketId, ct);
     }
@@ -139,14 +139,14 @@ internal sealed partial class BasketService(PiranhaDbContext db, ICustomerServic
             if (rule is not null)
             {
                 // Whether it gives anything depends on the basket, so the quote says; here it only has to be a code that is switched on.
-                if (!rule.Active) throw new PiranhaValidationException(nameof(CodeInput.Code), PromotionRules.NotValid);
+                if (!rule.Active) throw new PiranhaCommerceValidationException(nameof(CodeInput.Code), PromotionRules.NotValid);
             }
             else
             {
                 var promo = await db.Set<Promotion>().AsNoTracking().FirstOrDefaultAsync(p => p.Code == normalized, ct);
                 var owner = await db.Set<Basket>().AsNoTracking().Where(b => b.Id == basketId).Select(b => b.CustomerId).FirstOrDefaultAsync(ct);
                 if (PromotionRules.Problem(promo, decimal.MaxValue, DateTimeOffset.UtcNow, await PromotionEligibility.Async(db, promo, owner, ct)) is { } problem)
-                    throw new PiranhaValidationException(nameof(CodeInput.Code), problem);
+                    throw new PiranhaCommerceValidationException(nameof(CodeInput.Code), problem);
             }
         }
 
@@ -156,7 +156,7 @@ internal sealed partial class BasketService(PiranhaDbContext db, ICustomerServic
         if (changed == 0)
         {
             if (!await db.Set<Basket>().AnyAsync(b => b.Id == basketId, ct)) return null;
-            throw new PiranhaConflictException("This basket has been checked out and can no longer be changed.");
+            throw new PiranhaCommerceConflictException("This basket has been checked out and can no longer be changed.");
         }
         return await GetAsync(basketId, ct);
     }
@@ -167,7 +167,7 @@ internal sealed partial class BasketService(PiranhaDbContext db, ICustomerServic
 
         var status = await db.Set<Basket>().AsNoTracking().Where(b => b.Id == basketId).Select(b => (BasketStatus?)b.Status).FirstOrDefaultAsync(ct);
         if (status is null) return null;
-        if (status != BasketStatus.Open) throw new PiranhaConflictException("This basket has been checked out and can no longer be changed.");
+        if (status != BasketStatus.Open) throw new PiranhaCommerceConflictException("This basket has been checked out and can no longer be changed.");
 
         if (input.Quantity == 0)
         {
@@ -179,14 +179,14 @@ internal sealed partial class BasketService(PiranhaDbContext db, ICustomerServic
         var sellable = await db.Set<ProductListing>().AsNoTracking().AnyAsync(l => l.ProductId == productId && l.Published, ct)
                        && await db.Set<Product>().AnyAsync(p => p.Id == productId, ct);
         if (!sellable)
-            throw new PiranhaValidationException("productId", "That product is not available to buy.");
+            throw new PiranhaCommerceValidationException("productId", "That product is not available to buy.");
         if (await ProductVariants.HasOptionsAsync(db, productId, ct))
-            throw new PiranhaValidationException("productId", "This product comes in options (such as size or colour): add one of its variants instead.");
+            throw new PiranhaCommerceValidationException("productId", "This product comes in options (such as size or colour): add one of its variants instead.");
 
         var quantity = input.Quantity;
         var limits = await db.Set<ProductListing>().AsNoTracking().Where(l => l.ProductId == productId).Select(l => new { l.MinOrderQuantity, l.MaxOrderQuantity }).FirstOrDefaultAsync(ct);
         if (limits is not null && OrderQuantityRules.Problem(await db.Set<Product>().Where(p => p.Id == productId).Select(p => p.Name).FirstAsync(ct), quantity, limits.MinOrderQuantity, limits.MaxOrderQuantity) is { } tooFewOrMany)
-            throw new PiranhaValidationException(nameof(BasketLineInput.Quantity), tooFewOrMany);
+            throw new PiranhaCommerceValidationException(nameof(BasketLineInput.Quantity), tooFewOrMany);
         var updated = await SetQuantityAsync(basketId, productId, quantity, ct);
         if (updated == 0)
         {
@@ -218,7 +218,7 @@ internal sealed partial class BasketService(PiranhaDbContext db, ICustomerServic
     public async Task<IReadOnlyList<ShippingOptionDto>?> ShippingOptionsAsync(Guid basketId, string countryCode, string? postalCode = null, CancellationToken ct = default)
     {
         if (!System.Text.RegularExpressions.Regex.IsMatch(countryCode ?? "", "^[A-Za-z]{2}$"))
-            throw new PiranhaValidationException("CountryCode", "Use a two-letter country code such as GB.");
+            throw new PiranhaCommerceValidationException("CountryCode", "Use a two-letter country code such as GB.");
         if (await GetAsync(basketId, ct) is null) return null;
 
         var options = new List<ShippingOptionDto>();
@@ -231,7 +231,7 @@ internal sealed partial class BasketService(PiranhaDbContext db, ICustomerServic
                 if (quote is null) return null;
                 options.Add(new ShippingOptionDto(m.Id, m.Name, quote.ShippingTotal));
             }
-            catch (PiranhaValidationException) { } // this method does not serve that destination and weight: left out
+            catch (PiranhaCommerceValidationException) { } // this method does not serve that destination and weight: left out
         }
         return options;
     }
@@ -246,7 +246,7 @@ internal sealed partial class BasketService(PiranhaDbContext db, ICustomerServic
         ShippingMethod? method = null;
         if (methods.Count > 0)
             method = methods.FirstOrDefault(m => m.Id == input.ShippingMethodId)
-                     ?? throw new PiranhaValidationException(nameof(QuoteInput.ShippingMethodId), "Choose an available shipping method.");
+                     ?? throw new PiranhaCommerceValidationException(nameof(QuoteInput.ShippingMethodId), "Choose an available shipping method.");
 
         // By weight and destination, when the method has rates: the same lookup checkout uses.
         decimal? shippingPrice = null;
@@ -254,7 +254,7 @@ internal sealed partial class BasketService(PiranhaDbContext db, ICustomerServic
         {
             var weight = await ShippingPricing.WeightAsync(db, basket.Lines.Select(l => (l.ProductId, l.Quantity)).ToList(), ct);
             shippingPrice = await ShippingPricing.PriceAsync(db, method, input.CountryCode.ToUpperInvariant(), input.PostalCode, weight, ct)
-                ?? throw new PiranhaValidationException(nameof(QuoteInput.ShippingMethodId), "That shipping method is not available for this destination and basket.");
+                ?? throw new PiranhaCommerceValidationException(nameof(QuoteInput.ShippingMethodId), "That shipping method is not available for this destination and basket.");
         }
 
         // A code that cannot be used right now is reported and left out of the price; checkout would refuse it.

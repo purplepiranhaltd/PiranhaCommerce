@@ -5,7 +5,7 @@ using PiranhaCommerce.Customers;
 
 namespace PiranhaCommerce.IntegrationTests;
 
-public class CustomerTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class CustomerTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static string Tag() => Guid.NewGuid().ToString("N")[..10];
 

@@ -37,7 +37,7 @@ public interface IWebhookService
     IReadOnlyList<WebhookEventTypeDto> EventTypes();
 }
 
-internal sealed class WebhookService(PiranhaDbContext db, IEnumerable<IEventTypeContributor> contributors, IOptions<WebhookOptions> options, TimeProvider? time = null) : IWebhookService
+internal sealed class WebhookService(PiranhaCommerceDbContext db, IEnumerable<IEventTypeContributor> contributors, IOptions<WebhookOptions> options, TimeProvider? time = null) : IWebhookService
 {
     private TimeProvider Clock => time ?? TimeProvider.System;
 
@@ -106,15 +106,15 @@ internal sealed class WebhookService(PiranhaDbContext db, IEnumerable<IEventType
         ModelValidator.ValidateOrThrow(input);
         var raw = input.Url.Trim();
         if (!Uri.TryCreate(raw, UriKind.Absolute, out var uri) || uri.Scheme is not ("https" or "http") || uri.UserInfo.Length > 0 || uri.Fragment.Length > 0)
-            throw new PiranhaValidationException(nameof(WebhookEndpointInput.Url), "Give a full web address such as https://example.com/hooks, with no user name, password or # part.");
+            throw new PiranhaCommerceValidationException(nameof(WebhookEndpointInput.Url), "Give a full web address such as https://example.com/hooks, with no user name, password or # part.");
         if (uri.Scheme == "http" && !uri.IsLoopback && !options.Value.AllowInsecureUrls)
-            throw new PiranhaValidationException(nameof(WebhookEndpointInput.Url), "Use https:// (http:// is only allowed for localhost).");
+            throw new PiranhaCommerceValidationException(nameof(WebhookEndpointInput.Url), "Use https:// (http:// is only allowed for localhost).");
 
         var wanted = input.EventTypes.Select(t => t.Trim()).Where(t => t.Length > 0).Distinct(StringComparer.Ordinal).ToList();
         if (wanted.Count == 0 || wanted.Contains("*")) return (uri.ToString(), "*");
         var known = EventTypes().Select(t => t.Type).ToHashSet();
         var unknown = wanted.FirstOrDefault(t => !known.Contains(t));
-        if (unknown is not null) throw new PiranhaValidationException(nameof(WebhookEndpointInput.EventTypes), $"\"{unknown}\" is not an event type.");
+        if (unknown is not null) throw new PiranhaCommerceValidationException(nameof(WebhookEndpointInput.EventTypes), $"\"{unknown}\" is not an event type.");
         return (uri.ToString(), string.Join(',', wanted.Order(StringComparer.Ordinal)));
     }
 
@@ -132,7 +132,7 @@ internal sealed class WebhookService(PiranhaDbContext db, IEnumerable<IEventType
 }
 
 /// <summary>Writes events into the current transaction. See <see cref="IEventPublisher"/>.</summary>
-internal sealed class EventPublisher(PiranhaDbContext db, TimeProvider? time = null) : IEventPublisher
+internal sealed class EventPublisher(PiranhaCommerceDbContext db, TimeProvider? time = null) : IEventPublisher
 {
     internal static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
 

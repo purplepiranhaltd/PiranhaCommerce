@@ -77,7 +77,7 @@ internal static class PriceBreaks
     /// Lowers each product's price in <paramref name="prices"/> to a quantity break it has earned, if that is cheaper. <paramref name="regular"/> is the regular
     /// price (percentages come off it). Products not in <paramref name="quantities"/> count as one, which no break covers.
     /// </summary>
-    public static async Task ApplyAsync(PiranhaDbContext db, Guid? customerId, IReadOnlyDictionary<Guid, decimal> regular, IReadOnlyDictionary<Guid, int> quantities, Dictionary<Guid, decimal> prices, CancellationToken ct)
+    public static async Task ApplyAsync(PiranhaCommerceDbContext db, Guid? customerId, IReadOnlyDictionary<Guid, decimal> regular, IReadOnlyDictionary<Guid, int> quantities, Dictionary<Guid, decimal> prices, CancellationToken ct)
     {
         var ids = quantities.Where(q => q.Value >= 2 && prices.ContainsKey(q.Key)).Select(q => q.Key).ToList();
         if (ids.Count == 0) return;
@@ -93,7 +93,7 @@ internal static class PriceBreaks
     }
 
     /// <summary>The breaks this shopper can use on each product that would be cheaper than <paramref name="single"/>, the price for one. Lowest quantity first, one per quantity.</summary>
-    public static async Task<Dictionary<Guid, List<(int MinQuantity, decimal UnitPrice)>>> ForShopperAsync(PiranhaDbContext db, Guid? customerId, IReadOnlyDictionary<Guid, decimal> regular, IReadOnlyDictionary<Guid, decimal> single, CancellationToken ct)
+    public static async Task<Dictionary<Guid, List<(int MinQuantity, decimal UnitPrice)>>> ForShopperAsync(PiranhaCommerceDbContext db, Guid? customerId, IReadOnlyDictionary<Guid, decimal> regular, IReadOnlyDictionary<Guid, decimal> single, CancellationToken ct)
     {
         var ids = regular.Keys.ToList();
         var breaks = await db.Set<ProductPriceBreak>().AsNoTracking().Where(b => ids.Contains(b.ProductId)).ToListAsync(ct);
@@ -114,7 +114,7 @@ internal static class PriceBreaks
         return result;
     }
 
-    private static async Task<HashSet<Guid>> GroupsOfAsync(PiranhaDbContext db, Guid? customerId, CancellationToken ct) =>
+    private static async Task<HashSet<Guid>> GroupsOfAsync(PiranhaCommerceDbContext db, Guid? customerId, CancellationToken ct) =>
         customerId is { } c ? (await db.Set<CustomerGroupMember>().AsNoTracking().Where(m => m.CustomerId == c).Select(m => m.GroupId).ToListAsync(ct)).ToHashSet() : [];
 }
 
@@ -129,7 +129,7 @@ internal static class OrderQuantityRules
     }
 }
 
-internal sealed class PriceBreakService(PiranhaDbContext db) : IPriceBreakService
+internal sealed class PriceBreakService(PiranhaCommerceDbContext db) : IPriceBreakService
 {
     public async Task<IReadOnlyList<PriceBreakDto>?> ListAsync(Guid productId, CancellationToken ct = default)
     {
@@ -147,10 +147,10 @@ internal sealed class PriceBreakService(PiranhaDbContext db) : IPriceBreakServic
         foreach (var b in input.Breaks) ModelValidator.ValidateOrThrow(b);
         if (!await db.Set<Product>().AnyAsync(p => p.Id == productId, ct)) return null;
         if (input.Breaks.GroupBy(b => (b.GroupId, b.MinQuantity)).Any(g => g.Count() > 1))
-            throw new PiranhaValidationException(nameof(PriceBreaksInput.Breaks), "Each quantity can appear once for everyone and once for each group.");
+            throw new PiranhaCommerceValidationException(nameof(PriceBreaksInput.Breaks), "Each quantity can appear once for everyone and once for each group.");
         var groupIds = input.Breaks.Where(b => b.GroupId is not null).Select(b => b.GroupId!.Value).Distinct().ToList();
         if (groupIds.Count > 0 && await db.Set<CustomerGroup>().CountAsync(g => groupIds.Contains(g.Id), ct) != groupIds.Count)
-            throw new PiranhaValidationException(nameof(PriceBreakInput.GroupId), "One of the customer groups does not exist.");
+            throw new PiranhaCommerceValidationException(nameof(PriceBreakInput.GroupId), "One of the customer groups does not exist.");
 
         var strategy = db.Database.CreateExecutionStrategy();
         await strategy.ExecuteInTransactionAsync(

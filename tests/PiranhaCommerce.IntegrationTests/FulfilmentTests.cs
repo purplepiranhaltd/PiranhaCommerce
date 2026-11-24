@@ -12,7 +12,7 @@ namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Sending parcels, taking returns back, and refunding through the payment provider.</summary>
 [Collection(OrderSettings.Name)]
-public class FulfilmentTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class FulfilmentTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..10];

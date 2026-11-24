@@ -13,7 +13,7 @@ namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Unpaid orders stop holding stock: cancelled after a while, but never one that has had a payment or has moved on.</summary>
 [Collection(OrderSettings.Name)]
-public class UnpaidOrderExpiryTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class UnpaidOrderExpiryTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];
@@ -37,7 +37,7 @@ public class UnpaidOrderExpiryTests(PiranhaFactory factory) : IClassFixture<Pira
     private async Task Age(Guid orderId, TimeSpan by)
     {
         using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<PiranhaDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<PiranhaCommerceDbContext>();
         await db.Set<Order>().Where(o => o.Id == orderId).ExecuteUpdateAsync(s => s.SetProperty(o => o.CreatedUtc, DateTimeOffset.UtcNow - by));
     }
 

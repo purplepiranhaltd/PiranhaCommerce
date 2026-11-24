@@ -11,7 +11,7 @@ namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Wishlists: a signed-in shopper saves products to come back to, sees whether they are still on sale and in stock, and staff see what is wished for most.</summary>
 [Collection(OrderSettings.Name)]
-public class WishlistTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class WishlistTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];
@@ -128,7 +128,7 @@ public class WishlistTests(PiranhaFactory factory) : IClassFixture<PiranhaFactor
         // Fill the list straight through the database: making 200 products over the API would be slow for no extra coverage.
         await using (var scope = factory.Services.CreateAsyncScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<PiranhaCommerce.Data.PiranhaDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<PiranhaCommerce.Data.PiranhaCommerceDbContext>();
             for (var i = 0; i < 200; i++)
             {
                 var product = new Product { Name = "Fill " + Tag() };

@@ -37,7 +37,7 @@ internal sealed class ReportEndpoints : IApiEndpointContributor
     private static IResult Answer<T>(T report, Func<T, ReportTable> table, string? format, string name)
     {
         if (string.IsNullOrEmpty(format) || format.Equals("json", StringComparison.OrdinalIgnoreCase)) return Results.Ok(report);
-        if (!format.Equals("csv", StringComparison.OrdinalIgnoreCase)) throw new PiranhaValidationException("format", "Use json or csv.");
+        if (!format.Equals("csv", StringComparison.OrdinalIgnoreCase)) throw new PiranhaCommerceValidationException("format", "Use json or csv.");
         var t = table(report);
         return Results.Stream(async stream =>
         {

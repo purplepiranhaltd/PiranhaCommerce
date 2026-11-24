@@ -116,7 +116,7 @@ public interface IReturnRequestService
     Task<bool> CancelAsync(Guid orderId, Guid id, CancellationToken ct = default);
 }
 
-internal sealed class ReturnRequestService(PiranhaDbContext db, OrderMailer mailer) : IReturnRequestService
+internal sealed class ReturnRequestService(PiranhaCommerceDbContext db, OrderMailer mailer) : IReturnRequestService
 {
     /// <summary>Most requests that can be waiting on one order, so a form cannot be used to bury it.</summary>
     public const int MaxOpenPerOrder = 20;
@@ -151,11 +151,11 @@ internal sealed class ReturnRequestService(PiranhaDbContext db, OrderMailer mail
     {
         ModelValidator.ValidateOrThrow(input);
         if (input.Lines.Select(l => l.OrderLineId).Distinct().Count() != input.Lines.Count)
-            throw new PiranhaValidationException(nameof(ReturnRequestInput.Lines), "List each item once.");
+            throw new PiranhaCommerceValidationException(nameof(ReturnRequestInput.Lines), "List each item once.");
 
         var stage = await db.Set<Order>().AsNoTracking().Where(o => o.Id == orderId).Select(o => (OrderStage?)o.Stage).FirstOrDefaultAsync(ct);
         if (stage is null) return null;
-        if (stage == OrderStage.Cancelled) throw new PiranhaConflictException("This order was cancelled, so there is nothing to send back.");
+        if (stage == OrderStage.Cancelled) throw new PiranhaCommerceConflictException("This order was cancelled, so there is nothing to send back.");
 
         var requestId = Guid.NewGuid();
         var strategy = db.Database.CreateExecutionStrategy();
@@ -170,7 +170,7 @@ internal sealed class ReturnRequestService(PiranhaDbContext db, OrderMailer mail
                     await db.Set<Order>().Where(o => o.Id == orderId).ExecuteUpdateAsync(s => s.SetProperty(o => o.UpdatedUtc, (DateTimeOffset?)now), token);
 
                     if (await db.Set<ReturnRequest>().AsNoTracking().CountAsync(r => r.OrderId == orderId && Open.Contains(r.Status), token) >= MaxOpenPerOrder)
-                        throw new PiranhaConflictException("There are already several requests waiting on this order. Please wait for an answer.");
+                        throw new PiranhaCommerceConflictException("There are already several requests waiting on this order. Please wait for an answer.");
 
                     var lines = await db.Set<OrderLine>().AsNoTracking().Where(l => l.OrderId == orderId).ToListAsync(token);
                     var held = await (from rl in db.Set<ReturnRequestLine>().AsNoTracking()
@@ -181,11 +181,11 @@ internal sealed class ReturnRequestService(PiranhaDbContext db, OrderMailer mail
                     foreach (var item in input.Lines)
                     {
                         var line = lines.FirstOrDefault(l => l.Id == item.OrderLineId)
-                                   ?? throw new PiranhaValidationException(nameof(ReturnRequestInput.Lines), "One of those items is not on this order.");
+                                   ?? throw new PiranhaCommerceValidationException(nameof(ReturnRequestInput.Lines), "One of those items is not on this order.");
                         var requested = held.Where(h => h.OrderLineId == line.Id).Sum(h => h.Quantity);
                         var available = line.QuantityShipped - line.QuantityReturned - requested;
                         if (item.Quantity > available)
-                            throw new PiranhaConflictException(line.QuantityShipped == 0
+                            throw new PiranhaCommerceConflictException(line.QuantityShipped == 0
                                 ? $"\"{line.Name}\" has not been sent yet, so it cannot be sent back."
                                 : $"Only {Math.Max(0, available)} of \"{line.Name}\" can still be sent back (some may already be returned or asked for).");
                     }
@@ -205,7 +205,7 @@ internal sealed class ReturnRequestService(PiranhaDbContext db, OrderMailer mail
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
-            throw new PiranhaConflictException("The request could not be saved. Please try again.");
+            throw new PiranhaCommerceConflictException("The request could not be saved. Please try again.");
         }
 
         var dto = (await GetAsync(requestId, ct))!;
@@ -233,7 +233,7 @@ internal sealed class ReturnRequestService(PiranhaDbContext db, OrderMailer mail
         {
             var current = await db.Set<ReturnRequest>().AsNoTracking().Where(r => r.Id == id).Select(r => (ReturnRequestStatus?)r.Status).FirstOrDefaultAsync(ct);
             if (current is null) return null;
-            throw new PiranhaConflictException($"That request is already {current.Value.ToString().ToLowerInvariant()}.");
+            throw new PiranhaCommerceConflictException($"That request is already {current.Value.ToString().ToLowerInvariant()}.");
         }
 
         var dto = (await GetAsync(id, ct))!;
@@ -248,7 +248,7 @@ internal sealed class ReturnRequestService(PiranhaDbContext db, OrderMailer mail
         if (changed > 0) return true;
         var current = await db.Set<ReturnRequest>().AsNoTracking().Where(r => r.Id == id && r.OrderId == orderId).Select(r => (ReturnRequestStatus?)r.Status).FirstOrDefaultAsync(ct);
         if (current is null) return false;
-        throw new PiranhaConflictException($"That request is already {current.Value.ToString().ToLowerInvariant()}, so it cannot be withdrawn.");
+        throw new PiranhaCommerceConflictException($"That request is already {current.Value.ToString().ToLowerInvariant()}, so it cannot be withdrawn.");
     }
 
     private async Task<IReadOnlyList<ReturnRequestDto>> ToDtosAsync(IReadOnlyList<ReturnRequest> rows, CancellationToken ct)

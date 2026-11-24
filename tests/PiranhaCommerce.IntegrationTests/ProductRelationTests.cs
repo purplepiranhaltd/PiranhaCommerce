@@ -8,7 +8,7 @@ namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Related and cross-sell products: staff choose them per product, shoppers see only what is on sale, and the basket gets cross-sell suggestions.</summary>
 [Collection(OrderSettings.Name)]
-public class ProductRelationTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class ProductRelationTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];

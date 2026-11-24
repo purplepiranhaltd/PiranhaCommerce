@@ -147,7 +147,7 @@ public interface IReviewService
     Task<ReviewDto?> DeleteReplyAsync(Guid reviewId, CancellationToken ct = default);
 }
 
-internal sealed class ReviewService(PiranhaDbContext db, IOptions<EcommerceOptions> options, IEmailSender email, IFileStore store, ILogger<ReviewService> logger) : IReviewService
+internal sealed class ReviewService(PiranhaCommerceDbContext db, IOptions<EcommerceOptions> options, IEmailSender email, IFileStore store, ILogger<ReviewService> logger) : IReviewService
 {
     /// <summary>The product a review is kept against: the parent of a variant, else the product itself. Null when there is no such product.</summary>
     private async Task<Guid?> ReviewedProductAsync(Guid productId, CancellationToken ct)
@@ -211,7 +211,7 @@ internal sealed class ReviewService(PiranhaDbContext db, IOptions<EcommerceOptio
                 && db.Set<ProductListing>().Any(l => l.ProductId == r.ProductId && l.Published))
             .Select(r => new { r.Id, r.CustomerId }).FirstOrDefaultAsync(ct);
         if (review is null) return null;
-        if (review.CustomerId == customerId) throw new PiranhaValidationException("reviewId", "You cannot mark your own review as helpful.");
+        if (review.CustomerId == customerId) throw new PiranhaCommerceValidationException("reviewId", "You cannot mark your own review as helpful.");
 
         var has = await db.Set<ReviewHelpfulVote>().AnyAsync(v => v.ReviewId == reviewId && v.CustomerId == customerId, ct);
         if (helpful && !has)
@@ -234,9 +234,9 @@ internal sealed class ReviewService(PiranhaDbContext db, IOptions<EcommerceOptio
         ModelValidator.ValidateOrThrow(input);
         var id = await ReviewedProductAsync(input.ProductId, ct);
         if (id is null || !await IsPublishedAsync(id.Value, ct))
-            throw new PiranhaValidationException(nameof(ReviewInput.ProductId), "That product cannot be reviewed.");
+            throw new PiranhaCommerceValidationException(nameof(ReviewInput.ProductId), "That product cannot be reviewed.");
         if (await db.Set<ProductReview>().AnyAsync(r => r.ProductId == id && r.CustomerId == customerId, ct))
-            throw new PiranhaConflictException("You have already reviewed this product. Change your review instead.");
+            throw new PiranhaCommerceConflictException("You have already reviewed this product. Change your review instead.");
 
         var review = new ProductReview
         {
@@ -250,7 +250,7 @@ internal sealed class ReviewService(PiranhaDbContext db, IOptions<EcommerceOptio
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear(); // a second review sent at the same moment: the unique index decides
-            throw new PiranhaConflictException("You have already reviewed this product. Change your review instead.");
+            throw new PiranhaCommerceConflictException("You have already reviewed this product. Change your review instead.");
         }
         return await ToDtoAsync(review.Id, ct) ?? throw new InvalidOperationException("The review just saved could not be read.");
     }
@@ -393,7 +393,7 @@ internal sealed class ReviewService(PiranhaDbContext db, IOptions<EcommerceOptio
 }
 
 /// <summary>The reviews part of an export and an erasure: the person's reviews are listed, and deleted on erasure (a rating cannot stand without its author).</summary>
-internal sealed class ReviewCustomerData(PiranhaDbContext db, IFileStore store) : ICustomerDataContributor
+internal sealed class ReviewCustomerData(PiranhaCommerceDbContext db, IFileStore store) : ICustomerDataContributor
 {
     public string Name => "reviews";
 

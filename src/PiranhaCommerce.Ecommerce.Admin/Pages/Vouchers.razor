@@ -119,7 +119,7 @@ else
             _issuedCode = issued.Code;
             _input = new();
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
         catch (Exception ex) { _error = "Could not issue: " + ex.Message; }
         finally { _busy = false; }
         await LoadAsync();
@@ -151,8 +151,8 @@ else
             var actor = await Auth.GetActorAsync();
             await Scope.RunAsync<IVoucherService, VoucherDto?>(s => s.AdjustAsync(id, input, actor));
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
-        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceConflictException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = "Could not adjust: " + ex.Message; }
         finally { _busy = false; }
         await LoadAsync();

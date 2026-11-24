@@ -9,7 +9,7 @@ using SkiaSharp;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Product pictures: upload checks, sizes made at upload, the gallery order, variants, and the slugs and meta text a shop front needs.</summary>
-public class ImageTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class ImageTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];
@@ -133,7 +133,7 @@ public class ImageTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
         Assert.Equal(HttpStatusCode.OK, (await readOnly.GetAsync(url)).StatusCode);
     }
 
-    private sealed class SmallLimitsFactory : PiranhaFactory
+    private sealed class SmallLimitsFactory : PiranhaCommerceFactory
     {
         protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?>
         {

@@ -226,7 +226,7 @@ internal sealed class CatalogModelContributor : IModelContributor
         {
             e.ToTable("StaffLocation", Schema);
             e.HasKey(x => new { x.UserId, x.LocationId });
-            e.HasOne<PiranhaCommerce.Core.Identity.PiranhaUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<PiranhaCommerce.Core.Identity.PiranhaCommerceUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<StockLocation>().WithMany().HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.Restrict);
         });
 

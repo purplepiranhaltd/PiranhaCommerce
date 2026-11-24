@@ -6,7 +6,7 @@ using PiranhaCommerce.Catalog;
 
 namespace PiranhaCommerce.IntegrationTests;
 
-public class ProductApiTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class ProductApiTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static ProductInput Input(string name, string? sku = null, decimal price = 10m) =>
         new() { Name = name, Sku = sku, Price = price };
@@ -23,10 +23,10 @@ public class ProductApiTests(PiranhaFactory factory) : IClassFixture<PiranhaFact
     public async Task Token_endpoint_rejects_bad_credentials_and_issues_token_for_good_ones()
     {
         var client = factory.CreateClient();
-        var bad = await client.PostAsJsonAsync("/api/v1/auth/token", new TokenRequest(PiranhaFactory.AdminEmail, "wrong-password"));
+        var bad = await client.PostAsJsonAsync("/api/v1/auth/token", new TokenRequest(PiranhaCommerceFactory.AdminEmail, "wrong-password"));
         Assert.Equal(HttpStatusCode.Unauthorized, bad.StatusCode);
 
-        var good = await client.PostAsJsonAsync("/api/v1/auth/token", new TokenRequest(PiranhaFactory.AdminEmail, PiranhaFactory.AdminPassword));
+        var good = await client.PostAsJsonAsync("/api/v1/auth/token", new TokenRequest(PiranhaCommerceFactory.AdminEmail, PiranhaCommerceFactory.AdminPassword));
         Assert.Equal(HttpStatusCode.OK, good.StatusCode);
         var token = await good.Content.ReadFromJsonAsync<TokenResponse>();
         Assert.False(string.IsNullOrEmpty(token?.AccessToken));

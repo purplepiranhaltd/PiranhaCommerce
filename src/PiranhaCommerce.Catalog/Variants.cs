@@ -103,14 +103,14 @@ public interface IVariantCreatedHandler
 public static class ProductVariants
 {
     /// <summary>True when the product has options, so it is a parent that cannot be bought itself: a variant must be chosen.</summary>
-    public static Task<bool> HasOptionsAsync(PiranhaDbContext db, Guid productId, CancellationToken ct = default) =>
+    public static Task<bool> HasOptionsAsync(PiranhaCommerceDbContext db, Guid productId, CancellationToken ct = default) =>
         db.Set<ProductOption>().AnyAsync(o => o.ProductId == productId, ct);
 
     /// <summary>
     /// The categories each product counts as being in for pricing: its own, plus its parent's when it is a variant (variants are not put in
     /// categories themselves, so a category sale or group discount covers them through the parent).
     /// </summary>
-    public static async Task<Dictionary<Guid, List<Guid>>> CategoriesAsync(PiranhaDbContext db, IReadOnlyCollection<Guid> productIds, CancellationToken ct = default)
+    public static async Task<Dictionary<Guid, List<Guid>>> CategoriesAsync(PiranhaCommerceDbContext db, IReadOnlyCollection<Guid> productIds, CancellationToken ct = default)
     {
         var parentOf = await db.Set<ProductVariant>().AsNoTracking().Where(v => productIds.Contains(v.ProductId))
             .ToDictionaryAsync(v => v.ProductId, v => v.ParentProductId, ct);
@@ -140,7 +140,7 @@ public interface IProductVariantService
     Task<ProductVariantsDto?> GenerateAsync(Guid productId, GenerateVariantsInput input, CancellationToken ct = default);
 }
 
-internal sealed class ProductVariantService(PiranhaDbContext db, IEnumerable<IVariantCreatedHandler> handlers) : IProductVariantService
+internal sealed class ProductVariantService(PiranhaCommerceDbContext db, IEnumerable<IVariantCreatedHandler> handlers) : IProductVariantService
 {
     public const int MaxOptions = 3, MaxValuesPerOption = 50, MaxVariants = 200;
 
@@ -176,12 +176,12 @@ internal sealed class ProductVariantService(PiranhaDbContext db, IEnumerable<IVa
         if (!await db.Set<Product>().AnyAsync(p => p.Id == productId, ct)) return null;
         await RequireParentAsync(productId, ct);
         if (await db.Set<ProductVariant>().AnyAsync(v => v.ParentProductId == productId, ct))
-            throw new PiranhaConflictException("This product already has variants, so a new option would leave them without a value. Delete the variants first.");
+            throw new PiranhaCommerceConflictException("This product already has variants, so a new option would leave them without a value. Delete the variants first.");
         var existing = await db.Set<ProductOption>().Where(o => o.ProductId == productId).Select(o => o.Name).ToListAsync(ct);
-        if (existing.Count >= MaxOptions) throw new PiranhaValidationException("name", $"A product can have at most {MaxOptions} options.");
+        if (existing.Count >= MaxOptions) throw new PiranhaCommerceValidationException("name", $"A product can have at most {MaxOptions} options.");
         var name = input.Name.Trim();
         if (existing.Any(n => string.Equals(n, name, StringComparison.OrdinalIgnoreCase)))
-            throw new PiranhaValidationException("name", "This product already has an option with that name.");
+            throw new PiranhaCommerceValidationException("name", "This product already has an option with that name.");
 
         var values = CleanValues(input.Values);
         var option = new ProductOption { ProductId = productId, Name = name, Position = existing.Count };
@@ -199,7 +199,7 @@ internal sealed class ProductVariantService(PiranhaDbContext db, IEnumerable<IVa
         var name = input.Name.Trim();
         var others = await db.Set<ProductOption>().Where(o => o.ProductId == productId && o.Id != optionId).Select(o => o.Name).ToListAsync(ct);
         if (others.Any(n => string.Equals(n, name, StringComparison.OrdinalIgnoreCase)))
-            throw new PiranhaValidationException("name", "This product already has an option with that name.");
+            throw new PiranhaCommerceValidationException("name", "This product already has an option with that name.");
         option.Name = name;
         await db.SaveChangesAsync(ct);
         return await GetAsync(productId, ct);
@@ -209,7 +209,7 @@ internal sealed class ProductVariantService(PiranhaDbContext db, IEnumerable<IVa
     {
         if (!await db.Set<ProductOption>().AnyAsync(o => o.Id == optionId && o.ProductId == productId, ct)) return null;
         if (await db.Set<ProductVariant>().AnyAsync(v => v.ParentProductId == productId, ct))
-            throw new PiranhaConflictException("This product has variants that use this option. Delete the variants first.");
+            throw new PiranhaCommerceConflictException("This product has variants that use this option. Delete the variants first.");
         await db.DeleteTrackedAsync<ProductOption>(o => o.Id == optionId, ct); // its values go with it
         return await GetAsync(productId, ct);
     }
@@ -219,10 +219,10 @@ internal sealed class ProductVariantService(PiranhaDbContext db, IEnumerable<IVa
         ModelValidator.ValidateOrThrow(input);
         if (!await db.Set<ProductOption>().AnyAsync(o => o.Id == optionId && o.ProductId == productId, ct)) return null;
         var existing = await db.Set<ProductOptionValue>().Where(v => v.OptionId == optionId).Select(v => v.Value).ToListAsync(ct);
-        if (existing.Count >= MaxValuesPerOption) throw new PiranhaValidationException("value", $"An option can have at most {MaxValuesPerOption} values.");
+        if (existing.Count >= MaxValuesPerOption) throw new PiranhaCommerceValidationException("value", $"An option can have at most {MaxValuesPerOption} values.");
         var value = input.Value.Trim();
         if (existing.Any(v => string.Equals(v, value, StringComparison.OrdinalIgnoreCase)))
-            throw new PiranhaValidationException("value", "This option already has that value.");
+            throw new PiranhaCommerceValidationException("value", "This option already has that value.");
         db.Add(new ProductOptionValue { OptionId = optionId, Value = value, Position = existing.Count });
         await db.SaveChangesAsync(ct);
         return await GetAsync(productId, ct);
@@ -233,7 +233,7 @@ internal sealed class ProductVariantService(PiranhaDbContext db, IEnumerable<IVa
         if (!await db.Set<ProductOption>().AnyAsync(o => o.Id == optionId && o.ProductId == productId, ct)) return null;
         if (!await db.Set<ProductOptionValue>().AnyAsync(v => v.Id == valueId && v.OptionId == optionId, ct)) return null;
         if (await db.Set<ProductVariantValue>().AnyAsync(v => v.OptionValueId == valueId, ct))
-            throw new PiranhaConflictException("A variant uses this value. Delete that variant first.");
+            throw new PiranhaCommerceConflictException("A variant uses this value. Delete that variant first.");
         await db.DeleteTrackedAsync<ProductOptionValue>(v => v.Id == valueId, ct);
         return await GetAsync(productId, ct);
     }
@@ -244,20 +244,20 @@ internal sealed class ProductVariantService(PiranhaDbContext db, IEnumerable<IVa
         var parent = await db.Set<Product>().AsNoTracking().FirstOrDefaultAsync(p => p.Id == productId, ct);
         if (parent is null) return null;
         var (options, values) = await LoadOptionsAsync(productId, ct);
-        if (options.Count == 0) throw new PiranhaValidationException("valueIds", "Add an option to this product first.");
+        if (options.Count == 0) throw new PiranhaCommerceValidationException("valueIds", "Add an option to this product first.");
 
         var chosen = input.ValueIds.Distinct().ToList();
         var picked = values.Where(v => chosen.Contains(v.Id)).ToList();
         if (chosen.Count != options.Count || picked.Count != chosen.Count || options.Any(o => picked.Count(v => v.OptionId == o.Id) != 1))
-            throw new PiranhaValidationException("valueIds", "Choose exactly one value for each option of this product.");
+            throw new PiranhaCommerceValidationException("valueIds", "Choose exactly one value for each option of this product.");
 
         var combos = await ExistingCombinationsAsync(productId, ct);
-        if (combos.Contains(Key(chosen))) throw new PiranhaConflictException("This product already has a variant with those values.");
-        if (combos.Count >= MaxVariants) throw new PiranhaValidationException("valueIds", $"A product can have at most {MaxVariants} variants.");
+        if (combos.Contains(Key(chosen))) throw new PiranhaCommerceConflictException("This product already has a variant with those values.");
+        if (combos.Count >= MaxVariants) throw new PiranhaCommerceValidationException("valueIds", $"A product can have at most {MaxVariants} variants.");
 
         var sku = string.IsNullOrWhiteSpace(input.Sku) ? null : input.Sku.Trim();
         if (sku is not null && await db.Set<Product>().AnyAsync(x => x.Sku != null && x.Sku.ToLower() == sku.ToLower(), ct))
-            throw new PiranhaValidationException("sku", "A product with this SKU already exists.");
+            throw new PiranhaCommerceValidationException("sku", "A product with this SKU already exists.");
 
         var created = Make(parent, options, picked, sku, input.Price ?? parent.Price);
         await db.SaveChangesAsync(ct);
@@ -272,7 +272,7 @@ internal sealed class ProductVariantService(PiranhaDbContext db, IEnumerable<IVa
         if (parent is null) return null;
         var (options, values) = await LoadOptionsAsync(productId, ct);
         if (options.Count == 0 || options.Any(o => values.All(v => v.OptionId != o.Id)))
-            throw new PiranhaValidationException("options", "Every option needs at least one value before variants can be made.");
+            throw new PiranhaCommerceValidationException("options", "Every option needs at least one value before variants can be made.");
 
         var existing = await ExistingCombinationsAsync(productId, ct);
         IEnumerable<List<ProductOptionValue>> product = [[]];
@@ -280,7 +280,7 @@ internal sealed class ProductVariantService(PiranhaDbContext db, IEnumerable<IVa
             product = product.SelectMany(prefix => values.Where(v => v.OptionId == o.Id).OrderBy(v => v.Position).Select(v => new List<ProductOptionValue>([.. prefix, v])));
         var missing = product.Where(c => !existing.Contains(Key(c.Select(v => v.Id)))).ToList();
         if (existing.Count + missing.Count > MaxVariants)
-            throw new PiranhaValidationException("options", $"That would make {existing.Count + missing.Count} variants; a product can have at most {MaxVariants}.");
+            throw new PiranhaCommerceValidationException("options", $"That would make {existing.Count + missing.Count} variants; a product can have at most {MaxVariants}.");
 
         var made = missing.Select(c => Make(parent, options, c, null, input.Price ?? parent.Price)).ToList();
         if (made.Count > 0)
@@ -310,7 +310,7 @@ internal sealed class ProductVariantService(PiranhaDbContext db, IEnumerable<IVa
     private async Task RequireParentAsync(Guid productId, CancellationToken ct)
     {
         if (await db.Set<ProductVariant>().AnyAsync(v => v.ProductId == productId, ct))
-            throw new PiranhaConflictException("This product is a variant of another product, so it cannot have options of its own.");
+            throw new PiranhaCommerceConflictException("This product is a variant of another product, so it cannot have options of its own.");
     }
 
     private async Task<(List<ProductOption> Options, List<ProductOptionValue> Values)> LoadOptionsAsync(Guid productId, CancellationToken ct)
@@ -357,10 +357,10 @@ internal sealed class ProductVariantService(PiranhaDbContext db, IEnumerable<IVa
         foreach (var v in raw.Select(v => v?.Trim() ?? ""))
         {
             if (v.Length == 0) continue;
-            if (v.Length > 100) throw new PiranhaValidationException("values", "A value can be at most 100 characters.");
+            if (v.Length > 100) throw new PiranhaCommerceValidationException("values", "A value can be at most 100 characters.");
             if (!list.Any(x => string.Equals(x, v, StringComparison.OrdinalIgnoreCase))) list.Add(v);
         }
-        if (list.Count > MaxValuesPerOption) throw new PiranhaValidationException("values", $"An option can have at most {MaxValuesPerOption} values.");
+        if (list.Count > MaxValuesPerOption) throw new PiranhaCommerceValidationException("values", $"An option can have at most {MaxValuesPerOption} values.");
         return list;
     }
 

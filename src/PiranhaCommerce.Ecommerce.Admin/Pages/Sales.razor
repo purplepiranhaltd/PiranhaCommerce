@@ -186,7 +186,7 @@ else
             if (saved is not null) { _editingId = saved.Id; Select(saved); _message = "Saved. Now choose what the sale covers."; }
             await LoadAsync();
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
         catch (Exception ex) { _error = "Could not save: " + ex.Message; }
         finally { _busy = false; }
     }
@@ -215,7 +215,7 @@ else
             if (updated is not null) Select(updated);
             await LoadAsync();
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
         catch (Exception ex) { _error = "Could not save: " + ex.Message; }
         finally { _busy = false; }
     }

@@ -90,7 +90,7 @@ public static class ShippingZoneRules
         return regions.FirstOrDefault(r => r.CountryCode == Everywhere)?.ZoneId;
     }
 
-    public static async Task<Guid?> ResolveAsync(PiranhaDbContext db, string countryCode, string? postcode, CancellationToken ct)
+    public static async Task<Guid?> ResolveAsync(PiranhaCommerceDbContext db, string countryCode, string? postcode, CancellationToken ct)
     {
         var code = (countryCode ?? "").ToUpperInvariant();
         var regions = await db.Set<ShippingZoneRegion>().AsNoTracking().Where(r => r.CountryCode == code || r.CountryCode == Everywhere).ToListAsync(ct);
@@ -113,7 +113,7 @@ public interface IShippingZoneService
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 }
 
-internal sealed class ShippingZoneService(PiranhaDbContext db) : IShippingZoneService
+internal sealed class ShippingZoneService(PiranhaCommerceDbContext db) : IShippingZoneService
 {
     public async Task<IReadOnlyList<ShippingZoneDto>> ListAsync(CancellationToken ct = default)
     {
@@ -163,9 +163,9 @@ internal sealed class ShippingZoneService(PiranhaDbContext db) : IShippingZoneSe
     {
         if (!await db.Set<ShippingZone>().AnyAsync(z => z.Id == id, ct)) return false;
         if (await db.Set<ShippingRate>().AnyAsync(r => r.ZoneId == id, ct))
-            throw new PiranhaConflictException("Shipping rates use this zone. Change those rates first.");
+            throw new PiranhaCommerceConflictException("Shipping rates use this zone. Change those rates first.");
         try { return await db.DeleteTrackedAsync<ShippingZone>(z => z.Id == id, ct) > 0; }
-        catch (DbUpdateException) { throw new PiranhaConflictException("Shipping rates use this zone. Change those rates first."); } // a rate was added just now
+        catch (DbUpdateException) { throw new PiranhaCommerceConflictException("Shipping rates use this zone. Change those rates first."); } // a rate was added just now
     }
 
     private async Task SaveAsync(CancellationToken ct)
@@ -174,7 +174,7 @@ internal sealed class ShippingZoneService(PiranhaDbContext db) : IShippingZoneSe
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
-            throw new PiranhaValidationException(nameof(ShippingZoneInput.Regions), "A country and postcode start can only be in one zone, and another zone already has one of these.");
+            throw new PiranhaCommerceValidationException(nameof(ShippingZoneInput.Regions), "A country and postcode start can only be in one zone, and another zone already has one of these.");
         }
     }
 
@@ -189,14 +189,14 @@ internal sealed class ShippingZoneService(PiranhaDbContext db) : IShippingZoneSe
             var country = region.CountryCode.ToUpperInvariant();
             var prefixes = region.PostcodePrefixes.Select(ShippingZoneRules.NormalizePostcode).Where(p => p.Length > 0).Distinct().ToList();
             if (country == ShippingZoneRules.Everywhere && prefixes.Count > 0)
-                throw new PiranhaValidationException(nameof(ShippingZoneInput.Regions), "Everywhere else cannot be limited to postcodes.");
+                throw new PiranhaCommerceValidationException(nameof(ShippingZoneInput.Regions), "Everywhere else cannot be limited to postcodes.");
             if (region.PostcodePrefixes.Count > 0 && prefixes.Count == 0)
-                throw new PiranhaValidationException(nameof(ShippingZoneInput.Regions), "A postcode start needs letters or digits.");
+                throw new PiranhaCommerceValidationException(nameof(ShippingZoneInput.Regions), "A postcode start needs letters or digits.");
             if (prefixes.Count == 0) rows.Add((country, ""));
             else rows.AddRange(prefixes.Select(p => (country, p)));
         }
         var repeat = rows.GroupBy(r => r).FirstOrDefault(g => g.Count() > 1);
-        if (repeat is not null) throw new PiranhaValidationException(nameof(ShippingZoneInput.Regions), $"{Describe(repeat.Key)} is listed twice.");
+        if (repeat is not null) throw new PiranhaCommerceValidationException(nameof(ShippingZoneInput.Regions), $"{Describe(repeat.Key)} is listed twice.");
 
         var countries = rows.Select(r => r.Country).Distinct().ToList();
         var taken = await db.Set<ShippingZoneRegion>().AsNoTracking().Where(r => countries.Contains(r.CountryCode) && r.ZoneId != zoneId)
@@ -205,7 +205,7 @@ internal sealed class ShippingZoneService(PiranhaDbContext db) : IShippingZoneSe
         if (clash is not null)
         {
             var other = await db.Set<ShippingZone>().AsNoTracking().Where(z => z.Id == clash.ZoneId).Select(z => z.Name).FirstAsync(ct);
-            throw new PiranhaValidationException(nameof(ShippingZoneInput.Regions), $"{Describe((clash.CountryCode, clash.Prefix))} is already in the zone \"{other}\".");
+            throw new PiranhaCommerceValidationException(nameof(ShippingZoneInput.Regions), $"{Describe((clash.CountryCode, clash.Prefix))} is already in the zone \"{other}\".");
         }
         return rows;
     }
@@ -280,7 +280,7 @@ public interface IShippingCarrierService
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 }
 
-internal sealed class ShippingCarrierService(PiranhaDbContext db) : IShippingCarrierService
+internal sealed class ShippingCarrierService(PiranhaCommerceDbContext db) : IShippingCarrierService
 {
     public async Task<IReadOnlyList<ShippingCarrierDto>> ListAsync(bool activeOnly, CancellationToken ct = default) =>
         await db.Set<ShippingCarrier>().AsNoTracking().Where(c => !activeOnly || c.Active).OrderBy(c => c.Name).ThenBy(c => c.Id)

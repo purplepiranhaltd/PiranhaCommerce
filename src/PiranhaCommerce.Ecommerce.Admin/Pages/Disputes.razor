@@ -127,7 +127,7 @@ else
             await LoadFilesAsync(id);
             _message = "Document added.";
         }
-        catch (PiranhaCommerce.Core.Validation.PiranhaValidationException ex) { _message = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
+        catch (PiranhaCommerce.Core.Validation.PiranhaCommerceValidationException ex) { _message = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
         catch (IOException) { _message = "That file is too big."; }
         catch (Exception ex) { _message = ex.Message; }
         finally { _busy = false; }
@@ -171,7 +171,7 @@ else
             else _message = "Saved at the provider. You can still change it.";
             await LoadAsync();
         }
-        catch (PiranhaCommerce.Core.Validation.PiranhaValidationException ex) { _message = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
+        catch (PiranhaCommerce.Core.Validation.PiranhaCommerceValidationException ex) { _message = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
         catch (Exception ex) { _message = ex.Message; }
         finally { _busy = false; }
     }

@@ -62,7 +62,7 @@ internal sealed class LocalDiskFileStore(IOptions<LocalDiskOptions> options, IWe
 }
 
 /// <summary>Stores files on the local disk. Configure <see cref="LocalDiskOptions"/>.</summary>
-public sealed class LocalDiskStoragePlugin : IPiranhaPlugin
+public sealed class LocalDiskStoragePlugin : IPiranhaCommercePlugin
 {
     public PluginInfo Info { get; } = new("PiranhaCommerce.Storage.LocalDisk", "Local disk storage", "0.1.0", "Keeps uploaded files in a folder on the server.");
 

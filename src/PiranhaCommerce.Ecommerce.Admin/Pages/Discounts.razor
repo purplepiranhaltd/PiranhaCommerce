@@ -219,7 +219,7 @@ else
             else await Scope.RunAsync<IDiscountRuleService, DiscountRuleDto>(s => s.CreateAsync(input));
             if (_error is null) Reset();
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
         catch (Exception ex) { _error = "Could not save: " + ex.Message; }
         finally { _busy = false; }
         await LoadAsync();

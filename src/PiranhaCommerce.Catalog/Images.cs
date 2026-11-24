@@ -98,7 +98,7 @@ public interface IProductImageService
     Task<ImageFile?> OpenAsync(Guid imageId, int? width, CancellationToken ct = default);
 }
 
-internal sealed class ProductImageService(PiranhaDbContext db, IFileStore store, IOptions<ImageOptions> options, IImageProcessor? processor = null) : IProductImageService
+internal sealed class ProductImageService(PiranhaCommerceDbContext db, IFileStore store, IOptions<ImageOptions> options, IImageProcessor? processor = null) : IProductImageService
 {
     public const string UrlPrefix = ProductImageUrls.Prefix;
 
@@ -120,9 +120,9 @@ internal sealed class ProductImageService(PiranhaDbContext db, IFileStore store,
     {
         var opts = options.Value;
         if (!await db.Set<Product>().AnyAsync(p => p.Id == productId, ct)) return null;
-        if (altText is { Length: > 200 }) throw new PiranhaValidationException("altText", "Alt text can be at most 200 characters.");
+        if (altText is { Length: > 200 }) throw new PiranhaCommerceValidationException("altText", "Alt text can be at most 200 characters.");
         var existing = await db.Set<ProductImage>().Where(i => i.ProductId == productId).Select(i => i.Position).ToListAsync(ct);
-        if (existing.Count >= opts.MaxPerProduct) throw new PiranhaValidationException("file", $"A product can have at most {opts.MaxPerProduct} images.");
+        if (existing.Count >= opts.MaxPerProduct) throw new PiranhaCommerceValidationException("file", $"A product can have at most {opts.MaxPerProduct} images.");
 
         // Read at most one byte more than allowed, so an oversized upload is refused without holding all of it.
         using var buffer = new MemoryStream();
@@ -130,19 +130,19 @@ internal sealed class ProductImageService(PiranhaDbContext db, IFileStore store,
         int read;
         while ((read = await content.ReadAsync(chunk, ct)) > 0)
         {
-            if (buffer.Length + read > opts.MaxBytes) throw new PiranhaValidationException("file", $"An image can be at most {opts.MaxBytes / (1024 * 1024d):0.#} MB.");
+            if (buffer.Length + read > opts.MaxBytes) throw new PiranhaCommerceValidationException("file", $"An image can be at most {opts.MaxBytes / (1024 * 1024d):0.#} MB.");
             buffer.Write(chunk, 0, read);
         }
         var bytes = buffer.ToArray();
 
         // The type comes from the file's own bytes, never from its name or what the browser claims (SVG is refused: it can carry script).
-        var type = Sniff(bytes) ?? throw new PiranhaValidationException("file", "Upload a JPEG, PNG, WebP or GIF image.");
+        var type = Sniff(bytes) ?? throw new PiranhaCommerceValidationException("file", "Upload a JPEG, PNG, WebP or GIF image.");
 
         int? width = null, height = null;
         var sizes = new List<(int Size, ProcessedImage Image)>();
         if (processor is not null)
         {
-            var info = await processor.ReadSizeAsync(new MemoryStream(bytes), ct) ?? throw new PiranhaValidationException("file", "That file is not an image that can be read.");
+            var info = await processor.ReadSizeAsync(new MemoryStream(bytes), ct) ?? throw new PiranhaCommerceValidationException("file", "That file is not an image that can be read.");
             (width, height) = info;
             foreach (var s in opts.SizeList().Where(s => s < Math.Max(info.Width, info.Height)))
                 if (await processor.ResizeAsync(new MemoryStream(bytes), s, s, ct) is { } made) sizes.Add((s, made));
@@ -187,7 +187,7 @@ internal sealed class ProductImageService(PiranhaDbContext db, IFileStore store,
         var images = await db.Set<ProductImage>().Where(i => i.ProductId == productId).ToListAsync(ct);
         var wanted = imageIds.ToList();
         if (wanted.Count != images.Count || wanted.Distinct().Count() != wanted.Count || images.Any(i => !wanted.Contains(i.Id)))
-            throw new PiranhaValidationException("imageIds", "List every image of this product exactly once.");
+            throw new PiranhaCommerceValidationException("imageIds", "List every image of this product exactly once.");
         for (var i = 0; i < wanted.Count; i++) images.Single(x => x.Id == wanted[i]).Position = i;
         await db.SaveChangesAsync(ct);
         return await ListAsync(productId, ct);
@@ -251,7 +251,7 @@ public static class Seo
         var s = slug?.Trim().ToLowerInvariant();
         if (string.IsNullOrEmpty(s)) return null;
         if (s.Length > 200 || !System.Text.RegularExpressions.Regex.IsMatch(s, "^[a-z0-9]+(-[a-z0-9]+)*$"))
-            throw new PiranhaValidationException(field, "Use lower case letters and digits, with single hyphens between words (for example blue-cotton-tee).");
+            throw new PiranhaCommerceValidationException(field, "Use lower case letters and digits, with single hyphens between words (for example blue-cotton-tee).");
         return s;
     }
 }

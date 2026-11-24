@@ -158,7 +158,7 @@ else
             else await Scope.RunAsync<ITaxService, TaxRuleDto>(s => s.CreateAsync(_input));
             Reset();
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
         catch (Exception ex) { _error = "Could not save: " + ex.Message; }
         finally { _busy = false; }
         await LoadAsync();
@@ -181,7 +181,7 @@ else
             await Scope.RunAsync<ITaxService, TaxClassDto>(s => s.CreateClassAsync(input));
             _classInput = new();
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
         catch (Exception ex) { _error = "Could not add the class: " + ex.Message; }
         finally { _busy = false; }
         await LoadAsync();
@@ -199,7 +199,7 @@ else
     {
         _confirmDeleteClass = null; _error = null;
         try { await Scope.RunAsync<ITaxService, bool>(s => s.DeleteClassAsync(id)); }
-        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (PiranhaCommerceConflictException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = "Could not delete: " + ex.Message; }
         await LoadAsync();
     }

@@ -10,7 +10,7 @@ namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Tax rates per product class. Tax settings are store-wide, so these run one at a time and put everything back.</summary>
 [Collection(OrderSettings.Name)]
-public class TaxClassTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class TaxClassTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
 

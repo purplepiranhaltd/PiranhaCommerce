@@ -237,7 +237,7 @@ public sealed class SampleDataSeeder(
                 var review = await reviews.CreateAsync(shopperIds[shopper], new ReviewInput { ProductId = productIds[slug], Rating = rating, Title = title, Body = body }, ct);
                 await reviews.SetStatusAsync(review.Id, ReviewStatus.Approved, "sample data", ct);
             }
-            catch (PiranhaConflictException) { /* already reviewed on an earlier run */ }
+            catch (PiranhaCommerceConflictException) { /* already reviewed on an earlier run */ }
         }
     }
 }

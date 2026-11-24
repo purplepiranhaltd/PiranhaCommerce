@@ -6,10 +6,10 @@ using PiranhaCommerce.Core.Identity;
 namespace PiranhaCommerce.Data;
 
 internal sealed class CredentialChecker(
-    UserManager<PiranhaUser> users, PiranhaDbContext db, IOptions<IdentityOptions> options, IPasswordHasher<PiranhaUser> hasher) : ICredentialChecker
+    UserManager<PiranhaCommerceUser> users, PiranhaCommerceDbContext db, IOptions<IdentityOptions> options, IPasswordHasher<PiranhaCommerceUser> hasher) : ICredentialChecker
 {
     // Burned when the email is unknown so that "no such user" takes as long as "wrong password".
-    private static readonly PiranhaUser Dummy = new() { UserName = "dummy" };
+    private static readonly PiranhaCommerceUser Dummy = new() { UserName = "dummy" };
 
     public async Task<CredentialResult> CheckAsync(string email, string password, CancellationToken ct = default)
     {

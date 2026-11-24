@@ -10,7 +10,7 @@ using PiranhaCommerce.Ecommerce;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Catalogue import and export as CSV: creating and updating products, variants, categories, barcodes, stock and the online listing, with checking before saving.</summary>
-public class ImportExportTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class ImportExportTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];

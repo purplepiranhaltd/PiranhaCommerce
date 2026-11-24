@@ -13,7 +13,7 @@ namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Abandoned open baskets are cleared away; anything in use, and every order's own basket, is left alone.</summary>
 [Collection(OrderSettings.Name)]
-public class BasketHousekeepingTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class BasketHousekeepingTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];
@@ -22,7 +22,7 @@ public class BasketHousekeepingTests(PiranhaFactory factory) : IClassFixture<Pir
     private async Task BackdateAsync(Guid basketId, int daysAgo)
     {
         using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<PiranhaDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<PiranhaCommerceDbContext>();
         var when = DateTimeOffset.UtcNow.AddDays(-daysAgo);
         await db.Set<Basket>().Where(b => b.Id == basketId).ExecuteUpdateAsync(s => s.SetProperty(b => b.CreatedUtc, when).SetProperty(b => b.UpdatedUtc, (DateTimeOffset?)when));
     }
@@ -76,7 +76,7 @@ public class BasketHousekeepingTests(PiranhaFactory factory) : IClassFixture<Pir
 
         // Its lines went too, not left behind.
         using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<PiranhaDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<PiranhaCommerceDbContext>();
         Assert.False(await db.Set<BasketLine>().AnyAsync(l => l.BasketId == stale.Id));
 
         Assert.Equal(0, await RunAsync(60)); // nothing more to do

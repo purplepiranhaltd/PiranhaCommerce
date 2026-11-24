@@ -3,7 +3,7 @@ using System.Net;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>The pages Stripe (or any gateway) sends the shopper back to.</summary>
-public class ReturnPageTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class ReturnPageTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     [Theory]
     [InlineData("/thanks", "Thank you")]

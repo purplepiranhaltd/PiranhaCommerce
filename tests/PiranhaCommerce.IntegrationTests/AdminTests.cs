@@ -9,7 +9,7 @@ using PiranhaCommerce.Catalog.Admin;
 namespace PiranhaCommerce.IntegrationTests;
 
 [Collection(OrderSettings.Name)]
-public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public partial class AdminTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     [GeneratedRegex(@"<input[^>]*name=""__RequestVerificationToken""[^>]*value=""([^""]+)""")]
     private static partial Regex TokenRegex();
@@ -40,17 +40,17 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
     private async Task<string> DescribeAdminAsync()
     {
         using var scope = factory.Services.CreateScope();
-        var users = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<PiranhaCommerce.Core.Identity.PiranhaUser>>();
-        var u = await users.FindByEmailAsync(PiranhaFactory.AdminEmail);
+        var users = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<PiranhaCommerce.Core.Identity.PiranhaCommerceUser>>();
+        var u = await users.FindByEmailAsync(PiranhaCommerceFactory.AdminEmail);
         if (u is null) return "user NOT FOUND";
         return $"active={u.Active} lockoutEnd={u.LockoutEnd?.ToString() ?? "none"} failedCount={u.AccessFailedCount} " +
-               $"passwordOk={await users.CheckPasswordAsync(u, PiranhaFactory.AdminPassword)} inRole={await users.IsInRoleAsync(u, PiranhaCommerce.Core.Identity.PiranhaRoles.Administrator)}";
+               $"passwordOk={await users.CheckPasswordAsync(u, PiranhaCommerceFactory.AdminPassword)} inRole={await users.IsInRoleAsync(u, PiranhaCommerce.Core.Identity.PiranhaCommerceRoles.Administrator)}";
     }
 
     /// <summary>Signs in as the seeded admin and fails with the server's answer if that did not work (rather than a later, confusing 302).</summary>
     private async Task SignInAsync(HttpClient browser)
     {
-        var login = await PostLoginAsync(browser, PiranhaFactory.AdminEmail, PiranhaFactory.AdminPassword);
+        var login = await PostLoginAsync(browser, PiranhaCommerceFactory.AdminEmail, PiranhaCommerceFactory.AdminPassword);
         if (login.StatusCode != HttpStatusCode.Redirect)
         {
             var body = await login.Content.ReadAsStringAsync();
@@ -104,7 +104,7 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
     public async Task Wrong_password_shows_error_and_does_not_sign_in()
     {
         var browser = NewBrowser();
-        var response = await PostLoginAsync(browser, PiranhaFactory.AdminEmail, "wrong");
+        var response = await PostLoginAsync(browser, PiranhaCommerceFactory.AdminEmail, "wrong");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Invalid email or password", await response.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.Redirect, (await browser.GetAsync("/admin")).StatusCode);
@@ -114,7 +114,7 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
     public async Task Admin_can_sign_in_and_see_plugin_pages_and_menu()
     {
         var browser = NewBrowser();
-        var login = await PostLoginAsync(browser, PiranhaFactory.AdminEmail, PiranhaFactory.AdminPassword, "/admin/catalog/products");
+        var login = await PostLoginAsync(browser, PiranhaCommerceFactory.AdminEmail, PiranhaCommerceFactory.AdminPassword, "/admin/catalog/products");
         Assert.Equal(HttpStatusCode.Redirect, login.StatusCode);
         Assert.Equal("/admin/catalog/products", login.Headers.Location?.ToString().Replace("http://localhost", ""));
 
@@ -132,7 +132,7 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
     public async Task The_menu_groups_reports_in_their_own_section_and_folds_every_section_but_the_current_one()
     {
         var browser = NewBrowser();
-        await PostLoginAsync(browser, PiranhaFactory.AdminEmail, PiranhaFactory.AdminPassword, "/admin");
+        await PostLoginAsync(browser, PiranhaCommerceFactory.AdminEmail, PiranhaCommerceFactory.AdminPassword, "/admin");
 
         static string Section(string page, string key)
         {
@@ -215,7 +215,7 @@ public partial class AdminTests(PiranhaFactory factory) : IClassFixture<PiranhaF
     [InlineData("/\\evil.example")]
     public async Task Login_ignores_non_local_return_urls(string returnUrl)
     {
-        var login = await PostLoginAsync(NewBrowser(), PiranhaFactory.AdminEmail, PiranhaFactory.AdminPassword, returnUrl);
+        var login = await PostLoginAsync(NewBrowser(), PiranhaCommerceFactory.AdminEmail, PiranhaCommerceFactory.AdminPassword, returnUrl);
         Assert.Equal(HttpStatusCode.Redirect, login.StatusCode);
         Assert.DoesNotContain("evil.example", login.Headers.Location?.ToString());
     }

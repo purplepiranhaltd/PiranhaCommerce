@@ -8,7 +8,7 @@ using PiranhaCommerce.Core.Paging;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Stock transfers: sent by one person, received by another, in transit between, every step in the ledger.</summary>
-public class StockTransferTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class StockTransferTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];
@@ -140,7 +140,7 @@ public class StockTransferTests(PiranhaFactory factory) : IClassFixture<PiranhaF
         Assert.Equal(HttpStatusCode.OK, (await staff.PostAsync($"/api/v1/stock/transfers/{s2.Id}/receive", null)).StatusCode);
     }
 
-    private sealed class LenientStockFactory : PiranhaFactory
+    private sealed class LenientStockFactory : PiranhaCommerceFactory
     {
         protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?> { ["PiranhaCommerce:Stock:AllowSameUserToReceive"] = "true" };
     }

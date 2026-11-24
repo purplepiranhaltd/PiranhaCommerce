@@ -6,8 +6,8 @@ using PiranhaCommerce.Core.Identity;
 
 namespace PiranhaCommerce.Data;
 
-public class PiranhaDbContext(DbContextOptions<PiranhaDbContext> options, IEnumerable<IModelContributor> contributors)
-    : IdentityDbContext<PiranhaUser, PiranhaRole, Guid>(options)
+public class PiranhaCommerceDbContext(DbContextOptions<PiranhaCommerceDbContext> options, IEnumerable<IModelContributor> contributors)
+    : IdentityDbContext<PiranhaCommerceUser, PiranhaCommerceRole, Guid>(options)
 {
     public const string CoreSchema = "core";
 
@@ -15,8 +15,8 @@ public class PiranhaDbContext(DbContextOptions<PiranhaDbContext> options, IEnume
     {
         base.OnModelCreating(modelBuilder); // Identity first, then packages/plugins.
 
-        modelBuilder.Entity<PiranhaUser>().ToTable("User", CoreSchema);
-        modelBuilder.Entity<PiranhaRole>().ToTable("Role", CoreSchema);
+        modelBuilder.Entity<PiranhaCommerceUser>().ToTable("User", CoreSchema);
+        modelBuilder.Entity<PiranhaCommerceRole>().ToTable("Role", CoreSchema);
         modelBuilder.Entity<IdentityUserRole<Guid>>().ToTable("UserRole", CoreSchema);
         modelBuilder.Entity<IdentityUserClaim<Guid>>().ToTable("UserClaim", CoreSchema);
         modelBuilder.Entity<IdentityUserLogin<Guid>>().ToTable("UserLogin", CoreSchema);

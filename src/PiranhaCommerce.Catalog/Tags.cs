@@ -83,7 +83,7 @@ public interface ITagService
     Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> NamesForProductsAsync(IReadOnlyCollection<Guid> productIds, CancellationToken ct = default);
 }
 
-internal sealed class TagService(PiranhaDbContext db) : ITagService
+internal sealed class TagService(PiranhaCommerceDbContext db) : ITagService
 {
     public const int MaxPerProduct = 50;
 
@@ -92,7 +92,7 @@ internal sealed class TagService(PiranhaDbContext db) : ITagService
     private static string SlugFor(string? given, string name)
     {
         var slug = Seo.NormalizeSlug(given) ?? SpecificationService.Slugify(name);
-        if (slug.Length == 0) throw new PiranhaValidationException(nameof(TagInput.Slug), $"Give a slug: \"{name}\" has no letters or digits to make one from.");
+        if (slug.Length == 0) throw new PiranhaCommerceValidationException(nameof(TagInput.Slug), $"Give a slug: \"{name}\" has no letters or digits to make one from.");
         return slug;
     }
 
@@ -145,9 +145,9 @@ internal sealed class TagService(PiranhaDbContext db) : ITagService
     {
         var normalized = Normalize(input.Name);
         if (await db.Set<Tag>().AnyAsync(t => t.NormalizedName == normalized && t.Id != existingId, ct))
-            throw new PiranhaValidationException(nameof(TagInput.Name), "A tag with this name already exists.");
+            throw new PiranhaCommerceValidationException(nameof(TagInput.Name), "A tag with this name already exists.");
         if (await db.Set<Tag>().AnyAsync(t => t.Slug == slug && t.Id != existingId, ct))
-            throw new PiranhaValidationException(nameof(TagInput.Slug), "A tag with this slug already exists.");
+            throw new PiranhaCommerceValidationException(nameof(TagInput.Slug), "A tag with this slug already exists.");
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
@@ -171,7 +171,7 @@ internal sealed class TagService(PiranhaDbContext db) : ITagService
     {
         if (!await db.Set<Product>().AnyAsync(p => p.Id == productId, ct)) return null;
         if (await db.Set<ProductVariant>().AnyAsync(v => v.ProductId == productId, ct))
-            throw new PiranhaValidationException(nameof(ProductTagsInput.Tags), "A variant shows its parent's tags. Set them on the parent product.");
+            throw new PiranhaCommerceValidationException(nameof(ProductTagsInput.Tags), "A variant shows its parent's tags. Set them on the parent product.");
 
         // The same name in another letter case is the same tag.
         var wanted = new List<(string Name, string Normalized)>();
@@ -179,10 +179,10 @@ internal sealed class TagService(PiranhaDbContext db) : ITagService
         {
             var name = raw?.Trim() ?? "";
             if (name.Length == 0) continue;
-            if (name.Length > 50) throw new PiranhaValidationException(nameof(ProductTagsInput.Tags), $"A tag can be up to 50 characters: \"{name[..20]}...\" is longer.");
+            if (name.Length > 50) throw new PiranhaCommerceValidationException(nameof(ProductTagsInput.Tags), $"A tag can be up to 50 characters: \"{name[..20]}...\" is longer.");
             if (!wanted.Any(w => w.Normalized == Normalize(name))) wanted.Add((name, Normalize(name)));
         }
-        if (wanted.Count > MaxPerProduct) throw new PiranhaValidationException(nameof(ProductTagsInput.Tags), $"A product can have up to {MaxPerProduct} tags.");
+        if (wanted.Count > MaxPerProduct) throw new PiranhaCommerceValidationException(nameof(ProductTagsInput.Tags), $"A product can have up to {MaxPerProduct} tags.");
 
         var normalized = wanted.Select(w => w.Normalized).ToList();
         var existing = await db.Set<Tag>().Where(t => normalized.Contains(t.NormalizedName)).ToListAsync(ct);
@@ -194,7 +194,7 @@ internal sealed class TagService(PiranhaDbContext db) : ITagService
             {
                 var slug = SlugFor(null, name);
                 if (await db.Set<Tag>().AnyAsync(t => t.Slug == slug, ct) || existing.Any(t => t.Slug == slug) || db.ChangeTracker.Entries<Tag>().Any(e => e.State == EntityState.Added && e.Entity.Slug == slug))
-                    throw new PiranhaValidationException(nameof(ProductTagsInput.Tags), $"\"{name}\" would have the same address (\"{slug}\") as another tag. Use that tag's name, or make this one in Catalog > Tags with a slug of its own.");
+                    throw new PiranhaCommerceValidationException(nameof(ProductTagsInput.Tags), $"\"{name}\" would have the same address (\"{slug}\") as another tag. Use that tag's name, or make this one in Catalog > Tags with a slug of its own.");
                 tag = new Tag { Name = name, NormalizedName = norm, Slug = slug };
                 db.Add(tag);
             }
@@ -209,7 +209,7 @@ internal sealed class TagService(PiranhaDbContext db) : ITagService
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear(); // the same new tag made at the same moment elsewhere: the unique index decided
-            throw new PiranhaConflictException("Tags changed at the same moment. Try again.");
+            throw new PiranhaCommerceConflictException("Tags changed at the same moment. Try again.");
         }
         return await GetProductAsync(productId, ct);
     }

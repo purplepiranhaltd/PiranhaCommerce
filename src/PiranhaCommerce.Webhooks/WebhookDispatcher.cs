@@ -31,7 +31,7 @@ public interface IWebhookDispatcher
 /// or a redirect) is a failure, tried again after 1 minute, 5 minutes, 15 minutes, 1, 3, 6 and 12 hours. Delivery is at least once and in no guaranteed
 /// order, so a receiver should ignore an event id it has already handled.
 /// </summary>
-public sealed class WebhookDispatcher(PiranhaDbContext db, IHttpClientFactory http, IOptions<WebhookOptions> options, ILogger<WebhookDispatcher> logger, TimeProvider? time = null) : IWebhookDispatcher
+public sealed class WebhookDispatcher(PiranhaCommerceDbContext db, IHttpClientFactory http, IOptions<WebhookOptions> options, ILogger<WebhookDispatcher> logger, TimeProvider? time = null) : IWebhookDispatcher
 {
     public const string HttpClientName = "PiranhaCommerce.Webhooks";
     internal const string TestType = "webhook.test";

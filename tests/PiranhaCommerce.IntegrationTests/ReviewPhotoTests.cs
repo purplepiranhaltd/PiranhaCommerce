@@ -14,7 +14,7 @@ namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Photos on reviews: shoppers attach them, staff see them before the public can, and they are as private as the review itself until it is approved.</summary>
 [Collection(OrderSettings.Name)]
-public class ReviewPhotoTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class ReviewPhotoTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];

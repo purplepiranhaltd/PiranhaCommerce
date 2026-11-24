@@ -108,7 +108,7 @@ public interface IPaymentService
     Task<PaymentDto?> RefundToVoucherAsync(Guid orderId, RefundToVoucherInput input, string? actor = null, CancellationToken ct = default);
 }
 
-internal sealed class PaymentService(PiranhaDbContext db, IEnumerable<IPaymentProvider> providers, IEnumerable<IPaymentGateway> gateways, OrderMailer mailer, IEventPublisher? events = null) : IPaymentService
+internal sealed class PaymentService(PiranhaCommerceDbContext db, IEnumerable<IPaymentProvider> providers, IEnumerable<IPaymentGateway> gateways, OrderMailer mailer, IEventPublisher? events = null) : IPaymentService
 {
     public IReadOnlyList<PaymentProviderDto> Providers() => providers.Select(p => new PaymentProviderDto(p.Name, p.DisplayName, gateways.Any(g => g.Name == p.Name), gateways.OfType<IRefundingGateway>().Any(g => g.Name == p.Name))).OrderBy(p => p.Name).ToList();
 
@@ -130,7 +130,7 @@ internal sealed class PaymentService(PiranhaDbContext db, IEnumerable<IPaymentPr
     {
         ModelValidator.ValidateOrThrow(input);
         if (decimal.Round(input.Amount, 2) != input.Amount)
-            throw new PiranhaValidationException(nameof(RefundToVoucherInput.Amount), "Use at most two decimal places.");
+            throw new PiranhaCommerceValidationException(nameof(RefundToVoucherInput.Amount), "Use at most two decimal places.");
         if (!await db.Set<Order>().AnyAsync(o => o.Id == orderId, ct)) return null;
 
         var paymentId = Guid.NewGuid();
@@ -146,7 +146,7 @@ internal sealed class PaymentService(PiranhaDbContext db, IEnumerable<IPaymentPr
                     await db.Set<Order>().Where(o => o.Id == orderId).ExecuteUpdateAsync(s => s.SetProperty(o => o.UpdatedUtc, (DateTimeOffset?)now), token);
                     var order = await db.Set<Order>().AsNoTracking().Where(o => o.Id == orderId).Select(o => new { o.Number, o.Currency, o.VoucherId, o.VoucherPaid }).FirstAsync(token);
                     if (order.VoucherId is not { } voucherId || order.VoucherPaid <= 0)
-                        throw new PiranhaConflictException("This order was not paid with a gift voucher.");
+                        throw new PiranhaCommerceConflictException("This order was not paid with a gift voucher.");
 
                     var payments = await db.Set<Payment>().AsNoTracking().Where(p => p.OrderId == orderId).Select(p => new { p.Kind, p.Provider, p.Amount }).ToListAsync(token);
                     var paid = payments.Where(p => p.Kind == PaymentKind.Payment).Sum(p => p.Amount);
@@ -155,7 +155,7 @@ internal sealed class PaymentService(PiranhaDbContext db, IEnumerable<IPaymentPr
 
                     var room = Math.Min(order.VoucherPaid - returnedToVoucher, paid - refunded);
                     if (input.Amount > room)
-                        throw new PiranhaConflictException($"That is more than can go back onto the gift voucher: {Math.Max(0m, room):N2} {order.Currency} is left to return to it.");
+                        throw new PiranhaCommerceConflictException($"That is more than can go back onto the gift voucher: {Math.Max(0m, room):N2} {order.Currency} is left to return to it.");
 
                     var last4 = await db.Set<GiftVoucher>().AsNoTracking().Where(v => v.Id == voucherId).Select(v => v.CodeLast4).FirstAsync(token);
                     var reference = OrderNumbers.Format(order.Number);
@@ -178,7 +178,7 @@ internal sealed class PaymentService(PiranhaDbContext db, IEnumerable<IPaymentPr
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
-            throw new PiranhaConflictException("The refund could not be recorded and nothing was changed. Please try again.");
+            throw new PiranhaCommerceConflictException("The refund could not be recorded and nothing was changed. Please try again.");
         }
 
         var saved = await db.Set<Payment>().AsNoTracking().FirstAsync(p => p.Id == paymentId, ct);
@@ -190,10 +190,10 @@ internal sealed class PaymentService(PiranhaDbContext db, IEnumerable<IPaymentPr
     {
         ModelValidator.ValidateOrThrow(input);
         if (decimal.Round(input.Amount, 2) != input.Amount)
-            throw new PiranhaValidationException(nameof(PaymentInput.Amount), "Use at most two decimal places.");
+            throw new PiranhaCommerceValidationException(nameof(PaymentInput.Amount), "Use at most two decimal places.");
         var providerName = string.IsNullOrWhiteSpace(input.Provider) ? "manual" : input.Provider.Trim().ToLowerInvariant();
         if (!providers.Any(p => p.Name == providerName))
-            throw new PiranhaValidationException(nameof(PaymentInput.Provider), $"Unknown payment provider \"{providerName}\".");
+            throw new PiranhaCommerceValidationException(nameof(PaymentInput.Provider), $"Unknown payment provider \"{providerName}\".");
 
         if (!await db.Set<Order>().AnyAsync(o => o.Id == orderId, ct)) return null;
 
@@ -225,13 +225,13 @@ internal sealed class PaymentService(PiranhaDbContext db, IEnumerable<IPaymentPr
 
                     if (kind == PaymentKind.Payment)
                     {
-                        if (order.Stage == OrderStage.Cancelled) throw new PiranhaConflictException("A cancelled order cannot take payment.");
+                        if (order.Stage == OrderStage.Cancelled) throw new PiranhaCommerceConflictException("A cancelled order cannot take payment.");
                         var outstanding = order.Total - (paid - refunded);
                         if (input.Amount > outstanding)
-                            throw new PiranhaConflictException($"That is more than is owed: {outstanding:N2} {order.Currency} outstanding.");
+                            throw new PiranhaCommerceConflictException($"That is more than is owed: {outstanding:N2} {order.Currency} outstanding.");
                     }
                     else if (input.Amount > paid - refunded)
-                        throw new PiranhaConflictException($"That is more than can be refunded: {paid - refunded:N2} {order.Currency} received and not yet returned.");
+                        throw new PiranhaCommerceConflictException($"That is more than can be refunded: {paid - refunded:N2} {order.Currency} received and not yet returned.");
 
                     payment.Currency = order.Currency;
                     db.Add(payment);
@@ -246,7 +246,7 @@ internal sealed class PaymentService(PiranhaDbContext db, IEnumerable<IPaymentPr
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
-            throw new PiranhaConflictException("That payment reference has already been recorded for this provider.");
+            throw new PiranhaCommerceConflictException("That payment reference has already been recorded for this provider.");
         }
 
         // Money going back to the buyer is worth telling them about, however it was booked (by hand, started here, or the provider's webhook).

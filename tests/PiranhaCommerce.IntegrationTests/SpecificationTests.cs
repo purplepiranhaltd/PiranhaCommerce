@@ -11,7 +11,7 @@ using PiranhaCommerce.Ecommerce;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Specification attributes: staff define them and set values on products, shoppers see them on the product and filter listings by them.</summary>
-public class SpecificationTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class SpecificationTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];

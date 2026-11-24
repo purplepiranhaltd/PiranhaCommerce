@@ -14,7 +14,7 @@ public interface IProductListingService
     Task<ProductListingDto?> SetAsync(Guid productId, ProductListingInput input, CancellationToken ct = default);
 }
 
-internal sealed class ProductListingService(PiranhaDbContext db) : IProductListingService
+internal sealed class ProductListingService(PiranhaCommerceDbContext db) : IProductListingService
 {
     public async Task<ProductListingDto?> GetAsync(Guid productId, CancellationToken ct = default)
     {
@@ -30,10 +30,10 @@ internal sealed class ProductListingService(PiranhaDbContext db) : IProductListi
         ModelValidator.ValidateOrThrow(input);
 
         if (input.TaxClassId is { } classId && !await db.Set<TaxClass>().AnyAsync(c => c.Id == classId, ct))
-            throw new PiranhaValidationException(nameof(ProductListingInput.TaxClassId), "That tax class does not exist.");
+            throw new PiranhaCommerceValidationException(nameof(ProductListingInput.TaxClassId), "That tax class does not exist.");
 
         if (input.MinOrderQuantity is { } lo && input.MaxOrderQuantity is { } hi && lo > hi)
-            throw new PiranhaValidationException(nameof(ProductListingInput.MaxOrderQuantity), "The maximum cannot be less than the minimum.");
+            throw new PiranhaCommerceValidationException(nameof(ProductListingInput.MaxOrderQuantity), "The maximum cannot be less than the minimum.");
 
         var listing = await db.Set<ProductListing>().FirstOrDefaultAsync(l => l.ProductId == productId, ct);
         if (listing is null)

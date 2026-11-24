@@ -5,11 +5,11 @@ using PiranhaCommerce.Core.Plugins;
 namespace PiranhaCommerce.Email.Smtp.Admin;
 
 /// <summary>Admin section for editing the wording of the emails the SMTP sender sends. Not needed (and not offered) with a provider that keeps its templates itself.</summary>
-public sealed class SmtpEmailAdminPlugin : IPiranhaPlugin
+public sealed class SmtpEmailAdminPlugin : IPiranhaCommercePlugin
 {
     public PluginInfo Info { get; } = new("PiranhaCommerce.Email.Smtp.Admin", "SMTP email Admin", "0.1.0", "Edit the wording of platform emails.");
 
-    public IReadOnlyList<IPiranhaPlugin> Requires { get; } = [new SmtpEmailPlugin()];
+    public IReadOnlyList<IPiranhaCommercePlugin> Requires { get; } = [new SmtpEmailPlugin()];
 
     public void ConfigureServices(IServiceCollection services)
     {

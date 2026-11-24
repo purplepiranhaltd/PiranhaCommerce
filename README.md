@@ -21,7 +21,7 @@ The documentation covers installation, your first store, configuration, every fe
 | Package | Purpose |
 |---|---|
 | `PiranhaCommerce.Core` | Domain base types, plugin model, admin extension contracts. No ecommerce concepts, so an EPOS can reuse it. |
-| `PiranhaCommerce.Data` | EF Core `PiranhaDbContext`; packages contribute entities via `IModelContributor`. |
+| `PiranhaCommerce.Data` | EF Core `PiranhaCommerceDbContext`; packages contribute entities via `IModelContributor`. |
 | `PiranhaCommerce.Data.SqlServer` | SQL Server + Azure SQL (priority target). |
 | `PiranhaCommerce.Data.PostgreSql` | PostgreSQL. |
 | `PiranhaCommerce.Api` | REST API host plumbing and `IApiEndpointContributor` (OpenAPI included). |

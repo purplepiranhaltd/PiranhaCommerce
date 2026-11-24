@@ -4,7 +4,7 @@ order: 20
 description: The host owns the schema: how to add and check migrations for each database provider.
 ---
 
-All packages and plugins contribute to one shared `PiranhaDbContext`, so the **host application owns the migrations**:
+All packages and plugins contribute to one shared `PiranhaCommerceDbContext`, so the **host application owns the migrations**:
 it is the only place that knows which plugins are installed. Pass the host assembly when configuring the provider
 (`typeof(Program).Assembly`). Workflow after installing or upgrading a plugin package:
 

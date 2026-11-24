@@ -20,7 +20,7 @@ namespace PiranhaCommerce.IntegrationTests;
 /// applies migrations and seeds the admin user, so this also proves the migrations apply from scratch.
 /// Requires SQL Server LocalDB.
 /// </summary>
-public class PiranhaFactory: WebApplicationFactory<Program>, IAsyncLifetime
+public class PiranhaCommerceFactory: WebApplicationFactory<Program>, IAsyncLifetime
 {
     public const string AdminEmail = "admin@piranha.local";
     public const string AdminPassword = "Dev-Passw0rd!";
@@ -91,7 +91,7 @@ public class PiranhaFactory: WebApplicationFactory<Program>, IAsyncLifetime
             if (ExistingDatabase is not { Length: > 0 })
             {
                 using var scope = Services.CreateScope();
-                await scope.ServiceProvider.GetRequiredService<PiranhaDbContext>().Database.EnsureDeletedAsync();
+                await scope.ServiceProvider.GetRequiredService<PiranhaCommerceDbContext>().Database.EnsureDeletedAsync();
             }
         }
         finally
@@ -116,13 +116,13 @@ public class PiranhaFactory: WebApplicationFactory<Program>, IAsyncLifetime
     public async Task<(Guid Id, string Email, string Password)> CreateAdministratorAsync()
     {
         using var scope = Services.CreateScope();
-        var users = scope.ServiceProvider.GetRequiredService<UserManager<PiranhaUser>>();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<PiranhaCommerceUser>>();
         var email = $"admin-{Guid.NewGuid():N}@piranha.local";
         const string password = "Admin2-Passw0rd!";
-        var user = new PiranhaUser { UserName = email, Email = email, EmailConfirmed = true };
+        var user = new PiranhaCommerceUser { UserName = email, Email = email, EmailConfirmed = true };
         var result = await users.CreateAsync(user, password);
         Assert.True(result.Succeeded, string.Join(";", result.Errors.Select(e => e.Description)));
-        Assert.True((await users.AddToRoleAsync(user, PiranhaRoles.Administrator)).Succeeded);
+        Assert.True((await users.AddToRoleAsync(user, PiranhaCommerceRoles.Administrator)).Succeeded);
         return (user.Id, email, password);
     }
 
@@ -130,10 +130,10 @@ public class PiranhaFactory: WebApplicationFactory<Program>, IAsyncLifetime
     public async Task<(string Email, string Password)> CreateReadOnlyUserAsync()
     {
         using var scope = Services.CreateScope();
-        var users = scope.ServiceProvider.GetRequiredService<UserManager<PiranhaUser>>();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<PiranhaCommerceUser>>();
         var email = $"viewer-{Guid.NewGuid():N}@piranha.local";
         const string password = "Viewer-Passw0rd!";
-        var result = await users.CreateAsync(new PiranhaUser { UserName = email, Email = email, EmailConfirmed = true }, password);
+        var result = await users.CreateAsync(new PiranhaCommerceUser { UserName = email, Email = email, EmailConfirmed = true }, password);
         Assert.True(result.Succeeded, string.Join(";", result.Errors.Select(e => e.Description)));
         return (email, password);
     }

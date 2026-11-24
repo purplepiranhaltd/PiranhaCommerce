@@ -13,7 +13,7 @@ namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Shopping and checking out without an account, and merging a guest basket into a signed-in shopper's own.</summary>
 [Collection(OrderSettings.Name)]
-public class GuestBasketTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class GuestBasketTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];
@@ -153,7 +153,7 @@ public class GuestBasketTests(PiranhaFactory factory) : IClassFixture<PiranhaFac
         Assert.Contains("Sign in", await refused.Content.ReadAsStringAsync());
     }
 
-    private sealed class NoGuestFactory : PiranhaFactory
+    private sealed class NoGuestFactory : PiranhaCommerceFactory
     {
         protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?> { ["PiranhaCommerce:Ecommerce:AllowGuestCheckout"] = "false" };
     }
@@ -167,7 +167,7 @@ public class GuestBasketTests(PiranhaFactory factory) : IClassFixture<PiranhaFac
         Assert.Equal(HttpStatusCode.TooManyRequests, (await anon.PostAsync(Guests, null)).StatusCode);
     }
 
-    private sealed class GuestLimitFactory : PiranhaFactory
+    private sealed class GuestLimitFactory : PiranhaCommerceFactory
     {
         protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?> { ["PiranhaCommerce:RateLimit:GuestBasketAttempts"] = "3" };
     }
@@ -254,7 +254,7 @@ public class GuestBasketTests(PiranhaFactory factory) : IClassFixture<PiranhaFac
             await AddGuest(anon, guest.Id, p, 1);
             using (var scope = factory.Services.CreateScope())
             {
-                var db = scope.ServiceProvider.GetRequiredService<PiranhaCommerce.Data.PiranhaDbContext>();
+                var db = scope.ServiceProvider.GetRequiredService<PiranhaCommerce.Data.PiranhaCommerceDbContext>();
                 await db.Set<Basket>().Where(b => b.Id == guest.Id).ExecuteUpdateAsync(s => s.SetProperty(b => b.PromotionCode, code));
             }
             var mine = await ShopperBasket(shopper);

@@ -79,7 +79,7 @@ public interface IBrandService
     Task<BrandDto> CreateAsync(BrandInput input, CancellationToken ct = default);
     Task<BrandDto?> UpdateAsync(Guid id, BrandInput input, CancellationToken ct = default);
 
-    /// <summary>False when not found. Throws <see cref="PiranhaConflictException"/> while products still carry the brand.</summary>
+    /// <summary>False when not found. Throws <see cref="PiranhaCommerceConflictException"/> while products still carry the brand.</summary>
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>Null when the product does not exist. For a variant, its parent's brand.</summary>
@@ -98,7 +98,7 @@ public interface IBrandService
     Task<IReadOnlyDictionary<Guid, string>> NamesForProductsAsync(IReadOnlyCollection<Guid> productIds, CancellationToken ct = default);
 }
 
-internal sealed class BrandService(PiranhaDbContext db) : IBrandService
+internal sealed class BrandService(PiranhaCommerceDbContext db) : IBrandService
 {
     public static string Normalize(string name) => name.Trim().ToUpperInvariant();
 
@@ -146,7 +146,7 @@ internal sealed class BrandService(PiranhaDbContext db) : IBrandService
     {
         if (!await db.Set<Brand>().AnyAsync(b => b.Id == id, ct)) return false;
         if (await db.Set<Product>().AnyAsync(p => p.BrandId == id, ct))
-            throw new PiranhaConflictException("Products still carry this brand. Move them to another brand, or clear it, first.");
+            throw new PiranhaCommerceConflictException("Products still carry this brand. Move them to another brand, or clear it, first.");
         return await db.DeleteTrackedAsync<Brand>(b => b.Id == id, ct) > 0;
     }
 
@@ -165,9 +165,9 @@ internal sealed class BrandService(PiranhaDbContext db) : IBrandService
         var product = await db.Set<Product>().FirstOrDefaultAsync(p => p.Id == productId, ct);
         if (product is null) return null;
         if (await db.Set<ProductVariant>().AnyAsync(v => v.ProductId == productId, ct))
-            throw new PiranhaValidationException(nameof(ProductBrandInput.BrandId), "A variant shows its parent's brand. Set the brand on the parent product.");
+            throw new PiranhaCommerceValidationException(nameof(ProductBrandInput.BrandId), "A variant shows its parent's brand. Set the brand on the parent product.");
         if (brandId is { } id && !await db.Set<Brand>().AnyAsync(b => b.Id == id, ct))
-            throw new PiranhaValidationException(nameof(ProductBrandInput.BrandId), "That brand does not exist.");
+            throw new PiranhaCommerceValidationException(nameof(ProductBrandInput.BrandId), "That brand does not exist.");
         product.BrandId = brandId;
         await db.SaveChangesAsync(ct);
         return await GetProductBrandAsync(productId, ct);
@@ -205,9 +205,9 @@ internal sealed class BrandService(PiranhaDbContext db) : IBrandService
     {
         var normalized = Normalize(input.Name);
         if (await db.Set<Brand>().AnyAsync(b => b.NormalizedName == normalized && b.Id != existingId, ct))
-            throw new PiranhaValidationException(nameof(BrandInput.Name), "A brand with this name already exists.");
+            throw new PiranhaCommerceValidationException(nameof(BrandInput.Name), "A brand with this name already exists.");
         if (Seo.NormalizeSlug(input.Slug) is { } slug && await db.Set<Brand>().AnyAsync(b => b.Slug == slug && b.Id != existingId, ct))
-            throw new PiranhaValidationException(nameof(BrandInput.Slug), "A brand with this slug already exists.");
+            throw new PiranhaCommerceValidationException(nameof(BrandInput.Slug), "A brand with this slug already exists.");
     }
 
     private static void Apply(Brand e, BrandInput i)

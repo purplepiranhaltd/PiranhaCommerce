@@ -11,7 +11,7 @@ using PiranhaCommerce.Ecommerce;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>What a shopper sees of the catalogue: published products and active categories only, priced the way baskets price them.</summary>
-public class ShopCatalogueTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class ShopCatalogueTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];

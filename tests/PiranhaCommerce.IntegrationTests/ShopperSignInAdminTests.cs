@@ -9,7 +9,7 @@ using PiranhaCommerce.Customers;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>What staff can do about a shopper's sign-in, and that every way of ending a session really ends it.</summary>
-public class ShopperSignInAdminTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class ShopperSignInAdminTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private const string Password = "a-long-enough-password";
     private static string NewEmail() => $"signin-{Guid.NewGuid():N}@example.com";
@@ -289,7 +289,7 @@ public class ShopperSignInAdminTests(PiranhaFactory factory) : IClassFixture<Pir
         Assert.Equal(6, export.GetProperty("signInHistory").GetArrayLength());
         Assert.Equal(HttpStatusCode.OK, (await staff.PostAsJsonAsync($"/api/v1/customers/{s.Id}/erase", new EraseCustomerInput { ConfirmEmail = s.Email })).StatusCode);
         using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<PiranhaCommerce.Data.PiranhaDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<PiranhaCommerce.Data.PiranhaCommerceDbContext>();
         Assert.False(await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(db.Set<CustomerSignInEvent>(), e => e.CustomerId == s.Id));
     }
 }

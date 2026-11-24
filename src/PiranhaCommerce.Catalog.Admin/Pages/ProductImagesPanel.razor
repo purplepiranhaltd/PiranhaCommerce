@@ -88,7 +88,7 @@
             _alt.Clear();
             _message = done;
         }
-        catch (PiranhaValidationException ex) { _failed = true; _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceValidationException ex) { _failed = true; _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
         catch (Exception ex) { _failed = true; _message = "Could not do that: " + ex.Message; }
         finally { _busy = false; }
     }
@@ -106,7 +106,7 @@
             _data = await Scope.RunAsync<IProductImageService, ProductImagesDto?>(s => s.ListAsync(ProductId));
             _message = "Picture added.";
         }
-        catch (PiranhaValidationException ex) { _failed = true; _message = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
+        catch (PiranhaCommerceValidationException ex) { _failed = true; _message = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
         catch (IOException) { _failed = true; _message = "That file is too big."; }
         catch (Exception ex) { _failed = true; _message = "Could not add the picture: " + ex.Message; }
         finally { _busy = false; }

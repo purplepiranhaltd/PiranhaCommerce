@@ -12,7 +12,7 @@
         else
         {
             @* Secure by default: plugin pages need no [Authorize]; opt out with [AllowAnonymous]. *@
-            <AuthorizeView Roles="@PiranhaRoles.Administrator">
+            <AuthorizeView Roles="@PiranhaCommerceRoles.Administrator">
                 <Authorized>
                     <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.AdminLayout)" />
                 </Authorized>

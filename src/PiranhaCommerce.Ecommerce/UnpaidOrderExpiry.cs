@@ -43,7 +43,7 @@ internal sealed partial class OrderService : IUnpaidOrderExpiry
                 {
                     if (await ChangeStageCoreAsync(id, OrderStage.Cancelled, ExpiryActor, onlyIfUnpaid: true, ct) is not null) expired++;
                 }
-                catch (PiranhaConflictException) { skipped.Add(id); } // paid, moved on, or shipped meanwhile: not ours to cancel
+                catch (PiranhaCommerceConflictException) { skipped.Add(id); } // paid, moved on, or shipped meanwhile: not ours to cancel
                 catch (OperationCanceledException) { throw; }
                 catch (Exception ex)
                 {

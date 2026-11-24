@@ -87,20 +87,20 @@ public interface IDisputeService
     Task<int> OpenCountAsync(CancellationToken ct = default);
 }
 
-internal sealed partial class DisputeService(PiranhaDbContext db, IEnumerable<IDisputeEvidenceGateway> evidenceGateways, IFileStore files, IOptions<DisputeFileOptions> fileOptions) : IDisputeService
+internal sealed partial class DisputeService(PiranhaCommerceDbContext db, IEnumerable<IDisputeEvidenceGateway> evidenceGateways, IFileStore files, IOptions<DisputeFileOptions> fileOptions) : IDisputeService
 {
     public async Task<PaymentDisputeDto?> SubmitEvidenceAsync(Guid disputeId, DisputeEvidenceInput input, CancellationToken ct = default)
     {
         ModelValidator.ValidateOrThrow(input);
         var d = await db.Set<PaymentDispute>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == disputeId, ct);
         if (d is null) return null;
-        if (d.Status != DisputeStatus.Open) throw new PiranhaConflictException("This dispute has already been decided.");
-        if (d.EvidenceSubmittedUtc is not null) throw new PiranhaConflictException("Evidence has already been sent to the bank for this dispute and cannot be changed.");
+        if (d.Status != DisputeStatus.Open) throw new PiranhaCommerceConflictException("This dispute has already been decided.");
+        if (d.EvidenceSubmittedUtc is not null) throw new PiranhaCommerceConflictException("Evidence has already been sent to the bank for this dispute and cannot be changed.");
         var documents = await DocumentsAsync(d.Id, ct);
         if (documents.Count == 0 && string.IsNullOrWhiteSpace(input.ProductDescription + input.CustomerName + input.CustomerEmail + input.ShippingAddress + input.ShippingCarrier + input.TrackingNumber + input.Notes) && input.ShippingDate is null)
-            throw new PiranhaValidationException(nameof(DisputeEvidenceInput.Notes), "Give at least some evidence.");
+            throw new PiranhaCommerceValidationException(nameof(DisputeEvidenceInput.Notes), "Give at least some evidence.");
         var gateway = evidenceGateways.FirstOrDefault(g => string.Equals(g.Name, d.Provider, StringComparison.OrdinalIgnoreCase))
-            ?? throw new PiranhaValidationException(nameof(PaymentDisputeDto.Provider), $"Evidence for {d.Provider} disputes has to be sent in the provider's own dashboard.");
+            ?? throw new PiranhaCommerceValidationException(nameof(PaymentDisputeDto.Provider), $"Evidence for {d.Provider} disputes has to be sent in the provider's own dashboard.");
 
         try
         {
@@ -110,7 +110,7 @@ internal sealed partial class DisputeService(PiranhaDbContext db, IEnumerable<ID
         }
         catch (GatewayException ex)
         {
-            throw new PiranhaConflictException("The payment provider did not accept the evidence: " + ex.Message);
+            throw new PiranhaCommerceConflictException("The payment provider did not accept the evidence: " + ex.Message);
         }
 
         if (input.Submit)

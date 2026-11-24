@@ -67,16 +67,16 @@ internal sealed partial class DisputeService
     {
         var d = await db.Set<PaymentDispute>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == disputeId, ct);
         if (d is null) return null;
-        if (d.Status != DisputeStatus.Open) throw new PiranhaConflictException("This dispute has already been decided.");
-        if (d.EvidenceSubmittedUtc is not null) throw new PiranhaConflictException("Evidence has already been sent to the bank for this dispute and cannot be changed.");
-        if (!Enum.IsDefined(kind)) throw new PiranhaValidationException(nameof(kind), "Choose what the document is.");
+        if (d.Status != DisputeStatus.Open) throw new PiranhaCommerceConflictException("This dispute has already been decided.");
+        if (d.EvidenceSubmittedUtc is not null) throw new PiranhaCommerceConflictException("Evidence has already been sent to the bank for this dispute and cannot be changed.");
+        if (!Enum.IsDefined(kind)) throw new PiranhaCommerceValidationException(nameof(kind), "Choose what the document is.");
 
         var name = Path.GetFileName((fileName ?? "").Replace('\\', '/')).Trim();
-        if (name.Length == 0) throw new PiranhaValidationException("file", "The file needs a name.");
+        if (name.Length == 0) throw new PiranhaCommerceValidationException("file", "The file needs a name.");
         if (name.Length > 200) name = name[^200..];
 
         var existing = await db.Set<DisputeEvidenceFile>().AsNoTracking().Where(f => f.DisputeId == disputeId).Select(f => new { f.Kind, f.Length }).ToListAsync(ct);
-        if (existing.Any(f => f.Kind == kind)) throw new PiranhaConflictException($"There is already a document for {kind}. Remove it first.");
+        if (existing.Any(f => f.Kind == kind)) throw new PiranhaCommerceConflictException($"There is already a document for {kind}. Remove it first.");
 
         var limits = fileOptions.Value;
         using var buffer = new MemoryStream();
@@ -85,14 +85,14 @@ internal sealed partial class DisputeService
         while ((read = await content.ReadAsync(chunk, ct)) > 0)
         {
             buffer.Write(chunk, 0, read);
-            if (buffer.Length > limits.MaxBytes) throw new PiranhaValidationException("file", $"A document can be at most {limits.MaxBytes / (1024 * 1024)} MB.");
+            if (buffer.Length > limits.MaxBytes) throw new PiranhaCommerceValidationException("file", $"A document can be at most {limits.MaxBytes / (1024 * 1024)} MB.");
         }
-        if (buffer.Length == 0) throw new PiranhaValidationException("file", "The file is empty.");
+        if (buffer.Length == 0) throw new PiranhaCommerceValidationException("file", "The file is empty.");
         if (existing.Sum(f => f.Length) + buffer.Length > limits.MaxTotalBytes)
-            throw new PiranhaValidationException("file", $"The documents for one dispute can be at most {limits.MaxTotalBytes / 1_000_000.0:0.#} MB in all.");
+            throw new PiranhaCommerceValidationException("file", $"The documents for one dispute can be at most {limits.MaxTotalBytes / 1_000_000.0:0.#} MB in all.");
 
         var bytes = buffer.GetBuffer().AsSpan(0, (int)buffer.Length);
-        var contentType = Sniff(bytes) ?? throw new PiranhaValidationException("file", "Documents must be PDF, JPEG or PNG files.");
+        var contentType = Sniff(bytes) ?? throw new PiranhaCommerceValidationException("file", "Documents must be PDF, JPEG or PNG files.");
 
         var row = new DisputeEvidenceFile { DisputeId = disputeId, Kind = kind, FileName = name, ContentType = contentType, Length = buffer.Length, Actor = actor, UploadedUtc = DateTimeOffset.UtcNow };
         buffer.Position = 0;
@@ -106,7 +106,7 @@ internal sealed partial class DisputeService
         {
             await files.DeleteFolderAsync(Key(disputeId, row.Id), ct);
             db.ChangeTracker.Clear();
-            throw new PiranhaConflictException("The dispute changed while the file was being added. Reload and try again.");
+            throw new PiranhaCommerceConflictException("The dispute changed while the file was being added. Reload and try again.");
         }
         return ToDto(row);
     }
@@ -123,7 +123,7 @@ internal sealed partial class DisputeService
     {
         var d = await db.Set<PaymentDispute>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == disputeId, ct);
         if (d is null) return false;
-        if (d.EvidenceSubmittedUtc is not null) throw new PiranhaConflictException("Evidence has already been sent to the bank for this dispute and cannot be changed.");
+        if (d.EvidenceSubmittedUtc is not null) throw new PiranhaCommerceConflictException("Evidence has already been sent to the bank for this dispute and cannot be changed.");
         var removed = await db.DeleteTrackedAsync<DisputeEvidenceFile>(f => f.Id == fileId && f.DisputeId == disputeId, ct) > 0;
         if (removed) await files.DeleteFolderAsync(Key(disputeId, fileId), ct);
         return removed;

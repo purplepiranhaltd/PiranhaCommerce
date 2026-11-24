@@ -9,14 +9,14 @@ using PiranhaCommerce.Web.SampleData;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>The sample shop's data: it seeds through the real services, the shop API shows it, and running it again changes nothing.</summary>
-public class SampleDataTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class SampleDataTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
 
     [Fact]
     public async Task The_sample_catalogue_seeds_once_and_the_shop_can_sell_from_it()
     {
-        if (PiranhaFactory.UsesSharedDatabase) return; // it adds a tax rule and a sale: not for a database other test classes use
+        if (PiranhaCommerceFactory.UsesSharedDatabase) return; // it adds a tax rule and a sale: not for a database other test classes use
 
         var seeder = factory.Services.GetRequiredService<SampleDataSeeder>();
         await seeder.SeedAsync();
@@ -61,7 +61,7 @@ public class SampleDataTests(PiranhaFactory factory) : IClassFixture<PiranhaFact
     [Fact]
     public async Task A_guest_can_buy_from_the_sample_shop_end_to_end_with_vat_free_delivery_and_a_promo_code()
     {
-        if (PiranhaFactory.UsesSharedDatabase) return;
+        if (PiranhaCommerceFactory.UsesSharedDatabase) return;
 
         await factory.Services.GetRequiredService<SampleDataSeeder>().SeedAsync();
         var shop = factory.CreateClient();

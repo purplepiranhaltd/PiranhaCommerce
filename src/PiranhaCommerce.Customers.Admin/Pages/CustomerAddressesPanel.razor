@@ -124,7 +124,7 @@
                 await LoadAsync();
             }
         }
-        catch (PiranhaValidationException ex) { _failed = true; _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceValidationException ex) { _failed = true; _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
         catch (Exception ex) { _failed = true; _message = "Could not save: " + ex.Message; }
         finally { _saving = false; }
     }

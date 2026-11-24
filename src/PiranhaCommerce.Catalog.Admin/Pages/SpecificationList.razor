@@ -135,7 +135,7 @@ else
             if (_error is null) ResetForm();
             await LoadAsync();
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
         catch (Exception ex) { _error = "Could not save: " + ex.Message; }
         finally { _saving = false; }
     }
@@ -150,7 +150,7 @@ else
             _newValues.Remove(attributeId);
             await LoadAsync();
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
         catch (Exception ex) { _error = "Could not add: " + ex.Message; }
     }
 
@@ -163,7 +163,7 @@ else
             await Scope.RunAsync<ISpecificationService, bool>(s => s.DeleteValueAsync(attributeId, valueId));
             await LoadAsync();
         }
-        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (PiranhaCommerceConflictException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = "Could not delete: " + ex.Message; }
     }
 
@@ -177,7 +177,7 @@ else
             if (_editingId == id) ResetForm();
             await LoadAsync();
         }
-        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (PiranhaCommerceConflictException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = "Could not delete: " + ex.Message; }
     }
 }

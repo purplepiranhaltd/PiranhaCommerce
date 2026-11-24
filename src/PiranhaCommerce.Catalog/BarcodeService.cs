@@ -11,7 +11,7 @@ public interface IBarcodeService
 
     /// <summary>
     /// Replaces the product's barcodes. Null when the product does not exist. Invalid codes are a validation error;
-    /// a code already used by another product (in any equivalent GTIN form) is a <see cref="PiranhaConflictException"/>.
+    /// a code already used by another product (in any equivalent GTIN form) is a <see cref="PiranhaCommerceConflictException"/>.
     /// </summary>
     Task<ProductBarcodesDto?> SetAsync(Guid productId, IReadOnlyCollection<string> codes, CancellationToken ct = default);
 
@@ -19,7 +19,7 @@ public interface IBarcodeService
     Task<ProductDto?> FindProductAsync(string code, CancellationToken ct = default);
 }
 
-internal sealed class BarcodeService(PiranhaDbContext db) : IBarcodeService
+internal sealed class BarcodeService(PiranhaCommerceDbContext db) : IBarcodeService
 {
     public async Task<ProductBarcodesDto?> GetAsync(Guid productId, CancellationToken ct = default)
     {
@@ -41,7 +41,7 @@ internal sealed class BarcodeService(PiranhaDbContext db) : IBarcodeService
             .Where(b => normalized.Contains(b.NormalizedCode) && b.ProductId != productId)
             .Select(b => b.Code).ToListAsync(ct);
         if (taken.Count > 0)
-            throw new PiranhaConflictException("Already used by another product: " + string.Join(", ", taken));
+            throw new PiranhaCommerceConflictException("Already used by another product: " + string.Join(", ", taken));
 
         var existing = await db.Set<ProductBarcode>().Where(b => b.ProductId == productId).ToListAsync(ct);
         db.RemoveRange(existing.Where(b => !wanted.ContainsKey(b.NormalizedCode)));
@@ -56,7 +56,7 @@ internal sealed class BarcodeService(PiranhaDbContext db) : IBarcodeService
         {
             // Lost a race with another writer claiming the same code (the unique index is the real guarantee).
             db.ChangeTracker.Clear();
-            throw new PiranhaConflictException("One of those barcodes was just assigned to another product.");
+            throw new PiranhaCommerceConflictException("One of those barcodes was just assigned to another product.");
         }
         return await LoadAsync(productId, ct);
     }

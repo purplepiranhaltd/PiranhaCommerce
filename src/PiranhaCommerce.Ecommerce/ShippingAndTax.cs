@@ -163,7 +163,7 @@ public static class ShippingRates
 internal static class ShippingPricing
 {
     /// <summary>Total weight in grams. A product with no weight set counts as nothing.</summary>
-    public static async Task<long> WeightAsync(PiranhaDbContext db, IReadOnlyCollection<(Guid ProductId, int Quantity)> lines, CancellationToken ct)
+    public static async Task<long> WeightAsync(PiranhaCommerceDbContext db, IReadOnlyCollection<(Guid ProductId, int Quantity)> lines, CancellationToken ct)
     {
         var ids = lines.Select(l => l.ProductId).ToList();
         var weights = (await db.Set<ProductListing>().AsNoTracking().Where(l => ids.Contains(l.ProductId) && l.WeightGrams != null)
@@ -172,7 +172,7 @@ internal static class ShippingPricing
     }
 
     /// <summary>What the method charges for this destination and weight; null when it does not serve them.</summary>
-    public static async Task<decimal?> PriceAsync(PiranhaDbContext db, ShippingMethod method, string countryCode, string? postalCode, long weightGrams, CancellationToken ct)
+    public static async Task<decimal?> PriceAsync(PiranhaCommerceDbContext db, ShippingMethod method, string countryCode, string? postalCode, long weightGrams, CancellationToken ct)
     {
         var rates = await db.Set<ShippingRate>().AsNoTracking().Where(r => r.ShippingMethodId == method.Id).ToListAsync(ct);
         var zone = rates.Any(r => r.ZoneId is not null) ? await ShippingZoneRules.ResolveAsync(db, countryCode, postalCode, ct) : null;
@@ -296,7 +296,7 @@ public sealed record TaxCalculation(
 
 internal static class TaxLookup
 {
-    public static async Task<(List<TaxRule> Rules, Guid DefaultClassId)> LoadAsync(PiranhaDbContext db, CancellationToken ct)
+    public static async Task<(List<TaxRule> Rules, Guid DefaultClassId)> LoadAsync(PiranhaCommerceDbContext db, CancellationToken ct)
     {
         var rules = await db.Set<TaxRule>().AsNoTracking().ToListAsync(ct);
         var def = await db.Set<TaxClass>().AsNoTracking().Where(c => c.IsDefault).OrderBy(c => c.Id).Select(c => c.Id).FirstOrDefaultAsync(ct);
@@ -304,7 +304,7 @@ internal static class TaxLookup
     }
 
     /// <summary>The tax class set on each product's online listing (missing or null: the default class).</summary>
-    public static async Task<Dictionary<Guid, Guid?>> ClassesAsync(PiranhaDbContext db, IReadOnlyCollection<Guid> productIds, CancellationToken ct)
+    public static async Task<Dictionary<Guid, Guid?>> ClassesAsync(PiranhaCommerceDbContext db, IReadOnlyCollection<Guid> productIds, CancellationToken ct)
         => (await db.Set<ProductListing>().AsNoTracking().Where(l => productIds.Contains(l.ProductId))
             .Select(l => new { l.ProductId, l.TaxClassId }).ToListAsync(ct)).ToDictionary(l => l.ProductId, l => l.TaxClassId);
 }
@@ -324,7 +324,7 @@ public interface IShippingService
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 }
 
-internal sealed class ShippingService(PiranhaDbContext db) : IShippingService
+internal sealed class ShippingService(PiranhaCommerceDbContext db) : IShippingService
 {
     public async Task<IReadOnlyList<ShippingMethodDto>> ListAsync(bool activeOnly, CancellationToken ct = default)
         => await db.Set<ShippingMethod>().AsNoTracking().Where(m => !activeOnly || m.Active)
@@ -363,12 +363,12 @@ internal sealed class ShippingService(PiranhaDbContext db) : IShippingService
 
     public async Task<IReadOnlyList<ShippingRateDto>?> SetRatesAsync(Guid id, ShippingRatesInput input, CancellationToken ct = default)
     {
-        if (input.Rates is null || input.Rates.Count > 200) throw new PiranhaValidationException(nameof(ShippingRatesInput.Rates), "Give at most 200 rates.");
+        if (input.Rates is null || input.Rates.Count > 200) throw new PiranhaCommerceValidationException(nameof(ShippingRatesInput.Rates), "Give at most 200 rates.");
         foreach (var r in input.Rates) ModelValidator.ValidateOrThrow(r); // the list is not walked by the validator, so each row is
-        if (ShippingRates.Problem(input.Rates) is { } problem) throw new PiranhaValidationException(nameof(ShippingRatesInput.Rates), problem);
+        if (ShippingRates.Problem(input.Rates) is { } problem) throw new PiranhaCommerceValidationException(nameof(ShippingRatesInput.Rates), problem);
         var zoneIds = input.Rates.Where(r => r.ZoneId is not null).Select(r => r.ZoneId!.Value).Distinct().ToList();
         if (zoneIds.Count > 0 && await db.Set<ShippingZone>().CountAsync(z => zoneIds.Contains(z.Id), ct) != zoneIds.Count)
-            throw new PiranhaValidationException(nameof(ShippingRatesInput.Rates), "One of the zones does not exist.");
+            throw new PiranhaCommerceValidationException(nameof(ShippingRatesInput.Rates), "One of the zones does not exist.");
 
         var strategy = db.Database.CreateExecutionStrategy();
         var found = await strategy.ExecuteInTransactionAsync(
@@ -419,7 +419,7 @@ public interface ITaxService
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 }
 
-internal sealed class TaxService(PiranhaDbContext db) : ITaxService
+internal sealed class TaxService(PiranhaCommerceDbContext db) : ITaxService
 {
     public async Task<IReadOnlyList<TaxClassDto>> ListClassesAsync(CancellationToken ct = default)
         => await db.Set<TaxClass>().AsNoTracking().OrderByDescending(c => c.IsDefault).ThenBy(c => c.Name).ThenBy(c => c.Id)
@@ -441,7 +441,7 @@ internal sealed class TaxService(PiranhaDbContext db) : ITaxService
         var c = await db.Set<TaxClass>().FirstOrDefaultAsync(x => x.Id == id, ct);
         if (c is null) return null;
         if (c.IsDefault && !input.IsDefault)
-            throw new PiranhaConflictException("A store always has a default tax class. Make another class the default instead.");
+            throw new PiranhaCommerceConflictException("A store always has a default tax class. Make another class the default instead.");
         c.Name = input.Name.Trim();
         c.UpdatedUtc = DateTimeOffset.UtcNow;
         await SaveClassAsync(ct);
@@ -453,11 +453,11 @@ internal sealed class TaxService(PiranhaDbContext db) : ITaxService
     {
         var c = await db.Set<TaxClass>().AsNoTracking().Where(x => x.Id == id).Select(x => new { x.IsDefault }).FirstOrDefaultAsync(ct);
         if (c is null) return false;
-        if (c.IsDefault) throw new PiranhaConflictException("The default tax class cannot be deleted. Make another class the default first.");
+        if (c.IsDefault) throw new PiranhaCommerceConflictException("The default tax class cannot be deleted. Make another class the default first.");
         if (await db.Set<TaxRule>().AnyAsync(r => r.TaxClassId == id, ct) || await db.Set<ProductListing>().AnyAsync(l => l.TaxClassId == id, ct))
-            throw new PiranhaConflictException("This tax class is still used by tax rules or products. Remove or move them first.");
+            throw new PiranhaCommerceConflictException("This tax class is still used by tax rules or products. Remove or move them first.");
         try { return await db.DeleteTrackedAsync<TaxClass>(x => x.Id == id, ct) > 0; }
-        catch (DbUpdateException) { throw new PiranhaConflictException("This tax class is still used by tax rules or products. Remove or move them first."); }
+        catch (DbUpdateException) { throw new PiranhaCommerceConflictException("This tax class is still used by tax rules or products. Remove or move them first."); }
     }
 
     /// <summary>Atomic: afterwards exactly this class is the default.</summary>
@@ -481,7 +481,7 @@ internal sealed class TaxService(PiranhaDbContext db) : ITaxService
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
-            throw new PiranhaValidationException(nameof(TaxClassInput.Name), "A tax class with that name already exists.");
+            throw new PiranhaCommerceValidationException(nameof(TaxClassInput.Name), "A tax class with that name already exists.");
         }
     }
 
@@ -524,7 +524,7 @@ internal sealed class TaxService(PiranhaDbContext db) : ITaxService
         if (requested is { } id)
         {
             if (!await db.Set<TaxClass>().AnyAsync(c => c.Id == id, ct))
-                throw new PiranhaValidationException(nameof(TaxRuleInput.TaxClassId), "That tax class does not exist.");
+                throw new PiranhaCommerceValidationException(nameof(TaxRuleInput.TaxClassId), "That tax class does not exist.");
             return id;
         }
         return (await TaxLookup.LoadAsync(db, ct)).DefaultClassId;
@@ -539,7 +539,7 @@ internal sealed class TaxService(PiranhaDbContext db) : ITaxService
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
-            throw new PiranhaValidationException(nameof(TaxRuleInput.CountryCode), "That tax class already has a rule for that country.");
+            throw new PiranhaCommerceValidationException(nameof(TaxRuleInput.CountryCode), "That tax class already has a rule for that country.");
         }
     }
 

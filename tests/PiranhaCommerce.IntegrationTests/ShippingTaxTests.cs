@@ -13,7 +13,7 @@ namespace PiranhaCommerce.IntegrationTests;
 /// and each puts the settings back as it found them.
 /// </summary>
 [Collection(OrderSettings.Name)]
-public class ShippingTaxTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class ShippingTaxTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
 

@@ -22,7 +22,7 @@ internal sealed class StockApiEndpoints : IApiEndpointContributor
             {
                 var actor = http.User.ForStaff();
                 if (!await staff.CanActAtAsync(actor.UserId, input.LocationId ?? StockLocations.DefaultId, ct))
-                    throw new PiranhaCommerce.Core.Validation.PiranhaForbiddenException("You are not assigned to that location, so you cannot adjust its stock.");
+                    throw new PiranhaCommerce.Core.Validation.PiranhaCommerceForbiddenException("You are not assigned to that location, so you cannot adjust its stock.");
                 return await svc.AdjustAsync(productId, input, actor.Name, ct) is { } r ? Results.Ok(r) : Results.NotFound();
             })
             .RequireAuthorization(ApiPolicies.Write);

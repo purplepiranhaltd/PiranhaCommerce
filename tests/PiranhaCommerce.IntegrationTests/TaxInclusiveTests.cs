@@ -11,7 +11,7 @@ namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Showing shoppers tax-inclusive prices: lookups by destination, quote lines with their tax, and order lines.</summary>
 [Collection(OrderSettings.Name)]
-public class TaxInclusiveTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class TaxInclusiveTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];
@@ -70,7 +70,7 @@ public class TaxInclusiveTests(PiranhaFactory factory) : IClassFixture<PiranhaFa
         await staff.DeleteAsync($"/api/v1/sales/{sale.Id}");
     }
 
-    private sealed class HomeCountryFactory : PiranhaFactory
+    private sealed class HomeCountryFactory : PiranhaCommerceFactory
     {
         protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?> { ["PiranhaCommerce:Ecommerce:DefaultCountryCode"] = "qx" };
     }

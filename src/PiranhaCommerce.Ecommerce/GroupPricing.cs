@@ -113,7 +113,7 @@ internal static class GroupPricing
     }
 
     /// <summary>What the customer pays: the lowest of the regular price, any running sale's price, and what their groups give. A null customer gets the sale price at most.</summary>
-    public static async Task<Dictionary<Guid, decimal>> EffectiveAsync(PiranhaDbContext db, Guid? customerId, IReadOnlyCollection<(Guid ProductId, decimal Price)> items, CancellationToken ct,
+    public static async Task<Dictionary<Guid, decimal>> EffectiveAsync(PiranhaCommerceDbContext db, Guid? customerId, IReadOnlyCollection<(Guid ProductId, decimal Price)> items, CancellationToken ct,
         IReadOnlyDictionary<Guid, int>? quantities = null)
     {
         var result = await ForGroupsAsync(db, customerId, items, ct);
@@ -129,7 +129,7 @@ internal static class GroupPricing
         return result;
     }
 
-    private static async Task<Dictionary<Guid, decimal>> ForGroupsAsync(PiranhaDbContext db, Guid? customerId, IReadOnlyCollection<(Guid ProductId, decimal Price)> items, CancellationToken ct)
+    private static async Task<Dictionary<Guid, decimal>> ForGroupsAsync(PiranhaCommerceDbContext db, Guid? customerId, IReadOnlyCollection<(Guid ProductId, decimal Price)> items, CancellationToken ct)
     {
         var result = new Dictionary<Guid, decimal>();
         foreach (var (id, price) in items) result[id] = price;
@@ -178,7 +178,7 @@ internal static class GroupPricing
     }
 }
 
-internal sealed class GroupPricingService(PiranhaDbContext db, Microsoft.Extensions.Options.IOptions<EcommerceOptions> options) : IGroupPricingService
+internal sealed class GroupPricingService(PiranhaCommerceDbContext db, Microsoft.Extensions.Options.IOptions<EcommerceOptions> options) : IGroupPricingService
 {
     private async Task<IReadOnlyList<ProductGroupPriceDto>> RowsAsync(Guid productId, decimal regular, CancellationToken ct)
     {
@@ -206,7 +206,7 @@ internal sealed class GroupPricingService(PiranhaDbContext db, Microsoft.Extensi
     public async Task<ProductGroupPriceDto?> SetAsync(Guid productId, Guid groupId, GroupPriceInput input, CancellationToken ct = default)
     {
         ModelValidator.ValidateOrThrow(input);
-        if (decimal.Round(input.Price, 4) != input.Price) throw new PiranhaValidationException(nameof(GroupPriceInput.Price), "A price can have at most 4 decimal places.");
+        if (decimal.Round(input.Price, 4) != input.Price) throw new PiranhaCommerceValidationException(nameof(GroupPriceInput.Price), "A price can have at most 4 decimal places.");
         var regular = await db.Set<Product>().AsNoTracking().Where(p => p.Id == productId).Select(p => (decimal?)p.Price).FirstOrDefaultAsync(ct);
         if (regular is null || !await db.Set<CustomerGroup>().AnyAsync(g => g.Id == groupId, ct)) return null;
 
@@ -241,7 +241,7 @@ internal sealed class GroupPricingService(PiranhaDbContext db, Microsoft.Extensi
     public async Task<GroupCategoryDiscountDto?> SetCategoryDiscountAsync(Guid groupId, Guid categoryId, GroupCategoryDiscountInput input, CancellationToken ct = default)
     {
         ModelValidator.ValidateOrThrow(input);
-        if (decimal.Round(input.Percent, 2) != input.Percent) throw new PiranhaValidationException(nameof(GroupCategoryDiscountInput.Percent), "The percentage can have at most 2 decimal places.");
+        if (decimal.Round(input.Percent, 2) != input.Percent) throw new PiranhaCommerceValidationException(nameof(GroupCategoryDiscountInput.Percent), "The percentage can have at most 2 decimal places.");
         var category = await db.Set<Category>().AsNoTracking().Where(c => c.Id == categoryId).Select(c => new { c.Name, c.ParentId }).FirstOrDefaultAsync(ct);
         if (category is null || !await db.Set<CustomerGroup>().AnyAsync(g => g.Id == groupId, ct)) return null;
 
@@ -271,7 +271,7 @@ internal sealed class GroupPricingService(PiranhaDbContext db, Microsoft.Extensi
     public async Task<IReadOnlyList<ShopperPriceDto>> PricesAsync(Guid? customerId, IReadOnlyCollection<Guid> productIds, string? countryCode = null, CancellationToken ct = default)
     {
         if (!string.IsNullOrWhiteSpace(countryCode) && !System.Text.RegularExpressions.Regex.IsMatch(countryCode, "^[A-Za-z]{2}$"))
-            throw new PiranhaValidationException("countryCode", "Use a two-letter country code such as GB.");
+            throw new PiranhaCommerceValidationException("countryCode", "Use a two-letter country code such as GB.");
         var country = (string.IsNullOrWhiteSpace(countryCode) ? options.Value.DefaultCountryCode : countryCode)?.ToUpperInvariant();
         var ids = productIds.Distinct().Take(200).ToList();
         if (ids.Count == 0) return [];

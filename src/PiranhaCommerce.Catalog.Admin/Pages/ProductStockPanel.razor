@@ -122,8 +122,8 @@
                 await RefreshAsync();
             }
         }
-        catch (PiranhaValidationException ex) { _failed = true; _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
-        catch (PiranhaConflictException ex) { _failed = true; _message = ex.Message; }
+        catch (PiranhaCommerceValidationException ex) { _failed = true; _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceConflictException ex) { _failed = true; _message = ex.Message; }
         catch (Exception ex) { _failed = true; _message = "Could not adjust stock: " + ex.Message; }
         finally { _saving = false; }
     }

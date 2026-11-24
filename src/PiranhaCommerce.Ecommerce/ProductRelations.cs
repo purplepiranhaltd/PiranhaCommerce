@@ -76,7 +76,7 @@ public interface IProductRelationService
     Task<IReadOnlyList<SuggestedProductDto>> CrossSellForBasketAsync(IReadOnlyCollection<Guid> productIds, Guid? customerId = null, CancellationToken ct = default);
 }
 
-internal sealed class ProductRelationService(PiranhaDbContext db, IOptions<EcommerceOptions> options, IGroupPricingService pricing) : IProductRelationService
+internal sealed class ProductRelationService(PiranhaCommerceDbContext db, IOptions<EcommerceOptions> options, IGroupPricingService pricing) : IProductRelationService
 {
     public const int MaxPerKind = 20;
     public const int MaxBasketSuggestions = 12;
@@ -102,20 +102,20 @@ internal sealed class ProductRelationService(PiranhaDbContext db, IOptions<Ecomm
         ModelValidator.ValidateOrThrow(input);
         if (!await db.Set<Product>().AnyAsync(p => p.Id == productId, ct)) return null;
         if (await db.Set<ProductVariant>().AnyAsync(v => v.ProductId == productId, ct))
-            throw new PiranhaValidationException("productId", "Suggestions belong to the main product, not to one of its variants.");
+            throw new PiranhaCommerceValidationException("productId", "Suggestions belong to the main product, not to one of its variants.");
 
         foreach (var (name, list) in new[] { (nameof(input.Related), input.Related), (nameof(input.CrossSell), input.CrossSell) })
         {
-            if (list.Distinct().Count() != list.Count) throw new PiranhaValidationException(name, "A product can be in a list once.");
-            if (list.Contains(productId)) throw new PiranhaValidationException(name, "A product cannot be suggested for itself.");
+            if (list.Distinct().Count() != list.Count) throw new PiranhaCommerceValidationException(name, "A product can be in a list once.");
+            if (list.Contains(productId)) throw new PiranhaCommerceValidationException(name, "A product cannot be suggested for itself.");
         }
         var all = input.Related.Concat(input.CrossSell).Distinct().ToList();
         if (all.Count > 0)
         {
             if (await db.Set<Product>().CountAsync(p => all.Contains(p.Id), ct) != all.Count)
-                throw new PiranhaValidationException(nameof(input.Related), "One of the products does not exist.");
+                throw new PiranhaCommerceValidationException(nameof(input.Related), "One of the products does not exist.");
             if (await db.Set<ProductVariant>().AnyAsync(v => all.Contains(v.ProductId), ct))
-                throw new PiranhaValidationException(nameof(input.Related), "Suggest the main product, not one of its variants.");
+                throw new PiranhaCommerceValidationException(nameof(input.Related), "Suggest the main product, not one of its variants.");
         }
 
         var strategy = db.Database.CreateExecutionStrategy();

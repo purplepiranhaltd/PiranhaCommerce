@@ -141,7 +141,7 @@ public sealed class SmtpEmailSender(IOptions<SmtpEmailOptions> options, ISmtpTem
 }
 
 /// <summary>Sends platform email through SMTP. Configure <see cref="SmtpEmailOptions"/>.</summary>
-public sealed class SmtpEmailPlugin : IPiranhaPlugin
+public sealed class SmtpEmailPlugin : IPiranhaCommercePlugin
 {
     public PluginInfo Info { get; } = new("PiranhaCommerce.Email.Smtp", "SMTP email", "0.1.0", "Sends platform email through an SMTP server.");
 

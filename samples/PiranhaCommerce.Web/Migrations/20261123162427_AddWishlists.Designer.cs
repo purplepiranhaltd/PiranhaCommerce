@@ -11,7 +11,7 @@ using PiranhaCommerce.Data;
 
 namespace PiranhaCommerce.Web.Migrations
 {
-    [DbContext(typeof(PiranhaDbContext))]
+    [DbContext(typeof(PiranhaCommerceDbContext))]
     [Migration("20261123162427_AddWishlists")]
     partial class AddWishlists
     {
@@ -694,7 +694,7 @@ namespace PiranhaCommerce.Web.Migrations
                     b.ToTable("StockTransferLine", "catalog");
                 });
 
-            modelBuilder.Entity("PiranhaCommerce.Core.Identity.PiranhaRole", b =>
+            modelBuilder.Entity("PiranhaCommerce.Core.Identity.PiranhaCommerceRole", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -722,7 +722,7 @@ namespace PiranhaCommerce.Web.Migrations
                     b.ToTable("Role", "core");
                 });
 
-            modelBuilder.Entity("PiranhaCommerce.Core.Identity.PiranhaUser", b =>
+            modelBuilder.Entity("PiranhaCommerce.Core.Identity.PiranhaCommerceUser", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -2851,7 +2851,7 @@ namespace PiranhaCommerce.Web.Migrations
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
-                    b.HasOne("PiranhaCommerce.Core.Identity.PiranhaRole", null)
+                    b.HasOne("PiranhaCommerce.Core.Identity.PiranhaCommerceRole", null)
                         .WithMany()
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -2860,7 +2860,7 @@ namespace PiranhaCommerce.Web.Migrations
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>
                 {
-                    b.HasOne("PiranhaCommerce.Core.Identity.PiranhaUser", null)
+                    b.HasOne("PiranhaCommerce.Core.Identity.PiranhaCommerceUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -2869,7 +2869,7 @@ namespace PiranhaCommerce.Web.Migrations
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserLogin<System.Guid>", b =>
                 {
-                    b.HasOne("PiranhaCommerce.Core.Identity.PiranhaUser", null)
+                    b.HasOne("PiranhaCommerce.Core.Identity.PiranhaCommerceUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -2878,13 +2878,13 @@ namespace PiranhaCommerce.Web.Migrations
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserRole<System.Guid>", b =>
                 {
-                    b.HasOne("PiranhaCommerce.Core.Identity.PiranhaRole", null)
+                    b.HasOne("PiranhaCommerce.Core.Identity.PiranhaCommerceRole", null)
                         .WithMany()
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("PiranhaCommerce.Core.Identity.PiranhaUser", null)
+                    b.HasOne("PiranhaCommerce.Core.Identity.PiranhaCommerceUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -2893,7 +2893,7 @@ namespace PiranhaCommerce.Web.Migrations
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<System.Guid>", b =>
                 {
-                    b.HasOne("PiranhaCommerce.Core.Identity.PiranhaUser", null)
+                    b.HasOne("PiranhaCommerce.Core.Identity.PiranhaCommerceUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -2996,7 +2996,7 @@ namespace PiranhaCommerce.Web.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("PiranhaCommerce.Core.Identity.PiranhaUser", null)
+                    b.HasOne("PiranhaCommerce.Core.Identity.PiranhaCommerceUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)

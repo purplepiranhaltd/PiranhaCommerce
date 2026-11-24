@@ -117,7 +117,7 @@ else
             await LoadAsync();
             _message = $"Saved {percent:0.##}% for {row.Name}.";
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
         catch (Exception ex) { _error = "Could not save: " + ex.Message; }
         finally { _busy = false; }
     }

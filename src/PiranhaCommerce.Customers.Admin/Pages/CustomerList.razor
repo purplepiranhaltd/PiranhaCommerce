@@ -104,7 +104,7 @@ else
             await Scope.RunAsync<ICustomerService, bool>(s => s.DeleteAsync(id));
             if (_result is { Items.Count: 1 } && _page > 1) _page--;
         }
-        catch (PiranhaConflictException ex) { _error = ex.Message; }
+        catch (PiranhaCommerceConflictException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = "Could not delete: " + ex.Message; }
         await LoadAsync();
     }

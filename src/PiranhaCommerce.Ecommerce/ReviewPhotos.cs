@@ -66,7 +66,7 @@ public interface IReviewPhotoService
     Task<ImageFile?> OpenAnyAsync(Guid photoId, int? width, CancellationToken ct = default);
 }
 
-internal sealed class ReviewPhotoService(PiranhaDbContext db, IFileStore store, IOptions<ImageOptions> imageOptions, IOptions<EcommerceOptions> options, IImageProcessor? processor = null) : IReviewPhotoService
+internal sealed class ReviewPhotoService(PiranhaCommerceDbContext db, IFileStore store, IOptions<ImageOptions> imageOptions, IOptions<EcommerceOptions> options, IImageProcessor? processor = null) : IReviewPhotoService
 {
     /// <summary>The longest side kept of what a shopper uploads, when an image processor can re-make it.</summary>
     private const int KeptSide = 2000;
@@ -78,8 +78,8 @@ internal sealed class ReviewPhotoService(PiranhaDbContext db, IFileStore store, 
         var review = await db.Set<ProductReview>().FirstOrDefaultAsync(r => r.Id == reviewId && r.CustomerId == customerId, ct);
         if (review is null) return null;
         var max = options.Value.MaxReviewPhotos;
-        if (max <= 0) throw new PiranhaValidationException("file", "This shop does not take photos with reviews.");
-        if (await db.Set<ReviewPhoto>().CountAsync(p => p.ReviewId == reviewId, ct) >= max) throw new PiranhaValidationException("file", $"A review can have at most {max} photos.");
+        if (max <= 0) throw new PiranhaCommerceValidationException("file", "This shop does not take photos with reviews.");
+        if (await db.Set<ReviewPhoto>().CountAsync(p => p.ReviewId == reviewId, ct) >= max) throw new PiranhaCommerceValidationException("file", $"A review can have at most {max} photos.");
 
         var limit = imageOptions.Value.MaxBytes;
         using var buffer = new MemoryStream();
@@ -87,19 +87,19 @@ internal sealed class ReviewPhotoService(PiranhaDbContext db, IFileStore store, 
         int read;
         while ((read = await content.ReadAsync(chunk, ct)) > 0)
         {
-            if (buffer.Length + read > limit) throw new PiranhaValidationException("file", $"A photo can be at most {limit / (1024 * 1024d):0.#} MB.");
+            if (buffer.Length + read > limit) throw new PiranhaCommerceValidationException("file", $"A photo can be at most {limit / (1024 * 1024d):0.#} MB.");
             buffer.Write(chunk, 0, read);
         }
         var bytes = buffer.ToArray();
-        var type = ImageTypes.Sniff(bytes) ?? throw new PiranhaValidationException("file", "Upload a JPEG, PNG, WebP or GIF photo.");
+        var type = ImageTypes.Sniff(bytes) ?? throw new PiranhaCommerceValidationException("file", "Upload a JPEG, PNG, WebP or GIF photo.");
 
         int? width = null, height = null;
         var sizes = new List<(int Size, ProcessedImage Image)>();
         if (processor is not null)
         {
-            var info = await processor.ReadSizeAsync(new MemoryStream(bytes), ct) ?? throw new PiranhaValidationException("file", "That file is not a photo that can be read.");
+            var info = await processor.ReadSizeAsync(new MemoryStream(bytes), ct) ?? throw new PiranhaCommerceValidationException("file", "That file is not a photo that can be read.");
             // Re-made rather than kept as sent: it drops what a phone writes into a photo (often where it was taken) and turns it upright.
-            var kept = await processor.ResizeAsync(new MemoryStream(bytes), KeptSide, KeptSide, ct) ?? throw new PiranhaValidationException("file", "That file is not a photo that can be read.");
+            var kept = await processor.ResizeAsync(new MemoryStream(bytes), KeptSide, KeptSide, ct) ?? throw new PiranhaCommerceValidationException("file", "That file is not a photo that can be read.");
             bytes = kept.Bytes; type = kept.ContentType; width = kept.Width; height = kept.Height;
             foreach (var s in imageOptions.Value.SizeList().Where(s => s < Math.Max(kept.Width, kept.Height)))
                 if (await processor.ResizeAsync(new MemoryStream(bytes), s, s, ct) is { } made) sizes.Add((s, made));

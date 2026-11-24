@@ -193,9 +193,9 @@ else
     {
         _busy = true; _error = null; _message = null;
         try { await action(); _message ??= done; await LoadAsync(); }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
-        catch (PiranhaConflictException ex) { _error = ex.Message; }
-        catch (PiranhaForbiddenException ex) { _error = ex.Message; }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(x => x.Value)); }
+        catch (PiranhaCommerceConflictException ex) { _error = ex.Message; }
+        catch (PiranhaCommerceForbiddenException ex) { _error = ex.Message; }
         catch (Exception ex) { _error = "That did not work: " + ex.Message; }
         finally { _busy = false; }
     }

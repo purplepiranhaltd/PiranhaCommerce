@@ -118,7 +118,7 @@
             });
             _shownReport = report;
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
         catch (Exception ex) { _error = "Could not run the report: " + ex.Message; }
         finally { _busy = false; }
     }

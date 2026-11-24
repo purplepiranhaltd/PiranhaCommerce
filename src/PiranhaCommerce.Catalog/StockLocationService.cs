@@ -9,14 +9,14 @@ public interface IStockLocationService
     Task<IReadOnlyList<StockLocationDto>> ListAsync(CancellationToken ct = default);
     Task<StockLocationDto?> GetAsync(Guid id, CancellationToken ct = default);
 
-    /// <summary>A duplicate code (case-insensitive) is a <see cref="PiranhaConflictException"/>.</summary>
+    /// <summary>A duplicate code (case-insensitive) is a <see cref="PiranhaCommerceConflictException"/>.</summary>
     Task<StockLocationDto> CreateAsync(StockLocationInput input, CancellationToken ct = default);
 
     /// <summary>Renames or (de)activates; the code never changes. The default location cannot be deactivated. Null when not found.</summary>
     Task<StockLocationDto?> UpdateAsync(Guid id, StockLocationInput input, CancellationToken ct = default);
 }
 
-internal sealed class StockLocationService(PiranhaDbContext db) : IStockLocationService
+internal sealed class StockLocationService(PiranhaCommerceDbContext db) : IStockLocationService
 {
     public async Task<IReadOnlyList<StockLocationDto>> ListAsync(CancellationToken ct = default)
         => await db.Set<StockLocation>().AsNoTracking().OrderBy(l => l.Code)
@@ -31,7 +31,7 @@ internal sealed class StockLocationService(PiranhaDbContext db) : IStockLocation
         ModelValidator.ValidateOrThrow(input);
         var code = input.Code.Trim().ToUpperInvariant();
         if (await db.Set<StockLocation>().AnyAsync(l => l.Code == code, ct))
-            throw new PiranhaConflictException($"A stock location with code '{code}' already exists.");
+            throw new PiranhaCommerceConflictException($"A stock location with code '{code}' already exists.");
 
         var entity = new StockLocation { Code = code, Name = input.Name.Trim(), Active = input.Active };
         db.Add(entity);
@@ -42,7 +42,7 @@ internal sealed class StockLocationService(PiranhaDbContext db) : IStockLocation
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear(); // lost a race on the unique code
-            throw new PiranhaConflictException($"A stock location with code '{code}' already exists.");
+            throw new PiranhaCommerceConflictException($"A stock location with code '{code}' already exists.");
         }
         return ToDto(entity);
     }
@@ -53,7 +53,7 @@ internal sealed class StockLocationService(PiranhaDbContext db) : IStockLocation
         if (entity is null) return null;
         ModelValidator.ValidateOrThrow(input);
         if (id == StockLocations.DefaultId && !input.Active)
-            throw new PiranhaValidationException(nameof(StockLocationInput.Active), "The default location cannot be deactivated.");
+            throw new PiranhaCommerceValidationException(nameof(StockLocationInput.Active), "The default location cannot be deactivated.");
 
         entity.Name = input.Name.Trim();
         entity.Active = input.Active;

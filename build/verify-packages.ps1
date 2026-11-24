@@ -78,10 +78,10 @@ using PiranhaCommerce.Storage.LocalDisk;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddPiranhaCore()
-    .AddPiranhaSqlServer(builder.Configuration.GetConnectionString("PiranhaCommerce")!, typeof(Program).Assembly)
-    .AddPiranhaApi()
-    .AddPiranhaAdmin()
+builder.Services.AddPiranhaCommerceCore()
+    .AddPiranhaCommerceSqlServer(builder.Configuration.GetConnectionString("PiranhaCommerce")!, typeof(Program).Assembly)
+    .AddPiranhaCommerceApi()
+    .AddPiranhaCommerceAdmin()
     .AddPlugin<EcommercePlugin>()
     .AddPlugin<AuditAdminPlugin>()
     .AddPlugin<WebhooksAdminPlugin>()
@@ -95,7 +95,7 @@ builder.Services.AddPiranhaCore()
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
-    await scope.ServiceProvider.GetRequiredService<PiranhaDbContext>().Database.MigrateAsync();
+    await scope.ServiceProvider.GetRequiredService<PiranhaCommerceDbContext>().Database.MigrateAsync();
 var seed = app.Configuration.GetSection("PiranhaCommerce:SeedAdmin");
 await app.Services.EnsureAdministratorAsync(seed["Email"]!, seed["Password"]!);
 
@@ -104,8 +104,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 app.MapStaticAssets();
-app.MapPiranhaApi();
-app.MapPiranhaAdmin();
+app.MapPiranhaCommerceApi();
+app.MapPiranhaCommerceAdmin();
 app.Run();
 '@ | Set-Content (Join-Path $app 'Program.cs') -Encoding utf8
 Copy-Item (Join-Path $sample 'appsettings.json') $app -Force

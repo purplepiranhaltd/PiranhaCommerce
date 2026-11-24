@@ -7,7 +7,7 @@ namespace PiranhaCommerce.Core.Plugins;
 /// registered in code with <c>AddPlugin&lt;T&gt;()</c>. There is deliberately no runtime
 /// upload or assembly scanning: only code built and shipped by the development team is loaded.
 /// </summary>
-public interface IPiranhaPlugin
+public interface IPiranhaCommercePlugin
 {
     PluginInfo Info { get; }
 
@@ -15,7 +15,7 @@ public interface IPiranhaPlugin
     /// Plugins this one needs, as instances of types from packages this package references. They are registered
     /// automatically (once, and before this plugin), so hosts never have to list or order them.
     /// </summary>
-    IReadOnlyList<IPiranhaPlugin> Requires => [];
+    IReadOnlyList<IPiranhaCommercePlugin> Requires => [];
 
     /// <summary>Register services, options, EF model contributors, API/admin contributors.</summary>
     void ConfigureServices(IServiceCollection services);

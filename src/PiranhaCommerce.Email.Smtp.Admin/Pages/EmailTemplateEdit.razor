@@ -124,7 +124,7 @@ else if (_template is not null)
             _template = await Scope.RunAsync<IEmailTemplateService, EmailTemplateDto?>(s => s.SaveAsync(key, input, actor));
             _saved = true;
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
         catch (Exception ex) { _error = "Could not save: " + ex.Message; }
         finally { _busy = false; }
     }
@@ -137,7 +137,7 @@ else if (_template is not null)
             var key = Key; var input = _input;
             _preview = await Scope.RunAsync<IEmailTemplateService, EmailTemplatePreviewDto?>(s => s.PreviewAsync(key, input));
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
         catch (Exception ex) { _error = "Could not preview: " + ex.Message; }
         finally { _busy = false; }
     }

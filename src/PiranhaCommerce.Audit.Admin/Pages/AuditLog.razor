@@ -83,7 +83,7 @@ else
             _result = await Scope.RunAsync<IAuditService, PiranhaCommerce.Core.Paging.PagedResult<AuditEntryDto>>(s => s.ListAsync(page, 25, type, id, actor, from, to));
             _page = page;
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); _result ??= new([], 1, 25, 0); }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); _result ??= new([], 1, 25, 0); }
         catch (Exception ex) { _error = "Could not load the log: " + ex.Message; _result ??= new([], 1, 25, 0); }
         finally { _busy = false; }
     }

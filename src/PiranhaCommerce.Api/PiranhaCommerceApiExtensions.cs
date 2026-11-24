@@ -26,16 +26,16 @@ public static class ApiPolicies
     public const string Customer = "PiranhaCommerce.Api.Customer";
 }
 
-public static class PiranhaApiExtensions
+public static class PiranhaCommerceApiExtensions
 {
     public const string JwtScheme = "PiranhaJwt";
     public const string CustomerJwtScheme = "PiranhaCustomerJwt";
 
-    public static PiranhaBuilder AddPiranhaCommerceApi(this PiranhaBuilder builder)
+    public static PiranhaCommerceBuilder AddPiranhaCommerceApi(this PiranhaCommerceBuilder builder)
     {
         var services = builder.Services;
         services.AddOpenApi();
-        services.AddOptions<PiranhaJwtOptions>().BindConfiguration(PiranhaJwtOptions.SectionName);
+        services.AddOptions<PiranhaCommerceJwtOptions>().BindConfiguration(PiranhaCommerceJwtOptions.SectionName);
         services.AddScoped<JwtTokenService>();
         services.AddSignInRateLimiting();
 
@@ -45,7 +45,7 @@ public static class PiranhaApiExtensions
         // Registered without a default scheme: the admin area owns the cookie default. The key is read
         // lazily (on first token validation) so design-time tooling can run without secrets.
         services.AddAuthentication().AddJwtBearer(JwtScheme, _ => { });
-        services.AddOptions<JwtBearerOptions>(JwtScheme).Configure<IOptions<PiranhaJwtOptions>>((o, jwt) =>
+        services.AddOptions<JwtBearerOptions>(JwtScheme).Configure<IOptions<PiranhaCommerceJwtOptions>>((o, jwt) =>
         {
             o.MapInboundClaims = false;
             o.TokenValidationParameters = new TokenValidationParameters
@@ -62,7 +62,7 @@ public static class PiranhaApiExtensions
         // Shoppers: own scheme, own audience and own key, so a shopper token cannot open the staff API (or the reverse).
         services.AddSingleton<ICustomerTokenIssuer, CustomerTokenIssuer>();
         services.AddAuthentication().AddJwtBearer(CustomerJwtScheme, _ => { });
-        services.AddOptions<JwtBearerOptions>(CustomerJwtScheme).Configure<IOptions<PiranhaJwtOptions>>((o, jwt) =>
+        services.AddOptions<JwtBearerOptions>(CustomerJwtScheme).Configure<IOptions<PiranhaCommerceJwtOptions>>((o, jwt) =>
         {
             o.MapInboundClaims = false;
             o.TokenValidationParameters = new TokenValidationParameters
@@ -78,7 +78,7 @@ public static class PiranhaApiExtensions
         services.AddAuthorizationBuilder()
             .AddPolicy(ApiPolicies.Customer, p => p.AddAuthenticationSchemes(CustomerJwtScheme).RequireAuthenticatedUser())
             .AddPolicy(ApiPolicies.Read, p => p.AddAuthenticationSchemes(JwtScheme).RequireAuthenticatedUser())
-            .AddPolicy(ApiPolicies.Write, p => p.AddAuthenticationSchemes(JwtScheme).RequireRole(PiranhaRoles.Administrator));
+            .AddPolicy(ApiPolicies.Write, p => p.AddAuthenticationSchemes(JwtScheme).RequireRole(PiranhaCommerceRoles.Administrator));
         return builder;
     }
 
@@ -94,12 +94,12 @@ public static class PiranhaApiExtensions
                 await tokens.IssueAsync(request) is { } t ? Results.Ok(t) : Results.Unauthorized())
             .AllowAnonymous().WithTags("Auth");
 
-        var api = root.MapGroup("").RequireAuthorization(ApiPolicies.Read).AddEndpointFilter<AuditActorFilter>().AddEndpointFilter<PiranhaExceptionFilter>();
+        var api = root.MapGroup("").RequireAuthorization(ApiPolicies.Read).AddEndpointFilter<AuditActorFilter>().AddEndpointFilter<PiranhaCommerceExceptionFilter>();
         foreach (var c in app.ServiceProvider.GetServices<IApiEndpointContributor>())
             c.MapEndpoints(api);
 
         // Shopper endpoints: closed unless a shopper token is presented; anonymous ones (register, sign in) opt out one by one.
-        var storefront = root.MapGroup("/storefront").RequireAuthorization(ApiPolicies.Customer).AddEndpointFilter<AuditActorFilter>().AddEndpointFilter<PiranhaExceptionFilter>();
+        var storefront = root.MapGroup("/storefront").RequireAuthorization(ApiPolicies.Customer).AddEndpointFilter<AuditActorFilter>().AddEndpointFilter<PiranhaCommerceExceptionFilter>();
         foreach (var c in app.ServiceProvider.GetServices<IStorefrontEndpointContributor>())
             c.MapEndpoints(storefront);
 

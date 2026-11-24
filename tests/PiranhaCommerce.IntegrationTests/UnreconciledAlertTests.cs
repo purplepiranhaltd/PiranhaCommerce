@@ -7,7 +7,7 @@ using PiranhaCommerce.Ecommerce;
 
 namespace PiranhaCommerce.IntegrationTests;
 
-public sealed class AlertFactory : PiranhaFactory
+public sealed class AlertFactory : PiranhaCommerceFactory
 {
     protected override string? AlertEmail => "alerts@example.com, Second@Example.com ,alerts@example.com";
 }

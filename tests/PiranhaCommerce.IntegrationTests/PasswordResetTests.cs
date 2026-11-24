@@ -8,7 +8,7 @@ using PiranhaCommerce.Data;
 
 namespace PiranhaCommerce.IntegrationTests;
 
-public partial class PasswordResetTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public partial class PasswordResetTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private const string Password = "a-long-enough-password";
     private const string NewPassword = "brand-new-password-1";
@@ -141,7 +141,7 @@ public partial class PasswordResetTests(PiranhaFactory factory) : IClassFixture<
 
         using (var scope = factory.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<PiranhaDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<PiranhaCommerceDbContext>();
             var id = Guid.ParseExact(code.Split('.')[0], "N");
             await db.Set<CustomerToken>().Where(t => t.Id == id).ExecuteUpdateAsync(s => s.SetProperty(t => t.ExpiresUtc, DateTimeOffset.UtcNow.AddMinutes(-1)));
         }

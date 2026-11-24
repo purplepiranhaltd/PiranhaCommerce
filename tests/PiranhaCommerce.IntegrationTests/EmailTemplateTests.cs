@@ -9,7 +9,7 @@ using PiranhaCommerce.Email.Smtp;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>The SMTP package's own templates: the shipped wording, editing through the API, and what is refused.</summary>
-public class EmailTemplateTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class EmailTemplateTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static async Task<T> Read<T>(HttpResponseMessage r) => (await r.Content.ReadFromJsonAsync<T>(Json))!;

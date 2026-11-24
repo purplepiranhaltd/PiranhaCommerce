@@ -10,7 +10,7 @@ using PiranhaCommerce.Ecommerce;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Ecommerce data layered on the shared catalogue product.</summary>
-public class ProductListingTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class ProductListingTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private async Task<(HttpClient Client, ProductDto Product)> NewProductAsync()
     {
@@ -63,7 +63,7 @@ public class ProductListingTests(PiranhaFactory factory) : IClassFixture<Piranha
         Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/v1/products/{product.Id}")).StatusCode);
 
         using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<PiranhaDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<PiranhaCommerceDbContext>();
         Assert.False(await db.Set<ProductListing>().AnyAsync(l => l.ProductId == product.Id));
     }
 

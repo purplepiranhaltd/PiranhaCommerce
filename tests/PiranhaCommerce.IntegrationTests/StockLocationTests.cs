@@ -5,7 +5,7 @@ using PiranhaCommerce.Core.Paging;
 
 namespace PiranhaCommerce.IntegrationTests;
 
-public class StockLocationTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class StockLocationTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static string Tag() => Guid.NewGuid().ToString("N")[..10];
 

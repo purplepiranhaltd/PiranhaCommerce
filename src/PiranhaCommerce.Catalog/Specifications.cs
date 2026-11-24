@@ -109,14 +109,14 @@ public interface ISpecificationService
     Task<SpecAttributeDto> CreateAsync(SpecAttributeInput input, CancellationToken ct = default);
     Task<SpecAttributeDto?> UpdateAsync(Guid id, SpecAttributeInput input, CancellationToken ct = default);
 
-    /// <summary>False when not found. Throws <see cref="PiranhaConflictException"/> while any product has one of its values; otherwise its values go with it.</summary>
+    /// <summary>False when not found. Throws <see cref="PiranhaCommerceConflictException"/> while any product has one of its values; otherwise its values go with it.</summary>
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>Null when the attribute does not exist.</summary>
     Task<SpecValueDto?> AddValueAsync(Guid attributeId, SpecValueInput input, CancellationToken ct = default);
     Task<SpecValueDto?> UpdateValueAsync(Guid attributeId, Guid valueId, SpecValueInput input, CancellationToken ct = default);
 
-    /// <summary>False when not found. Throws <see cref="PiranhaConflictException"/> while any product has the value.</summary>
+    /// <summary>False when not found. Throws <see cref="PiranhaCommerceConflictException"/> while any product has the value.</summary>
     Task<bool> DeleteValueAsync(Guid attributeId, Guid valueId, CancellationToken ct = default);
 
     /// <summary>Null when the product does not exist. For a variant, its parent's.</summary>
@@ -129,7 +129,7 @@ public interface ISpecificationService
     Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> LabelsForProductsAsync(IReadOnlyCollection<Guid> productIds, CancellationToken ct = default);
 }
 
-internal sealed class SpecificationService(PiranhaDbContext db) : ISpecificationService
+internal sealed class SpecificationService(PiranhaCommerceDbContext db) : ISpecificationService
 {
     public static string Normalize(string text) => text.Trim().ToUpperInvariant();
 
@@ -150,7 +150,7 @@ internal sealed class SpecificationService(PiranhaDbContext db) : ISpecification
     private static string SlugFor(string? given, string source, string field)
     {
         var slug = Seo.NormalizeSlug(given, field) ?? Slugify(source);
-        if (slug.Length == 0) throw new PiranhaValidationException(field, "Give a slug: the name has no letters or digits to make one from.");
+        if (slug.Length == 0) throw new PiranhaCommerceValidationException(field, "Give a slug: the name has no letters or digits to make one from.");
         return slug;
     }
 
@@ -218,16 +218,16 @@ internal sealed class SpecificationService(PiranhaDbContext db) : ISpecification
     {
         var normalized = Normalize(input.Name);
         if (await db.Set<SpecAttribute>().AnyAsync(a => a.NormalizedName == normalized && a.Id != existingId, ct))
-            throw new PiranhaValidationException(nameof(SpecAttributeInput.Name), "An attribute with this name already exists.");
+            throw new PiranhaCommerceValidationException(nameof(SpecAttributeInput.Name), "An attribute with this name already exists.");
         if (await db.Set<SpecAttribute>().AnyAsync(a => a.Slug == slug && a.Id != existingId, ct))
-            throw new PiranhaValidationException(nameof(SpecAttributeInput.Slug), "An attribute with this slug already exists.");
+            throw new PiranhaCommerceValidationException(nameof(SpecAttributeInput.Slug), "An attribute with this slug already exists.");
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
     {
         if (!await db.Set<SpecAttribute>().AnyAsync(a => a.Id == id, ct)) return false;
         if (await db.Set<ProductSpecValue>().AnyAsync(l => db.Set<SpecValue>().Any(v => v.Id == l.ValueId && v.AttributeId == id), ct))
-            throw new PiranhaConflictException("Products still have values of this attribute. Remove them from the products first.");
+            throw new PiranhaCommerceConflictException("Products still have values of this attribute. Remove them from the products first.");
         await db.DeleteTrackedAsync<SpecValue>(v => v.AttributeId == id, ct);
         return await db.DeleteTrackedAsync<SpecAttribute>(a => a.Id == id, ct) > 0;
     }
@@ -264,16 +264,16 @@ internal sealed class SpecificationService(PiranhaDbContext db) : ISpecification
     {
         var normalized = Normalize(input.Value);
         if (await db.Set<SpecValue>().AnyAsync(v => v.AttributeId == attributeId && v.NormalizedValue == normalized && v.Id != existingId, ct))
-            throw new PiranhaValidationException(nameof(SpecValueInput.Value), "This attribute already has that value.");
+            throw new PiranhaCommerceValidationException(nameof(SpecValueInput.Value), "This attribute already has that value.");
         if (await db.Set<SpecValue>().AnyAsync(v => v.AttributeId == attributeId && v.Slug == slug && v.Id != existingId, ct))
-            throw new PiranhaValidationException(nameof(SpecValueInput.Slug), "This attribute already has a value with that slug.");
+            throw new PiranhaCommerceValidationException(nameof(SpecValueInput.Slug), "This attribute already has a value with that slug.");
     }
 
     public async Task<bool> DeleteValueAsync(Guid attributeId, Guid valueId, CancellationToken ct = default)
     {
         if (!await db.Set<SpecValue>().AnyAsync(v => v.Id == valueId && v.AttributeId == attributeId, ct)) return false;
         if (await db.Set<ProductSpecValue>().AnyAsync(l => l.ValueId == valueId, ct))
-            throw new PiranhaConflictException("Products still have this value. Remove it from the products first.");
+            throw new PiranhaCommerceConflictException("Products still have this value. Remove it from the products first.");
         return await db.DeleteTrackedAsync<SpecValue>(v => v.Id == valueId, ct) > 0;
     }
 
@@ -314,11 +314,11 @@ internal sealed class SpecificationService(PiranhaDbContext db) : ISpecification
     {
         if (!await db.Set<Product>().AnyAsync(p => p.Id == productId, ct)) return null;
         if (await db.Set<ProductVariant>().AnyAsync(v => v.ProductId == productId, ct))
-            throw new PiranhaValidationException(nameof(ProductSpecsInput.ValueIds), "A variant shows its parent's specifications. Set them on the parent product.");
+            throw new PiranhaCommerceValidationException(nameof(ProductSpecsInput.ValueIds), "A variant shows its parent's specifications. Set them on the parent product.");
         var wanted = valueIds.Distinct().ToList();
-        if (wanted.Count != valueIds.Count) throw new PiranhaValidationException(nameof(ProductSpecsInput.ValueIds), "A value is listed twice.");
+        if (wanted.Count != valueIds.Count) throw new PiranhaCommerceValidationException(nameof(ProductSpecsInput.ValueIds), "A value is listed twice.");
         if (wanted.Count > 0 && await db.Set<SpecValue>().CountAsync(v => wanted.Contains(v.Id), ct) != wanted.Count)
-            throw new PiranhaValidationException(nameof(ProductSpecsInput.ValueIds), "One of those values does not exist.");
+            throw new PiranhaCommerceValidationException(nameof(ProductSpecsInput.ValueIds), "One of those values does not exist.");
 
         var current = await db.Set<ProductSpecValue>().Where(l => l.ProductId == productId).ToListAsync(ct);
         db.RemoveRange(current.Where(l => !wanted.Contains(l.ValueId)));

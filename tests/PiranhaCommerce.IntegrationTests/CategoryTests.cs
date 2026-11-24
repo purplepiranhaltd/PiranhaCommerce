@@ -4,7 +4,7 @@ using PiranhaCommerce.Catalog;
 
 namespace PiranhaCommerce.IntegrationTests;
 
-public class CategoryTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class CategoryTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];
 

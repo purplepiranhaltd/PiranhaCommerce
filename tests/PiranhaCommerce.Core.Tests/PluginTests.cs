@@ -6,17 +6,17 @@ namespace PiranhaCommerce.Core.Tests;
 
 public class PluginTests
 {
-    private class TestPlugin(string id, params IPiranhaPlugin[] requires) : IPiranhaPlugin
+    private class TestPlugin(string id, params IPiranhaCommercePlugin[] requires) : IPiranhaCommercePlugin
     {
         public int ConfigureCalls { get; private set; }
         public PluginInfo Info { get; } = new(id, id, "1.0");
-        public IReadOnlyList<IPiranhaPlugin> Requires { get; } = requires;
+        public IReadOnlyList<IPiranhaCommercePlugin> Requires { get; } = requires;
         public void ConfigureServices(IServiceCollection services) => ConfigureCalls++;
     }
 
     private sealed class FakePlugin() : TestPlugin("Fake");
 
-    private static PiranhaBuilder NewBuilder() => new ServiceCollection().AddPiranhaCommerceCore();
+    private static PiranhaCommerceBuilder NewBuilder() => new ServiceCollection().AddPiranhaCommerceCore();
 
     [Fact]
     public void Registered_plugin_appears_in_catalog()
@@ -68,10 +68,10 @@ public class PluginTests
     }
 
     /// <summary>Requires a plugin "other" which requires a plugin "id", and so on forever.</summary>
-    private sealed class CyclicPlugin(string id, string other) : IPiranhaPlugin
+    private sealed class CyclicPlugin(string id, string other) : IPiranhaCommercePlugin
     {
         public PluginInfo Info { get; } = new(id, id, "1.0");
-        public IReadOnlyList<IPiranhaPlugin> Requires => [new CyclicPlugin(other, id)];
+        public IReadOnlyList<IPiranhaCommercePlugin> Requires => [new CyclicPlugin(other, id)];
         public void ConfigureServices(IServiceCollection services) { }
     }
 }

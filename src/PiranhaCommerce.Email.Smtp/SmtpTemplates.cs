@@ -55,7 +55,7 @@ public interface ISmtpTemplateStore
     Task<bool> DeleteAsync(string key, CancellationToken ct = default);
 }
 
-internal sealed class EfSmtpTemplateStore(PiranhaDbContext db) : ISmtpTemplateStore
+internal sealed class EfSmtpTemplateStore(PiranhaCommerceDbContext db) : ISmtpTemplateStore
 {
     private static StoredSmtpTemplate ToStored(SmtpEmailTemplate t) => new(t.Key, t.Subject, t.TextBody, t.HtmlBody, t.UpdatedUtc, t.UpdatedBy);
 
@@ -464,11 +464,11 @@ internal sealed class EmailTemplateService(ISmtpTemplateStore store, IEmailTempl
         async Task<string> Part(string field, string source, bool isHtml)
         {
             if (SmtpTemplateRenderer.Check(source) is { } parseError)
-                throw new PiranhaValidationException(field, $"This template is not valid: {parseError}");
+                throw new PiranhaCommerceValidationException(field, $"This template is not valid: {parseError}");
             try { return await SmtpTemplateRenderer.RenderAsync(source, samples, isHtml); }
-            catch (Exception ex) when (ex is not PiranhaValidationException)
+            catch (Exception ex) when (ex is not PiranhaCommerceValidationException)
             {
-                throw new PiranhaValidationException(field, $"This template could not be rendered: {ex.Message}");
+                throw new PiranhaCommerceValidationException(field, $"This template could not be rendered: {ex.Message}");
             }
         }
 

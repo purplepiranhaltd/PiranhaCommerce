@@ -135,14 +135,14 @@ public interface IPromotionService
 /// <summary>Whether a customer may use a code that is limited to a customer group.</summary>
 internal static class PromotionEligibility
 {
-    public static async Task<bool> Async(PiranhaDbContext db, Promotion? p, Guid? customerId, CancellationToken ct)
+    public static async Task<bool> Async(PiranhaCommerceDbContext db, Promotion? p, Guid? customerId, CancellationToken ct)
     {
         if (p?.CustomerGroupId is not { } groupId) return true;
         return customerId is { } c && await db.Set<PiranhaCommerce.Customers.CustomerGroupMember>().AsNoTracking().AnyAsync(m => m.GroupId == groupId && m.CustomerId == c, ct);
     }
 }
 
-internal sealed class PromotionService(PiranhaDbContext db) : IPromotionService
+internal sealed class PromotionService(PiranhaCommerceDbContext db) : IPromotionService
 {
     public async Task<IReadOnlyList<PromotionDto>> ListAsync(CancellationToken ct = default)
         => await ToDtosAsync(await db.Set<Promotion>().AsNoTracking().OrderBy(p => p.Code).ToListAsync(ct), ct);
@@ -164,7 +164,7 @@ internal sealed class PromotionService(PiranhaDbContext db) : IPromotionService
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
-            throw new PiranhaValidationException(nameof(PromotionInput.Code), "That code already exists.");
+            throw new PiranhaCommerceValidationException(nameof(PromotionInput.Code), "That code already exists.");
         }
         return (await GetAsync(p.Id, ct))!;
     }
@@ -176,7 +176,7 @@ internal sealed class PromotionService(PiranhaDbContext db) : IPromotionService
         var p = await db.Set<Promotion>().FirstOrDefaultAsync(x => x.Id == id, ct);
         if (p is null) return null;
         if (PromotionRules.Normalize(input.Code) != p.Code)
-            throw new PiranhaValidationException(nameof(PromotionInput.Code), "A code cannot be changed. Create a new promotion instead.");
+            throw new PiranhaCommerceValidationException(nameof(PromotionInput.Code), "A code cannot be changed. Create a new promotion instead.");
         Apply(p, input);
         p.UpdatedUtc = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
@@ -186,7 +186,7 @@ internal sealed class PromotionService(PiranhaDbContext db) : IPromotionService
     private async Task CheckGroupAsync(PromotionInput input, CancellationToken ct)
     {
         if (input.CustomerGroupId is { } g && !await db.Set<PiranhaCommerce.Customers.CustomerGroup>().AnyAsync(x => x.Id == g, ct))
-            throw new PiranhaValidationException(nameof(PromotionInput.CustomerGroupId), "That customer group does not exist.");
+            throw new PiranhaCommerceValidationException(nameof(PromotionInput.CustomerGroupId), "That customer group does not exist.");
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
@@ -196,9 +196,9 @@ internal sealed class PromotionService(PiranhaDbContext db) : IPromotionService
     {
         ModelValidator.ValidateOrThrow(input);
         if (input.Kind == PromotionKind.Percent && input.Value > 100)
-            throw new PiranhaValidationException(nameof(PromotionInput.Value), "A percentage cannot be more than 100.");
+            throw new PiranhaCommerceValidationException(nameof(PromotionInput.Value), "A percentage cannot be more than 100.");
         if (input.StartsUtc is { } s && input.EndsUtc is { } e && e <= s)
-            throw new PiranhaValidationException(nameof(PromotionInput.EndsUtc), "The end must be after the start.");
+            throw new PiranhaCommerceValidationException(nameof(PromotionInput.EndsUtc), "The end must be after the start.");
     }
 
     private static void Apply(Promotion p, PromotionInput i)

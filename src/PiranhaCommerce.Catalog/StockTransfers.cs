@@ -140,22 +140,22 @@ public interface IStaffLocationService
     Task<bool> CanActAtAsync(Guid? userId, Guid locationId, CancellationToken ct = default);
 }
 
-internal sealed class StaffLocationService(PiranhaDbContext db) : IStaffLocationService
+internal sealed class StaffLocationService(PiranhaCommerceDbContext db) : IStaffLocationService
 {
     public async Task<IReadOnlyList<StaffLocationsDto>> ListAsync(CancellationToken ct = default)
     {
-        var users = await db.Set<PiranhaUser>().AsNoTracking().OrderBy(u => u.Email).Select(u => new { u.Id, u.Email, u.DisplayName, u.Active }).ToListAsync(ct);
+        var users = await db.Set<PiranhaCommerceUser>().AsNoTracking().OrderBy(u => u.Email).Select(u => new { u.Id, u.Email, u.DisplayName, u.Active }).ToListAsync(ct);
         var rows = await db.Set<StaffLocation>().AsNoTracking().ToListAsync(ct);
         return users.Select(u => new StaffLocationsDto(u.Id, u.Email ?? "", u.DisplayName, u.Active, rows.Where(r => r.UserId == u.Id).Select(r => r.LocationId).Order().ToList())).ToList();
     }
 
     public async Task<StaffLocationsDto?> SetAsync(Guid userId, IReadOnlyList<Guid> locationIds, CancellationToken ct = default)
     {
-        var user = await db.Set<PiranhaUser>().AsNoTracking().Where(u => u.Id == userId).Select(u => new { u.Id, u.Email, u.DisplayName, u.Active }).FirstOrDefaultAsync(ct);
+        var user = await db.Set<PiranhaCommerceUser>().AsNoTracking().Where(u => u.Id == userId).Select(u => new { u.Id, u.Email, u.DisplayName, u.Active }).FirstOrDefaultAsync(ct);
         if (user is null) return null;
         var wanted = locationIds.Distinct().ToList();
         var known = await db.Set<StockLocation>().AsNoTracking().Where(l => wanted.Contains(l.Id)).Select(l => l.Id).ToListAsync(ct);
-        if (known.Count != wanted.Count) throw new PiranhaValidationException("locationIds", "One of those locations does not exist.");
+        if (known.Count != wanted.Count) throw new PiranhaCommerceValidationException("locationIds", "One of those locations does not exist.");
 
         var strategy = db.Database.CreateExecutionStrategy();
         await strategy.ExecuteInTransactionAsync(async token =>
@@ -206,7 +206,7 @@ public interface IStockTransferService
     Task<int> InTransitCountAsync(CancellationToken ct = default);
 }
 
-internal sealed class StockTransferService(PiranhaDbContext db, IStockService stock, IStaffLocationService staff, IOptions<StockOptions> options) : IStockTransferService
+internal sealed class StockTransferService(PiranhaCommerceDbContext db, IStockService stock, IStaffLocationService staff, IOptions<StockOptions> options) : IStockTransferService
 {
     private const int MaxLines = 200;
 
@@ -254,36 +254,36 @@ internal sealed class StockTransferService(PiranhaDbContext db, IStockService st
 
     private static void CheckQuantity(decimal q, string field, bool allowZero)
     {
-        if (q < 0 || (!allowZero && q == 0)) throw new PiranhaValidationException(field, allowZero ? "A quantity cannot be negative." : "A quantity must be above zero.");
-        if (decimal.Round(q, 4) != q) throw new PiranhaValidationException(field, "A quantity can have at most 4 decimal places.");
-        if (q > StockAdjustmentInput.MaxMagnitude) throw new PiranhaValidationException(field, "That quantity is too large.");
+        if (q < 0 || (!allowZero && q == 0)) throw new PiranhaCommerceValidationException(field, allowZero ? "A quantity cannot be negative." : "A quantity must be above zero.");
+        if (decimal.Round(q, 4) != q) throw new PiranhaCommerceValidationException(field, "A quantity can have at most 4 decimal places.");
+        if (q > StockAdjustmentInput.MaxMagnitude) throw new PiranhaCommerceValidationException(field, "That quantity is too large.");
     }
 
     private async Task RequireAtAsync(StockActor actor, Guid locationId, string code, string what, CancellationToken ct)
     {
         if (!await staff.CanActAtAsync(actor.UserId, locationId, ct))
-            throw new PiranhaForbiddenException($"You are not assigned to {code}, so you cannot {what}.");
+            throw new PiranhaCommerceForbiddenException($"You are not assigned to {code}, so you cannot {what}.");
     }
 
     public async Task<StockTransferDto> SendAsync(StockTransferInput input, StockActor actor, CancellationToken ct = default)
     {
         ModelValidator.ValidateOrThrow(input);
-        if (input.FromLocationId == input.ToLocationId) throw new PiranhaValidationException(nameof(StockTransferInput.ToLocationId), "A transfer needs two different locations.");
-        if (input.Lines.Count == 0) throw new PiranhaValidationException(nameof(StockTransferInput.Lines), "Add at least one product.");
-        if (input.Lines.Count > MaxLines) throw new PiranhaValidationException(nameof(StockTransferInput.Lines), $"A transfer can have at most {MaxLines} lines.");
-        if (input.Lines.Select(l => l.ProductId).Distinct().Count() != input.Lines.Count) throw new PiranhaValidationException(nameof(StockTransferInput.Lines), "A product can appear once.");
+        if (input.FromLocationId == input.ToLocationId) throw new PiranhaCommerceValidationException(nameof(StockTransferInput.ToLocationId), "A transfer needs two different locations.");
+        if (input.Lines.Count == 0) throw new PiranhaCommerceValidationException(nameof(StockTransferInput.Lines), "Add at least one product.");
+        if (input.Lines.Count > MaxLines) throw new PiranhaCommerceValidationException(nameof(StockTransferInput.Lines), $"A transfer can have at most {MaxLines} lines.");
+        if (input.Lines.Select(l => l.ProductId).Distinct().Count() != input.Lines.Count) throw new PiranhaCommerceValidationException(nameof(StockTransferInput.Lines), "A product can appear once.");
         foreach (var l in input.Lines) CheckQuantity(l.Quantity, nameof(StockTransferInput.Lines), allowZero: false);
 
         var locations = await db.Set<StockLocation>().AsNoTracking().Where(l => l.Id == input.FromLocationId || l.Id == input.ToLocationId).ToListAsync(ct);
-        var from = locations.FirstOrDefault(l => l.Id == input.FromLocationId) ?? throw new PiranhaValidationException(nameof(StockTransferInput.FromLocationId), "That location does not exist.");
-        var to = locations.FirstOrDefault(l => l.Id == input.ToLocationId) ?? throw new PiranhaValidationException(nameof(StockTransferInput.ToLocationId), "That location does not exist.");
-        if (!from.Active) throw new PiranhaValidationException(nameof(StockTransferInput.FromLocationId), "That location is not active.");
-        if (!to.Active) throw new PiranhaValidationException(nameof(StockTransferInput.ToLocationId), "That location is not active.");
+        var from = locations.FirstOrDefault(l => l.Id == input.FromLocationId) ?? throw new PiranhaCommerceValidationException(nameof(StockTransferInput.FromLocationId), "That location does not exist.");
+        var to = locations.FirstOrDefault(l => l.Id == input.ToLocationId) ?? throw new PiranhaCommerceValidationException(nameof(StockTransferInput.ToLocationId), "That location does not exist.");
+        if (!from.Active) throw new PiranhaCommerceValidationException(nameof(StockTransferInput.FromLocationId), "That location is not active.");
+        if (!to.Active) throw new PiranhaCommerceValidationException(nameof(StockTransferInput.ToLocationId), "That location is not active.");
         await RequireAtAsync(actor, from.Id, from.Code, "send stock from it", ct);
 
         var ids = input.Lines.Select(l => l.ProductId).ToList();
         var products = await db.Set<Product>().AsNoTracking().Where(p => ids.Contains(p.Id)).Select(p => new { p.Id, p.Name, p.Sku }).ToDictionaryAsync(p => p.Id, ct);
-        if (products.Count != ids.Count) throw new PiranhaValidationException(nameof(StockTransferInput.Lines), "One of those products does not exist.");
+        if (products.Count != ids.Count) throw new PiranhaCommerceValidationException(nameof(StockTransferInput.Lines), "One of those products does not exist.");
 
         await stock.EnsureLevelsAsync(ids, from.Id, ct); // before the transaction: a failed insert would abort a PostgreSQL one
         var transferId = Guid.NewGuid();
@@ -317,7 +317,7 @@ internal sealed class StockTransferService(PiranhaDbContext db, IStockService st
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
-            throw new PiranhaConflictException("The transfer could not be sent. Please try again.");
+            throw new PiranhaCommerceConflictException("The transfer could not be sent. Please try again.");
         }
         return (await GetAsync(transferId, ct))!;
     }
@@ -326,22 +326,22 @@ internal sealed class StockTransferService(PiranhaDbContext db, IStockService st
     {
         var current = await db.Set<StockTransfer>().AsNoTracking().Include(t => t.Lines).FirstOrDefaultAsync(t => t.Id == id, ct);
         if (current is null) return null;
-        if (current.Status != StockTransferStatus.InTransit) throw new PiranhaConflictException($"This transfer is {current.Status.ToString().ToLowerInvariant()}, so it cannot be received.");
+        if (current.Status != StockTransferStatus.InTransit) throw new PiranhaCommerceConflictException($"This transfer is {current.Status.ToString().ToLowerInvariant()}, so it cannot be received.");
 
         var to = await db.Set<StockLocation>().AsNoTracking().FirstAsync(l => l.Id == current.ToLocationId, ct);
         await RequireAtAsync(actor, to.Id, to.Code, "receive stock there", ct);
         if (!options.Value.AllowSameUserToReceive && actor.UserId is { } me && current.SentByUserId == me)
-            throw new PiranhaForbiddenException("A transfer has to be received by someone other than the person who sent it.");
+            throw new PiranhaCommerceForbiddenException("A transfer has to be received by someone other than the person who sent it.");
 
         // What arrived: by default all of it. Lines named in the input override that; naming a product that is not on the transfer is an error.
         var received = current.Lines.ToDictionary(l => l.ProductId, l => l.QuantitySent);
         foreach (var l in input.Lines ?? [])
         {
-            if (!received.ContainsKey(l.ProductId)) throw new PiranhaValidationException(nameof(StockTransferReceiveInput.Lines), "That product is not on this transfer.");
+            if (!received.ContainsKey(l.ProductId)) throw new PiranhaCommerceValidationException(nameof(StockTransferReceiveInput.Lines), "That product is not on this transfer.");
             CheckQuantity(l.Quantity, nameof(StockTransferReceiveInput.Lines), allowZero: true);
             received[l.ProductId] = l.Quantity;
         }
-        if ((input.Lines ?? []).Select(l => l.ProductId).Distinct().Count() != (input.Lines ?? []).Count) throw new PiranhaValidationException(nameof(StockTransferReceiveInput.Lines), "A product can appear once.");
+        if ((input.Lines ?? []).Select(l => l.ProductId).Distinct().Count() != (input.Lines ?? []).Count) throw new PiranhaCommerceValidationException(nameof(StockTransferReceiveInput.Lines), "A product can appear once.");
         var discrepancy = current.Lines.Any(l => received[l.ProductId] != l.QuantitySent);
 
         await stock.EnsureLevelsAsync(current.Lines.Select(l => l.ProductId), to.Id, ct);
@@ -356,7 +356,7 @@ internal sealed class StockTransferService(PiranhaDbContext db, IStockService st
                 var moved = await db.Set<StockTransfer>().Where(t => t.Id == id && t.Status == StockTransferStatus.InTransit)
                     .ExecuteUpdateAsync(s => s.SetProperty(t => t.Status, StockTransferStatus.Received).SetProperty(t => t.ReceivedUtc, (DateTimeOffset?)now)
                         .SetProperty(t => t.ReceivedBy, actor.Name).SetProperty(t => t.ReceivedByUserId, actor.UserId).SetProperty(t => t.HasDiscrepancy, discrepancy), token);
-                if (moved == 0) throw new PiranhaConflictException("This transfer was changed by someone else. Reload it and try again.");
+                if (moved == 0) throw new PiranhaCommerceConflictException("This transfer was changed by someone else. Reload it and try again.");
 
                 foreach (var l in current.Lines)
                 {
@@ -378,7 +378,7 @@ internal sealed class StockTransferService(PiranhaDbContext db, IStockService st
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
-            throw new PiranhaConflictException("The transfer could not be received. Please try again.");
+            throw new PiranhaCommerceConflictException("The transfer could not be received. Please try again.");
         }
         return await GetAsync(id, ct);
     }
@@ -387,13 +387,13 @@ internal sealed class StockTransferService(PiranhaDbContext db, IStockService st
     {
         var current = await db.Set<StockTransfer>().AsNoTracking().Include(t => t.Lines).FirstOrDefaultAsync(t => t.Id == id, ct);
         if (current is null) return null;
-        if (current.Status != StockTransferStatus.InTransit) throw new PiranhaConflictException($"This transfer is {current.Status.ToString().ToLowerInvariant()}, so it cannot be cancelled.");
+        if (current.Status != StockTransferStatus.InTransit) throw new PiranhaCommerceConflictException($"This transfer is {current.Status.ToString().ToLowerInvariant()}, so it cannot be cancelled.");
 
         var locations = await db.Set<StockLocation>().AsNoTracking().Where(l => l.Id == current.FromLocationId || l.Id == current.ToLocationId).ToListAsync(ct);
         var from = locations.First(l => l.Id == current.FromLocationId);
         var to = locations.First(l => l.Id == current.ToLocationId);
         if (!await staff.CanActAtAsync(actor.UserId, from.Id, ct) && !await staff.CanActAtAsync(actor.UserId, to.Id, ct))
-            throw new PiranhaForbiddenException($"You are not assigned to {from.Code} or {to.Code}, so you cannot cancel this transfer.");
+            throw new PiranhaCommerceForbiddenException($"You are not assigned to {from.Code} or {to.Code}, so you cannot cancel this transfer.");
 
         await stock.EnsureLevelsAsync(current.Lines.Select(l => l.ProductId), from.Id, ct);
         var strategy = db.Database.CreateExecutionStrategy();
@@ -406,7 +406,7 @@ internal sealed class StockTransferService(PiranhaDbContext db, IStockService st
                 var moved = await db.Set<StockTransfer>().Where(t => t.Id == id && t.Status == StockTransferStatus.InTransit)
                     .ExecuteUpdateAsync(s => s.SetProperty(t => t.Status, StockTransferStatus.Cancelled).SetProperty(t => t.CancelledUtc, (DateTimeOffset?)now)
                         .SetProperty(t => t.CancelledBy, actor.Name), token);
-                if (moved == 0) throw new PiranhaConflictException("This transfer was changed by someone else. Reload it and try again.");
+                if (moved == 0) throw new PiranhaCommerceConflictException("This transfer was changed by someone else. Reload it and try again.");
                 var reference = StockTransferNumbers.Format(current.Number);
                 await stock.ApplyInTransactionAsync(
                     current.Lines.Select(l => new StockChange(l.ProductId, l.QuantitySent, "Transfer cancelled", reference, $"\"{l.ProductName}\"")).ToList(),
@@ -418,7 +418,7 @@ internal sealed class StockTransferService(PiranhaDbContext db, IStockService st
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
-            throw new PiranhaConflictException("The transfer could not be cancelled. Please try again.");
+            throw new PiranhaCommerceConflictException("The transfer could not be cancelled. Please try again.");
         }
         return await GetAsync(id, ct);
     }

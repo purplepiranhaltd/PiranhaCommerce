@@ -39,12 +39,12 @@ public interface IAuditService
     Task<PagedResult<AuditEntryDto>> ListAsync(int? page, int? pageSize, string? entityType, string? entityId, string? actor, DateOnly? from, DateOnly? to, CancellationToken ct = default);
 }
 
-internal sealed class AuditService(PiranhaDbContext db) : IAuditService
+internal sealed class AuditService(PiranhaCommerceDbContext db) : IAuditService
 {
     public async Task<PagedResult<AuditEntryDto>> ListAsync(int? page, int? pageSize, string? entityType, string? entityId, string? actor, DateOnly? from, DateOnly? to, CancellationToken ct = default)
     {
         var (p, size) = Paging.Normalize(page, pageSize);
-        if (from is { } f && to is { } t && f > t) throw new PiranhaValidationException("from", "The start date is after the end date.");
+        if (from is { } f && to is { } t && f > t) throw new PiranhaCommerceValidationException("from", "The start date is after the end date.");
         var q = db.Set<AuditEntry>().AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(entityType)) { var type = entityType.Trim(); q = q.Where(e => e.EntityType == type); }
         if (!string.IsNullOrWhiteSpace(entityId)) { var id = entityId.Trim(); q = q.Where(e => e.EntityId == id); }
@@ -141,7 +141,7 @@ internal sealed class AuditInterceptor(AuditActor actor) : SaveChangesIntercepto
     }
 }
 
-internal sealed class AuditTrail(PiranhaDbContext db, AuditActor actor) : IAuditTrail
+internal sealed class AuditTrail(PiranhaCommerceDbContext db, AuditActor actor) : IAuditTrail
 {
     public async Task RecordUpdateAsync(string entityType, string entityId, string? label, IReadOnlyList<AuditChange> changes, CancellationToken ct = default)
     {

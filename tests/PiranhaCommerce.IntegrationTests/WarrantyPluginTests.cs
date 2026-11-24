@@ -6,7 +6,7 @@ using PiranhaCommerce.Example.Warranty;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>The example plugin lives outside every src package; these tests prove it plugs in through public contracts only.</summary>
-public class WarrantyPluginTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class WarrantyPluginTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static async Task<ProductDto> NewProduct(HttpClient c) =>
         (await (await c.PostAsJsonAsync("/api/v1/products", new ProductInput { Name = "W " + Guid.NewGuid().ToString("N")[..8], Price = 1 }))

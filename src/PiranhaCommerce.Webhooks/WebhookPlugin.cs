@@ -14,7 +14,7 @@ namespace PiranhaCommerce.Webhooks;
 /// Tells other systems when things happen. Services that publish events (orders, payments, shipments, returns, disputes) write them in the same
 /// transaction as the change; this package then sends each one, signed, to every endpoint that asked for it, retrying failures. Install it by adding this plugin.
 /// </summary>
-public sealed class WebhookPlugin : IPiranhaPlugin
+public sealed class WebhookPlugin : IPiranhaCommercePlugin
 {
     public PluginInfo Info { get; } = new("PiranhaCommerce.Webhooks", "Webhooks", "0.1.0", "Signed, retried HTTP notifications about orders, payments and more.");
 

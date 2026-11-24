@@ -16,7 +16,7 @@ public interface IProductService
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 }
 
-internal sealed class ProductService(PiranhaDbContext db, PiranhaCommerce.Core.Files.IFileStore files) : IProductService
+internal sealed class ProductService(PiranhaCommerceDbContext db, PiranhaCommerce.Core.Files.IFileStore files) : IProductService
 {
     public async Task<PagedResult<ProductDto>> ListAsync(int? page, int? pageSize, string? search, CancellationToken ct = default)
     {
@@ -74,9 +74,9 @@ internal sealed class ProductService(PiranhaDbContext db, PiranhaCommerce.Core.F
     {
         // Stock movements are an audit ledger; a product with history cannot be deleted (barcodes, categories and the level cascade).
         if (await db.Set<StockMovement>().AnyAsync(m => m.ProductId == id, ct))
-            throw new PiranhaConflictException("This product has stock history and cannot be deleted.");
+            throw new PiranhaCommerceConflictException("This product has stock history and cannot be deleted.");
         if (await db.Set<ProductVariant>().AnyAsync(v => v.ParentProductId == id, ct))
-            throw new PiranhaConflictException("This product has variants. Delete them first.");
+            throw new PiranhaCommerceConflictException("This product has variants. Delete them first.");
         var hadImages = await db.Set<ProductImage>().AnyAsync(i => i.ProductId == id, ct);
         try
         {
@@ -86,7 +86,7 @@ internal sealed class ProductService(PiranhaDbContext db, PiranhaCommerce.Core.F
         }
         catch (DbUpdateException)
         {
-            throw new PiranhaConflictException("This product is still in use and cannot be deleted.");
+            throw new PiranhaCommerceConflictException("This product is still in use and cannot be deleted.");
         }
     }
 
@@ -94,12 +94,12 @@ internal sealed class ProductService(PiranhaDbContext db, PiranhaCommerce.Core.F
     {
         ModelValidator.ValidateOrThrow(input);
         if (Seo.NormalizeSlug(input.Slug) is { } slug && await db.Set<Product>().AnyAsync(x => x.Slug == slug && x.Id != existingId, ct))
-            throw new PiranhaValidationException(nameof(ProductInput.Slug), "A product with this slug already exists.");
+            throw new PiranhaCommerceValidationException(nameof(ProductInput.Slug), "A product with this slug already exists.");
         if (!string.IsNullOrWhiteSpace(input.Sku))
         {
             var sku = input.Sku.Trim().ToLower();   // SKUs are case-insensitive on every provider
             if (await db.Set<Product>().AnyAsync(x => x.Sku != null && x.Sku.ToLower() == sku && x.Id != existingId, ct))
-                throw new PiranhaValidationException(nameof(ProductInput.Sku), "A product with this SKU already exists.");
+                throw new PiranhaCommerceValidationException(nameof(ProductInput.Sku), "A product with this SKU already exists.");
         }
     }
 

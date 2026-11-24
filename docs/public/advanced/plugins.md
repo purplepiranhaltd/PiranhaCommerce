@@ -31,7 +31,7 @@ There is no runtime upload or assembly scanning: only code built by the dev team
 product warranty: an entity in its own schema (`IModelContributor`), API endpoints (`IApiEndpointContributor`) and an admin panel
 on the product edit page (`IAdminSlotContributor` into `AdminSlots.ProductEditPanels`). Steps for your own:
 
-1. Implement `IPiranhaPlugin`; list plugins you depend on in `Requires` (they are registered first, once).
+1. Implement `IPiranhaCommercePlugin`; list plugins you depend on in `Requires` (they are registered first, once).
 2. Reference the plugin's package from the host and call `.AddPlugin<YourPlugin>()`.
 3. **Add a migration in the host** (`dotnet ef migrations add AddYourPlugin`, once per provider). The host owns the schema, so a new
    plugin shows up as a pending model change until you do, and CI's drift check will tell you.

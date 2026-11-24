@@ -239,7 +239,7 @@ internal static class OrderEmails
 /// Sends the emails that follow a change to an order (a parcel sent, a cancel, a refund). Always AFTER the change is committed, and a
 /// failure here (the mail server is down) is logged without the address and never undoes or fails the change.
 /// </summary>
-internal sealed class OrderMailer(PiranhaDbContext db, IEmailSender email, IOptions<EcommerceOptions> options, ILogger<OrderMailer> logger)
+internal sealed class OrderMailer(PiranhaCommerceDbContext db, IEmailSender email, IOptions<EcommerceOptions> options, ILogger<OrderMailer> logger)
 {
     public Task ShippedAsync(Guid orderId, ShipmentDto parcel, CancellationToken ct) => TryAsync("shipment", orderId, async () =>
     {

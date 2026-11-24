@@ -5,7 +5,7 @@ using PiranhaCommerce.Core.Paging;
 
 namespace PiranhaCommerce.IntegrationTests;
 
-public class StockTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class StockTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static string Tag() => Guid.NewGuid().ToString("N")[..10];
 
@@ -29,7 +29,7 @@ public class StockTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
         Assert.Equal(HttpStatusCode.OK, r.StatusCode);
         var result = (await r.Content.ReadFromJsonAsync<StockAdjustmentResult>())!;
         Assert.Equal(10.5m, result.Quantity);
-        Assert.Equal(PiranhaFactory.AdminEmail, result.Movement.Actor);
+        Assert.Equal(PiranhaCommerceFactory.AdminEmail, result.Movement.Actor);
 
         await Adjust(c, p.Id, -0.25m, "Sample");
         Assert.Equal(10.25m, await Level(c, p.Id));

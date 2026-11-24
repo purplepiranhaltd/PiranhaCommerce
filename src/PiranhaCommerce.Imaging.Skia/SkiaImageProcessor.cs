@@ -85,7 +85,7 @@ internal sealed class SkiaImageProcessor : IImageProcessor
 }
 
 /// <summary>Reads and resizes images with SkiaSharp. Add it so product images get sizes made when they are uploaded.</summary>
-public sealed class SkiaImagingPlugin : IPiranhaPlugin
+public sealed class SkiaImagingPlugin : IPiranhaCommercePlugin
 {
     public PluginInfo Info { get; } = new("PiranhaCommerce.Imaging.Skia", "SkiaSharp imaging", "0.1.0", "Makes sizes of product images with SkiaSharp.");
 

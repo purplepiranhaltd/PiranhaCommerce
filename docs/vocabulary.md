@@ -26,7 +26,7 @@ The names PiranhaCommerce uses. Check new names against this list before adding 
 
 - **Spelling:** US spelling in code, API and database names (`Fulfillment`, `Color`), matching the .NET base libraries. UK spelling
   in admin UI text and documentation.
-- **Customers are not admin users.** `PiranhaUser` is an administrator identity; a shopper is a `Customer`, optionally linked to
+- **Customers are not admin users.** `PiranhaCommerceUser` is an administrator identity; a shopper is a `Customer`, optionally linked to
   a storefront login later.
 - **Languages:** the admin UI and storefront must be translatable. User-facing text stays out of the data model so translation
   does not need migrations. Not built yet.

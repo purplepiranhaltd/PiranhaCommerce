@@ -15,7 +15,7 @@ namespace PiranhaCommerce.Audit;
 /// An audit log of who created, changed or deleted what. Every entity class marked <see cref="AuditedAttribute"/> (products, categories, orders, prices,
 /// promotions, tax, shipping and so on) is recorded in the same transaction as the change, with the signed-in user. Install it by adding this plugin.
 /// </summary>
-public sealed class AuditPlugin : IPiranhaPlugin
+public sealed class AuditPlugin : IPiranhaCommercePlugin
 {
     public PluginInfo Info { get; } = new("PiranhaCommerce.Audit", "Audit log", "0.1.0", "Who changed what, and when.");
 

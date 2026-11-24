@@ -11,7 +11,7 @@ using PiranhaCommerce.Data;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Refresh tokens: single use, rotated, family revoked when one is replayed, and ended by anything that ends sessions.</summary>
-public class RefreshTokenTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class RefreshTokenTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private const string Password = "a-long-enough-password";
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];
@@ -123,7 +123,7 @@ public class RefreshTokenTests(PiranhaFactory factory) : IClassFixture<PiranhaFa
     {
         var (profile, token) = await Register();
         using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<PiranhaDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<PiranhaCommerceDbContext>();
         var row = await db.Set<CustomerRefreshToken>().AsNoTracking().SingleAsync(t => t.CustomerId == profile.Id);
         Assert.NotEqual(token.RefreshToken, row.TokenHash);
         Assert.Equal(64, row.TokenHash.Length);
@@ -238,7 +238,7 @@ public class RefreshTokenTests(PiranhaFactory factory) : IClassFixture<PiranhaFa
         c.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "Edg-test/" + new string('x', 400));
         var big = await Tok(await c.PostAsJsonAsync("/api/v1/storefront/auth/token", new SignInInput(profile.Email, Password)));
         using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<PiranhaDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<PiranhaCommerceDbContext>();
         var stored = await db.Set<CustomerRefreshToken>().AsNoTracking().Where(t => t.CustomerId == profile.Id && t.UserAgent != null).Select(t => t.UserAgent!).ToListAsync();
         Assert.All(stored, s => Assert.True(s.Length <= 200));
         Assert.NotNull(big.RefreshToken);

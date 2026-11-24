@@ -11,7 +11,7 @@ using PiranhaCommerce.Ecommerce;
 namespace PiranhaCommerce.IntegrationTests;
 
 [Collection(OrderSettings.Name)]
-public class StorefrontOrderTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class StorefrontOrderTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private const string Password = "a-long-enough-password";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };

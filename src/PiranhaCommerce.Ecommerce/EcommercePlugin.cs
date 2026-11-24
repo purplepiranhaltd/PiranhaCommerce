@@ -8,12 +8,12 @@ using PiranhaCommerce.Data;
 namespace PiranhaCommerce.Ecommerce;
 
 /// <summary>Online-store behaviour layered on the shared catalogue. A future PiranhaCommerce.Epos is a sibling.</summary>
-public sealed class EcommercePlugin : IPiranhaPlugin
+public sealed class EcommercePlugin : IPiranhaCommercePlugin
 {
     public PluginInfo Info { get; } = new(
         "PiranhaCommerce.Ecommerce", "Ecommerce", "0.1.0", "Online listings, baskets, checkout and orders.");
 
-    public IReadOnlyList<IPiranhaPlugin> Requires { get; } = [new CatalogPlugin(), new CustomersPlugin()];
+    public IReadOnlyList<IPiranhaCommercePlugin> Requires { get; } = [new CatalogPlugin(), new CustomersPlugin()];
 
     public void ConfigureServices(IServiceCollection services)
     {

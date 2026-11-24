@@ -12,9 +12,9 @@ using PiranhaCommerce.Core.Plugins;
 
 namespace PiranhaCommerce.Admin;
 
-public static class PiranhaAdminExtensions
+public static class PiranhaCommerceAdminExtensions
 {
-    public static PiranhaBuilder AddPiranhaCommerceAdmin(this PiranhaBuilder builder)
+    public static PiranhaCommerceBuilder AddPiranhaCommerceAdmin(this PiranhaCommerceBuilder builder)
     {
         var services = builder.Services;
         services.AddRazorComponents().AddInteractiveServerComponents();
@@ -35,7 +35,7 @@ public static class PiranhaAdminExtensions
             o.ExpireTimeSpan = TimeSpan.FromHours(8);
             o.SlidingExpiration = true;
         });
-        new IdentityBuilder(typeof(PiranhaUser), typeof(PiranhaRole), services).AddSignInManager();
+        new IdentityBuilder(typeof(PiranhaCommerceUser), typeof(PiranhaCommerceRole), services).AddSignInManager();
 
         services.AddScoped<AdminMenuService>();
         services.AddScoped<AdminScopeRunner>();
@@ -57,7 +57,7 @@ public static class PiranhaAdminExtensions
 
         // Sign-out must be a plain POST (it clears the cookie). Antiforgery is skipped: logout-CSRF is low impact
         // and the token can't be issued from an interactive layout.
-        app.MapPost("/admin/logout", async (SignInManager<PiranhaUser> signIn) =>
+        app.MapPost("/admin/logout", async (SignInManager<PiranhaCommerceUser> signIn) =>
         {
             await signIn.SignOutAsync();
             return Results.Redirect("/admin/login");

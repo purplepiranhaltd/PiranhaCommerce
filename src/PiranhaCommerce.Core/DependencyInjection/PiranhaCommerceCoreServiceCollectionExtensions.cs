@@ -6,11 +6,11 @@ using PiranhaCommerce.Core.Plugins;
 
 namespace PiranhaCommerce.Core.DependencyInjection;
 
-public static class PiranhaCoreServiceCollectionExtensions
+public static class PiranhaCommerceCoreServiceCollectionExtensions
 {
-    public static PiranhaBuilder AddPiranhaCommerceCore(this IServiceCollection services)
+    public static PiranhaCommerceBuilder AddPiranhaCommerceCore(this IServiceCollection services)
     {
-        var builder = new PiranhaBuilder(services);
+        var builder = new PiranhaCommerceBuilder(services);
         services.TryAddSingleton(builder);
         services.TryAddSingleton<IPluginCatalog, PluginCatalog>();
         services.AddPiranhaCommerceEmailDefaults(); // an email plugin registers its own IEmailSender afterwards and wins

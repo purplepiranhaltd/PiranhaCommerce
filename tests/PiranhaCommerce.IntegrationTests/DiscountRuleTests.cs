@@ -13,7 +13,7 @@ namespace PiranhaCommerce.IntegrationTests;
 /// Shipping settings are store-wide, so these run one at a time.
 /// </summary>
 [Collection(OrderSettings.Name)]
-public class DiscountRuleTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>, IAsyncLifetime
+public class DiscountRuleTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>, IAsyncLifetime
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];

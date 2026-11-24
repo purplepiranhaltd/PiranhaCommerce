@@ -135,7 +135,7 @@ internal static class ShopStock
     /// Which of these products can be bought now: they have stock where online orders take it from, or (for a product that comes in options,
     /// which holds no stock itself) any of their variants does.
     /// </summary>
-    public static async Task<HashSet<Guid>> InStockAsync(PiranhaDbContext db, IReadOnlyCollection<Guid> ids, Guid location, CancellationToken ct)
+    public static async Task<HashSet<Guid>> InStockAsync(PiranhaCommerceDbContext db, IReadOnlyCollection<Guid> ids, Guid location, CancellationToken ct)
     {
         var own = await db.Set<StockLevel>().AsNoTracking().Where(l => ids.Contains(l.ProductId) && l.LocationId == location && l.Quantity > 0).Select(l => l.ProductId).ToListAsync(ct);
         var viaVariants = await db.Set<ProductVariant>().AsNoTracking().Where(v => ids.Contains(v.ParentProductId)
@@ -148,14 +148,14 @@ internal static class ShopStock
 internal static class ShopImages
 {
     /// <summary>Each product's main picture, in one query.</summary>
-    public static async Task<Dictionary<Guid, ShopImageDto>> FirstAsync(PiranhaDbContext db, IReadOnlyCollection<Guid> ids, CancellationToken ct)
+    public static async Task<Dictionary<Guid, ShopImageDto>> FirstAsync(PiranhaCommerceDbContext db, IReadOnlyCollection<Guid> ids, CancellationToken ct)
     {
         var rows = await db.Set<ProductImage>().AsNoTracking().Where(i => ids.Contains(i.ProductId)).OrderBy(i => i.Position).ThenBy(i => i.Id).ToListAsync(ct);
         return rows.GroupBy(i => i.ProductId).ToDictionary(g => g.Key, g => { var i = g.First(); return new ShopImageDto(i.Id, ProductImageUrls.Prefix + i.Id, i.AltText, i.Width, i.Height); });
     }
 }
 
-internal sealed class ShopCatalogueService(PiranhaDbContext db, IGroupPricingService pricing, IReviewService reviews, IOptions<EcommerceOptions> options) : IShopCatalogueService
+internal sealed class ShopCatalogueService(PiranhaCommerceDbContext db, IGroupPricingService pricing, IReviewService reviews, IOptions<EcommerceOptions> options) : IShopCatalogueService
 {
     public const int LowStockAt = 5;
 

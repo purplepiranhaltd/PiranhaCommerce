@@ -10,7 +10,7 @@ namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Promo codes. Tax and shipping settings are store-wide, so these run one at a time and put everything back.</summary>
 [Collection(OrderSettings.Name)]
-public class PromotionTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class PromotionTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
 

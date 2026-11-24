@@ -19,10 +19,10 @@ public interface ICustomerTokenIssuer
     TokenResponse Issue(Guid customerId, string email, int sessionVersion, Guid? sessionId = null);
 }
 
-internal sealed class CustomerTokenIssuer(IOptions<PiranhaJwtOptions> options) : ICustomerTokenIssuer
+internal sealed class CustomerTokenIssuer(IOptions<PiranhaCommerceJwtOptions> options) : ICustomerTokenIssuer
 {
     /// <summary>Different key from the staff key, so a token for one audience can never verify for the other.</summary>
-    internal static SymmetricSecurityKey GetKey(PiranhaJwtOptions o)
+    internal static SymmetricSecurityKey GetKey(PiranhaCommerceJwtOptions o)
     {
         var staffKey = JwtTokenService.GetKey(o).Key;
         return new SymmetricSecurityKey(HMACSHA256.HashData(staffKey, Encoding.UTF8.GetBytes("piranha-commerce/customer-tokens")));

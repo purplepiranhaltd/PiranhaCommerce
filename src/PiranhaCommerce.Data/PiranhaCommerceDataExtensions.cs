@@ -6,28 +6,28 @@ using PiranhaCommerce.Core.Plugins;
 
 namespace PiranhaCommerce.Data;
 
-public static class PiranhaDataExtensions
+public static class PiranhaCommerceDataExtensions
 {
     /// <summary>
     /// Registers the shared DbContext and Identity stores. Pass a provider configuration,
     /// e.g. <c>o =&gt; o.UseSqlServer(cs)</c>, or use the provider packages.
     /// </summary>
-    public static PiranhaBuilder AddPiranhaCommerceData(this PiranhaBuilder builder, Action<DbContextOptionsBuilder> configureProvider)
+    public static PiranhaCommerceBuilder AddPiranhaCommerceData(this PiranhaCommerceBuilder builder, Action<DbContextOptionsBuilder> configureProvider)
     {
         // Plugins (the audit log) can add EF interceptors by registering them as ISaveChangesInterceptor.
-        builder.Services.AddDbContext<PiranhaDbContext>((sp, o) =>
+        builder.Services.AddDbContext<PiranhaCommerceDbContext>((sp, o) =>
         {
             configureProvider(o);
             o.AddInterceptors(sp.GetServices<Microsoft.EntityFrameworkCore.Diagnostics.ISaveChangesInterceptor>());
         });
-        builder.Services.AddIdentityCore<PiranhaUser>(o =>
+        builder.Services.AddIdentityCore<PiranhaCommerceUser>(o =>
             {
                 o.Password.RequiredLength = 10;
                 o.Lockout.MaxFailedAccessAttempts = 5;
                 o.User.RequireUniqueEmail = true;
             })
-            .AddRoles<PiranhaRole>()
-            .AddEntityFrameworkStores<PiranhaDbContext>();
+            .AddRoles<PiranhaCommerceRole>()
+            .AddEntityFrameworkStores<PiranhaCommerceDbContext>();
         builder.Services.AddScoped<ICredentialChecker, CredentialChecker>();
         return builder;
     }
@@ -57,20 +57,20 @@ public static class PiranhaDataExtensions
     private static async Task EnsureAdministratorOnceAsync(IServiceProvider services, string email, string password)
     {
         using var scope = services.CreateScope();
-        var roles = scope.ServiceProvider.GetRequiredService<RoleManager<PiranhaRole>>();
-        var users = scope.ServiceProvider.GetRequiredService<UserManager<PiranhaUser>>();
+        var roles = scope.ServiceProvider.GetRequiredService<RoleManager<PiranhaCommerceRole>>();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<PiranhaCommerceUser>>();
 
-        if (!await roles.RoleExistsAsync(PiranhaRoles.Administrator))
-            Check(await roles.CreateAsync(new PiranhaRole(PiranhaRoles.Administrator)));
+        if (!await roles.RoleExistsAsync(PiranhaCommerceRoles.Administrator))
+            Check(await roles.CreateAsync(new PiranhaCommerceRole(PiranhaCommerceRoles.Administrator)));
 
         var user = await users.FindByEmailAsync(email);
         if (user is null)
         {
-            user = new PiranhaUser { UserName = email, Email = email, EmailConfirmed = true, DisplayName = "Administrator" };
+            user = new PiranhaCommerceUser { UserName = email, Email = email, EmailConfirmed = true, DisplayName = "Administrator" };
             Check(await users.CreateAsync(user, password));
         }
-        if (!await users.IsInRoleAsync(user, PiranhaRoles.Administrator))
-            Check(await users.AddToRoleAsync(user, PiranhaRoles.Administrator));
+        if (!await users.IsInRoleAsync(user, PiranhaCommerceRoles.Administrator))
+            Check(await users.AddToRoleAsync(user, PiranhaCommerceRoles.Administrator));
 
         static void Check(IdentityResult r)
         {

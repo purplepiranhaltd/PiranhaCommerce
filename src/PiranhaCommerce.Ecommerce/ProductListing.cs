@@ -50,7 +50,7 @@ public sealed class ProductListingInput
 public sealed record ProductListingDto(Guid ProductId, bool Published, Guid? TaxClassId = null, int? WeightGrams = null, int? MinOrderQuantity = null, int? MaxOrderQuantity = null);
 
 /// <summary>New variants start with their parent's online listing (published or not, tax class, weight), so they can be bought straight away.</summary>
-internal sealed class VariantListingHandler(PiranhaCommerce.Data.PiranhaDbContext db) : IVariantCreatedHandler
+internal sealed class VariantListingHandler(PiranhaCommerce.Data.PiranhaCommerceDbContext db) : IVariantCreatedHandler
 {
     public async Task OnCreatedAsync(Guid parentProductId, IReadOnlyCollection<Guid> variantProductIds, CancellationToken ct = default)
     {
@@ -63,7 +63,7 @@ internal sealed class VariantListingHandler(PiranhaCommerce.Data.PiranhaDbContex
 }
 
 /// <summary>Adds the online listing to the catalogue import and export: <c>published</c> (true or false), <c>tax_class</c> (by name) and <c>weight_grams</c>.</summary>
-internal sealed class ProductListingImportExtension(PiranhaCommerce.Data.PiranhaDbContext db, IProductListingService listings) : IProductImportExtension
+internal sealed class ProductListingImportExtension(PiranhaCommerce.Data.PiranhaCommerceDbContext db, IProductListingService listings) : IProductImportExtension
 {
     public IReadOnlyList<string> Columns { get; } = ["published", "tax_class", "weight_grams", "min_order_quantity", "max_order_quantity"];
 
@@ -79,7 +79,7 @@ internal sealed class ProductListingImportExtension(PiranhaCommerce.Data.Piranha
 
     public async Task ImportAsync(Guid productId, IReadOnlyDictionary<string, string?> cells, bool created, CancellationToken ct = default)
     {
-        var current = await listings.GetAsync(productId, ct) ?? throw new PiranhaCommerce.Core.Validation.PiranhaValidationException("published", "That product no longer exists.");
+        var current = await listings.GetAsync(productId, ct) ?? throw new PiranhaCommerce.Core.Validation.PiranhaCommerceValidationException("published", "That product no longer exists.");
         var input = new ProductListingInput { Published = current.Published, TaxClassId = current.TaxClassId, WeightGrams = current.WeightGrams, MinOrderQuantity = current.MinOrderQuantity, MaxOrderQuantity = current.MaxOrderQuantity };
 
         if (cells.TryGetValue("published", out var published))
@@ -88,7 +88,7 @@ internal sealed class ProductListingImportExtension(PiranhaCommerce.Data.Piranha
             {
                 "true" or "yes" or "1" => true,
                 "false" or "no" or "0" or null => false,
-                _ => throw new PiranhaCommerce.Core.Validation.PiranhaValidationException("published", "Use true or false."),
+                _ => throw new PiranhaCommerce.Core.Validation.PiranhaCommerceValidationException("published", "Use true or false."),
             };
         }
         if (cells.TryGetValue("tax_class", out var taxClass))
@@ -98,14 +98,14 @@ internal sealed class ProductListingImportExtension(PiranhaCommerce.Data.Piranha
             {
                 var name = taxClass.ToLower();
                 input.TaxClassId = await db.Set<TaxClass>().AsNoTracking().Where(c => c.Name.ToLower() == name).Select(c => (Guid?)c.Id).FirstOrDefaultAsync(ct)
-                    ?? throw new PiranhaCommerce.Core.Validation.PiranhaValidationException("tax_class", $"There is no tax class called {taxClass}.");
+                    ?? throw new PiranhaCommerce.Core.Validation.PiranhaCommerceValidationException("tax_class", $"There is no tax class called {taxClass}.");
             }
         }
         if (cells.TryGetValue("weight_grams", out var weight))
         {
             if (weight is null) input.WeightGrams = null;
             else if (int.TryParse(weight, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var grams)) input.WeightGrams = grams;
-            else throw new PiranhaCommerce.Core.Validation.PiranhaValidationException("weight_grams", "Use a whole number of grams.");
+            else throw new PiranhaCommerce.Core.Validation.PiranhaCommerceValidationException("weight_grams", "Use a whole number of grams.");
         }
         if (cells.TryGetValue("min_order_quantity", out var min)) input.MinOrderQuantity = WholeNumber("min_order_quantity", min);
         if (cells.TryGetValue("max_order_quantity", out var max)) input.MaxOrderQuantity = WholeNumber("max_order_quantity", max);
@@ -116,6 +116,6 @@ internal sealed class ProductListingImportExtension(PiranhaCommerce.Data.Piranha
     {
         if (text is null) return null;
         if (int.TryParse(text, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var n)) return n;
-        throw new PiranhaCommerce.Core.Validation.PiranhaValidationException(column, "Use a whole number.");
+        throw new PiranhaCommerce.Core.Validation.PiranhaCommerceValidationException(column, "Use a whole number.");
     }
 }

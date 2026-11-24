@@ -8,7 +8,7 @@ using PiranhaCommerce.Ecommerce;
 
 namespace PiranhaCommerce.IntegrationTests;
 
-public sealed class LowStockFactory : PiranhaFactory
+public sealed class LowStockFactory : PiranhaCommerceFactory
 {
     protected override string? AlertEmail => "stock@example.com, Second@Example.com ,stock@example.com";
     protected override IReadOnlyDictionary<string, string?> ExtraSettings => new Dictionary<string, string?> { ["PiranhaCommerce:Ecommerce:LowStockAlertLevel"] = "5", ["PiranhaCommerce:Ecommerce:LowStockAlertPollSeconds"] = "0" };

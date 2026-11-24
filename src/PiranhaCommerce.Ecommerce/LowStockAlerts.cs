@@ -33,7 +33,7 @@ public interface ILowStockAlerter
 /// A product is "low" by the same measure as the Low stock page: what is on hand across every location, counting each variant on its own. Only products on sale count,
 /// so a draft you are still setting up does not nag. One digest per check, not one email per product, and each product once per dip.
 /// </summary>
-public sealed class LowStockAlerter(PiranhaDbContext db, IStockService stock, IEmailSender email, IOptions<EcommerceOptions> options, ILogger<LowStockAlerter> logger, TimeProvider? time = null) : ILowStockAlerter
+public sealed class LowStockAlerter(PiranhaCommerceDbContext db, IStockService stock, IEmailSender email, IOptions<EcommerceOptions> options, ILogger<LowStockAlerter> logger, TimeProvider? time = null) : ILowStockAlerter
 {
     public async Task<int> RunOnceAsync(CancellationToken ct = default)
     {

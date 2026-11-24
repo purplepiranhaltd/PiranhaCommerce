@@ -13,7 +13,7 @@ public interface ICategoryService
     Task<CategoryDto> CreateAsync(CategoryInput input, CancellationToken ct = default);
     Task<CategoryDto?> UpdateAsync(Guid id, CategoryInput input, CancellationToken ct = default);
 
-    /// <summary>False when not found. Throws <see cref="PiranhaConflictException"/> while the category still has child categories.</summary>
+    /// <summary>False when not found. Throws <see cref="PiranhaCommerceConflictException"/> while the category still has child categories.</summary>
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>Null when the product does not exist.</summary>
@@ -23,7 +23,7 @@ public interface ICategoryService
     Task<ProductCategoriesDto?> SetProductCategoriesAsync(Guid productId, IReadOnlyCollection<Guid> categoryIds, CancellationToken ct = default);
 }
 
-internal sealed class CategoryService(PiranhaDbContext db) : ICategoryService
+internal sealed class CategoryService(PiranhaCommerceDbContext db) : ICategoryService
 {
     private const int MaxDepth = 100; // guards the ancestor walk even if stored data were already corrupt
 
@@ -74,7 +74,7 @@ internal sealed class CategoryService(PiranhaDbContext db) : ICategoryService
     {
         if (!await db.Set<Category>().AnyAsync(c => c.Id == id, ct)) return false;
         if (await db.Set<Category>().AnyAsync(c => c.ParentId == id, ct))
-            throw new PiranhaConflictException("This category has sub-categories. Move or delete them first.");
+            throw new PiranhaCommerceConflictException("This category has sub-categories. Move or delete them first.");
         // Links to products are removed by the database (cascade).
         return await db.DeleteTrackedAsync<Category>(c => c.Id == id, ct) > 0;
     }
@@ -95,7 +95,7 @@ internal sealed class CategoryService(PiranhaDbContext db) : ICategoryService
         var known = await db.Set<Category>().Where(c => wanted.Contains(c.Id)).Select(c => c.Id).ToListAsync(ct);
         var unknown = wanted.Except(known).ToList();
         if (unknown.Count > 0)
-            throw new PiranhaValidationException(nameof(ProductCategoriesInput.CategoryIds), "Unknown category ids: " + string.Join(", ", unknown));
+            throw new PiranhaCommerceValidationException(nameof(ProductCategoriesInput.CategoryIds), "Unknown category ids: " + string.Join(", ", unknown));
 
         var existing = await db.Set<ProductCategory>().Where(l => l.ProductId == productId).ToListAsync(ct);
         db.RemoveRange(existing.Where(l => !wanted.Contains(l.CategoryId)));
@@ -112,20 +112,20 @@ internal sealed class CategoryService(PiranhaDbContext db) : ICategoryService
         const string field = nameof(CategoryInput.ParentId);
 
         if (parentId == selfId)
-            throw new PiranhaValidationException(field, "A category cannot be its own parent.");
+            throw new PiranhaCommerceValidationException(field, "A category cannot be its own parent.");
 
         var cursor = parentId;
         for (var depth = 0; cursor is not null; depth++)
         {
             if (depth > MaxDepth)
-                throw new PiranhaValidationException(field, "The category tree is too deep.");
+                throw new PiranhaCommerceValidationException(field, "The category tree is too deep.");
 
             var node = await db.Set<Category>().AsNoTracking().Where(c => c.Id == cursor)
                 .Select(c => new { c.Id, c.ParentId }).FirstOrDefaultAsync(ct);
             if (node is null)
-                throw new PiranhaValidationException(field, depth == 0 ? "The parent category does not exist." : "The category tree is inconsistent.");
+                throw new PiranhaCommerceValidationException(field, depth == 0 ? "The parent category does not exist." : "The category tree is inconsistent.");
             if (node.Id == selfId)
-                throw new PiranhaValidationException(field, "That parent is below this category; moving it there would create a cycle.");
+                throw new PiranhaCommerceValidationException(field, "That parent is below this category; moving it there would create a cycle.");
             cursor = node.ParentId;
         }
     }
@@ -133,7 +133,7 @@ internal sealed class CategoryService(PiranhaDbContext db) : ICategoryService
     private async Task ValidateSlugAsync(CategoryInput input, Guid? existingId, CancellationToken ct)
     {
         if (Seo.NormalizeSlug(input.Slug) is { } slug && await db.Set<Category>().AnyAsync(c => c.Slug == slug && c.Id != existingId, ct))
-            throw new PiranhaValidationException(nameof(CategoryInput.Slug), "A category with this slug already exists.");
+            throw new PiranhaCommerceValidationException(nameof(CategoryInput.Slug), "A category with this slug already exists.");
     }
 
     private static void Apply(Category e, CategoryInput i)

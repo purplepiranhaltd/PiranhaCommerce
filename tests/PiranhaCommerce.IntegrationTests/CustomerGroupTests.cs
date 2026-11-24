@@ -12,7 +12,7 @@ namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Named sets of customers, and a promotion limited to one. Checkout is involved, so these run with the other store-wide tests.</summary>
 [Collection(OrderSettings.Name)]
-public class CustomerGroupTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class CustomerGroupTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];

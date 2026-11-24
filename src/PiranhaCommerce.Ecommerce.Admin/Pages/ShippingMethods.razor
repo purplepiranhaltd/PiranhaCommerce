@@ -157,7 +157,7 @@ else
             var saved = await Scope.RunAsync<IShippingService, IReadOnlyList<ShippingRateDto>?>(s => s.SetRatesAsync(id, input));
             _ratesMessage = saved is null ? "That method no longer exists." : "Saved.";
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
         catch (Exception ex) { _error = "Could not save the rates: " + ex.Message; }
         finally { _busy = false; }
         await LoadAsync();
@@ -172,7 +172,7 @@ else
             else await Scope.RunAsync<IShippingService, ShippingMethodDto>(s => s.CreateAsync(_input));
             Reset();
         }
-        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerceValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
         catch (Exception ex) { _error = "Could not save: " + ex.Message; }
         finally { _busy = false; }
         await LoadAsync();

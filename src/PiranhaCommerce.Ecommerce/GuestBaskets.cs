@@ -82,7 +82,7 @@ internal sealed partial class BasketService : IGuestBasketService
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
-            throw new PiranhaConflictException("The baskets could not be merged because one of them changed at the same moment. Please try again.");
+            throw new PiranhaCommerceConflictException("The baskets could not be merged because one of them changed at the same moment. Please try again.");
         }
         return merged ? await GetAsync(basketId, ct) : null;
     }

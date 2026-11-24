@@ -14,7 +14,7 @@ using PiranhaCommerce.Web.SampleData;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Wishlist, reviews, back-in-stock sign-up and basket suggestions in the sample shop, through its forms.</summary>
-public partial class ShopEngagementTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public partial class ShopEngagementTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private const string Password = "Shopper-Passw0rd!";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };

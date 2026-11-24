@@ -79,7 +79,7 @@
                 _message = "Saved.";
             }
         }
-        catch (PiranhaCommerce.Core.Validation.PiranhaValidationException ex) { _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerce.Core.Validation.PiranhaCommerceValidationException ex) { _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
         catch (Exception ex) { _message = "Could not save: " + ex.Message; }
         finally { _saving = false; }
     }

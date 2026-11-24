@@ -11,7 +11,7 @@ namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Sales: dates, percentage or fixed price, products and categories, and how a sale combines with group prices and promo codes.</summary>
 [Collection(OrderSettings.Name)]
-public class SaleTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public class SaleTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];
@@ -223,7 +223,7 @@ public class SaleTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
         await staff.DeleteAsync($"/api/v1/sales/{s.Id}");
     }
 
-    private sealed class OwnFactory : PiranhaFactory { }
+    private sealed class OwnFactory : PiranhaCommerceFactory { }
 
     [Fact]
     public async Task A_sale_on_all_products_lowers_every_price_and_stops_when_it_ends()

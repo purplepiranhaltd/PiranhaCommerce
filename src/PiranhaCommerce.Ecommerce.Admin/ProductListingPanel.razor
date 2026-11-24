@@ -77,7 +77,7 @@
                 s => s.SetAsync(ProductId, new ProductListingInput { Published = _published, TaxClassId = _taxClassId, WeightGrams = _weightGrams, MinOrderQuantity = _minQuantity, MaxOrderQuantity = _maxQuantity }));
             _message = _listing is null ? "Product no longer exists." : "Saved.";
         }
-        catch (PiranhaCommerce.Core.Validation.PiranhaValidationException ex) { _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (PiranhaCommerce.Core.Validation.PiranhaCommerceValidationException ex) { _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
         finally { _saving = false; }
     }
 }

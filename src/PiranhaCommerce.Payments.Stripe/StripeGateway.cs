@@ -353,11 +353,11 @@ public sealed class StripeGateway(IHttpClientFactory http, IOptions<StripeOption
 }
 
 /// <summary>Adds Stripe card payments. Requires the Ecommerce plugin; configure <see cref="StripeOptions"/>.</summary>
-public sealed class StripePlugin : IPiranhaPlugin
+public sealed class StripePlugin : IPiranhaCommercePlugin
 {
     public PluginInfo Info { get; } = new("PiranhaCommerce.Payments.Stripe", "Stripe", "0.1.0", "Card payments through Stripe Checkout.");
 
-    public IReadOnlyList<IPiranhaPlugin> Requires { get; } = [new EcommercePlugin()];
+    public IReadOnlyList<IPiranhaCommercePlugin> Requires { get; } = [new EcommercePlugin()];
 
     public void ConfigureServices(IServiceCollection services)
     {

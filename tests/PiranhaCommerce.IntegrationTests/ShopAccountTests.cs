@@ -12,7 +12,7 @@ using PiranhaCommerce.Web.SampleData;
 namespace PiranhaCommerce.IntegrationTests;
 
 /// <summary>Shopper accounts in the sample shop, driven through its forms: register, sign in, take the basket along, order as a customer, see only your own orders.</summary>
-public partial class ShopAccountTests(PiranhaFactory factory) : IClassFixture<PiranhaFactory>
+public partial class ShopAccountTests(PiranhaCommerceFactory factory) : IClassFixture<PiranhaCommerceFactory>
 {
     private const string Password = "Shopper-Passw0rd!";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
@@ -22,7 +22,7 @@ public partial class ShopAccountTests(PiranhaFactory factory) : IClassFixture<Pi
 
     private static string NewEmail() => $"shopper-{Guid.NewGuid():N}@example.com";
 
-    private async Task<HttpClient> BrowserAsync(PiranhaFactory? from = null)
+    private async Task<HttpClient> BrowserAsync(PiranhaCommerceFactory? from = null)
     {
         await factory.Services.GetRequiredService<SampleDataSeeder>().SeedAsync();
         return factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
@@ -62,7 +62,7 @@ public partial class ShopAccountTests(PiranhaFactory factory) : IClassFixture<Pi
     [Fact]
     public async Task A_shopper_registers_keeps_their_basket_orders_as_a_customer_and_sees_only_their_own_orders()
     {
-        if (PiranhaFactory.UsesSharedDatabase) return;
+        if (PiranhaCommerceFactory.UsesSharedDatabase) return;
         var lipstick = await Lipstick();
         var ruby = lipstick.Variants.Single(v => v.Values[0].Value == "Ruby Red");
         var email = NewEmail();
@@ -125,7 +125,7 @@ public partial class ShopAccountTests(PiranhaFactory factory) : IClassFixture<Pi
     [Fact]
     public async Task Signing_in_adds_the_guest_basket_to_the_one_the_customer_already_had_and_changing_the_password_ends_the_session()
     {
-        if (PiranhaFactory.UsesSharedDatabase) return;
+        if (PiranhaCommerceFactory.UsesSharedDatabase) return;
         var lipstick = await Lipstick();
         var coral = lipstick.Variants.Single(v => v.Values[0].Value == "Coral Crush");
         var rosewood = lipstick.Variants.Single(v => v.Values[0].Value == "Rosewood");
@@ -166,7 +166,7 @@ public partial class ShopAccountTests(PiranhaFactory factory) : IClassFixture<Pi
     [Fact]
     public async Task A_forgotten_password_is_reset_from_the_emailed_code_and_the_form_never_says_who_has_an_account()
     {
-        if (PiranhaFactory.UsesSharedDatabase) return;
+        if (PiranhaCommerceFactory.UsesSharedDatabase) return;
         var email = NewEmail();
         var browser = await BrowserAsync();
         await Register(browser, email);
@@ -195,7 +195,7 @@ public partial class ShopAccountTests(PiranhaFactory factory) : IClassFixture<Pi
     [Fact]
     public async Task Sign_in_forms_are_limited_harder_than_the_rest_and_a_shop_can_require_an_account_to_order()
     {
-        if (PiranhaFactory.UsesSharedDatabase) return;
+        if (PiranhaCommerceFactory.UsesSharedDatabase) return;
         await factory.Services.GetRequiredService<SampleDataSeeder>().SeedAsync();
         using var strict = factory.WithWebHostBuilder(b => b
             .UseSetting("PiranhaCommerce:Shop:AccountFormsPerMinute", "3")
