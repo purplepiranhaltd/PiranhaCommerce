@@ -10,7 +10,7 @@ public class SeedingTests(PiranhaCommerceFactory factory) : IClassFixture<Piranh
     [Fact]
     public async Task Concurrent_admin_seeding_is_safe_and_idempotent()
     {
-        var email = $"seed-{Guid.NewGuid():N}@piranha.local";
+        var email = $"seed-{Guid.NewGuid():N}@piranhacommerce.local";
 
         // Several instances starting at once against the same database must all succeed (no duplicate role/user errors).
         await Task.WhenAll(Enumerable.Range(0, 6).Select(_ => factory.Services.EnsureAdministratorAsync(email, "Seed-Passw0rd!")));

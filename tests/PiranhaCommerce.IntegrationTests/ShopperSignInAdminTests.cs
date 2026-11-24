@@ -274,7 +274,7 @@ public class ShopperSignInAdminTests(PiranhaCommerceFactory factory) : IClassFix
         var history = (await staff.GetFromJsonAsync<List<JsonElement>>($"/api/v1/customers/{s.Id}/sign-in/history"))!;
         Assert.Equal(new[] { "sign-in-removed", "switched-on", "switched-off", "reset-link", "signed-out", "unlocked" },
             history.Select(e => e.GetProperty("action").GetString()!).ToArray()); // newest first
-        Assert.All(history, e => Assert.Equal("admin@piranha.local", e.GetProperty("actor").GetString()));
+        Assert.All(history, e => Assert.Equal("admin@piranhacommerce.local", e.GetProperty("actor").GetString()));
         Assert.Equal("Sent", history.Single(e => e.GetProperty("action").GetString() == "reset-link").GetProperty("detail").GetString());
 
         // A read-only user may read the history, a shopper may not, and an unknown customer is not found.

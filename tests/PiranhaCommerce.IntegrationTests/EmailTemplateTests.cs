@@ -101,7 +101,7 @@ public class EmailTemplateTests(PiranhaCommerceFactory factory) : IClassFixture<
 
         var edit = new EmailTemplateInput { Subject = "Your new password for {{ email }}", TextBody = "Code: {{ code }}", HtmlBody = "<p>{{ code }}</p>" };
         var saved = await Read<EmailTemplateDto>(await staff.PutAsJsonAsync(Url(key), edit));
-        Assert.Equal((EmailTemplateStatus.Customised, "Your new password for {{ email }}", "admin@piranha.local"), (saved.Status, saved.Subject, saved.UpdatedBy));
+        Assert.Equal((EmailTemplateStatus.Customised, "Your new password for {{ email }}", "admin@piranhacommerce.local"), (saved.Status, saved.Subject, saved.UpdatedBy));
 
         var preview = await Read<EmailTemplatePreviewDto>(await staff.PostAsJsonAsync(Url(key) + "/preview", new EmailTemplateInput { Subject = "Hi {{ email }}", TextBody = "Use {{ code }}" }));
         Assert.Equal(("Hi ada@example.com", "Use 0f3a9c.Xk2j9"), (preview.Subject, preview.TextBody));

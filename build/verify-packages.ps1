@@ -170,7 +170,7 @@ try {
     $token = $null
     Check 'token issued for seeded admin' {
         $r = Invoke-RestMethod "$base/api/v1/auth/token" -Method Post -ContentType 'application/json' `
-            -Body (@{ email = 'admin@piranha.local'; password = 'Dev-Passw0rd!' } | ConvertTo-Json)
+            -Body (@{ email = 'admin@piranhacommerce.local'; password = 'Dev-Passw0rd!' } | ConvertTo-Json)
         $script:token = $r.accessToken; [bool]$r.accessToken
     }
     $h = @{ Authorization = "Bearer $script:token" }
@@ -220,7 +220,7 @@ try {
             $tok = [regex]::Match($page, 'name="__RequestVerificationToken"[^>]*value="([^"]+)"').Groups[1].Value
             $fields = [Collections.Generic.Dictionary[string,string]]::new()
             $fields['__RequestVerificationToken'] = $tok; $fields['_handler'] = 'login'
-            $fields['Input.Email'] = 'admin@piranha.local'; $fields['Input.Password'] = 'Dev-Passw0rd!'
+            $fields['Input.Email'] = 'admin@piranhacommerce.local'; $fields['Input.Password'] = 'Dev-Passw0rd!'
             $form = [Net.Http.FormUrlEncodedContent]::new($fields)
             $login = $http.PostAsync("$base/admin/login", $form).GetAwaiter().GetResult()
             if ([int]$login.StatusCode -ne 302) { throw "login returned $([int]$login.StatusCode)" }

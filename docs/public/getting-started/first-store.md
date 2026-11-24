@@ -12,7 +12,7 @@ This walkthrough uses the API only, so you can see the whole flow before you bui
 
 ```
 curl -s http://localhost:5280/api/v1/auth/token -H "Content-Type: application/json" \
-  -d '{ "email": "admin@piranha.local", "password": "Dev-Passw0rd!" }'
+  -d '{ "email": "admin@piranhacommerce.local", "password": "Dev-Passw0rd!" }'
 ```
 
 The answer holds an access token. Send it as `Authorization: Bearer <token>` on every staff call below.

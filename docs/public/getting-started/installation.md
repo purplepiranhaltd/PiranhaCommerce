@@ -19,7 +19,7 @@ The repository contains a complete sample host (`samples/PiranhaCommerce.Web`) w
 dotnet run --project samples/PiranhaCommerce.Web      # http://localhost:5280
 ```
 
-In `Development` the host applies migrations on startup and creates an administrator from `appsettings.Development.json` (`admin@piranha.local` / `Dev-Passw0rd!`; **development only**). In any other environment, set `PiranhaCommerce:Jwt:SigningKey` (32 or more characters, from a secret store) and create users yourself; the API fails closed without a key.
+In `Development` the host applies migrations on startup and creates an administrator from `appsettings.Development.json` (`admin@piranhacommerce.local` / `Dev-Passw0rd!`; **development only**). In any other environment, set `PiranhaCommerce:Jwt:SigningKey` (32 or more characters, from a secret store) and create users yourself; the API fails closed without a key.
 
 - **Admin:** `/admin`, cookie sign-in, Blazor Interactive Server. Pages from plugins appear once the plugin registers an admin page assembly. Pages require the Administrator role unless marked anonymous.
 - **API:** `POST /api/v1/auth/token` with `{ "email", "password" }`, then send `Authorization: Bearer <token>`. All `/api/v1` endpoints need a token, and writes need the `Administrator` role. The OpenAPI document is at `/openapi/v1.json`. API keys for system-to-system integrations are not built yet.

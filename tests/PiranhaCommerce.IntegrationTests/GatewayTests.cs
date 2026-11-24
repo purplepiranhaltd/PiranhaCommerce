@@ -269,7 +269,7 @@ public class GatewayTests(PiranhaCommerceFactory factory) : IClassFixture<Piranh
         var done = await staff.PostAsJsonAsync($"/api/v1/unreconciled-payments/{item.Id}/resolve", new ResolveUnreconciledInput { Resolution = "Refunded in the gateway dashboard" });
         Assert.Equal(HttpStatusCode.OK, done.StatusCode);
         var resolved = await Read<UnreconciledPaymentDto>(done);
-        Assert.Equal(("Refunded in the gateway dashboard", "admin@piranha.local"), (resolved.Resolution, resolved.ResolvedBy));
+        Assert.Equal(("Refunded in the gateway dashboard", "admin@piranhacommerce.local"), (resolved.Resolution, resolved.ResolvedBy));
         Assert.Equal(HttpStatusCode.Conflict, (await staff.PostAsJsonAsync($"/api/v1/unreconciled-payments/{item.Id}/resolve", new ResolveUnreconciledInput { Resolution = "again" })).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await staff.PostAsJsonAsync($"/api/v1/unreconciled-payments/{Guid.NewGuid()}/resolve", new ResolveUnreconciledInput { Resolution = "x" })).StatusCode);
 

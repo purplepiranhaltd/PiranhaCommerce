@@ -142,7 +142,7 @@ public class CustomerErasureTests(PiranhaCommerceFactory factory) : IClassFixtur
         // A record that it happened, with no personal data in it.
         using var scope = factory.Services.CreateScope();
         var record = await scope.ServiceProvider.GetRequiredService<PiranhaCommerceDbContext>().Set<CustomerErasure>().AsNoTracking().SingleAsync(e => e.CustomerId == ada.Id);
-        Assert.Equal(("admin@piranha.local", "orders: 3"), (record.Actor, record.Details));
+        Assert.Equal(("admin@piranhacommerce.local", "orders: 3"), (record.Actor, record.Details));
 
         // Erasing again is simply "not found".
         Assert.Equal(HttpStatusCode.NotFound, (await Erase(staff, ada.Id, ada.Email)).StatusCode);

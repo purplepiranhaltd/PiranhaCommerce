@@ -19,11 +19,11 @@ public class RateLimitTests(StrictRateLimitFactory factory) : IClassFixture<Stri
         var client = factory.CreateClient();
         for (var i = 0; i < 5; i++)
         {
-            var guess = await client.PostAsJsonAsync("/api/v1/auth/token", new TokenRequest($"nobody{i}@piranha.local", "guess"));
+            var guess = await client.PostAsJsonAsync("/api/v1/auth/token", new TokenRequest($"nobody{i}@piranhacommerce.local", "guess"));
             Assert.Equal(HttpStatusCode.Unauthorized, guess.StatusCode);
         }
 
-        var refused = await client.PostAsJsonAsync("/api/v1/auth/token", new TokenRequest("nobody-else@piranha.local", "guess"));
+        var refused = await client.PostAsJsonAsync("/api/v1/auth/token", new TokenRequest("nobody-else@piranhacommerce.local", "guess"));
         Assert.Equal(HttpStatusCode.TooManyRequests, refused.StatusCode);
         Assert.True(refused.Headers.Contains("Retry-After"));
 
@@ -41,7 +41,7 @@ public class AdminRateLimitTests(StrictRateLimitFactory factory) : IClassFixture
     public async Task Admin_login_posts_are_limited_too_but_reading_pages_is_not()
     {
         var browser = factory.CreateClient(new() { AllowAutoRedirect = false, HandleCookies = true });
-        var form = new Dictionary<string, string> { ["_handler"] = "login", ["Input.Email"] = "x@piranha.local", ["Input.Password"] = "x" };
+        var form = new Dictionary<string, string> { ["_handler"] = "login", ["Input.Email"] = "x@piranhacommerce.local", ["Input.Password"] = "x" };
 
         HttpStatusCode last = default;
         for (var i = 0; i < 6; i++)

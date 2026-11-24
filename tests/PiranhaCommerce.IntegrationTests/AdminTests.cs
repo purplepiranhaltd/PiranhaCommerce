@@ -252,7 +252,7 @@ public partial class AdminTests(PiranhaCommerceFactory factory) : IClassFixture<
         Assert.Equal(HttpStatusCode.OK, staff.StatusCode);
         var staffHtml = await staff.Content.ReadAsStringAsync();
         Assert.Contains("<h1>Staff locations</h1>", staffHtml);
-        Assert.Contains("admin@piranha.local", staffHtml);
+        Assert.Contains("admin@piranhacommerce.local", staffHtml);
     }
 
     [Fact]

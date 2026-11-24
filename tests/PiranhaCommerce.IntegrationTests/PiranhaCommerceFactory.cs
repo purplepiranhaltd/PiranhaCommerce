@@ -22,7 +22,7 @@ namespace PiranhaCommerce.IntegrationTests;
 /// </summary>
 public class PiranhaCommerceFactory: WebApplicationFactory<Program>, IAsyncLifetime
 {
-    public const string AdminEmail = "admin@piranha.local";
+    public const string AdminEmail = "admin@piranhacommerce.local";
     public const string AdminPassword = "Dev-Passw0rd!";
 
     // PIRANHACOMMERCE_TEST_PROVIDER=PostgreSql + PIRANHACOMMERCE_TEST_PG_SERVER="Host=...;Port=...;Username=...;Password=..." runs the whole suite
@@ -117,7 +117,7 @@ public class PiranhaCommerceFactory: WebApplicationFactory<Program>, IAsyncLifet
     {
         using var scope = Services.CreateScope();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<PiranhaCommerceUser>>();
-        var email = $"admin-{Guid.NewGuid():N}@piranha.local";
+        var email = $"admin-{Guid.NewGuid():N}@piranhacommerce.local";
         const string password = "Admin2-Passw0rd!";
         var user = new PiranhaCommerceUser { UserName = email, Email = email, EmailConfirmed = true };
         var result = await users.CreateAsync(user, password);
@@ -131,7 +131,7 @@ public class PiranhaCommerceFactory: WebApplicationFactory<Program>, IAsyncLifet
     {
         using var scope = Services.CreateScope();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<PiranhaCommerceUser>>();
-        var email = $"viewer-{Guid.NewGuid():N}@piranha.local";
+        var email = $"viewer-{Guid.NewGuid():N}@piranhacommerce.local";
         const string password = "Viewer-Passw0rd!";
         var result = await users.CreateAsync(new PiranhaCommerceUser { UserName = email, Email = email, EmailConfirmed = true }, password);
         Assert.True(result.Succeeded, string.Join(";", result.Errors.Select(e => e.Description)));

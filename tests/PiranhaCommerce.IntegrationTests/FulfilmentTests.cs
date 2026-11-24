@@ -77,7 +77,7 @@ public class FulfilmentTests(PiranhaCommerceFactory factory) : IClassFixture<Pir
         var first = await Ship(staff, order, ShipOf(order, 1, "Royal Mail", "RM123", "https://track.example/RM123"));
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
         var shipment = await Read<ShipmentDto>(first);
-        Assert.Equal(("Royal Mail", "RM123", "admin@piranha.local"), (shipment.Carrier, shipment.TrackingNumber, shipment.Actor));
+        Assert.Equal(("Royal Mail", "RM123", "admin@piranhacommerce.local"), (shipment.Carrier, shipment.TrackingNumber, shipment.Actor));
         Assert.Equal(1, Assert.Single(shipment.Lines).Quantity);
 
         var mid = await Get(staff, order);
@@ -216,7 +216,7 @@ public class FulfilmentTests(PiranhaCommerceFactory factory) : IClassFixture<Pir
         var l = order.Lines[0];
         Assert.Equal(RefundSuggestion.ForLine(l.LineTotal, l.DiscountAmount, l.TaxAmount, l.Quantity, 0, 1) + order.ShippingTotal + order.ShippingTax, r1.SuggestedRefund);
         Assert.True(r1.ShippingIncluded);
-        Assert.Equal((true, "Too big", "admin@piranha.local"), (r1.Lines.Single().Restocked, r1.Reason, r1.Actor));
+        Assert.Equal((true, "Too big", "admin@piranhacommerce.local"), (r1.Lines.Single().Restocked, r1.Reason, r1.Actor));
         Assert.Equal(shelf + 1, await Stock(staff, product));
 
         // A damaged one is recorded but not put back on the shelf.
@@ -331,7 +331,7 @@ public class FulfilmentTests(PiranhaCommerceFactory factory) : IClassFixture<Pir
         Assert.Equal(("testpay", "Recorded", 4m), (result.Provider, result.Outcome, result.Amount));
 
         var booked = (await Ledger(staff, order)).Single(p => p.Kind == PaymentKind.Refund);
-        Assert.Equal((result.Reference, "testpay", 4m, "admin@piranha.local"), (booked.Reference, booked.Provider, booked.Amount, booked.Actor));
+        Assert.Equal((result.Reference, "testpay", 4m, "admin@piranhacommerce.local"), (booked.Reference, booked.Provider, booked.Amount, booked.Actor));
         Assert.Equal(4m, (await Get(staff, order)).AmountRefunded);
 
         // The same request again (a double click) is the same refund: nothing more is booked.
@@ -447,7 +447,7 @@ public class FulfilmentTests(PiranhaCommerceFactory factory) : IClassFixture<Pir
         var seen = JsonSerializer.Deserialize<OrderDto>(raw, Json)!;
         var parcel = Assert.Single(seen.Shipments!);
         Assert.Equal(("DPD", "DPD-777", "https://track.example/DPD-777"), (parcel.Carrier, parcel.TrackingNumber, parcel.TrackingUrl));
-        Assert.DoesNotContain("admin@piranha.local", raw);
+        Assert.DoesNotContain("admin@piranhacommerce.local", raw);
         Assert.DoesNotContain("actor", raw, StringComparison.OrdinalIgnoreCase);
 
         Assert.Equal(HttpStatusCode.NotFound, (await bob.GetAsync($"/api/v1/storefront/orders/{order.Id}")).StatusCode);
