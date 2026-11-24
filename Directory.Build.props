@@ -8,6 +8,11 @@
     <Authors>Purple Piranha</Authors>
     <Company>Purple Piranha</Company>
     <Product>PiranhaCommerce</Product>
+    <Copyright>Copyright (c) 2026 Purple Piranha Ltd</Copyright>
+    <PackageProjectUrl>https://piranhacommerce.com</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/purplepiranhaltd/PiranhaCommerce</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>ecommerce;commerce;shop;blazor;aspnetcore;efcore;sqlserver;postgresql</PackageTags>
     <VersionPrefix>0.1.0</VersionPrefix>
     <VersionSuffix>alpha</VersionSuffix>
     <PackageReadmeFile>README.md</PackageReadmeFile>

@@ -2,6 +2,18 @@
 
 A commerce engine for .NET, delivered as NuGet packages. Source-available under the [PiranhaCommerce Attribution Licence](LICENSE): free to use and change, with a "Built on PiranhaCommerce" notice on every page; a Commercial Licence removes the notice. See [licensing](docs/public/getting-started/licensing.md).
 
+PiranhaCommerce is built to be extended. One shared database model, a REST API for everything, a Blazor admin, and plugins that add their own pages, tables and settings. It runs on **SQL Server, Azure SQL and PostgreSQL**, and the sample shop (Petalwick) shows a complete store.
+
+## Status
+
+**Alpha (0.1).** The core is built and tested (catalogue, customers, baskets and orders, prices and discounts, shipping, payments through Stripe, email, webhooks, audit, staff roles and API keys, two-factor sign-in), but the packages are not published yet and details may still change. The [documentation](docs/public/index.md) describes what exists today.
+
+## Licence and contributing
+
+- **Free to use and change**, including for a business, as long as every page shows "Built on PiranhaCommerce": [Attribution Licence](LICENSE).
+- **Remove the notice** with a [Commercial Licence](COMMERCIAL-LICENSE.md): £400 once per domain, with discounts for agencies. See [pricing](https://piranhacommerce.com/pricing).
+- **Contributions** are welcome: read [CONTRIBUTING.md](CONTRIBUTING.md) first. Report security problems privately, as described in [SECURITY.md](SECURITY.md).
+
 ## Documentation
 
 The documentation covers installation, your first store, configuration, every feature and advanced setup. It is Markdown in
