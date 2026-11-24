@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace PiranhaCommerce.Core.Identity;
 
@@ -54,6 +55,12 @@ public sealed class StaffAccess
 
     public bool IsAdministrator { get; }
 
+    /// <summary>An active person is signed in, whatever their roles. Enough to reach the page where they set up two-factor sign-in.</summary>
+    public bool SignedIn { get; init; }
+
+    /// <summary>Two-factor sign-in is compulsory and this person has not set it up yet: they hold no permission until they do.</summary>
+    public bool TwoFactorSetupRequired { get; init; }
+
     /// <summary>The permissions held through roles, with implied ones added. Empty for an administrator, who holds all of them.</summary>
     public IReadOnlySet<string> Permissions { get; }
 
@@ -61,6 +68,7 @@ public sealed class StaffAccess
     {
         Identity.Permissions.Administrator => IsAdministrator,
         Identity.Permissions.Access => IsAdministrator || Permissions.Count > 0,
+        Identity.Permissions.SignedIn => SignedIn,
         _ => IsAdministrator || Permissions.Contains(key),
     };
 }
@@ -70,7 +78,7 @@ public sealed class StaffAccess
 /// so a removed permission would otherwise last until it expired. Answers are kept for a few seconds, and dropped at once when roles change
 /// in this process; another instance sees a change within <see cref="Lifetime"/>.
 /// </summary>
-public sealed class StaffPermissionService(IServiceScopeFactory scopes, PermissionCatalog catalog)
+public sealed class StaffPermissionService(IServiceScopeFactory scopes, PermissionCatalog catalog, IOptions<StaffSecurityOptions> security)
 {
     /// <summary>The claim type a role's permissions are stored under (the standard Identity role claims table).</summary>
     public const string ClaimType = "permission";
@@ -112,8 +120,12 @@ public sealed class StaffPermissionService(IServiceScopeFactory scopes, Permissi
         var user = await users.FindByIdAsync(id.ToString());
         if (user is null || !user.Active) return StaffAccess.None;
 
+        // Two-factor is compulsory for people (an API key is not one): until it is set up, they may only sign in and set it up.
+        if (security.Value.RequireTwoFactor && !user.TwoFactorEnabled && user.Email?.EndsWith(ApiKeyFormat.ServiceDomain, StringComparison.OrdinalIgnoreCase) != true)
+            return new StaffAccess(false, new HashSet<string>()) { SignedIn = true, TwoFactorSetupRequired = true };
+
         var names = await users.GetRolesAsync(user);
-        if (names.Contains(PiranhaCommerceRoles.Administrator)) return new StaffAccess(true, new HashSet<string>());
+        if (names.Contains(PiranhaCommerceRoles.Administrator)) return new StaffAccess(true, new HashSet<string>()) { SignedIn = true };
 
         var keys = new List<string>();
         foreach (var name in names)
@@ -121,6 +133,6 @@ public sealed class StaffPermissionService(IServiceScopeFactory scopes, Permissi
             if (await roles.FindByNameAsync(name) is not { } role) continue;
             keys.AddRange((await roles.GetClaimsAsync(role)).Where(c => c.Type == ClaimType).Select(c => c.Value));
         }
-        return new StaffAccess(false, catalog.Expand(keys));
+        return new StaffAccess(false, catalog.Expand(keys)) { SignedIn = true };
     }
 }

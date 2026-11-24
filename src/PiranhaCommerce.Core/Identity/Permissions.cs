@@ -47,6 +47,9 @@ public static class Permissions
 
     /// <summary>Not assignable: held by administrators only. The default for an endpoint or page that does not name a permission.</summary>
     public const string Administrator = "administrator";
+
+    /// <summary>Not assignable: held by any active person who is signed in, even one with no role or who has yet to set up two-factor sign-in.</summary>
+    public const string SignedIn = "signedin";
 }
 
 /// <summary>The built-in permissions, so every package can name them without each defining its own.</summary>

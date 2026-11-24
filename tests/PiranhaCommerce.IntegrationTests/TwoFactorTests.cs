@@ -14,7 +14,7 @@ public class TwoFactorTests(PiranhaCommerceFactory factory) : IClassFixture<Pira
     private sealed record Staff(string Email, string Password, Guid Id, string Key);
 
     /// <summary>The six-digit code an authenticator app would show now (RFC 6238, 30-second steps, SHA-1).</summary>
-    private static string CodeFor(string base32Key, int stepOffset = 0)
+    internal static string CodeFor(string base32Key, int stepOffset = 0)
     {
         const string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
         var bits = string.Concat(base32Key.ToUpperInvariant().Where(alphabet.Contains).Select(c => Convert.ToString(alphabet.IndexOf(c), 2).PadLeft(5, '0')));

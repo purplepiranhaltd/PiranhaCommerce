@@ -16,6 +16,9 @@ public enum CredentialStatus
 
     /// <summary>The password is right but the code is not (or was already used).</summary>
     TwoFactorInvalid,
+
+    /// <summary>Two-factor sign-in is compulsory and this person has not set it up. Used by the API, which has nowhere to set it up.</summary>
+    TwoFactorSetupRequired,
 }
 
 public sealed record CredentialResult(CredentialStatus Status, PiranhaCommerceUser? User)

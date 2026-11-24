@@ -16,6 +16,7 @@ Each package reads one section under `PiranhaCommerce:`.
 | `PiranhaCommerce:Provider` | Host | `SqlServer` (also Azure SQL) or `PostgreSql`. Chooses which migration set the host uses. |
 | `PiranhaCommerce:SeedAdmin` | Host (sample) | Email and password of a development administrator, created on startup in Development only. |
 | `PiranhaCommerce:Jwt` | Api | `SigningKey` (32 or more characters; the API fails closed without it), `LifetimeMinutes` (60). Shopper tokens use a key derived from it. |
+| `PiranhaCommerce:Staff` | Core | `RequireTwoFactor` (default `true`): every member of staff must use two-factor sign-in. Set `false` only for local development. See [Staff and permissions](../guides/staff.md#two-factor-sign-in). |
 | `PiranhaCommerce:RateLimit` | Api | Sign-in limits: `SignInAttempts`, `WindowSeconds`, `GuestBasketAttempts`, or `Enabled: false`. See [Hosting requirements](../advanced/hosting.md). |
 | `PiranhaCommerce:Customers` | Customers | Lockout, `RefreshTokenDays`, `RequireVerifiedEmail`, `ResetUrlTemplate`, `VerifyUrlTemplate` and more. See [Customers and shopper accounts](../guides/shoppers.md). |
 | `PiranhaCommerce:Ecommerce` | Ecommerce | `Currency` (GBP), `StockLocationId`, `DefaultCountryCode`, `AllowGuestCheckout`, `RequirePaymentBeforeProcessing`, `SendOrderConfirmations`, `SendOrderUpdates`, `SendReviewReplies`, `AlertEmail`, `AbandonedBasketDays`, `UnpaidOrderHours`, `ReviewsNeedApproval`, `StockAlertPollSeconds`, `StockAlertUnsubscribeUrlTemplate`, `LowStockAlertLevel`, `LowStockAlertPollSeconds`. |

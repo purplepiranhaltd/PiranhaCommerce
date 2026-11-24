@@ -200,6 +200,7 @@ internal sealed class StaffAdminService(
         if (await users.FindByIdAsync(userId.ToString()) is not { } user) return null;
         if (!user.TwoFactorEnabled) return await ToDtoAsync(user);
         Check(await users.SetTwoFactorEnabledAsync(user, false));
+        permissions.Invalidate(); // with two-factor compulsory they must set it up again at once
         await users.ResetAuthenticatorKeyAsync(user);
         await users.RemoveAuthenticationTokenAsync(user, "[AspNetUserStore]", "RecoveryCodes");
         await RecordAsync("StaffUser", user.Email ?? userId.ToString(), "two-factor reset", [new AuditChange("TwoFactor", "On", "Off")], ct);

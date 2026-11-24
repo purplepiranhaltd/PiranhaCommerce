@@ -32,6 +32,7 @@ public static class PermissionPolicies
     public const string StaffManage = Prefix + Permissions.StaffManage;
     public const string Access = Prefix + Permissions.Access;
     public const string Administrator = Prefix + Permissions.Administrator;
+    public const string SignedIn = Prefix + Permissions.SignedIn;
 }
 
 public sealed class PermissionRequirement(string key) : IAuthorizationRequirement

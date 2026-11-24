@@ -61,6 +61,7 @@ public class PiranhaCommerceFactory: WebApplicationFactory<Program>, IAsyncLifet
         builder.UseSetting("PiranhaCommerce:Provider", Provider);
         builder.UseSetting("ConnectionStrings:PiranhaCommerce", ConnectionString);
         builder.UseSetting("PiranhaCommerce:RateLimit:SignInAttempts", SignInAttempts.ToString());
+        builder.UseSetting("PiranhaCommerce:Staff:RequireTwoFactor", "false"); // most tests sign in with a password alone; TwoFactorRequiredTests turns it on
         builder.UseSetting("PiranhaCommerce:Storage:LocalDisk:Path", FilesFolder);
         builder.UseSetting("PiranhaCommerce:Ecommerce:StockAlertPollSeconds", "0"); // tests run the notifier themselves
         builder.UseSetting("PiranhaCommerce:Shop:AccountFormsPerMinute", "1000"); // every test shares one client address; tests of the limit lower it

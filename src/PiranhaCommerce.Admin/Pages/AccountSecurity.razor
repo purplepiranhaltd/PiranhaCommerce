@@ -1,5 +1,5 @@
 @page "/admin/account/security"
-@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = PiranhaCommerce.Core.Identity.PermissionPolicies.Access)]
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = PiranhaCommerce.Core.Identity.PermissionPolicies.SignedIn)]
 @using Microsoft.AspNetCore.Components.Authorization
 @using PiranhaCommerce.Admin.Services
 @using PiranhaCommerce.Core.Identity
@@ -25,6 +25,11 @@
     </div>
 }
 
+@if (_status is { Required: true, Enabled: false })
+{
+    <p class="pc-error" role="alert"><strong>Two-factor sign-in is required.</strong> Set it up below to carry on. Until you do, nothing else in the admin is open to you.</p>
+}
+
 @if (_status is null)
 {
     <p class="pc-muted">Loading...</p>
@@ -38,9 +43,9 @@ else if (_status.Enabled)
         </label>
         <p>
             <button @onclick="NewCodesAsync">Make new recovery codes</button>
-            <button class="danger" @onclick="DisableAsync">Turn off</button>
+            @if (!_status.Required) { <button class="danger" @onclick="DisableAsync">Turn off</button> }
         </p>
-        <p class="pc-muted">Lost your phone? Use a recovery code to sign in, or ask an administrator to reset it for you.</p>
+        <p class="pc-muted">Two-factor sign-in@(_status.Required ? " is required for all staff, so it cannot be turned off here." : ".") Lost your phone? Use a recovery code to sign in, or ask an administrator to reset it for you.</p>
     </div>
 }
 else if (_setup is null)
@@ -101,7 +106,7 @@ else
     private Task ConfirmAsync() => Run(async () =>
     {
         _recovery = await Scope.RunAsync<IStaffSecurityService, IReadOnlyList<string>>(s => s.ConfirmSetupAsync(_userId, _code ?? ""));
-        _setup = null; _code = null; _message = "Two-factor sign-in is on.";
+        _setup = null; _code = null; _message = "Two-factor sign-in is on. You can now use the admin: open the menu or go to the dashboard.";
     });
 
     private Task NewCodesAsync() => Run(async () =>

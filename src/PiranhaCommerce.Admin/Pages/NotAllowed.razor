@@ -3,6 +3,11 @@
 @attribute [AllowAnonymous]
 @attribute [ExcludeFromInteractiveRouting]
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using PiranhaCommerce.Core.Identity
+@inject AuthenticationStateProvider Auth
+@inject StaffPermissionService Permissions
+@inject NavigationManager Navigation
 
 <PageTitle>Not allowed - PiranhaCommerce</PageTitle>
 
@@ -14,3 +19,12 @@
     <p><a href="/admin">Back to the dashboard</a></p>
     <form method="post" action="/admin/logout"><button type="submit">Sign out</button></form>
 </div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        // Someone who has yet to set up compulsory two-factor sign-in is sent to do that, not left at a dead end.
+        var access = await Permissions.GetAsync((await Auth.GetAuthenticationStateAsync()).User);
+        if (access.TwoFactorSetupRequired) Navigation.NavigateTo("/admin/account/security", forceLoad: true);
+    }
+}

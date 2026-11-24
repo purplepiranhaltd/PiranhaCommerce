@@ -13,7 +13,7 @@ public sealed record TokenRequest(string Email, string Password, string? Code = 
 /// <param name="RefreshToken">Shoppers only, and only when refresh tokens are switched on: swap it at the refresh endpoint for the next access token. Shown once.</param>
 public sealed record TokenResponse(string AccessToken, string TokenType, int ExpiresIn, string? RefreshToken = null);
 
-public sealed class JwtTokenService(IOptions<PiranhaCommerceJwtOptions> options, UserManager<PiranhaCommerceUser> users, ICredentialChecker credentials)
+public sealed class JwtTokenService(IOptions<PiranhaCommerceJwtOptions> options, IOptions<StaffSecurityOptions> security, UserManager<PiranhaCommerceUser> users, ICredentialChecker credentials)
 {
     public static SymmetricSecurityKey GetKey(PiranhaCommerceJwtOptions o)
     {
@@ -30,6 +30,8 @@ public sealed class JwtTokenService(IOptions<PiranhaCommerceJwtOptions> options,
     {
         var check = await credentials.CheckAsync(request.Email, request.Password, request.Code, ct);
         if (check.User is not { } user) return (null, check.Status);
+        // Compulsory two-factor: the API has nowhere to set it up, so a person who has not done so in the admin gets no token.
+        if (security.Value.RequireTwoFactor && !user.TwoFactorEnabled) return (null, CredentialStatus.TwoFactorSetupRequired);
 
         var o = options.Value;
         var claims = new List<Claim>

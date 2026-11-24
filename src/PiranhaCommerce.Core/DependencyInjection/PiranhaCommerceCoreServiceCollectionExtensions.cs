@@ -27,6 +27,7 @@ public static class PiranhaCommerceCoreServiceCollectionExtensions
         services.AddSingleton<IPermissionContributor, BuiltInPermissions>();
         services.TryAddSingleton<PermissionCatalog>();
         services.TryAddSingleton<StaffPermissionService>();
+        services.AddOptions<StaffSecurityOptions>().BindConfiguration(StaffSecurityOptions.SectionName);
         services.TryAddScoped<IStaffAdminService, StaffAdminService>();
         services.TryAddScoped<IStaffSecurityService, StaffSecurityService>();
         services.AddAuthorizationCore();

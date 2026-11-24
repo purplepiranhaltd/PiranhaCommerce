@@ -97,6 +97,7 @@ public static class PiranhaCommerceApiExtensions
                 var (token, status) = await tokens.IssueWithStatusAsync(request);
                 if (token is not null) return Results.Ok(token);
                 // The password was right but the person has two-factor on: say so, so the caller can ask for the code and send it as "code".
+                if (status == CredentialStatus.TwoFactorSetupRequired) return Results.Json(new { error = "two_factor_setup_required" }, statusCode: StatusCodes.Status403Forbidden);
                 return status == CredentialStatus.TwoFactorRequired ? Results.Json(new { error = "two_factor_required" }, statusCode: StatusCodes.Status401Unauthorized) : Results.Unauthorized();
             })
             .AllowAnonymous().WithTags("Auth");

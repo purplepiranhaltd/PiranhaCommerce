@@ -6,7 +6,8 @@ using PiranhaCommerce.Core.Validation;
 
 namespace PiranhaCommerce.Core.Identity;
 
-public sealed record TwoFactorStatus(bool Enabled, int RecoveryCodesLeft);
+/// <param name="Required">Two-factor sign-in is compulsory for staff, so it cannot be turned off.</param>
+public sealed record TwoFactorStatus(bool Enabled, int RecoveryCodesLeft, bool Required = false);
 
 /// <param name="SharedKey">The key to type into an authenticator app, in groups of four to be easy to read.</param>
 /// <param name="Uri">The same key as an <c>otpauth://</c> address, which phones can open and QR codes carry.</param>
@@ -34,7 +35,7 @@ public interface IStaffSecurityService
     Task<IReadOnlyList<string>> NewRecoveryCodesAsync(Guid userId, string code, CancellationToken ct = default);
 }
 
-internal sealed class StaffSecurityService(UserManager<PiranhaCommerceUser> users, IServiceProvider services) : IStaffSecurityService
+internal sealed class StaffSecurityService(UserManager<PiranhaCommerceUser> users, IServiceProvider services, StaffPermissionService permissions, Microsoft.Extensions.Options.IOptions<StaffSecurityOptions> options) : IStaffSecurityService
 {
     private const string Issuer = "PiranhaCommerce";
     private const int RecoveryCodeCount = 10;
@@ -42,7 +43,7 @@ internal sealed class StaffSecurityService(UserManager<PiranhaCommerceUser> user
     public async Task<TwoFactorStatus> GetStatusAsync(Guid userId, CancellationToken ct = default)
     {
         var user = await FindAsync(userId);
-        return new TwoFactorStatus(user.TwoFactorEnabled, user.TwoFactorEnabled ? await users.CountRecoveryCodesAsync(user) : 0);
+        return new TwoFactorStatus(user.TwoFactorEnabled, user.TwoFactorEnabled ? await users.CountRecoveryCodesAsync(user) : 0, options.Value.RequireTwoFactor);
     }
 
     public async Task<TwoFactorSetup> BeginSetupAsync(Guid userId, CancellationToken ct = default)
@@ -63,6 +64,7 @@ internal sealed class StaffSecurityService(UserManager<PiranhaCommerceUser> user
         if (await users.GetAuthenticatorKeyAsync(user) is null) throw new PiranhaCommerceConflictException("Start the setup first.");
         await RequireAppCodeAsync(user, code);
         await users.SetTwoFactorEnabledAsync(user, true);
+        permissions.Invalidate(); // the person is let in at once
         var codes = (await users.GenerateNewTwoFactorRecoveryCodesAsync(user, RecoveryCodeCount))!.ToList();
         await RecordAsync(user, "two-factor turned on", "TwoFactor", "Off", "On", ct);
         return codes;
@@ -72,8 +74,10 @@ internal sealed class StaffSecurityService(UserManager<PiranhaCommerceUser> user
     {
         var user = await FindAsync(userId);
         if (!user.TwoFactorEnabled) return;
+        if (options.Value.RequireTwoFactor) throw new PiranhaCommerceConflictException("Two-factor sign-in is required for all staff, so it cannot be turned off. To move to a new phone, ask an administrator to reset it.");
         await RequireCodeAsync(user, code);
         await TurnOffAsync(user);
+        permissions.Invalidate();
         await RecordAsync(user, "two-factor turned off", "TwoFactor", "On", "Off", ct);
     }
 
