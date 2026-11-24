@@ -16,6 +16,8 @@ The names Piranha Commerce uses. Check new names against this list before adding
 | Shipment | **Fulfillment**, **Parcel** | |
 | Vendor / manufacturer | **Supplier**, **Brand** | |
 | Product attributes | **Variant**, **VariantAxis**, **VariantValue** | |
+| Product facts shoppers compare / filter by | **SpecAttribute**, **SpecValue** | Fixed lists, unlike tags. |
+| Free-form product labels | **Tag** | Made as they are used. |
 | Content pages | **Page** | |
 | Extension point in the admin | **Slot** (`AdminSlots`) | |
 | Plugin dependencies | **Requires** | |
