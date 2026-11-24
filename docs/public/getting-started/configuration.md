@@ -24,7 +24,7 @@ Each package reads one section under `PiranhaCommerce:`.
 | `PiranhaCommerce:Images` | Catalog | `MaxBytes`, `MaxPerProduct`, and the `Sizes` made at upload. |
 | `PiranhaCommerce:Stock` | Catalog | `AllowSameUserToReceive` for stock transfers. |
 | `PiranhaCommerce:Storage:LocalDisk` | Storage.LocalDisk | `Path` of the folder for uploaded files (default `App_Data/files`). |
-| `PiranhaCommerce:Storage:AzureBlob` | Storage.AzureBlob | `ConnectionString` or `AccountUri`, and `Container`. |
+| `PiranhaCommerce:Storage:AzureBlob` | Storage.AzureBlob | `ConnectionString` or `AccountUri`, and `Container` (default `piranhacommerce-files`). |
 | `PiranhaCommerce:Email:Smtp` | Email.Smtp | `Host`, `Port`, `Security`, `Username`, `Password`, `FromAddress`, `FromName`, `ReplyToAddress`. See [Email](../guides/email.md). |
 | `PiranhaCommerce:Stripe` | Payments.Stripe | `SecretKey`, `WebhookSecret`, `SuccessUrl`, `CancelUrl`. See [Payments](../guides/payments.md). |
 | `PiranhaCommerce:Webhooks` | Webhooks | `PollSeconds`, `MaxAttempts`, `RetentionDays`. See [Reports, webhooks and audit](../guides/operations.md). |

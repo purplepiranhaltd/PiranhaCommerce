@@ -20,7 +20,7 @@ public sealed class AzureBlobOptions
     public string? AccountUri { get; set; }
 
     /// <summary>The container files go in. It is created if it is missing and the identity may create it. Keep it private: pictures are served through the API.</summary>
-    public string Container { get; set; } = "piranha-files";
+    public string Container { get; set; } = "piranhacommerce-files";
 }
 
 /// <summary>Keeps each file as a block blob named by its key, in one private container.</summary>
