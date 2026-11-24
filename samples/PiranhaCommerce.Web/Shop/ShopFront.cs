@@ -42,6 +42,9 @@ public sealed class ShopFront(
     /// <summary>The filters still available for this listing, with counts.</summary>
     public Task<IReadOnlyList<ShopFacetDto>> FacetsAsync(ShopProductQuery query) => InTurn(async () => await catalogue.FacetsAsync(query));
 
+    /// <summary>The tags that have products on sale, for the "Browse by tag" row.</summary>
+    public Task<IReadOnlyList<ShopTagDto>> TagsAsync() => InTurn(async () => await catalogue.TagsAsync());
+
     /// <summary>The brands on sale (for a brand's own heading and description).</summary>
     public Task<IReadOnlyList<ShopBrandDto>> BrandsAsync() => InTurn(async () => await catalogue.BrandsAsync());
 

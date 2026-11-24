@@ -115,6 +115,40 @@ public class ShopPagesTests(PiranhaFactory factory) : IClassFixture<PiranhaFacto
     }
 
     [Fact]
+    public async Task The_shop_browses_by_tag_with_a_row_of_tags_a_heading_and_tag_links_on_each_product()
+    {
+        if (PiranhaFactory.UsesSharedDatabase) return;
+        var shop = await SeededShopAsync();
+
+        var all = await Page(shop, "/shop");
+        Assert.Contains("Browse by tag", all);
+        Assert.Contains("href=\"/shop?tag=bestseller\"", all);
+
+        var bestsellers = await Page(shop, "/shop?tag=bestseller");
+        Assert.Contains("Tagged: Bestseller", bestsellers);
+        Assert.Contains("Velvet Matte Lipstick", bestsellers);
+        Assert.Contains("Daily Moisture Cream", bestsellers);
+        Assert.DoesNotContain("Vitamin C Serum", bestsellers);                    // that one is "New in"
+        Assert.Contains("name=\"tag\" value=\"bestseller\"", bestsellers);       // the filter form keeps the tag when you change the sort
+
+        var either = await Page(shop, "/shop?tag=bestseller&tag=new-in");
+        Assert.Contains("Vitamin C Serum", either);
+        Assert.Contains("Velvet Matte Lipstick", either);
+        Assert.DoesNotContain("Gentle Cream Cleanser", either);
+
+        // The product page links to each of its tags, and searching finds a tag's name.
+        var product = await Page(shop, "/product/velvet-matte-lipstick");
+        Assert.Contains("href=\"/shop?tag=long-wearing\"", product);
+        Assert.Contains("Gift idea", product);
+        var found = await Page(shop, "/search?q=long-wearing");
+        Assert.Contains("Velvet Matte Lipstick", found);
+        Assert.Contains("Skin Glow Foundation", found);
+        Assert.DoesNotContain("Vitamin C Serum", found);
+
+        Assert.Contains("Nothing found", await Page(shop, "/shop?tag=no-such-tag"));
+    }
+
+    [Fact]
     public async Task A_product_page_shows_shades_the_chosen_shade_its_price_with_vat_and_what_is_sold_out()
     {
         if (PiranhaFactory.UsesSharedDatabase) return;

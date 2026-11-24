@@ -36,6 +36,17 @@ A specification is a fact about a product with a fixed list of answers: **Finish
 - A variant has no specifications of its own. It shows its parent's, and setting some on a variant is refused.
 - They are in the CSV import and export as the `specs` column (see Import and export).
 
+## Tags
+
+A tag is a free-form label on a product: **Summer**, **Gift idea**, **Bestseller**. Where a specification is a fixed list ("Finish" can only be Matte, Satin or Glossy), a tag has no list: naming one on a product makes it when it is new. Use tags for the loose, changing groupings a shop wants to browse by; use specifications for facts shoppers compare.
+
+- Staff add them on the product's edit page (a comma-separated box, with the existing tags to pick from), or `PUT /products/{id}/tags` with `{ "tags": ["Summer", "Gift idea"] }`. A PUT replaces the product's whole set. `GET /products/{id}/tags` reads it.
+- Names are matched in any letter case ("summer" is "Summer"), trimmed, and up to 50 characters. A product can have up to 50.
+- Every tag has a `slug`, made from its name unless you give one in Catalog > Tags (or `POST /tags`). A name that would give the same slug as a different tag is refused, so nothing is made by accident.
+- `GET /tags` lists every tag with its `productCount`. `PUT /tags/{id}` renames a tag on every product that has it (leave the slug out and it follows the name). `DELETE /tags/{id}` takes the label off every product and removes it: unlike a brand, a tag in use can be deleted, because it is only a label.
+- A variant has no tags of its own. It shows its parent's, and setting some on a variant is refused.
+- They are in the CSV import and export as the `tags` column (see Import and export).
+
 ## Slugs and page text
 
 Products and categories have a **slug** (lower-case letters, digits and single hyphens; unique; lower-cased for you), a `metaTitle` and a `metaDescription`. A shop front that routes by address uses `GET /products/by-slug/{slug}` and `GET /categories/by-slug/{slug}`.
@@ -134,13 +145,15 @@ Catalogue data moves in and out as CSV: `GET /products/export?search=` and `POST
 
 One row per product. The columns are:
 
-`id, sku, parent_id, parent_sku, name, description, price, slug, meta_title, meta_description, categories, brand, specs, barcodes, stock, option1_name, option1_value`, and the same pair for options 2 and 3.
+`id, sku, parent_id, parent_sku, name, description, price, slug, meta_title, meta_description, categories, brand, specs, tags, barcodes, stock, option1_name, option1_value`, and the same pair for options 2 and 3.
 
 The online store adds `published, tax_class, weight_grams`. A package adds its own columns with `IProductImportExtension`. A column the importer does not know refuses the file.
 
 The `brand` cell holds a brand's name. A name that matches an existing brand in any letter case uses it; a new name makes the brand. A blank cell leaves the product's brand alone and `[clear]` removes it. A variant row must leave it blank, because a variant uses its parent's brand.
 
 The `specs` cell lists a product's answers as `Attribute: Value` entries joined by `|`, for example `Finish: Matte | Finish: Satin | Skin type: Dry` (names in any letter case; the first colon splits attribute from value). A blank cell leaves them alone, a list replaces the product's whole set and `[clear]` removes them all. Unlike brands, **the import never makes a specification**: attributes and values are a fixed list, so an unknown one fails that row. Create them first in Catalog > Specifications. A variant row must leave the cell blank, because a variant uses its parent's.
+
+The `tags` cell lists tag names joined by `|`, for example `Summer | Gift idea`. A blank cell leaves a product's tags alone, a list replaces the whole set and `[clear]` removes them all. Like brands, and unlike specifications, **the import makes a tag the file names when it is new**, since tags have no fixed list. A variant row must leave the cell blank.
 
 ### How rows are read
 

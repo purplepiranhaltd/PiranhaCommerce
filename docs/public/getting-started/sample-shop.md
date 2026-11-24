@@ -11,7 +11,7 @@ The sample host (`samples/PiranhaCommerce.Web`) is a working shop as well as an 
 | Page | Address | Shows |
 |---|---|---|
 | Home | `/` | Categories, what is on sale, newest products |
-| Listing | `/shop`, `/shop/{category}` | A category with its sub-categories, sorted, filtered to what is in stock, by brand and by specification such as finish, coverage, skin type or vegan (checkboxes with counts, no JavaScript), paged. A single brand (`/shop?brand=petalwick`) gets its own heading and description |
+| Listing | `/shop`, `/shop/{category}` | A category with its sub-categories, sorted, filtered to what is in stock, by brand and by specification such as finish, coverage, skin type or vegan (checkboxes with counts, no JavaScript), paged. A "Browse by tag" row of links (`/shop?tag=bestseller`) shows the tags that have products, the page for a single tag is headed "Tagged: Bestseller", and each product page links to its tags. The search box finds tag names too. A single brand (`/shop?brand=petalwick`) gets its own heading and description |
 | Search | `/search?q=...` | Products matching every word |
 | Product | `/product/{slug}` | Pictures, price with VAT, sale and quantity prices, a picker for shades or sizes (`?variant=...`), stock, reviews and a form to write one, a wishlist button, "Tell me when it is back" on a sold-out shade, suggestions and an Add to basket form |
 | Basket | `/basket` | Lines with their prices (VAT and any code included), quantity changes, removal and a promo code |

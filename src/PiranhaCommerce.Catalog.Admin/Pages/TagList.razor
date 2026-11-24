@@ -1,0 +1,118 @@
+@page "/admin/catalog/tags"
+@inject AdminScopeRunner Scope
+
+<PageTitle>Tags - Piranha Commerce</PageTitle>
+<h1>Tags</h1>
+<p class="pc-muted">Free-form labels on products, such as Summer or Gift idea. Add them on a product's edit page: a name that is new makes the tag. Shoppers can browse by tag. Renaming a tag changes it on every product; deleting one only takes the label off.</p>
+
+@if (_error is not null)
+{
+    <p class="pc-error" role="alert">@_error</p>
+}
+
+<div class="pc-card">
+    <h2 style="margin-top:0">@(_editingId is null ? "New tag" : "Edit tag")</h2>
+    <div class="pc-toolbar">
+        <input aria-label="Tag name" placeholder="Name" maxlength="50" @bind="_input.Name" />
+        <input aria-label="Slug" placeholder="Slug (made from the name if empty)" @bind="_input.Slug" />
+        <button @onclick="SaveAsync" disabled="@_saving">@(_editingId is null ? "Add" : "Save")</button>
+        @if (_editingId is not null)
+        {
+            <button class="secondary" @onclick="ResetForm">Cancel</button>
+        }
+    </div>
+</div>
+
+@if (_loading)
+{
+    <p class="pc-muted">Loading...</p>
+}
+else if (_tags.Count == 0)
+{
+    <p class="pc-muted">No tags yet.</p>
+}
+else
+{
+    <table class="pc-table">
+        <thead><tr><th>Name</th><th>Slug</th><th class="num">Products</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var t in _tags)
+        {
+            <tr>
+                <td>@t.Name</td>
+                <td>@t.Slug</td>
+                <td class="num">@t.ProductCount</td>
+                <td class="actions">
+                    <button class="secondary" @onclick="() => Edit(t)">Edit</button>
+                    @if (_confirmDelete == t.Id)
+                    {
+                        <button class="danger" @onclick="() => DeleteAsync(t.Id)">Confirm delete@(t.ProductCount > 0 ? $" (off {t.ProductCount} products)" : "")</button>
+                        <button class="secondary" @onclick="() => _confirmDelete = null">Cancel</button>
+                    }
+                    else
+                    {
+                        <button class="secondary" @onclick="() => _confirmDelete = t.Id">Delete</button>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IReadOnlyList<TagDto> _tags = [];
+    private TagInput _input = new();
+    private Guid? _editingId, _confirmDelete;
+    private bool _loading = true, _saving;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try { _tags = await Scope.RunAsync<ITagService, IReadOnlyList<TagDto>>(s => s.ListAsync()); }
+        catch (Exception ex) { _error = "Could not load tags: " + ex.Message; }
+        _loading = false;
+    }
+
+    private void Edit(TagDto t) { _editingId = t.Id; _input = new TagInput { Name = t.Name, Slug = t.Slug }; }
+
+    private void ResetForm() { _editingId = null; _input = new(); }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            if (_editingId is { } id)
+            {
+                var updated = await Scope.RunAsync<ITagService, TagDto?>(s => s.UpdateAsync(id, _input));
+                if (updated is null) _error = "That tag no longer exists.";
+            }
+            else
+            {
+                await Scope.RunAsync<ITagService, TagDto>(s => s.CreateAsync(_input));
+            }
+            if (_error is null) ResetForm();
+            await LoadAsync();
+        }
+        catch (PiranhaValidationException ex) { _error = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _error = "Could not save: " + ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        _confirmDelete = null;
+        _error = null;
+        try
+        {
+            await Scope.RunAsync<ITagService, bool>(s => s.DeleteAsync(id));
+            if (_editingId == id) ResetForm();
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = "Could not delete: " + ex.Message; }
+    }
+}

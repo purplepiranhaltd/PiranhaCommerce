@@ -1,0 +1,86 @@
+@* Panel for AdminSlots.ProductEditPanels. Saves independently of the product form. *@
+@inject AdminScopeRunner Scope
+
+<div class="pc-card" style="margin-top:1rem">
+    <h2 style="margin-top:0">Tags</h2>
+    @if (_loading)
+    {
+        <p class="pc-muted">Loading...</p>
+    }
+    else if (_inherited)
+    {
+        <p class="pc-muted">This is a variant, so it shows its parent product's tags. Change them on the parent.</p>
+    }
+    else
+    {
+        <div class="pc-toolbar">
+            <input aria-label="Tags" placeholder="Tags, separated by commas" maxlength="2000" style="min-width:20rem" @bind="_text" />
+            <button type="button" @onclick="SaveAsync" disabled="@_saving">Save tags</button>
+            @if (_message is not null)
+            {
+                <span class="pc-muted" role="status">@_message</span>
+            }
+        </div>
+        @if (_others.Count > 0)
+        {
+            <p class="pc-muted" style="margin-bottom:0">Existing tags:
+                @foreach (var t in _others)
+                {
+                    <button type="button" class="secondary" style="margin:.15rem" @onclick="() => Add(t)">@t</button>
+                }
+            </p>
+        }
+        <p class="pc-muted">A name that does not exist yet makes a new tag. <a href="/admin/catalog/tags">Manage all tags</a>.</p>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Guid ProductId { get; set; }
+
+    private string _text = "";
+    private List<string> _all = [];
+    private bool _loading = true, _saving, _inherited;
+    private string? _message;
+    private Guid _loadedFor;
+
+    private List<string> Current => Split(_text);
+    private List<string> _others => _all.Where(a => !Current.Contains(a, StringComparer.OrdinalIgnoreCase)).ToList();
+
+    private static List<string> Split(string text) =>
+        text.Split([',', ';', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedFor == ProductId) return;
+        _loadedFor = ProductId;
+        _loading = true;
+        _message = null;
+        _all = (await Scope.RunAsync<ITagService, IReadOnlyList<TagDto>>(s => s.ListAsync())).Select(t => t.Name).ToList();
+        var current = await Scope.RunAsync<ITagService, ProductTagsDto?>(s => s.GetProductAsync(ProductId));
+        _inherited = current?.Inherited == true;
+        _text = string.Join(", ", current?.Tags.Select(t => t.Name) ?? []);
+        _loading = false;
+    }
+
+    private void Add(string name) => _text = string.Join(", ", [.. Current, name]);
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            var names = Current;
+            var r = await Scope.RunAsync<ITagService, ProductTagsDto?>(s => s.SetProductAsync(ProductId, names));
+            if (r is null) _message = "Product no longer exists.";
+            else
+            {
+                _text = string.Join(", ", r.Tags.Select(t => t.Name));
+                _all = (await Scope.RunAsync<ITagService, IReadOnlyList<TagDto>>(s => s.ListAsync())).Select(t => t.Name).ToList();
+                _message = "Saved.";
+            }
+        }
+        catch (PiranhaCommerce.Core.Validation.PiranhaValidationException ex) { _message = string.Join(" ", ex.Errors.SelectMany(e => e.Value)); }
+        catch (Exception ex) { _message = "Could not save: " + ex.Message; }
+        finally { _saving = false; }
+    }
+}

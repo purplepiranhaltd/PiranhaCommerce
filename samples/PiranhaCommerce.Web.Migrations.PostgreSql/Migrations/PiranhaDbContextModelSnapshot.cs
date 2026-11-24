@@ -495,6 +495,21 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.ToTable("ProductSpecValue", "catalog");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Catalog.ProductTag", b =>
+                {
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TagId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ProductId", "TagId");
+
+                    b.HasIndex("TagId");
+
+                    b.ToTable("ProductTag", "catalog");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Catalog.ProductVariant", b =>
                 {
                     b.Property<Guid>("ProductId")
@@ -849,6 +864,44 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                     b.HasIndex("ProductId");
 
                     b.ToTable("StockTransferLine", "catalog");
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Catalog.Tag", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset?>("UpdatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NormalizedName")
+                        .IsUnique();
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("Tag", "catalog");
                 });
 
             modelBuilder.Entity("PiranhaCommerce.Core.Identity.PiranhaRole", b =>
@@ -3200,6 +3253,21 @@ namespace PiranhaCommerce.Web.Migrations.PostgreSql.Migrations
                         .WithMany()
                         .HasForeignKey("ValueId")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Catalog.ProductTag", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Catalog.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PiranhaCommerce.Catalog.Tag", null)
+                        .WithMany()
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

@@ -110,6 +110,27 @@ internal static class SampleCatalogue
         new("fern-and-ash", "Fern & Ash", "Gentle, simple skincare."),
     ];
 
+    /// <summary>Free-form labels, by product slug. Unlike specifications they are not a fixed list: the seeder makes each name the first time it is used.</summary>
+    public static readonly IReadOnlyDictionary<string, string[]> TagsOf = new Dictionary<string, string[]>
+    {
+        ["velvet-matte-lipstick"] = ["Bestseller", "Long-wearing", "Gift idea"],
+        ["satin-cream-lipstick"] = ["Everyday essentials"],
+        ["hydra-shine-lip-gloss"] = ["Summer", "Gift idea"],
+        ["precision-lip-liner"] = ["Long-wearing"],
+        ["lash-lift-mascara"] = ["Bestseller", "Everyday essentials"],
+        ["sunset-eyeshadow-palette"] = ["New in", "Summer", "Gift idea"],
+        ["smoky-nights-eyeshadow-palette"] = ["Gift idea"],
+        ["rose-quartz-eyeshadow-palette"] = ["New in", "Gift idea"],
+        ["skin-glow-foundation"] = ["Long-wearing"],
+        ["cheek-bloom-blush"] = ["Summer"],
+        ["luminous-highlighter"] = ["New in", "Summer"],
+        ["gentle-cream-cleanser"] = ["Everyday essentials"],
+        ["daily-moisture-cream"] = ["Bestseller", "Everyday essentials"],
+        ["vitamin-c-serum"] = ["New in"],
+        ["spf-30-daily-fluid"] = ["Summer", "Everyday essentials"],
+        ["everyday-lip-trio-gift-set"] = ["Gift idea", "Bestseller"],
+    };
+
     /// <summary>The facts the shop records about products: each with its fixed list of answers. Shoppers filter by those marked filterable.</summary>
     public sealed record SampleSpec(string Name, bool Filterable, params string[] Values);
 

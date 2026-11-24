@@ -42,6 +42,10 @@ else
             <div class="info">
                 @if (_product.Brand is { } brand) { <p class="brand"><a href="/shop?brand=@Uri.EscapeDataString(brand.Slug ?? brand.Id.ToString())">@brand.Name</a></p> }
                 <h1>@_product.Name</h1>
+                @if (_product.Tags is { Count: > 0 } productTags)
+                {
+                    <p class="tag-row">@foreach (var t in productTags) { <a class="chip" href="/shop?tag=@Uri.EscapeDataString(t.Slug)">@t.Name</a> }</p>
+                }
                 @if (_product.Reviews.Count > 0)
                 {
                     <p class="rating"><span aria-hidden="true">@Money.Stars(_product.Reviews.Average)</span>

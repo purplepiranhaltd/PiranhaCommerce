@@ -53,6 +53,7 @@ public sealed class SampleDataSeeder(
 
         await SeedBrandsAsync(sp, productIds, ct);
         await SeedSpecsAsync(sp, productIds, ct);
+        await SeedTagsAsync(sp, productIds, ct);
         await SeedRelationsAsync(sp, productIds, ct);
         await SeedStoreSettingsAsync(sp, categoryIds, ct);
         await SeedShoppersAndReviewsAsync(sp, productIds, ct);
@@ -154,6 +155,15 @@ public sealed class SampleDataSeeder(
         foreach (var (productSlug, answers) in SampleCatalogue.SpecsOf)
             if (ids.TryGetValue(productSlug, out var productId) && (await specs.GetProductAsync(productId, ct))?.ValueIds.Count == 0)
                 await specs.SetProductAsync(productId, answers.SelectMany(a => a.Values.Select(v => valueIds[(a.Attribute, v)])).ToList(), ct);
+    }
+
+    /// <summary>Gives each product its tags unless it already has some (so staff changes, and a second run, are left alone). A name that is new makes the tag.</summary>
+    private static async Task SeedTagsAsync(IServiceProvider sp, Dictionary<string, Guid> ids, CancellationToken ct)
+    {
+        var tags = sp.GetRequiredService<ITagService>();
+        foreach (var (productSlug, names) in SampleCatalogue.TagsOf)
+            if (ids.TryGetValue(productSlug, out var productId) && (await tags.GetProductAsync(productId, ct))?.Tags.Count == 0)
+                await tags.SetProductAsync(productId, names, ct);
     }
 
     private static async Task SeedRelationsAsync(IServiceProvider sp, Dictionary<string, Guid> ids, CancellationToken ct)

@@ -84,6 +84,25 @@ internal sealed class CatalogModelContributor : IModelContributor
             e.HasIndex(l => l.ValueId);
         });
 
+        b.Entity<Tag>(e =>
+        {
+            e.ToTable("Tag", Schema);
+            e.Property(x => x.Name).HasMaxLength(50).IsRequired();
+            e.Property(x => x.NormalizedName).HasMaxLength(50).IsRequired();
+            e.Property(x => x.Slug).HasMaxLength(200).IsRequired();
+            e.HasIndex(x => x.NormalizedName).IsUnique();
+            e.HasIndex(x => x.Slug).IsUnique();
+        });
+
+        b.Entity<ProductTag>(e =>
+        {
+            e.ToTable("ProductTag", Schema);
+            e.HasKey(l => new { l.ProductId, l.TagId });
+            e.HasOne<Product>().WithMany().HasForeignKey(l => l.ProductId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Tag>().WithMany().HasForeignKey(l => l.TagId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(l => l.TagId);
+        });
+
         b.Entity<ProductCategory>(e =>
         {
             e.ToTable("ProductCategory", Schema);

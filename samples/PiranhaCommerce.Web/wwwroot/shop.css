@@ -146,3 +146,8 @@ form.inline { display: inline; }
 .specs td { padding: .25rem 0; }
 
 .shop-reply { margin: .4rem 0 0 1rem; padding: .5rem .8rem; border-left: 3px solid var(--line); background: var(--card); font-size: .92rem; }
+
+.tag-row { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin: .5rem 0; }
+a.chip { text-decoration: none; color: inherit; }
+a.chip:hover, a.chip.on { border-color: var(--ink, currentColor); }
+a.chip.on { font-weight: 600; }

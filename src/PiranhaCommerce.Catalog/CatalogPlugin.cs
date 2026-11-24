@@ -23,6 +23,8 @@ public sealed class CatalogPlugin : IPiranhaPlugin
         services.AddSingleton<IApiEndpointContributor, BrandApiEndpoints>();
         services.AddScoped<ISpecificationService, SpecificationService>();
         services.AddSingleton<IApiEndpointContributor, SpecificationApiEndpoints>();
+        services.AddScoped<ITagService, TagService>();
+        services.AddSingleton<IApiEndpointContributor, TagApiEndpoints>();
         services.AddScoped<IStockService, StockService>();
         services.AddScoped<IStockLocationService, StockLocationService>();
         services.AddOptions<StockOptions>().BindConfiguration(StockOptions.SectionName);

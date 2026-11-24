@@ -13,7 +13,7 @@ Paths below start at `/api/v1/storefront`.
 | Page | API | Service |
 |---|---|---|
 | Menu | `GET /categories` | `IShopCatalogueService` |
-| Listing and search | `GET /products?category=...&q=...&sort=...&inStock=true&brand=...&spec=finish:matte&page=2` | `IShopCatalogueService` |
+| Listing and search | `GET /products?category=...&q=...&sort=...&inStock=true&brand=...&spec=finish:matte&tag=summer&page=2` | `IShopCatalogueService` |
 | Filter checkboxes with counts | `GET /products/facets` (same query as the listing) | `IShopCatalogueService` |
 | Product | `GET /products/by-slug/{slug}` | `IShopCatalogueService` |
 | "You may also like" | `GET /products/{id}/suggestions` | `IProductRelationService` |

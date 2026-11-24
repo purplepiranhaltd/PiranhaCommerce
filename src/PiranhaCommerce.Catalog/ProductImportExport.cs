@@ -74,6 +74,7 @@ internal sealed class CatalogTransferService(
     ICategoryService categories,
     IBrandService brands,
     ISpecificationService specifications,
+    ITagService tags,
     IBarcodeService barcodes,
     IProductVariantService variants,
     IStockService stock,
@@ -108,7 +109,7 @@ internal sealed class CatalogTransferService(
     }
     private static readonly string[] CoreColumns =
     [
-        "id", "sku", "parent_id", "parent_sku", "name", "description", "price", "slug", "meta_title", "meta_description", "categories", "brand", "specs", "barcodes", "stock",
+        "id", "sku", "parent_id", "parent_sku", "name", "description", "price", "slug", "meta_title", "meta_description", "categories", "brand", "specs", "tags", "barcodes", "stock",
         "option1_name", "option1_value", "option2_name", "option2_value", "option3_name", "option3_value",
     ];
 
@@ -158,6 +159,7 @@ internal sealed class CatalogTransferService(
                 .GroupBy(c => c.ProductId).ToDictionary(g => g.Key, g => g.Select(c => PathOf(c.CategoryId)).Where(p => p.Length > 0).Order().ToList());
             var brandNames = await brands.NamesForProductsAsync(ids.Where(i => !parentOf.ContainsKey(i)).ToList(), ct); // a variant row leaves it blank: it shows its parent's
             var specLabels = await specifications.LabelsForProductsAsync(ids.Where(i => !parentOf.ContainsKey(i)).ToList(), ct); // blank on a variant row too
+            var tagNames = await tags.NamesForProductsAsync(ids.Where(i => !parentOf.ContainsKey(i)).ToList(), ct); // blank on a variant row too
             var codes = (await db.Set<ProductBarcode>().AsNoTracking().Where(b => ids.Contains(b.ProductId)).ToListAsync(ct))
                 .GroupBy(b => b.ProductId).ToDictionary(g => g.Key, g => g.Select(b => b.Code).Order().ToList());
             var levels = await db.Set<StockLevel>().AsNoTracking().Where(l => ids.Contains(l.ProductId) && l.LocationId == StockLocations.DefaultId).ToDictionaryAsync(l => l.ProductId, l => l.Quantity, ct);
@@ -180,7 +182,7 @@ internal sealed class CatalogTransferService(
                 {
                     p.Id.ToString(), Csv.Protect(p.Sku), variantOf.TryGetValue(id, out var parent) ? parent.ToString() : null, parents.GetValueOrDefault(parent) is { } ps ? Csv.Protect(ps) : null,
                     Csv.Protect(p.Name), Csv.Protect(p.Description), p.Price.ToString("0.####", CultureInfo.InvariantCulture), p.Slug, Csv.Protect(p.MetaTitle), Csv.Protect(p.MetaDescription),
-                    Csv.Protect(string.Join(" | ", cats.GetValueOrDefault(id) ?? [])), Csv.Protect(brandNames.GetValueOrDefault(id)), Csv.Protect(string.Join(" | ", specLabels.GetValueOrDefault(id) ?? [])), Csv.Protect(string.Join(" | ", codes.GetValueOrDefault(id) ?? [])),
+                    Csv.Protect(string.Join(" | ", cats.GetValueOrDefault(id) ?? [])), Csv.Protect(brandNames.GetValueOrDefault(id)), Csv.Protect(string.Join(" | ", specLabels.GetValueOrDefault(id) ?? [])), Csv.Protect(string.Join(" | ", tagNames.GetValueOrDefault(id) ?? [])), Csv.Protect(string.Join(" | ", codes.GetValueOrDefault(id) ?? [])),
                     levels.TryGetValue(id, out var q) ? q.ToString("0.####", CultureInfo.InvariantCulture) : null,
                 };
                 var values = perVariant.GetValueOrDefault(id) ?? [];
@@ -419,6 +421,13 @@ internal sealed class CatalogTransferService(
             if (row.IsVariant || await variants.GetAsync(productId, ct) is { ParentProductId: not null })
                 throw new RowProblem("A variant has no specifications of its own: it uses its parent's.");
             await specifications.SetProductAsync(productId, await SpecValueIdsAsync(row.Get("specs"), ct), ct);
+        }
+        if (row.Has("tags"))
+        {
+            if (row.IsVariant || await variants.GetAsync(productId, ct) is { ParentProductId: not null })
+                throw new RowProblem("A variant has no tags of its own: it uses its parent's.");
+            var names = (row.Get("tags") ?? "").Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            await tags.SetProductAsync(productId, names, ct); // a tag the file names is made when missing, like a brand
         }
         if (row.Has("barcodes"))
         {

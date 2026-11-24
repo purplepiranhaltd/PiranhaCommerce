@@ -30,8 +30,20 @@
             </ul>
         }
 
+        @if (_tags.Count > 0 && Category is null)
+        {
+            <p class="tag-row"><span class="muted">Browse by tag:</span>
+                @foreach (var t in _tags)
+                {
+                    var on = TagKeys?.Contains(t.Slug, StringComparer.OrdinalIgnoreCase) == true;
+                    <a class="chip@(on ? " on" : "")" href="@(on ? Path : Path + "?tag=" + Uri.EscapeDataString(t.Slug))" aria-current="@(on ? "true" : null)">@t.Name <span class="muted">(@t.ProductCount)</span></a>
+                }
+            </p>
+        }
+
         <form class="filters" method="get" action="@Path">
             @if (!string.IsNullOrWhiteSpace(Q)) { <input type="hidden" name="q" value="@Q" /> }
+            @foreach (var t in TagKeys ?? []) { <input type="hidden" name="tag" value="@t" /> }
             <label>Sort by
                 <select name="sort">
                     <option value="Name" selected="@(SortKey == ShopSort.Name)">Name</option>
@@ -89,6 +101,7 @@
     [SupplyParameterFromQuery(Name = "q")] private string? Q { get; set; }
     [SupplyParameterFromQuery(Name = "brand")] private string[]? BrandKeys { get; set; }
     [SupplyParameterFromQuery(Name = "spec")] private string[]? SpecKeys { get; set; }
+    [SupplyParameterFromQuery(Name = "tag")] private string[]? TagKeys { get; set; }
     [SupplyParameterFromQuery(Name = "sort")] private string? Sort { get; set; }
     [SupplyParameterFromQuery(Name = "stock")] private bool InStock { get; set; }
     [SupplyParameterFromQuery(Name = "page")] private int? PageNumber { get; set; }
@@ -100,13 +113,16 @@
     private bool _missing;
     private IReadOnlyList<ShopFacetDto> _facets = [];
     private ShopBrandDto? _brand;
+    private IReadOnlyList<ShopTagDto> _tags = [];
 
     private ShopSort SortKey => Enum.TryParse<ShopSort>(Sort, true, out var s) ? s : ShopSort.Name;
     private int CurrentPage => Math.Max(1, PageNumber ?? 1);
     private int Pages => _result is null ? 1 : (int)Math.Ceiling(_result.TotalCount / (double)PageSize);
     private string Path => Category is not null ? "/shop/" + Uri.EscapeDataString(Category)
         : Nav.ToBaseRelativePath(Nav.Uri).StartsWith("search", StringComparison.OrdinalIgnoreCase) ? "/search" : "/shop";
-    private string Heading => _current?.Name ?? _brand?.Name ?? (string.IsNullOrWhiteSpace(Q) ? "All products" : $"Search: {Q}");
+    private string? TagHeading => TagKeys is { Length: 1 } one && _tags.FirstOrDefault(t => string.Equals(t.Slug, one[0], StringComparison.OrdinalIgnoreCase)) is { } t ? "Tagged: " + t.Name : null;
+
+    private string Heading => _current?.Name ?? _brand?.Name ?? TagHeading ?? (string.IsNullOrWhiteSpace(Q) ? "All products" : $"Search: {Q}");
 
     protected override async Task OnParametersSetAsync()
     {
@@ -131,12 +147,14 @@
             InStockOnly = InStock,
             Brands = [.. BrandKeys ?? []],
             Specs = [.. SpecKeys ?? []],
+            Tags = [.. TagKeys ?? []],
             Page = CurrentPage,
             PageSize = PageSize,
             CountryCode = Shop.Value.CountryCode,
         };
         _result = await Front.ListAsync(query);
         _facets = await Front.FacetsAsync(query);
+        _tags = await Front.TagsAsync();
 
         // One brand chosen and no category: the page is that brand's, with its name and description.
         _brand = null;
@@ -162,6 +180,7 @@
         if (InStock) query.Add("stock=true");
         foreach (var b in BrandKeys ?? []) query.Add("brand=" + Uri.EscapeDataString(b));
         foreach (var sp in SpecKeys ?? []) query.Add("spec=" + Uri.EscapeDataString(sp));
+        foreach (var t in TagKeys ?? []) query.Add("tag=" + Uri.EscapeDataString(t));
         query.Add("page=" + page);
         return Path + "?" + string.Join('&', query);
     }

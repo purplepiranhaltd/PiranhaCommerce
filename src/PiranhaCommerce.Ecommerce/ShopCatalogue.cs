@@ -44,6 +44,9 @@ public sealed class ShopProductQuery
     /// </summary>
     public List<string> Specs { get; set; } = [];
 
+    /// <summary>Tags by slug. A product matches when it has any of them. Slugs that match no tag are ignored, and when none match, nothing does.</summary>
+    public List<string> Tags { get; set; } = [];
+
     public int? Page { get; set; }
     public int? PageSize { get; set; }
 
@@ -71,6 +74,11 @@ public sealed record ShopFacetValueDto(string Key, string Label, int Count, bool
 /// <param name="Attribute">For a specification facet, the attribute's slug (its values' keys are <c>attribute:value</c>). Empty for the brand facet.</param>
 public sealed record ShopFacetDto(string Key, string Name, IReadOnlyList<ShopFacetValueDto> Values, string? Attribute = null);
 
+public sealed record ShopTagRefDto(string Name, string Slug);
+
+/// <param name="ProductCount">Products on sale that have the tag.</param>
+public sealed record ShopTagDto(Guid Id, string Name, string Slug, int ProductCount);
+
 /// <summary>One line of a product's specification table: an attribute and the values the product has.</summary>
 public sealed record ShopSpecDto(string Name, string Slug, IReadOnlyList<string> Values);
 
@@ -89,7 +97,7 @@ public sealed record ShopVariantDto(
 public sealed record ShopProductDto(
     Guid Id, string Name, string? Sku, string? Slug, string? Description, string? MetaTitle, string? MetaDescription, ShopperPriceDto Price, bool HasVariants,
     bool Available, int? Left, int? MinOrderQuantity, int? MaxOrderQuantity, IReadOnlyList<ShopImageDto> Images, IReadOnlyList<ShopCategoryRefDto> Categories,
-    IReadOnlyList<ProductOptionDto> Options, IReadOnlyList<ShopVariantDto> Variants, ReviewSummaryDto Reviews, Guid? SelectedVariantId = null, ShopBrandRefDto? Brand = null, IReadOnlyList<ShopSpecDto>? Specs = null);
+    IReadOnlyList<ProductOptionDto> Options, IReadOnlyList<ShopVariantDto> Variants, ReviewSummaryDto Reviews, Guid? SelectedVariantId = null, ShopBrandRefDto? Brand = null, IReadOnlyList<ShopSpecDto>? Specs = null, IReadOnlyList<ShopTagRefDto>? Tags = null);
 
 /// <summary>
 /// What a shopper sees of the catalogue: only categories that are switched on and products that are published, with the price this shopper pays
@@ -104,6 +112,9 @@ public interface IShopCatalogueService
 
     /// <summary>Active brands that have products on sale, with how many, by display order then name.</summary>
     Task<IReadOnlyList<ShopBrandDto>> BrandsAsync(CancellationToken ct = default);
+
+    /// <summary>Tags that have products on sale, with how many, by name. Tags are for browsing by link (<c>tag=slug</c>); they are not a filter facet.</summary>
+    Task<IReadOnlyList<ShopTagDto>> TagsAsync(CancellationToken ct = default);
 
     /// <summary>
     /// The filters a shopper can still use on this listing, with how many products each would give. Each facet is counted with every other filter
@@ -258,7 +269,8 @@ internal sealed class ShopCatalogueService(PiranhaDbContext db, IGroupPricingSer
         foreach (var word in (q.Search ?? "").ToLowerInvariant().Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries).Take(8))
         {
             var w = word; // ToLower on both sides: case-insensitive on every provider
-            query = query.Where(p => p.Name.ToLower().Contains(w) || (p.Sku != null && p.Sku.ToLower().Contains(w)) || (p.Description != null && p.Description.ToLower().Contains(w)));
+            query = query.Where(p => p.Name.ToLower().Contains(w) || (p.Sku != null && p.Sku.ToLower().Contains(w)) || (p.Description != null && p.Description.ToLower().Contains(w))
+                || db.Set<ProductTag>().Any(l => l.ProductId == p.Id && db.Set<Tag>().Any(t => t.Id == l.TagId && t.Name.ToLower().Contains(w))));
         }
 
         if (q.MinPrice is { } min) query = query.Where(p => p.Price >= min);
@@ -276,6 +288,14 @@ internal sealed class ShopCatalogueService(PiranhaDbContext db, IGroupPricingSer
             var matching = (await ShownBrandsAsync(ct)).Where(b => wanted.Contains(b.Key.ToLowerInvariant())).Select(b => (Guid?)b.Id).ToList();
             if (matching.Count == 0) return null;
             query = query.Where(p => matching.Contains(p.BrandId));
+        }
+
+        if (q.Tags.Count > 0)
+        {
+            var wanted = q.Tags.Select(t => t.Trim().ToLowerInvariant()).Where(t => t.Length > 0).ToList();
+            var tagIds = await db.Set<Tag>().AsNoTracking().Where(t => wanted.Contains(t.Slug)).Select(t => t.Id).ToListAsync(ct);
+            if (tagIds.Count == 0) return null;
+            query = query.Where(p => db.Set<ProductTag>().Any(l => l.ProductId == p.Id && tagIds.Contains(l.TagId)));
         }
 
         if (q.Specs.Count > 0)
@@ -298,6 +318,15 @@ internal sealed class ShopCatalogueService(PiranhaDbContext db, IGroupPricingSer
         var counts = await Listed().Where(p => p.BrandId != null).GroupBy(p => p.BrandId).Select(g => new { Id = g.Key, N = g.Count() }).ToListAsync(ct);
         var n = counts.ToDictionary(c => c.Id!.Value, c => c.N);
         return (await ShownBrandsAsync(ct)).Where(b => n.ContainsKey(b.Id)).Select(b => new ShopBrandDto(b.Id, b.Name, b.Slug, b.Description, b.MetaTitle, b.MetaDescription, n[b.Id])).ToList();
+    }
+
+    public async Task<IReadOnlyList<ShopTagDto>> TagsAsync(CancellationToken ct = default)
+    {
+        var counts = await Listed().SelectMany(p => db.Set<ProductTag>().Where(l => l.ProductId == p.Id).Select(l => l.TagId)).GroupBy(id => id)
+            .Select(g => new { Id = g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Id, x => x.N, ct);
+        var ids = counts.Keys.ToList();
+        var tags = await db.Set<Tag>().AsNoTracking().Where(t => ids.Contains(t.Id)).OrderBy(t => t.Name).ThenBy(t => t.Id).Select(t => new { t.Id, t.Name, t.Slug }).ToListAsync(ct);
+        return tags.Select(t => new ShopTagDto(t.Id, t.Name, t.Slug, counts[t.Id])).ToList();
     }
 
     public async Task<IReadOnlyList<ShopFacetDto>> FacetsAsync(ShopProductQuery q, CancellationToken ct = default)
@@ -425,8 +454,12 @@ internal sealed class ShopCatalogueService(PiranhaDbContext db, IGroupPricingSer
 
         return new ShopProductDto(id, product.Name, product.Sku, product.Slug, product.Description, product.MetaTitle, product.MetaDescription, price, variants.Count > 0,
             available, left, listing.MinOrderQuantity, listing.MaxOrderQuantity, imageRows.Where(i => i.ProductId == id).Select(Image).ToList(), refs, options, variants, summary, selectedVariant,
-            BrandRef(product.BrandId, (await ShownBrandsAsync(ct)).ToDictionary(b => b.Id)), await SpecsOfAsync(id, ct));
+            BrandRef(product.BrandId, (await ShownBrandsAsync(ct)).ToDictionary(b => b.Id)), await SpecsOfAsync(id, ct), await TagsOfAsync(id, ct));
     }
+
+    private async Task<IReadOnlyList<ShopTagRefDto>> TagsOfAsync(Guid productId, CancellationToken ct) =>
+        await db.Set<ProductTag>().AsNoTracking().Where(l => l.ProductId == productId).Join(db.Set<Tag>(), l => l.TagId, t => t.Id, (l, t) => new { t.Name, t.Slug })
+            .OrderBy(t => t.Name).Select(t => new ShopTagRefDto(t.Name, t.Slug)).ToListAsync(ct);
 
     /// <summary>The product's specification table: each attribute it has values for (filterable or not), by display order.</summary>
     private async Task<IReadOnlyList<ShopSpecDto>> SpecsOfAsync(Guid productId, CancellationToken ct)
@@ -482,21 +515,23 @@ internal sealed class ShopCatalogueEndpoints : IStorefrontEndpointContributor
         // Open to everyone. A shopper who sends their token also sees their own prices (groups); anyone else sees sale and regular prices.
         storefront.MapGet("/categories", async (IShopCatalogueService svc, CancellationToken ct) => Results.Ok(await svc.CategoriesAsync(ct))).AllowAnonymous().WithTags("Storefront catalogue");
 
-        storefront.MapGet("/products", async (Guid? categoryId, string? category, string? q, ShopSort? sort, decimal? minPrice, decimal? maxPrice, bool? inStock, string[]? brand, string[]? spec, int? page, int? pageSize, string? countryCode,
+        storefront.MapGet("/products", async (Guid? categoryId, string? category, string? q, ShopSort? sort, decimal? minPrice, decimal? maxPrice, bool? inStock, string[]? brand, string[]? spec, string[]? tag, int? page, int? pageSize, string? countryCode,
                 ClaimsPrincipal user, IShopCatalogueService svc, CancellationToken ct) =>
             Results.Ok(await svc.ListAsync(new ShopProductQuery
             {
                 CategoryId = categoryId, CategorySlug = category, Search = q, Sort = sort ?? ShopSort.Name, MinPrice = minPrice, MaxPrice = maxPrice,
-                InStockOnly = inStock == true, Brands = [.. brand ?? []], Specs = [.. spec ?? []], Page = page, PageSize = pageSize, CountryCode = countryCode,
+                InStockOnly = inStock == true, Brands = [.. brand ?? []], Specs = [.. spec ?? []], Tags = [.. tag ?? []], Page = page, PageSize = pageSize, CountryCode = countryCode,
             }, user.CustomerId(), ct))).AllowAnonymous().WithTags("Storefront catalogue");
 
         // The filters left for a listing, with counts. Takes the same query values as /products.
-        storefront.MapGet("/products/facets", async (Guid? categoryId, string? category, string? q, decimal? minPrice, decimal? maxPrice, bool? inStock, string[]? brand, string[]? spec,
+        storefront.MapGet("/products/facets", async (Guid? categoryId, string? category, string? q, decimal? minPrice, decimal? maxPrice, bool? inStock, string[]? brand, string[]? spec, string[]? tag,
                 IShopCatalogueService svc, CancellationToken ct) =>
             Results.Ok(await svc.FacetsAsync(new ShopProductQuery
             {
-                CategoryId = categoryId, CategorySlug = category, Search = q, MinPrice = minPrice, MaxPrice = maxPrice, InStockOnly = inStock == true, Brands = [.. brand ?? []], Specs = [.. spec ?? []],
+                CategoryId = categoryId, CategorySlug = category, Search = q, MinPrice = minPrice, MaxPrice = maxPrice, InStockOnly = inStock == true, Brands = [.. brand ?? []], Specs = [.. spec ?? []], Tags = [.. tag ?? []],
             }, ct))).AllowAnonymous().WithTags("Storefront catalogue");
+
+        storefront.MapGet("/tags", async (IShopCatalogueService svc, CancellationToken ct) => Results.Ok(await svc.TagsAsync(ct))).AllowAnonymous().WithTags("Storefront catalogue");
 
         storefront.MapGet("/brands", async (IShopCatalogueService svc, CancellationToken ct) => Results.Ok(await svc.BrandsAsync(ct))).AllowAnonymous().WithTags("Storefront catalogue");
 
