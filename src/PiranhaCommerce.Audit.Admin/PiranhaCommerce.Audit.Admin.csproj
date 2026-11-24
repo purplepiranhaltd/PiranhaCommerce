@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
   <PropertyGroup>
-    <Description>Admin page for the Piranha Commerce audit log.</Description>
+    <Description>Admin page for the PiranhaCommerce audit log.</Description>
   </PropertyGroup>
   <ItemGroup>
     <SupportedPlatform Include="browser" />

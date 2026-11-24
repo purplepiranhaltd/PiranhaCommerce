@@ -1,4 +1,4 @@
-# Piranha Commerce
+# PiranhaCommerce
 
 A commerce engine for .NET, delivered as NuGet packages. Closed source for now; designed so it can be opened later.
 

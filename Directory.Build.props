@@ -7,7 +7,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Authors>Purple Piranha</Authors>
     <Company>Purple Piranha</Company>
-    <Product>Piranha Commerce</Product>
+    <Product>PiranhaCommerce</Product>
     <VersionPrefix>0.1.0</VersionPrefix>
     <VersionSuffix>alpha</VersionSuffix>
     <PackageReadmeFile>README.md</PackageReadmeFile>

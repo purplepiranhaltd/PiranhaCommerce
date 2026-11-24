@@ -1,12 +1,12 @@
 ---
-title: What Piranha Commerce is
+title: What PiranhaCommerce is
 order: 10
 description: What you get, how the pieces fit, and what you build yourself.
 ---
 
-# What Piranha Commerce is
+# What PiranhaCommerce is
 
-Piranha Commerce is a set of NuGet packages, not a hosted service and not a finished web shop. You create an ASP.NET application, reference the packages you need and register them in `Program.cs`. The packages give you:
+PiranhaCommerce is a set of NuGet packages, not a hosted service and not a finished web shop. You create an ASP.NET application, reference the packages you need and register them in `Program.cs`. The packages give you:
 
 - **A catalogue** shared by every sales channel: products, categories, barcodes, pictures, options and variants, stock at several locations.
 - **An online store** layered on it: baskets, guest and signed-in checkout, orders, shipping, tax, promo codes, discounts, sales, gift vouchers, returns and refunds.

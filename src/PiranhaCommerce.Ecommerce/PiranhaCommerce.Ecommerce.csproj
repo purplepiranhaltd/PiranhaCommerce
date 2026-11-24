@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>Online-store layer for Piranha Commerce, built on the shared catalogue.</Description>
+    <Description>Online-store layer for PiranhaCommerce, built on the shared catalogue.</Description>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\PiranhaCommerce.Core\PiranhaCommerce.Core.csproj" />

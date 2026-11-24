@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>Reads and resizes product images for Piranha Commerce with SkiaSharp (MIT licensed).</Description>
+    <Description>Reads and resizes product images for PiranhaCommerce with SkiaSharp (MIT licensed).</Description>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\PiranhaCommerce.Core\PiranhaCommerce.Core.csproj" />

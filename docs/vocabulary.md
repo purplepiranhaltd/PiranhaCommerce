@@ -1,6 +1,6 @@
 # Vocabulary
 
-The names Piranha Commerce uses. Check new names against this list before adding them. Words every merchant already uses
+The names PiranhaCommerce uses. Check new names against this list before adding them. Words every merchant already uses
 (Customer, Order, Checkout, Category, Product) stay; constructs that are specific to another platform get different names.
 
 | Concept | Name used | Notes |

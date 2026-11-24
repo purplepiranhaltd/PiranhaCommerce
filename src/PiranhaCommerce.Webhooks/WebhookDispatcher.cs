@@ -208,7 +208,7 @@ public sealed class WebhookDispatcher(PiranhaDbContext db, IHttpClientFactory ht
     {
         db.ChangeTracker.Clear();
         if (!await db.Set<WebhookEndpoint>().AnyAsync(e => e.Id == endpointId, ct)) return null;
-        var ev = new WebhookEvent { Type = TestType, OccurredUtc = Now, Payload = "{\"message\":\"This is a test from Piranha Commerce.\"}", FannedOut = true };
+        var ev = new WebhookEvent { Type = TestType, OccurredUtc = Now, Payload = "{\"message\":\"This is a test from PiranhaCommerce.\"}", FannedOut = true };
         var now = Now;
         var delivery = new WebhookDelivery
         {

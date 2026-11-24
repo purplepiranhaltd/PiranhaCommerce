@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
   <PropertyGroup>
-    <Description>Online-store settings in the Piranha Commerce admin.</Description>
+    <Description>Online-store settings in the PiranhaCommerce admin.</Description>
   </PropertyGroup>
   <ItemGroup>
     <SupportedPlatform Include="browser" />

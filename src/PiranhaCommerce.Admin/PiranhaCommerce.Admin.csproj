@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
   <PropertyGroup>
-    <Description>Blazor admin shell for Piranha Commerce: login, navigation and slots that plugins contribute to.</Description>
+    <Description>Blazor admin shell for PiranhaCommerce: login, navigation and slots that plugins contribute to.</Description>
   </PropertyGroup>
   <ItemGroup>
     <SupportedPlatform Include="browser" />

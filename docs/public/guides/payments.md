@@ -45,7 +45,7 @@ A payment taken outside any gateway (cash, a bank transfer, a card terminal, a c
 
 ## Stripe
 
-`PiranhaCommerce.Payments.Stripe` (register it with `.AddPlugin<StripePlugin>()`) is the gateway that ships with Piranha Commerce. It uses Stripe Checkout, a page Stripe hosts, so card numbers never touch your server.
+`PiranhaCommerce.Payments.Stripe` (register it with `.AddPlugin<StripePlugin>()`) is the gateway that ships with PiranhaCommerce. It uses Stripe Checkout, a page Stripe hosts, so card numbers never touch your server.
 
 **Settings** under `Piranha:Stripe`: `SecretKey`, `WebhookSecret`, `SuccessUrl` and `CancelUrl` (set by you, never by a caller). Keep the two secrets in user secrets or your host's secret store, never in source control.
 

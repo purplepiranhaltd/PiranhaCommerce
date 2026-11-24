@@ -67,7 +67,7 @@ public class SiteTests(WebApplicationFactory<Program> factory) : IClassFixture<W
         var home = await client.GetAsync("/");
         var html = await home.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, home.StatusCode);
-        Assert.Contains("<h1>Piranha Commerce documentation</h1>", html);
+        Assert.Contains("<h1>PiranhaCommerce documentation</h1>", html);
         Assert.Contains("href=\"/getting-started/installation\"", html);
         Assert.DoesNotContain("href=\"/docs/", html);
 

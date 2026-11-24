@@ -1,9 +1,9 @@
 :root {
   --bg: #f6f7f9; --surface: #fff; --text: #1b1f27; --muted: #5d6675; --line: #dde1e8;
-  --brand: #5b2a86; --brand-text: #fff; --danger: #b3261e; --sidebar: #1f1633; --sidebar-text: #e9e4f2;
+  --brand: #c80f5a; --brand-text: #fff; --danger: #b3261e; --sidebar: #1d1d1b; --sidebar-text: #f0ebe9; --pink: #e61b72; --amber: #f8b133;
 }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #14161b; --surface: #1d2027; --text: #e8eaf0; --muted: #9aa3b2; --line: #2e333d; --brand: #a77bd6; --brand-text: #14161b; --danger: #ff8a80; --sidebar: #0e0a18; }
+  :root { --bg: #14161b; --surface: #1d2027; --text: #e8eaf0; --muted: #9aa3b2; --line: #2e333d; --brand: #ff6aa6; --brand-text: #1d1d1b; --danger: #ff8a80; --sidebar: #100f0e; }
 }
 * { box-sizing: border-box; }
 body { margin: 0; font: 15px/1.5 system-ui, sans-serif; background: var(--bg); color: var(--text); }
@@ -12,7 +12,11 @@ h2 { font-size: 1.1rem; margin: 1.5rem 0 .5rem; }
 a { color: var(--brand); }
 .pc-shell { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
 .pc-sidebar { background: var(--sidebar); color: var(--sidebar-text); padding: 1rem; display: flex; flex-direction: column; gap: 1rem; }
-.pc-brand { color: var(--sidebar-text); font-weight: 700; text-decoration: none; font-size: 1.1rem; }
+.pc-sidebar { border-top: 3px solid var(--pink); }
+.pc-brand { display: flex; align-items: center; gap: .5rem; font-weight: 700; text-decoration: none; font-size: 1.1rem; letter-spacing: -.01em; }
+.pc-brand img { height: 22px; width: auto; display: block; }
+.pc-brand .w1 { color: var(--pink); }
+.pc-brand .w2 { color: var(--amber); }
 .pc-admin-nav .pc-nav-group { display: flex; flex-direction: column; margin-bottom: .75rem; }
 .pc-admin-nav .pc-nav-group > span { text-transform: uppercase; font-size: .72rem; letter-spacing: .06em; opacity: .65; margin-bottom: .25rem; }
 .pc-admin-nav a { color: var(--sidebar-text); text-decoration: none; padding: .3rem .5rem; border-radius: 6px; }
@@ -47,3 +51,5 @@ label input[type=checkbox] { width: auto; margin-right: .4rem; }
 #blazor-error-ui { background: var(--danger); color: #fff; position: fixed; left: 0; right: 0; bottom: 0; padding: .6rem 1.25rem; z-index: 1000; }
 #blazor-error-ui[hidden] { display: none; }
 #blazor-error-ui a { color: #fff; margin-left: .75rem; cursor: pointer; }
+.pc-login-logo { margin: 0 0 .5rem; text-align: center; }
+.pc-login-logo img { height: 48px; width: auto; }

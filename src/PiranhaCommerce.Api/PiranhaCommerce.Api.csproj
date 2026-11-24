@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>REST API plumbing for Piranha Commerce: JWT auth, OpenAPI and endpoint contributors.</Description>
+    <Description>REST API plumbing for PiranhaCommerce: JWT auth, OpenAPI and endpoint contributors.</Description>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

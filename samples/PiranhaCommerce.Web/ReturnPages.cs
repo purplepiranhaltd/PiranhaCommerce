@@ -29,7 +29,7 @@ internal static class ReturnPages
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <meta name="robots" content="noindex">
-          <title>{{title}} - Piranha Commerce sample</title>
+          <title>{{title}} - PiranhaCommerce sample</title>
           <style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:4rem auto;padding:0 1rem;line-height:1.5}</style>
         </head>
         <body>

@@ -1,16 +1,18 @@
 :root {
-    --bg: #ffffff; --bg-soft: #f6f3fa; --text: #1c1726; --muted: #62597a; --line: #e3dcee;
-    --brand: #5b2a86; --brand-strong: #451f68; --accent: #e0467f; --code-bg: #f3eff8; --on-brand: #ffffff;
+    /* From the logo: pink #e61b72, amber #f8b133, ink #1d1d1b. --brand is a slightly deeper pink so links and buttons keep 4.5:1 on white. */
+    --pink: #e61b72; --amber: #f8b133; --ink: #1d1d1b;
+    --bg: #ffffff; --bg-soft: #fff4f8; --text: #1d1d1b; --muted: #615a58; --line: #eadfe3;
+    --brand: #c80f5a; --brand-strong: #a50d4a; --accent: #e61b72; --code-bg: #f7f1f3; --on-brand: #ffffff;
 }
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-        --bg: #15111d; --bg-soft: #1d1729; --text: #ece7f5; --muted: #a79dbd; --line: #322a45;
-        --brand: #b68cf0; --brand-strong: #d3b6ff; --accent: #ff7ab8; --code-bg: #221b31; --on-brand: #15111d;
+        --bg: #161412; --bg-soft: #201c1a; --text: #f3eeec; --muted: #b3aaa6; --line: #38312e;
+        --brand: #ff6aa6; --brand-strong: #ff9ac2; --accent: #f8b133; --code-bg: #26211f; --on-brand: #1d1d1b;
     }
 }
 :root[data-theme="dark"] {
-    --bg: #15111d; --bg-soft: #1d1729; --text: #ece7f5; --muted: #a79dbd; --line: #322a45;
-    --brand: #b68cf0; --brand-strong: #d3b6ff; --accent: #ff7ab8; --code-bg: #221b31; --on-brand: #15111d;
+    --bg: #161412; --bg-soft: #201c1a; --text: #f3eeec; --muted: #b3aaa6; --line: #38312e;
+    --brand: #ff6aa6; --brand-strong: #ff9ac2; --accent: #f8b133; --code-bg: #26211f; --on-brand: #1d1d1b;
 }
 
 * { box-sizing: border-box; }
@@ -25,13 +27,15 @@ pre code { background: none; padding: 0; }
 .container { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
 .container.narrow { max-width: 720px; padding-top: 3rem; padding-bottom: 3rem; }
 
-.site-header { border-bottom: 1px solid var(--line); background: var(--bg); position: sticky; top: 0; z-index: 10; }
+.site-header { border-bottom: 3px solid var(--pink); background: var(--ink); position: sticky; top: 0; z-index: 10; }
 .site-header .bar { display: flex; align-items: center; justify-content: space-between; min-height: 60px; gap: 1rem; flex-wrap: wrap; }
-.brand { font-weight: 700; text-decoration: none; color: var(--text); font-size: 1.1rem; }
-.brand-mark { color: var(--accent); }
+.brand { display: inline-flex; align-items: center; gap: .6rem; font-weight: 700; text-decoration: none; font-size: 1.25rem; letter-spacing: -.01em; }
+.brand img { height: 30px; width: auto; display: block; }
+.brand .w1 { color: var(--pink); }
+.brand .w2 { color: var(--amber); }
 .site-header nav { display: flex; gap: 1.25rem; }
-.site-header nav a { text-decoration: none; color: var(--text); font-weight: 500; }
-.site-header nav a:hover { color: var(--brand); }
+.site-header nav a { text-decoration: none; color: #fff; font-weight: 500; }
+.site-header nav a:hover { color: var(--amber); }
 .site-footer { border-top: 1px solid var(--line); margin-top: 4rem; padding: 2rem 0; color: var(--muted); font-size: .9rem; }
 .site-footer p { margin: .25rem 0; }
 

@@ -4,7 +4,7 @@
 
 @if (_page is null)
 {
-    <PageTitle>Not found - Piranha Commerce docs</PageTitle>
+    <PageTitle>Not found - PiranhaCommerce docs</PageTitle>
     <div class="container docs">
         <DocsSidebar Prefix="@Prefix" Current="" />
         <article class="doc">
@@ -15,7 +15,7 @@
 }
 else
 {
-    <PageTitle>@(_page.Slug.Length == 0 ? _page.Title : _page.Title + " - Piranha Commerce docs")</PageTitle>
+    <PageTitle>@(_page.Slug.Length == 0 ? _page.Title : _page.Title + " - PiranhaCommerce docs")</PageTitle>
     <HeadContent><meta name="description" content="@_page.Description" /></HeadContent>
     <div class="container docs">
         <DocsSidebar Prefix="@Prefix" Current="@_page.Slug" />

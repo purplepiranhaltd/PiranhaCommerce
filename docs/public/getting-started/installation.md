@@ -1,7 +1,7 @@
 ---
 title: Installation
 order: 30
-description: Run the sample shop, then add Piranha Commerce to your own application.
+description: Run the sample shop, then add PiranhaCommerce to your own application.
 ---
 
 # Installation

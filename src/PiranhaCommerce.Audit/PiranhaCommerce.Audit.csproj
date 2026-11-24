@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>Audit log for Piranha Commerce: who created, changed or deleted what, and when, with API.</Description>
+    <Description>Audit log for PiranhaCommerce: who created, changed or deleted what, and when, with API.</Description>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\PiranhaCommerce.Core\PiranhaCommerce.Core.csproj" />

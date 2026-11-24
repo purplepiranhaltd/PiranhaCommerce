@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>Products shared by all Piranha Commerce sales channels, with API.</Description>
+    <Description>Products shared by all PiranhaCommerce sales channels, with API.</Description>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\PiranhaCommerce.Core\PiranhaCommerce.Core.csproj" />

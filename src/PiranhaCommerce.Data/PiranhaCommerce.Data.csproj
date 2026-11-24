@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>EF Core DbContext and model-contribution plumbing for Piranha Commerce.</Description>
+    <Description>EF Core DbContext and model-contribution plumbing for PiranhaCommerce.</Description>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.15" />

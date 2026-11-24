@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>SMTP email sender for Piranha Commerce: password resets, order confirmations and every other platform email, through any SMTP server.</Description>
+    <Description>SMTP email sender for PiranhaCommerce: password resets, order confirmations and every other platform email, through any SMTP server.</Description>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

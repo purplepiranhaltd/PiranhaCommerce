@@ -5,8 +5,8 @@ Things we have agreed need doing but have not built. Each entry records the requ
 ## Gaps compared with nopCommerce (the order we plan to close them)
 
 Last refreshed 24 November 2026 against nopCommerce 4.90 (released October 2025). The nopCommerce side comes from its public feature pages and release write-ups
-(several from third parties), not from running it, so treat the detail as indicative. Piranha is headless: an API and an admin, with a sample shop front but no
-themes or CMS, so storefront and CMS features are out of scope by design. The two differ in kind: nopCommerce is a finished shop you configure, Piranha is the commerce
+(several from third parties), not from running it, so treat the detail as indicative. PiranhaCommerce is headless: an API and an admin, with a sample shop front but no
+themes or CMS, so storefront and CMS features are out of scope by design. The two differ in kind: nopCommerce is a finished shop you configure, PiranhaCommerce is the commerce
 engine you build a shop on. Order of work, each marked built or open:
 
 1. **Product options and variants: built** (see the README), with pictures per variant. Open: a price as an adjustment to the parent, renaming values.
@@ -38,11 +38,11 @@ Also open from the comparison, with where each stands:
 - **Marketing and content:** a newsletter list (nopCommerce 4.90 has several), multiple wishlists per shopper, request-a-quote, and AI help with product text. Blogs, news, polls, forums and themes are out of scope.
 - **Operations:** message queueing with retries, a scheduled task view, search-engine integration (Elasticsearch and the like), and a shared (Redis) rate limiter.
 - **Selling through others:** multi-store and vendors who sign in to manage their own products and orders (item 10).
-- **Ecosystem and accessibility:** nopCommerce has fifteen-plus years in production, a plugin and theme marketplace and a partner network, and 4.90 added accessibility changes for the European Accessibility Act. Piranha has none of these; an accessibility pass on the admin and the sample shop is worth doing.
+- **Ecosystem and accessibility:** nopCommerce has fifteen-plus years in production, a plugin and theme marketplace and a partner network, and 4.90 added accessibility changes for the European Accessibility Act. PiranhaCommerce has none of these; an accessibility pass on the admin and the sample shop is worth doing.
 
-Where Piranha is ahead or different: weighed and fractional stock, locations and transfers with a ledger, low-stock alerts, payment reconciliation and disputes, shopper and staff
+Where PiranhaCommerce is ahead or different: weighed and fractional stock, locations and transfers with a ledger, low-stock alerts, payment reconciliation and disputes, shopper and staff
 privacy tools (export and erasure), reviews with photos, shop replies and helpful votes, an API for everything with signed webhooks and an audit log, specifications with filter
-counts, and plugins as NuGet packages (host-owned migrations) rather than uploaded DLLs. Piranha is closed source; nopCommerce is open source with a paid licence option.
+counts, and plugins as NuGet packages (host-owned migrations) rather than uploaded DLLs. PiranhaCommerce is closed source; nopCommerce is open source with a paid licence option.
 
 ## Stock transfers and staff locations
 

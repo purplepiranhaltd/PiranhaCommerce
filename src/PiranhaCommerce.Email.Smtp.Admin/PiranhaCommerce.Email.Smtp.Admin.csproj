@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Razor">
   <PropertyGroup>
-    <Description>Admin pages for editing the SMTP sender's email templates in Piranha Commerce.</Description>
+    <Description>Admin pages for editing the SMTP sender's email templates in PiranhaCommerce.</Description>
   </PropertyGroup>
   <ItemGroup>
     <SupportedPlatform Include="browser" />
