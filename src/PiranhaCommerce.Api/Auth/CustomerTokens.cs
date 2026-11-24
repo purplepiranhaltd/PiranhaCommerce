@@ -25,7 +25,7 @@ internal sealed class CustomerTokenIssuer(IOptions<PiranhaCommerceJwtOptions> op
     internal static SymmetricSecurityKey GetKey(PiranhaCommerceJwtOptions o)
     {
         var staffKey = JwtTokenService.GetKey(o).Key;
-        return new SymmetricSecurityKey(HMACSHA256.HashData(staffKey, Encoding.UTF8.GetBytes("piranha-commerce/customer-tokens")));
+        return new SymmetricSecurityKey(HMACSHA256.HashData(staffKey, Encoding.UTF8.GetBytes("piranhacommerce/customer-tokens")));
     }
 
     public TokenResponse Issue(Guid customerId, string email, int sessionVersion, Guid? sessionId = null)

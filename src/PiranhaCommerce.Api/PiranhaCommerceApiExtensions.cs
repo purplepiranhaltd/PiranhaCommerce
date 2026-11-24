@@ -28,8 +28,8 @@ public static class ApiPolicies
 
 public static class PiranhaCommerceApiExtensions
 {
-    public const string JwtScheme = "PiranhaJwt";
-    public const string CustomerJwtScheme = "PiranhaCustomerJwt";
+    public const string JwtScheme = "PiranhaCommerceJwt";
+    public const string CustomerJwtScheme = "PiranhaCommerceCustomerJwt";
 
     public static PiranhaCommerceBuilder AddPiranhaCommerceApi(this PiranhaCommerceBuilder builder)
     {
