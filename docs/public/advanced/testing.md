@@ -60,6 +60,11 @@ git push origin v0.1.0-alpha.1
 - The **version is the tag without the `v`**, so `v1.2.0` publishes `1.2.0` and `v1.2.0-beta.1` publishes a prerelease. Every package gets that version, whatever `VersionPrefix` says in `Directory.Build.props`.
 - The workflow first checks that the tagged commit **passed CI**, packs every library, and runs the same consumer-app check as above against the packed files.
 - It then pushes the `.nupkg` files (and their `.snupkg` symbol packages, which let a consumer step into the source) to nuget.org and creates a GitHub release with the packages attached. A version with a `-label` is marked as a prerelease.
-- **One-off setup:** add a nuget.org API key as the repository secret `NUGET_API_KEY` (allowed to push `PiranhaCommerce.*`). Reserve the `PiranhaCommerce.` package prefix on nuget.org so nobody else can publish under it. The publish step runs in a GitHub environment called `nuget`; add required reviewers to it if you want to approve each release by hand.
+- **No API key to store.** Publishing uses nuget.org **Trusted Publishing**: the workflow proves to nuget.org which repository and workflow it is, and gets a key that lasts about an hour. The one-off setup:
+  1. On nuget.org, open your user menu, **Trusted Publishing**, and add a policy: repository owner `purplepiranhaltd`, repository `PiranhaCommerce`, workflow file `release.yml`, environment `nuget`.
+  2. In the repository settings (Secrets and variables, Actions, **Variables**), add `NUGET_USER` with your nuget.org profile name (not your email address).
+  3. Reserve the `PiranhaCommerce.` package prefix on nuget.org so nobody else can publish under it.
+
+  The publish step runs in a GitHub environment called `nuget`; add required reviewers to it if you want to approve each release by hand.
 - **Rehearse first:** *Run workflow* on the Actions tab, with a version, does everything except publish.
 - A release cannot be taken back: nuget.org lets you hide a version ("unlist") but never reuse its number.

@@ -107,7 +107,8 @@ jobs:
     # Add required reviewers to this environment in the repository settings to approve each release by hand.
     environment: nuget
     permissions:
-      contents: write
+      contents: write # the GitHub release
+      id-token: write # lets nuget.org trust this run (Trusted Publishing), so there is no API key to store
     steps:
       - uses: actions/download-artifact@v8
         with:
@@ -118,12 +119,25 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Check the nuget.org user is set
+        shell: bash
+        env:
+          NUGET_USER: ${{ vars.NUGET_USER }}
+        run: |
+          [ -n "$NUGET_USER" ] || { echo "::error::Set the repository variable NUGET_USER to your nuget.org profile name (Settings, Secrets and variables, Actions, Variables)."; exit 1; }
+
+      # Trusted Publishing: nuget.org checks this run against the policy on your account and hands back a key that lasts about an hour.
+      - name: Sign in to nuget.org
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+
       - name: Push to nuget.org
         shell: bash
         env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: |
-          if [ -z "$NUGET_API_KEY" ]; then echo "::error::The NUGET_API_KEY secret is not set (repository settings, Secrets and variables, Actions)."; exit 1; fi
           # --skip-duplicate makes a re-run safe; the symbol packages (.snupkg) go with their packages.
           dotnet nuget push "packages/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
 
