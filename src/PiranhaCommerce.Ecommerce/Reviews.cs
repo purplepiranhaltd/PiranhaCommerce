@@ -11,6 +11,7 @@ using PiranhaCommerce.Catalog;
 using PiranhaCommerce.Core.Audit;
 using PiranhaCommerce.Core.Domain;
 using PiranhaCommerce.Core.Email;
+using PiranhaCommerce.Core.Files;
 using PiranhaCommerce.Core.Paging;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Customers;
@@ -89,7 +90,7 @@ public sealed class ReviewReplyInput
 }
 
 /// <summary>What shoppers see: no email, no customer id.</summary>
-public sealed record PublicReviewDto(Guid Id, string DisplayName, int Rating, string? Title, string? Body, bool VerifiedPurchase, DateTimeOffset CreatedUtc, string? Reply = null, DateTimeOffset? RepliedUtc = null, int HelpfulCount = 0, bool VotedByMe = false);
+public sealed record PublicReviewDto(Guid Id, string DisplayName, int Rating, string? Title, string? Body, bool VerifiedPurchase, DateTimeOffset CreatedUtc, string? Reply = null, DateTimeOffset? RepliedUtc = null, int HelpfulCount = 0, bool VotedByMe = false, IReadOnlyList<ReviewPhotoDto>? Photos = null);
 
 /// <param name="Distribution">How many reviews gave 1, 2, 3, 4 and 5 stars (five numbers, in that order).</param>
 public sealed record ReviewSummaryDto(Guid ProductId, int Count, decimal Average, IReadOnlyList<int> Distribution);
@@ -102,7 +103,7 @@ public sealed record PublicReviewsDto(ReviewSummaryDto Summary, PagedResult<Publ
 /// <summary>A review as its writer and staff see it.</summary>
 public sealed record ReviewDto(
     Guid Id, Guid ProductId, string? ProductName, Guid CustomerId, string DisplayName, int Rating, string? Title, string? Body, ReviewStatus Status,
-    bool VerifiedPurchase, DateTimeOffset CreatedUtc, DateTimeOffset? ModeratedUtc, string? ModeratedBy, string? Reply = null, DateTimeOffset? RepliedUtc = null, string? RepliedBy = null);
+    bool VerifiedPurchase, DateTimeOffset CreatedUtc, DateTimeOffset? ModeratedUtc, string? ModeratedBy, string? Reply = null, DateTimeOffset? RepliedUtc = null, string? RepliedBy = null, IReadOnlyList<ReviewPhotoDto>? Photos = null);
 
 public interface IReviewService
 {
@@ -146,7 +147,7 @@ public interface IReviewService
     Task<ReviewDto?> DeleteReplyAsync(Guid reviewId, CancellationToken ct = default);
 }
 
-internal sealed class ReviewService(PiranhaDbContext db, IOptions<EcommerceOptions> options, IEmailSender email, ILogger<ReviewService> logger) : IReviewService
+internal sealed class ReviewService(PiranhaDbContext db, IOptions<EcommerceOptions> options, IEmailSender email, IFileStore store, ILogger<ReviewService> logger) : IReviewService
 {
     /// <summary>The product a review is kept against: the parent of a variant, else the product itself. Null when there is no such product.</summary>
     private async Task<Guid?> ReviewedProductAsync(Guid productId, CancellationToken ct)
@@ -199,7 +200,8 @@ internal sealed class ReviewService(PiranhaDbContext db, IOptions<EcommerceOptio
         var mine = customerId is { } me
             ? (await db.Set<ReviewHelpfulVote>().AsNoTracking().Where(v => v.CustomerId == me && ids.Contains(v.ReviewId)).Select(v => v.ReviewId).ToListAsync(ct)).ToHashSet()
             : [];
-        items = items.Select(i => i with { HelpfulCount = counts.GetValueOrDefault(i.Id), VotedByMe = mine.Contains(i.Id) }).ToList();
+        var photos = await PhotosAsync(ids, ct);
+        items = items.Select(i => i with { HelpfulCount = counts.GetValueOrDefault(i.Id), VotedByMe = mine.Contains(i.Id), Photos = photos.GetValueOrDefault(i.Id, []) }).ToList();
         return new PublicReviewsDto(await SummaryOfAsync(id, ct), new PagedResult<PublicReviewDto>(items, p, size, total));
     }
 
@@ -267,18 +269,23 @@ internal sealed class ReviewService(PiranhaDbContext db, IOptions<EcommerceOptio
         return await ToDtoAsync(review.Id, ct);
     }
 
-    public async Task<bool> DeleteOwnAsync(Guid customerId, Guid reviewId, CancellationToken ct = default) =>
-        await db.DeleteTrackedAsync<ProductReview>(r => r.Id == reviewId && r.CustomerId == customerId, ct) > 0;
+    public async Task<bool> DeleteOwnAsync(Guid customerId, Guid reviewId, CancellationToken ct = default)
+    {
+        var hadPhotos = await db.Set<ReviewPhoto>().AnyAsync(p => p.ReviewId == reviewId && db.Set<ProductReview>().Any(r => r.Id == reviewId && r.CustomerId == customerId), ct);
+        var removed = await db.DeleteTrackedAsync<ProductReview>(r => r.Id == reviewId && r.CustomerId == customerId, ct) > 0;
+        if (removed && hadPhotos) await store.DeleteFolderAsync($"reviews/{reviewId}", ct); // the rows went with the review; so do the files
+        return removed;
+    }
 
     public async Task<IReadOnlyList<ReviewDto>> ListOwnAsync(Guid customerId, CancellationToken ct = default) =>
-        await Project(db.Set<ProductReview>().AsNoTracking().Where(r => r.CustomerId == customerId).OrderByDescending(r => r.CreatedUtc).ThenBy(r => r.Id)).ToListAsync(ct);
+        await WithPhotosAsync(await Project(db.Set<ProductReview>().AsNoTracking().Where(r => r.CustomerId == customerId).OrderByDescending(r => r.CreatedUtc).ThenBy(r => r.Id)).ToListAsync(ct), ct);
 
     public async Task<PagedResult<ReviewDto>> ListAsync(ReviewStatus? status, Guid? productId, int? page, int? pageSize, CancellationToken ct = default)
     {
         var (p, size) = Paging.Normalize(page, pageSize);
         var query = db.Set<ProductReview>().AsNoTracking().Where(r => (status == null || r.Status == status) && (productId == null || r.ProductId == productId));
         var total = await query.CountAsync(ct);
-        var items = await Project(query.OrderByDescending(r => r.CreatedUtc).ThenBy(r => r.Id).Skip((p - 1) * size).Take(size)).ToListAsync(ct);
+        var items = await WithPhotosAsync(await Project(query.OrderByDescending(r => r.CreatedUtc).ThenBy(r => r.Id).Skip((p - 1) * size).Take(size)).ToListAsync(ct), ct);
         return new PagedResult<ReviewDto>(items, p, size, total);
     }
 
@@ -334,14 +341,34 @@ internal sealed class ReviewService(PiranhaDbContext db, IOptions<EcommerceOptio
         return await ToDtoAsync(reviewId, ct);
     }
 
-    public async Task<bool> DeleteAsync(Guid reviewId, CancellationToken ct = default) => await db.DeleteTrackedAsync<ProductReview>(r => r.Id == reviewId, ct) > 0;
+    public async Task<bool> DeleteAsync(Guid reviewId, CancellationToken ct = default)
+    {
+        var hadPhotos = await db.Set<ReviewPhoto>().AnyAsync(p => p.ReviewId == reviewId, ct);
+        var removed = await db.DeleteTrackedAsync<ProductReview>(r => r.Id == reviewId, ct) > 0;
+        if (removed && hadPhotos) await store.DeleteFolderAsync($"reviews/{reviewId}", ct);
+        return removed;
+    }
 
     private IQueryable<ReviewDto> Project(IQueryable<ProductReview> reviews) =>
         from r in reviews
         select new ReviewDto(r.Id, r.ProductId, db.Set<Product>().Where(p => p.Id == r.ProductId).Select(p => p.Name).FirstOrDefault(), r.CustomerId, r.DisplayName,
             r.Rating, r.Title, r.Body, r.Status, r.VerifiedPurchase, r.CreatedUtc, r.ModeratedUtc, r.ModeratedBy, r.Reply, r.RepliedUtc, r.RepliedBy);
 
-    private Task<ReviewDto?> ToDtoAsync(Guid id, CancellationToken ct) => Project(db.Set<ProductReview>().AsNoTracking().Where(r => r.Id == id)).FirstOrDefaultAsync(ct);
+    private async Task<ReviewDto?> ToDtoAsync(Guid id, CancellationToken ct) => (await WithPhotosAsync(await Project(db.Set<ProductReview>().AsNoTracking().Where(r => r.Id == id)).ToListAsync(ct), ct)).FirstOrDefault();
+
+    /// <summary>Each review's photos, oldest first. A review with none is left out of the result.</summary>
+    private async Task<Dictionary<Guid, IReadOnlyList<ReviewPhotoDto>>> PhotosAsync(IReadOnlyCollection<Guid> reviewIds, CancellationToken ct)
+    {
+        if (reviewIds.Count == 0) return [];
+        var rows = await db.Set<ReviewPhoto>().AsNoTracking().Where(p => reviewIds.Contains(p.ReviewId)).OrderBy(p => p.CreatedUtc).ThenBy(p => p.Id).ToListAsync(ct);
+        return rows.GroupBy(p => p.ReviewId).ToDictionary(g => g.Key, g => (IReadOnlyList<ReviewPhotoDto>)g.Select(ReviewPhotoService.ToDto).ToList());
+    }
+
+    private async Task<List<ReviewDto>> WithPhotosAsync(List<ReviewDto> reviews, CancellationToken ct)
+    {
+        var photos = await PhotosAsync(reviews.Select(r => r.Id).ToList(), ct);
+        return reviews.Select(r => r with { Photos = photos.GetValueOrDefault(r.Id, []) }).ToList();
+    }
 
     private static string? Clean(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
 
@@ -366,7 +393,7 @@ internal sealed class ReviewService(PiranhaDbContext db, IOptions<EcommerceOptio
 }
 
 /// <summary>The reviews part of an export and an erasure: the person's reviews are listed, and deleted on erasure (a rating cannot stand without its author).</summary>
-internal sealed class ReviewCustomerData(PiranhaDbContext db) : ICustomerDataContributor
+internal sealed class ReviewCustomerData(PiranhaDbContext db, IFileStore store) : ICustomerDataContributor
 {
     public string Name => "reviews";
 
@@ -378,12 +405,19 @@ internal sealed class ReviewCustomerData(PiranhaDbContext db) : ICustomerDataCon
             .Select(r => new { r.ProductId, r.DisplayName, r.Rating, r.Title, r.Body, Status = r.Status.ToString(), r.VerifiedPurchase, r.CreatedUtc, r.Reply, r.RepliedUtc }).ToListAsync(ct);
         var votes = await db.Set<ReviewHelpfulVote>().AsNoTracking().Where(v => v.CustomerId == subject.CustomerId).OrderBy(v => v.CreatedUtc)
             .Select(v => new { v.ReviewId, v.CreatedUtc }).ToListAsync(ct);
-        return reviews.Count == 0 && votes.Count == 0 ? null : new { Reviews = reviews, HelpfulVotes = votes };
+        var photos = await db.Set<ReviewPhoto>().AsNoTracking().Where(p => db.Set<ProductReview>().Any(r => r.Id == p.ReviewId && r.CustomerId == subject.CustomerId))
+            .OrderBy(p => p.CreatedUtc).Select(p => new { p.ReviewId, p.FileName, p.ContentType, p.SizeBytes, p.CreatedUtc }).ToListAsync(ct);
+        return reviews.Count == 0 && votes.Count == 0 ? null : new { Reviews = reviews, HelpfulVotes = votes, Photos = photos };
     }
 
-    public async Task<int> EraseAsync(CustomerSubject subject, CancellationToken ct = default) =>
-        await db.Set<ReviewHelpfulVote>().Where(v => v.CustomerId == subject.CustomerId).ExecuteDeleteAsync(ct)
-        + await db.Set<ProductReview>().Where(r => r.CustomerId == subject.CustomerId).ExecuteDeleteAsync(ct);
+    public async Task<int> EraseAsync(CustomerSubject subject, CancellationToken ct = default)
+    {
+        var withPhotos = await db.Set<ReviewPhoto>().Where(p => db.Set<ProductReview>().Any(r => r.Id == p.ReviewId && r.CustomerId == subject.CustomerId)).Select(p => p.ReviewId).Distinct().ToListAsync(ct);
+        var n = await db.Set<ReviewHelpfulVote>().Where(v => v.CustomerId == subject.CustomerId).ExecuteDeleteAsync(ct)
+            + await db.Set<ProductReview>().Where(r => r.CustomerId == subject.CustomerId).ExecuteDeleteAsync(ct);
+        foreach (var id in withPhotos) await store.DeleteFolderAsync($"reviews/{id}", ct); // the photos are the person's too
+        return n;
+    }
 }
 
 internal sealed class ReviewEndpoints : IApiEndpointContributor

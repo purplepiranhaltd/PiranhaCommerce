@@ -151,3 +151,6 @@ form.inline { display: inline; }
 a.chip { text-decoration: none; color: inherit; }
 a.chip:hover, a.chip.on { border-color: var(--ink, currentColor); }
 a.chip.on { font-weight: 600; }
+
+.review-photos { list-style: none; padding: 0; margin: .5rem 0; display: flex; flex-wrap: wrap; gap: .5rem; }
+.review-photos img { display: block; width: 7rem; height: 7rem; object-fit: cover; border-radius: .35rem; }

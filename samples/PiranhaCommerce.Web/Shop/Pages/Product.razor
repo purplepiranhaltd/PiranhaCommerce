@@ -147,6 +147,15 @@ else
                         <li>
                             <p class="rating"><span aria-hidden="true">@Money.Stars(r.Rating)</span> <strong>@r.Title</strong></p>
                             @if (!string.IsNullOrWhiteSpace(r.Body)) { <p>@r.Body</p> }
+                            @if (r.Photos is { Count: > 0 } reviewPhotos)
+                            {
+                                <ul class="review-photos">
+                                    @foreach (var ph in reviewPhotos)
+                                    {
+                                        <li><a href="@ph.Url"><img src="@Money.Image(ph.Url, 240)" alt="Photo from @r.DisplayName" loading="lazy" /></a></li>
+                                    }
+                                </ul>
+                            }
                             <p class="muted">@r.DisplayName, @r.CreatedUtc.ToString("d MMM yyyy")@(r.VerifiedPurchase ? " · Verified purchase" : "")</p>
                             @if (_shopper is not null && !(_own is not null && _own.Id == r.Id))
                             {
@@ -178,11 +187,21 @@ else
             }
             else if (_own is not null)
             {
-                <p class="notice info">Your review: @Money.Stars(_own.Rating) @_own.Title (@(_own.Status == PiranhaCommerce.Ecommerce.ReviewStatus.Approved ? "published" : _own.Status.ToString().ToLowerInvariant()))</p>
+                <p class="notice info">Your review: @Money.Stars(_own.Rating) @_own.Title (@(_own.Status == PiranhaCommerce.Ecommerce.ReviewStatus.Approved ? "published" : _own.Status.ToString().ToLowerInvariant()))@(_own.Photos is { Count: > 0 } ownPhotos ? $", with {ownPhotos.Count} {(ownPhotos.Count == 1 ? "photo" : "photos")}" : "")</p>
+                @if (Ecommerce.Value.MaxReviewPhotos > (_own.Photos?.Count ?? 0))
+                {
+                    <form method="post" action="/reviews/photo" enctype="multipart/form-data" class="stack photo-form">
+                        <AntiforgeryToken />
+                        <input type="hidden" name="reviewId" value="@_own.Id" />
+                        <input type="hidden" name="returnTo" value="/product/@Slug?variant=@(_selected?.ProductId)" />
+                        <label>Add a photo <input type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/gif" multiple /></label>
+                        <button type="submit" class="small">Add photo</button>
+                    </form>
+                }
             }
             else
             {
-                <form method="post" action="/reviews/save" class="stack review-form">
+                <form method="post" action="/reviews/save" enctype="multipart/form-data" class="stack review-form">
                     <AntiforgeryToken />
                     <input type="hidden" name="productId" value="@_product.Id" />
                     <input type="hidden" name="returnTo" value="/product/@Slug?variant=@(_selected?.ProductId)" />
@@ -195,6 +214,10 @@ else
                     </label>
                     <label>Title <input type="text" name="title" maxlength="100" value="@TypedReview("title")" /></label>
                     <label>Your review <textarea name="body" rows="4" maxlength="4000">@TypedReview("body")</textarea></label>
+                    @if (Ecommerce.Value.MaxReviewPhotos > 0)
+                    {
+                        <label>Photos (optional, up to @Ecommerce.Value.MaxReviewPhotos) <input type="file" name="photos" accept="image/jpeg,image/png,image/webp,image/gif" multiple /></label>
+                    }
                     <button type="submit">Send review</button>
                 </form>
             }

@@ -249,7 +249,17 @@ internal static class ShopForms
             return Results.Redirect(ShopSession.SafePath(back, "/account/wishlist"));
         });
 
-        shop.MapPost("/reviews/save", async (IFormCollection form, ShopSession session, ShopBaskets shopBaskets, IReviewService reviews,
+        // Photos on a review you have already written. The review keeps what it has; a photo that cannot be taken is explained, never silently dropped.
+        shop.MapPost("/reviews/photo", async (IFormCollection form, ShopSession session, ShopBaskets shopBaskets, IReviewPhotoService photos, CancellationToken ct) =>
+        {
+            var back = form["returnTo"].ToString();
+            if (await shopBaskets.ShopperAsync(ct) is not { } shopper) return SignInFirst(back);
+            if (!Guid.TryParse(form["reviewId"], out var reviewId)) return Results.Redirect(ShopSession.SafePath(back, "/"));
+            var problem = await AddPhotosAsync(photos, shopper.Id, reviewId, form.Files, ct);
+            return Results.Redirect(session.Back(back, problem is null ? new Flash(null, "Thank you. Your photo will appear once we have looked at it.") : new Flash(problem)) + "#reviews");
+        });
+
+        shop.MapPost("/reviews/save", async (IFormCollection form, ShopSession session, ShopBaskets shopBaskets, IReviewService reviews, IReviewPhotoService photos,
             Microsoft.Extensions.Options.IOptions<EcommerceOptions> options, CancellationToken ct) =>
         {
             var back = form["returnTo"].ToString();
@@ -261,10 +271,10 @@ internal static class ShopForms
                 if (!int.TryParse(typed["rating"], out var rating) || rating is < 1 or > 5) throw new PiranhaValidationException("rating", "Choose a rating from 1 to 5 stars.");
                 var input = new ReviewInput { ProductId = productId, Rating = rating, Title = Blank(typed["title"]), Body = Blank(typed["body"]) };
                 ModelValidator.ValidateOrThrow(input);
-                await reviews.CreateAsync(shopper.Id, input, ct);
-                return Results.Redirect(session.Back(back, new Flash(null, options.Value.ReviewsNeedApproval
-                    ? "Thank you. Your review will appear once we have read it."
-                    : "Thank you. Your review is up.")));
+                var created = await reviews.CreateAsync(shopper.Id, input, ct);
+                var photoProblem = await AddPhotosAsync(photos, shopper.Id, created.Id, form.Files, ct);
+                var thanks = options.Value.ReviewsNeedApproval ? "Thank you. Your review will appear once we have read it." : "Thank you. Your review is up.";
+                return Results.Redirect(session.Back(back, photoProblem is null ? new Flash(null, thanks) : new Flash(null, thanks + " " + photoProblem)));
             }
             catch (PiranhaValidationException e) { return Results.Redirect(session.Back(back, new Flash(Message(e), null, typed))); }
             catch (PiranhaConflictException e) { return Results.Redirect(session.Back(back, new Flash(e.Message))); }
@@ -323,6 +333,22 @@ internal static class ShopForms
     }
 
     private static int Count(string? text, int fallback) => int.TryParse(text, out var n) ? n : fallback;
+
+    /// <summary>Adds each chosen file as a photo on the shopper's review. Returns what went wrong (for the page to say), or null when all were taken or none were sent.</summary>
+    private static async Task<string?> AddPhotosAsync(IReviewPhotoService photos, Guid customerId, Guid reviewId, IFormFileCollection files, CancellationToken ct)
+    {
+        var problems = new List<string>();
+        foreach (var file in files.Where(f => f.Name == "photos" && f.Length > 0))
+        {
+            try
+            {
+                await using var stream = file.OpenReadStream();
+                await photos.AddAsync(customerId, reviewId, stream, file.FileName, ct);
+            }
+            catch (PiranhaValidationException e) { problems.Add($"\"{Path.GetFileName(file.FileName)}\" was not added: {Message(e)}"); }
+        }
+        return problems.Count == 0 ? null : string.Join(" ", problems);
+    }
 
     private static string? Blank(string text) => string.IsNullOrWhiteSpace(text) ? null : text;
 

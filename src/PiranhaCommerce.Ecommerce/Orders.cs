@@ -253,6 +253,10 @@ public sealed class EcommerceOptions
     /// </summary>
     public bool ReviewsNeedApproval { get; set; } = true;
 
+    /// <summary>How many photos a shopper can attach to one review. 0 switches photos off. Needs a file store (and, to strip location data and make sizes, an image processor).</summary>
+    [Range(0, 20)]
+    public int MaxReviewPhotos { get; set; } = 4;
+
     /// <summary>How often, in seconds, to look for sold-out products that can be bought again and email the shoppers waiting for them. 0 switches the check off (a host can then call IStockAlertNotifier itself).</summary>
     [Range(0, 86_400)]
     public int StockAlertPollSeconds { get; set; } = 300;

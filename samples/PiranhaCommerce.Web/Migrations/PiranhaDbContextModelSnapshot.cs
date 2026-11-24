@@ -2415,6 +2415,52 @@ namespace PiranhaCommerce.Web.Migrations
                     b.ToTable("ReviewHelpfulVote", "ecom");
                 });
 
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.ReviewPhoto", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("FileName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int?>("Height")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ReviewId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("SizeContentType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Sizes")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("Width")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReviewId");
+
+                    b.ToTable("ReviewPhoto", "ecom");
+                });
+
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.Sale", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3815,6 +3861,15 @@ namespace PiranhaCommerce.Web.Migrations
                 });
 
             modelBuilder.Entity("PiranhaCommerce.Ecommerce.ReviewHelpfulVote", b =>
+                {
+                    b.HasOne("PiranhaCommerce.Ecommerce.ProductReview", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PiranhaCommerce.Ecommerce.ReviewPhoto", b =>
                 {
                     b.HasOne("PiranhaCommerce.Ecommerce.ProductReview", null)
                         .WithMany()

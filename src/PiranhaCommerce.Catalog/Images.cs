@@ -50,7 +50,7 @@ public sealed class ImageOptions
     /// <summary>Sizes to make at upload, as comma separated longest sides in pixels. An image is never enlarged. Needs an image processor package.</summary>
     public string Sizes { get; set; } = "160,480,1024";
 
-    internal IReadOnlyList<int> SizeList() => Sizes.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    public IReadOnlyList<int> SizeList() => Sizes.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
         .Select(s => int.TryParse(s, out var n) ? n : 0).Where(n => n is >= 16 and <= 8000).Distinct().Order().ToList();
 }
 
@@ -226,7 +226,14 @@ internal sealed class ProductImageService(PiranhaDbContext db, IFileStore store,
     }
 
     /// <summary>JPEG, PNG, GIF or WebP by their opening bytes; null for anything else.</summary>
-    internal static string? Sniff(byte[] b)
+    internal static string? Sniff(byte[] b) => ImageTypes.Sniff(b);
+}
+
+/// <summary>Telling image types apart by their own bytes, for any feature that takes uploads.</summary>
+public static class ImageTypes
+{
+    /// <summary>JPEG, PNG, GIF or WebP by their opening bytes; null for anything else (SVG is refused: it can carry script).</summary>
+    public static string? Sniff(byte[] b)
     {
         if (b.Length >= 3 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF) return "image/jpeg";
         if (b.Length >= 8 && b[0] == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47 && b[4] == 0x0D && b[5] == 0x0A && b[6] == 0x1A && b[7] == 0x0A) return "image/png";

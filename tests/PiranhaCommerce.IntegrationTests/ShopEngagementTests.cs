@@ -1,3 +1,4 @@
+using System.Text;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -45,6 +46,25 @@ public partial class ShopEngagementTests(PiranhaFactory factory) : IClassFixture
         return response.Headers.Location!.OriginalString;
     }
 
+    /// <summary>Posts a form with files, as a browser does for a photo: the page's antiforgery token, then the fields and each file under "photos".</summary>
+    private static async Task<string> PostWithPhotos(HttpClient browser, string pageWithForm, string action, (string, string)[] fields, params (string Name, byte[] Bytes, string Type)[] photos)
+    {
+        var page = await browser.GetStringAsync(pageWithForm);
+        var token = TokenPattern().Match(page).Groups[1].Value;
+        Assert.NotEmpty(token);
+        var form = new MultipartFormDataContent();
+        foreach (var (k, v) in fields.Append(("__RequestVerificationToken", token))) form.Add(new StringContent(v), k);
+        foreach (var (name, bytes, type) in photos)
+        {
+            var file = new ByteArrayContent(bytes);
+            file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(type);
+            form.Add(file, "photos", name);
+        }
+        var response = await browser.PostAsync(action, form);
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        return response.Headers.Location!.OriginalString;
+    }
+
     private async Task<HttpClient> ShopperAsync(string? email = null)
     {
         var browser = await BrowserAsync();
@@ -55,6 +75,45 @@ public partial class ShopEngagementTests(PiranhaFactory factory) : IClassFixture
 
     private async Task<ShopProductDto> Product(string slug) =>
         (await factory.CreateClient().GetFromJsonAsync<ShopProductDto>($"/api/v1/storefront/products/by-slug/{slug}", Json))!;
+
+    [Fact]
+    public async Task A_review_can_carry_photos_that_show_once_it_is_approved_and_a_bad_file_is_explained()
+    {
+        var shopper = await ShopperAsync();
+        var guest = await BrowserAsync();
+        var cleanser = await Product("gentle-cream-cleanser");
+        var page = "/product/gentle-cream-cleanser";
+        Assert.Contains("name=\"photos\"", await Get(shopper, page));                                           // the form offers a file box
+
+        var sent = await PostWithPhotos(shopper, page, "/reviews/save", [("productId", cleanser.Id.ToString()), ("returnTo", page), ("rating", "5"), ("title", "Photo review"), ("body", "See it")],
+            ("good.png", ImageTests.Png(600, 400), "image/png"), ("bad.png", Encoding.UTF8.GetBytes("not a picture"), "image/png"));
+        Assert.StartsWith(page, sent);
+        var after = await Get(shopper, sent);                                                                     // the message rides in the address
+        Assert.Contains("Thank you", after);
+        Assert.Contains("\"bad.png\" was not added", after);                                                    // the problem is said, the good one is kept
+        Assert.Contains("with 1 photo", after);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var reviews = scope.ServiceProvider.GetRequiredService<IReviewService>();
+            var mine = (await reviews.ListAsync(ReviewStatus.Pending, cleanser.Id, 1, 50)).Items.Single(r => r.Title == "Photo review");
+            Assert.DoesNotContain("review-photos", await Get(guest, page));                                      // still waiting: nobody sees the photo
+            await reviews.SetStatusAsync(mine.Id, ReviewStatus.Approved, "test");
+        }
+
+        var shown = await Get(guest, page);
+        Assert.Contains("class=\"review-photos\"", shown);
+        var src = Regex.Match(shown, "<ul class=\"review-photos\">.*?<a href=\"([^\"]+)\"", RegexOptions.Singleline).Groups[1].Value;
+        var image = await guest.GetAsync(src);
+        Assert.Equal(("image/png", HttpStatusCode.OK), (image.Content.Headers.ContentType!.MediaType, image.StatusCode));
+
+        // More photos can be added later; the review then waits for another look.
+        Assert.Contains("action=\"/reviews/photo\"", await Get(shopper, page));
+        await PostWithPhotos(shopper, page, "/reviews/photo", [("reviewId", Regex.Match(await shopper.GetStringAsync(page), "name=\"reviewId\" value=\"([0-9a-f-]{36})\"").Groups[1].Value), ("returnTo", page)],
+            ("more.png", ImageTests.Png(300, 300), "image/png"));
+        Assert.Contains("with 2 photos", await Get(shopper, page));
+        Assert.DoesNotContain("review-photos", await Get(guest, page));                                           // back to waiting
+    }
 
     [Fact]
     public async Task A_wishlist_needs_a_sign_in_then_saves_shows_and_removes_products()

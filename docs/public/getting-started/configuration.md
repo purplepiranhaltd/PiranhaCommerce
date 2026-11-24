@@ -37,6 +37,6 @@ Each package reads one section under `Piranha:`.
 - **Guest checkout** (`AllowGuestCheckout`): on by default.
 - **Order emails and alerts** (`SendOrderConfirmations`, `SendOrderUpdates`, `SendReviewReplies`, `AlertEmail`, `LowStockAlertLevel`): need an email package.
 - **Housekeeping** (`AbandonedBasketDays`, `UnpaidOrderHours`): decide how long open baskets live and whether unpaid orders expire.
-- **Reviews** (`ReviewsNeedApproval`): on by default.
+- **Reviews** (`ReviewsNeedApproval`): on by default. `MaxReviewPhotos` (4, 0 for none) sets how many photos a review can carry.
 
 The guides name every setting in the place it matters.

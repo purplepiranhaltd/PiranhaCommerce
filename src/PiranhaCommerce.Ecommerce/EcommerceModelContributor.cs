@@ -279,6 +279,16 @@ internal sealed class EcommerceModelContributor : IModelContributor
             e.HasOne<PiranhaCommerce.Catalog.Product>().WithMany().HasForeignKey(r => r.ProductId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<PiranhaCommerce.Customers.Customer>().WithMany().HasForeignKey(r => r.CustomerId).OnDelete(DeleteBehavior.Cascade);
         });
+        b.Entity<ReviewPhoto>(e =>
+        {
+            e.ToTable("ReviewPhoto", Schema);
+            e.Property(p => p.ContentType).HasMaxLength(100).IsRequired();
+            e.Property(p => p.FileName).HasMaxLength(200);
+            e.Property(p => p.Sizes).HasMaxLength(100).IsRequired();
+            e.Property(p => p.SizeContentType).HasMaxLength(100);
+            e.HasIndex(p => p.ReviewId);
+            e.HasOne<ProductReview>().WithMany().HasForeignKey(p => p.ReviewId).OnDelete(DeleteBehavior.Cascade);
+        });
         b.Entity<ReviewHelpfulVote>(e =>
         {
             e.ToTable("ReviewHelpfulVote", Schema);
