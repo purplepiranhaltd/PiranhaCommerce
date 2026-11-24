@@ -49,7 +49,7 @@ The API enforces the same permissions. Call `POST /api/v1/auth/token` as the per
 
 ## Two-factor sign-in
 
-Two-factor sign-in is **compulsory for all staff, whatever their role**. The first time someone signs in (including the first administrator) the admin takes them to **My account > Sign-in security**, and that is the only page open to them until they have set it up: choose **Set it up**. Add the key to an authenticator app on your phone, type the six-digit code it shows, and you are given ten recovery codes. Keep them somewhere safe; each works once if you lose your phone, and they are shown only then.
+Two-factor sign-in is **compulsory for all staff, whatever their role**. The first time someone signs in (including the first administrator) the admin takes them to **My account > Sign-in security**, and that is the only page open to them until they have set it up: choose **Set it up**. Scan the QR code with an authenticator app on your phone (or type in the key shown beside it), type the six-digit code it shows, and you are given ten recovery codes. Keep them somewhere safe; each works once if you lose your phone, and they are shown only then.
 
 - **At sign-in** the admin asks for the code after the password. The API does the same: if the password is right but the person has two-factor on, `POST /api/v1/auth/token` answers `401` with `{ "error": "two_factor_required" }`; send the request again with `"code": "123456"` (a recovery code works too). For an integration, use an API key instead, which has no code to type.
 - **Guessing is limited.** A wrong code counts towards the same lockout as a wrong password, and a correct password on its own does not clear that count.

@@ -178,6 +178,16 @@ public class TwoFactorTests(PiranhaCommerceFactory factory) : IClassFixture<Pira
     }
 
     [Fact]
+    public void The_setup_page_draws_the_key_as_a_qr_code()
+    {
+        var svg = PiranhaCommerce.Admin.Services.QrCodeSvg.Make("otpauth://totp/PiranhaCommerce:a%40b.c?secret=ABCDEFGHIJKLMNOP&issuer=PiranhaCommerce&digits=6");
+        Assert.StartsWith("<svg", svg.TrimStart());
+        Assert.Contains("viewBox", svg);              // scales to its box
+        Assert.DoesNotContain("<script", svg);
+        Assert.NotEqual(svg, PiranhaCommerce.Admin.Services.QrCodeSvg.Make("otpauth://totp/other")); // it encodes what it is given
+    }
+
+    [Fact]
     public async Task Someone_who_has_not_set_it_up_signs_in_as_before()
     {
         var made = await factory.CreateStaffWithRoleAsync(Permissions.OrdersView);

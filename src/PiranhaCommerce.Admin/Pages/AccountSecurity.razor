@@ -60,7 +60,11 @@ else
     <div class="pc-card">
         <ol>
             <li>Install an authenticator app on your phone (any app that supports one-time codes will do).</li>
-            <li>Add a new account in the app and choose to enter a key. Enter this key: <code>@_setup.SharedKey</code> (<a href="@_setup.Uri">or open it in the app</a>).</li>
+            <li>
+                In the app, add a new account and scan this code:
+                <div class="pc-qr" style="width:12rem;max-width:100%;margin:.5rem 0" role="img" aria-label="QR code for setting up two-factor sign-in">@((MarkupString)QrCodeSvg.Make(_setup.Uri))</div>
+                Cannot scan it? Choose to enter a key instead and type <code>@_setup.SharedKey</code> (<a href="@_setup.Uri">or open it in the app</a>).
+            </li>
             <li>Type the six-digit code the app now shows:</li>
         </ol>
         <label>Code <input @bind="_code" autocomplete="one-time-code" inputmode="numeric" /></label>
