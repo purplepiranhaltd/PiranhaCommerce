@@ -168,7 +168,9 @@ public class SiteTests(WebApplicationFactory<Program> factory) : IClassFixture<W
     [Fact]
     public async Task The_email_link_appears_only_when_an_address_is_configured_and_the_menu_links_to_pricing()
     {
-        Assert.DoesNotContain("mailto:", await (await Client(factory).GetAsync("/pricing")).Content.ReadAsStringAsync());
+        Assert.Contains("mailto:hello@purplepiranha.co.uk", await (await Client(factory).GetAsync("/pricing")).Content.ReadAsStringAsync()); // the shipped default
+        using var none = factory.WithWebHostBuilder(b => b.UseSetting("Site:LicenceEmail", ""));
+        Assert.DoesNotContain("mailto:", await (await Client(none).GetAsync("/pricing")).Content.ReadAsStringAsync());
         using var configured = factory.WithWebHostBuilder(b => b.UseSetting("Site:LicenceEmail", "licences@example.com"));
         var html = await (await Client(configured).GetAsync("/pricing")).Content.ReadAsStringAsync();
         Assert.Contains("mailto:licences@example.com", html);

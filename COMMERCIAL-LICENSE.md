@@ -1,6 +1,6 @@
 # PiranhaCommerce Commercial Licence, version 1.0
 
-Copyright (c) 2026 Purple Piranha Ltd ("the Licensor")
+Copyright (c) 2026 Purple Piranha Limited ("the Licensor")
 
 A Commercial Licence is the [PiranhaCommerce Attribution Licence](LICENSE) on the same terms, with one difference: **on the domains you have licensed, you
 do not have to show the "Built on PiranhaCommerce" notice.** It is made by an order that names you ("you") and the domains ("Licensed Domains"). The
