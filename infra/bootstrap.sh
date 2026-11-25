@@ -35,10 +35,21 @@ az ad sp show --id "$CLIENT_ID" --output none 2>/dev/null || az ad sp create --i
 SP_ID=$(az ad sp show --id "$CLIENT_ID" --query id -o tsv)
 
 echo "3. Federated credentials (one per GitHub environment; no pull_request credential, so a pull request can never sign in)"
+# GitHub can put the numeric ids of the owner and repository in the subject ("repo:owner@id/name@id:..."). Ask GitHub which form this repository uses.
+SUBJECT_PREFIX=$(gh api "repos/$REPO/actions/oidc/customization/sub" --jq 'if .use_immutable_subject == true then "immutable" else "plain" end' 2>/dev/null || echo plain)
+if [ "$SUBJECT_PREFIX" = "immutable" ]; then
+  OWNER_ID=$(gh api "repos/$REPO" --jq .owner.id); REPO_ID=$(gh api "repos/$REPO" --jq .id)
+  PREFIX="repo:${REPO%%/*}@$OWNER_ID/${REPO##*/}@$REPO_ID"
+else
+  PREFIX="repo:$REPO"
+fi
 for env in infra staging production; do
   name="github-$env"
+  params="{\"name\":\"$name\",\"issuer\":\"https://token.actions.githubusercontent.com\",\"subject\":\"$PREFIX:environment:$env\",\"audiences\":[\"api://AzureADTokenExchange\"]}"
   if [ -z "$(az ad app federated-credential list --id "$CLIENT_ID" --query "[?name=='$name'].name" -o tsv)" ]; then
-    az ad app federated-credential create --id "$CLIENT_ID" --parameters "{\"name\":\"$name\",\"issuer\":\"https://token.actions.githubusercontent.com\",\"subject\":\"repo:$REPO:environment:$env\",\"audiences\":[\"api://AzureADTokenExchange\"]}" --output none
+    az ad app federated-credential create --id "$CLIENT_ID" --parameters "$params" --output none
+  else
+    az ad app federated-credential update --id "$CLIENT_ID" --federated-credential-id "$name" --parameters "$params" --output none
   fi
 done
 
