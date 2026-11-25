@@ -34,7 +34,7 @@ Also open from the comparison, with where each stands:
 - **Payments:** other gateways (PayPal, Adyen and others). Stripe, gift vouchers, refunds, disputes and reconciliation are built.
 - **Shipping:** live carrier rates and labels (item 7). Zones, rates and tracking links are built.
 - **Currency and language:** multi-currency and translations (item 8).
-- **Accounts:** social sign-in, two-factor for shoppers (staff have it, and it is compulsory for them), reward points, customer-defined attributes. Finer staff permissions and API keys for integrations are built (see the staff guide).
+- **Accounts:** reward points, customer-defined attributes. Finer staff permissions and API keys for integrations are built (see the staff guide).
 - **Marketing and content:** a newsletter list (nopCommerce 4.90 has several), multiple wishlists per shopper, request-a-quote, and AI help with product text. Blogs, news, polls, forums and themes are out of scope.
 - **Databases:** a MySQL package (and MariaDB if it comes free), alongside SQL Server, Azure SQL and PostgreSQL. Planned as one more provider package, like `PiranhaCommerce.Data.PostgreSql`: `PiranhaCommerce.Data.MySql` with an `AddPiranhaCommerceMySql()`
   registration, a host-owned migration set in its own project (as `PiranhaCommerce.Web.Migrations.PostgreSql` is), and a CI job that runs the whole integration suite against MySQL.
@@ -145,7 +145,7 @@ Not built:
 - Guest order lookup (an order placed as a guest can only be seen from the checkout response and the confirmation email), and offering a guest to turn their order into an account.
 - Customer data export and erasure are built for staff (orders anonymised, never deleted). Shoppers can export and erase their own account through the storefront API.
   Not built: a scheduled retention clean-up, and erasure in the payment provider and email provider.
-- Social sign-in, two-factor.
+- Social sign-in is built as an optional package. Not built: a ready-made sign-in button in the sample shop (an app gets the ID token from the provider's own sign-in), Facebook (it does not give an ID token to verify), and showing a customer's linked accounts to staff.
 - Shopper sign-in is rate limited by client address (with the staff limits) but there is no CAPTCHA or breached-password check.
 
 ## Baskets and orders: decisions and what is left

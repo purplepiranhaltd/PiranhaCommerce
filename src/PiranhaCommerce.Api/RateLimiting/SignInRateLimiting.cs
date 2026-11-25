@@ -38,6 +38,7 @@ internal static class SignInRateLimiting
         && (p.EndsWith("/auth/token", StringComparison.OrdinalIgnoreCase)
             || p.EndsWith("/promo", StringComparison.OrdinalIgnoreCase)
             || p.EndsWith("/voucher", StringComparison.OrdinalIgnoreCase)
+            || p.Contains("/auth/external/", StringComparison.OrdinalIgnoreCase)
             || p.EndsWith("/auth/register", StringComparison.OrdinalIgnoreCase)
             || p.EndsWith("/auth/forgot-password", StringComparison.OrdinalIgnoreCase)
             || p.EndsWith("/auth/reset-password", StringComparison.OrdinalIgnoreCase)

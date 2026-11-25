@@ -256,8 +256,14 @@ internal sealed partial class CustomerAccountService(
     {
         // The count of wrong passwords is kept until the code is right too.
         var check = await CheckAsync(email, password, resetFailures: false, ct);
-        if (check is not { Status: SignInStatus.Valid, CustomerId: { } id }) return check;
+        if (check is not { Status: SignInStatus.Valid }) return check;
+        return await SecondStepAsync(check, code, ct);
+    }
 
+    /// <summary>Two-factor, after the shopper has been identified (by password, or by a provider). Clears the failure count only once everything is right.</summary>
+    private async Task<SignInResult> SecondStepAsync(SignInResult check, string? code, CancellationToken ct)
+    {
+        var id = check.CustomerId!.Value;
         var enabled = await db.Set<CustomerTwoFactor>().AsNoTracking().AnyAsync(t => t.CustomerId == id && t.EnabledUtc != null, ct);
         if (enabled)
         {

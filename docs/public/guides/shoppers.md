@@ -113,6 +113,39 @@ The key is stored in the database, so protect backups as you do the rest of the 
 
 The Petalwick sample shop has the whole thing: a code box on sign-in, a Sign-in security page at `/account/security` with the QR code and recovery codes, and the required-setup page.
 
+## Social sign-in
+
+The optional package `PiranhaCommerce.Customers.SocialSignIn` lets shoppers sign in with Google, Microsoft, Apple or any OpenID Connect provider. Register it with `.AddPlugin<SocialSignInPlugin>()`; it needs Customers, has its own table (add a migration), and does nothing until a provider is configured. Facebook is not supported, because it does not give an ID token that can be verified the same way.
+
+**How it works.** Your app (a mobile app, a single-page app, or your own server) signs the shopper in at the provider and gets an **ID token**. It sends that to `POST /storefront/auth/external/{provider}` and gets the shop's own token back. The shop checks the token itself: the signature against the provider's published keys (asymmetric algorithms only), the issuer, that the audience is one of **your** client ids, that it has not expired, and the `nonce` if you send one. A token made for someone else's app is refused however genuine it is.
+
+```json
+"PiranhaCommerce": { "Customers": { "Social": {
+  "AccountMatching": "Never",
+  "AllowSignUp": false,
+  "Providers": {
+    "google": { "DisplayName": "Google", "Authority": "https://accounts.google.com", "ClientIds": [ "1234.apps.googleusercontent.com" ] },
+    "apple":  { "DisplayName": "Apple",  "Authority": "https://appleid.apple.com",    "ClientIds": [ "com.example.shop" ] }
+  } } } }
+```
+
+`Authority` is the provider's OpenID Connect address (it must be https, with `/.well-known/openid-configuration` under it). `Issuer` is only needed where a provider's tokens carry a different one. The name (`google`) is what appears in the URL. `GET /storefront/auth/external` lists what the shop offers, for your buttons.
+
+**Linking is by the provider's own account id, never by email.** A shopper's Google account can be on a different email from the one they shop with, and that is fine. They sign in to the shop as usual, then add the social account from their profile: `POST /storefront/me/external/{provider}` with the ID token. Nothing about the two emails is compared. From then on the ID token signs them in, even if the email at the provider changes. `GET /me/external` lists what is linked and `DELETE /me/external/{provider}` removes one (they can always choose a password with "forgot password"). One social account belongs to one shop account, and a shopper has one account per provider.
+
+**A social account that is not linked yet** is handled by two settings:
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `AccountMatching` | `Never` | `Never`: an unlinked social account never reaches an existing shop account, even with the same email. The answer is `409 account_exists`, which tells them to sign in and add it from their profile. `LinkVerifiedEmail`: if the provider says the email is verified, link it to the shop account with that address. |
+| `AllowSignUp` | `false` | `true`: someone with no account can make one by signing in with a social account. The provider must say the email is verified, or the answer is `403 email_not_verified_by_provider`. `false`: the answer is `403 sign_up_disabled`. |
+
+`Never` is the safe choice. `LinkVerifiedEmail` is convenient, but it means anyone who controls the social account can reach the shop account with that address, so a compromised Google account becomes a compromised shop account. If you turn it on, know that when the shop account was registered **without** a verified email, its password is wiped and its sessions end, because whoever registered it first may have been a stranger who never owned the address.
+
+**The shop's other rules still apply.** A shopper with two-factor on is asked for their code after a social sign-in (`401 two_factor_required`, then send the same ID token again with `code`), and with `RequireTwoFactor` they are taken through setup (`403 two_factor_setup_required`) like anyone else. Switched-off customers, lockout and `RequireVerifiedEmail` all apply. A stolen social login alone gets nobody in whose account is protected by two-factor.
+
+Accounts made by social sign-up have a random password nobody knows. They can choose one with "forgot password". The sign-in history records `social-linked`, `social-unlinked` and `social-sign-in`, linked accounts are in the customer export, and erasing a customer removes them. The sign-in routes share the shop's sign-in rate limit.
+
 ## Shopper sign-ins, for staff
 
 Staff manage a customer's sign-in on the Sign-in card on the customer page (and a Sign-in column in the list), or at `/customers/{id}/sign-in`. They can see whether a customer has no sign-in, can sign in, is locked out or is switched off, and they can:

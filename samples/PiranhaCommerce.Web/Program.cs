@@ -44,6 +44,7 @@ commerce
     .AddPlugin<CustomersAdminPlugin>()
     .AddPlugin<EcommerceAdminPlugin>()
     .AddPlugin<PiranhaCommerce.Payments.Stripe.StripePlugin>() // inert until PiranhaCommerce:Stripe keys are set
+    .AddPlugin<PiranhaCommerce.Customers.SocialSignIn.SocialSignInPlugin>() // inert until a provider is set under PiranhaCommerce:Customers:Social:Providers
     .AddPlugin<PiranhaCommerce.Email.Smtp.Admin.SmtpEmailAdminPlugin>() // SMTP sending (needs PiranhaCommerce:Email:Smtp settings) and its template editor
     .AddPlugin<PiranhaCommerce.Storage.LocalDisk.LocalDiskStoragePlugin>() // uploaded files (PiranhaCommerce:Storage:LocalDisk:Path, default App_Data/files)
     .AddPlugin<PiranhaCommerce.Imaging.Skia.SkiaImagingPlugin>() // makes sizes of product images

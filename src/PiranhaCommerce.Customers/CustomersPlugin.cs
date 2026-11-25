@@ -28,6 +28,7 @@ public sealed class CustomersPlugin : IPiranhaCommercePlugin
         services.AddScoped<ICustomerAccountService, CustomerAccountService>();
         services.AddScoped<ICustomerSignInAdminService>(sp => (CustomerAccountService)sp.GetRequiredService<ICustomerAccountService>());
         services.AddScoped<ICustomerRefreshService>(sp => (CustomerAccountService)sp.GetRequiredService<ICustomerAccountService>());
+        services.AddScoped<ICustomerExternalAccess>(sp => (CustomerAccountService)sp.GetRequiredService<ICustomerAccountService>());
         services.AddScoped<ICustomerTwoFactorService>(sp => (CustomerAccountService)sp.GetRequiredService<ICustomerAccountService>());
         services.AddSingleton<IStorefrontEndpointContributor, CustomerStorefrontEndpoints>();
         services.AddSingleton<PiranhaCommerce.Core.Email.IEmailTemplateContributor, CustomerEmailContributor>();

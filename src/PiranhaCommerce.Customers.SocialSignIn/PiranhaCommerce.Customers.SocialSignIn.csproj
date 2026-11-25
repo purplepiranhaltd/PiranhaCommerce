@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Social sign-in for PiranhaCommerce shoppers: Google, Microsoft, Apple or any OpenID Connect provider, by ID-token exchange.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\PiranhaCommerce.Core\PiranhaCommerce.Core.csproj" />
+    <ProjectReference Include="..\PiranhaCommerce.Data\PiranhaCommerce.Data.csproj" />
+    <ProjectReference Include="..\PiranhaCommerce.Api\PiranhaCommerce.Api.csproj" />
+    <ProjectReference Include="..\PiranhaCommerce.Customers\PiranhaCommerce.Customers.csproj" />
+  </ItemGroup>
+</Project>
