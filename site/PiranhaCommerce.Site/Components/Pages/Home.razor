@@ -12,7 +12,7 @@
         <p class="actions">
             <a class="button" href="@(Links.Docs(Context) + "/getting-started/installation")">Get started</a>
             <a class="button secondary" href="@Links.Docs(Context)">Read the docs</a>
-            @if (!string.IsNullOrWhiteSpace(Options.Value.DemoUrl)) { <a class="button secondary" href="@Options.Value.DemoUrl">See the demo shop</a> }
+            @if (!string.IsNullOrWhiteSpace(Options.Value.DemoUrl)) { <a class="button secondary" href="@Options.Value.DemoUrl" target="_blank" rel="noopener">See the demo shop</a> }
         </p>
     </div>
 </section>

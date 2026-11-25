@@ -27,6 +27,11 @@ public class SiteTests(WebApplicationFactory<Program> factory) : IClassFixture<W
         section = section[..section.IndexOf("</section>", StringComparison.Ordinal)];
         Assert.Matches("<a[^>]*href=\"https://demo.example.com\"[^>]*target=\"_blank\"[^>]*rel=\"noopener\"", section);
 
+        // Every link to the demo (header, hero and this section) opens in a new tab.
+        var links = Regex.Matches(html, "<a[^>]*href=\"https://demo.example.com\"[^>]*>");
+        Assert.True(links.Count >= 3, $"expected at least 3 demo links, found {links.Count}");
+        Assert.All(links.Select(m => m.Value), l => Assert.Contains("target=\"_blank\"", l));
+
         var without = await Client(factory).GetStringAsync("/");
         Assert.DoesNotContain("Try the Petalwick shop", without);
     }

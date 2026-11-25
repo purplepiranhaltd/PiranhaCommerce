@@ -8,7 +8,7 @@
             @if (!OnDocsHost) { <a href="/#features">Features</a><a href="/#sample">Sample shop</a> }
             <a href="@PricingHref">Pricing</a>
             <a href="@Links.Docs(Context)">Docs</a>
-            @if (!string.IsNullOrWhiteSpace(Options.Value.DemoUrl)) { <a href="@Options.Value.DemoUrl">Demo shop</a> }
+            @if (!string.IsNullOrWhiteSpace(Options.Value.DemoUrl)) { <a href="@Options.Value.DemoUrl" target="_blank" rel="noopener">Demo shop</a> }
         </nav>
     </div>
 </header>
