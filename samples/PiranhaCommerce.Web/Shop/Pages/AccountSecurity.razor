@@ -1,0 +1,98 @@
+@page "/account/security"
+@using PiranhaCommerce.Admin.Services
+@using PiranhaCommerce.Customers
+@inject ShopFront Front
+@inject ShopSession Session
+@inject NavigationManager Nav
+@inject ICustomerTwoFactorService TwoFactor
+
+<PageTitle>Sign-in security</PageTitle>
+
+<div class="wrap">
+    @if (_profile is not null)
+    {
+        <p><a href="/account">&larr; Your account</a></p>
+        <h1>Sign-in security</h1>
+        <FlashNotice Token="@F" />
+
+        @if (_codes is not null)
+        {
+            <section class="notice" aria-live="polite">
+                <h2>Your recovery codes</h2>
+                <p>Keep these somewhere safe, such as a password manager. <strong>They are shown only once.</strong> Each works one time, if you lose your phone.</p>
+                <ul class="recovery">
+                    @foreach (var recovery in _codes) { <li><code>@recovery</code></li> }
+                </ul>
+            </section>
+        }
+
+        @if (_status is { Enabled: true })
+        {
+            <h2>Two-factor sign-in is on</h2>
+            <p>When you sign in, we ask for a code from your authenticator app as well as your password. You have @_status.RecoveryCodesRemaining recovery @(_status.RecoveryCodesRemaining == 1 ? "code" : "codes") left.</p>
+
+            <h3>Get new recovery codes</h3>
+            <form method="post" action="/account/two-factor/recovery-codes" class="stack">
+                <AntiforgeryToken />
+                <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" required /></label>
+                <button type="submit" class="small">Make new recovery codes</button>
+            </form>
+
+            @if (!_status.Compulsory)
+            {
+                <h3>Turn it off</h3>
+                <form method="post" action="/account/two-factor/disable" class="stack">
+                    <AntiforgeryToken />
+                    <label>Password <input type="password" name="password" required autocomplete="current-password" /></label>
+                    <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" required /></label>
+                    <button type="submit" class="small ghost">Turn off two-factor sign-in</button>
+                </form>
+            }
+            else
+            {
+                <p class="muted">This shop requires two-factor sign-in, so it cannot be turned off.</p>
+            }
+        }
+        else if (_setup is not null)
+        {
+            <h2>Set up two-factor sign-in</h2>
+            <ol>
+                <li>Install an authenticator app on your phone (for example Google Authenticator, Microsoft Authenticator or Authy).</li>
+                <li>Scan this picture with the app, or type in the key beside it.</li>
+                <li>Type the 6-digit code the app shows, to check it works.</li>
+            </ol>
+            <div class="qr">@((MarkupString)QrCodeSvg.Make(_setup.OtpAuthUri))</div>
+            <p>Key: <code>@_setup.Secret</code></p>
+            <form method="post" action="/account/two-factor/enable" class="stack">
+                <AntiforgeryToken />
+                <label>Code from your app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" required /></label>
+                <button type="submit">Turn on two-factor sign-in</button>
+            </form>
+        }
+        else
+        {
+            <h2>Two-factor sign-in is off</h2>
+            <p>Add a second step when you sign in: a code from an app on your phone. Then a stolen password is not enough to get into your account.</p>
+            <p><a class="button" href="/account/security?setup=1">Set it up</a></p>
+        }
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "f")] private string? F { get; set; }
+    [SupplyParameterFromQuery(Name = "setup")] private int? SetupRequested { get; set; }
+
+    private PiranhaCommerce.Customers.ProfileDto? _profile;
+    private TwoFactorStatusDto? _status;
+    private TwoFactorSetupDto? _setup;
+    private IReadOnlyList<string>? _codes;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _profile = await Front.ProfileAsync();
+        if (_profile is null) { Nav.NavigateTo("/account/sign-in?returnTo=/account/security"); return; }
+        _codes = Session.TakeRecoveryCodes();
+        _status = await TwoFactor.GetStatusAsync(_profile.Id);
+        if (SetupRequested == 1 && _status is { Enabled: false }) _setup = await TwoFactor.BeginSetupAsync(_profile.Id);
+    }
+}

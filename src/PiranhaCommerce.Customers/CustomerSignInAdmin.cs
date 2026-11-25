@@ -38,7 +38,7 @@ public enum SignInState
 /// <summary>Never carries the password hash or the session version.</summary>
 public sealed record CustomerSignInDto(
     Guid CustomerId, SignInState State, bool HasSignIn, bool CustomerActive, DateTimeOffset? LockedUntil, int FailedAttempts,
-    DateTimeOffset? CreatedUtc, DateTimeOffset? PasswordChangedUtc, DateTimeOffset? EmailVerifiedUtc);
+    DateTimeOffset? CreatedUtc, DateTimeOffset? PasswordChangedUtc, DateTimeOffset? EmailVerifiedUtc, bool TwoFactorEnabled = false);
 
 /// <summary>Why staff sending a reset link did or did not result in an email.</summary>
 public enum ResetLinkOutcome
@@ -84,6 +84,13 @@ public interface ICustomerSignInAdminService
     [RequiresPermission(Permissions.CustomersManage)]
     Task<bool> RemoveAsync(Guid customerId, string? actor = null, CancellationToken ct = default);
 
+    /// <summary>
+    /// Turns off the shopper's two-factor sign-in and forgets its key and recovery codes, for a shopper who has lost their phone and their recovery
+    /// codes. Staff must be sure who they are talking to first. They can set it up again. False when it was not on.
+    /// </summary>
+    [RequiresPermission(Permissions.CustomersManage)]
+    Task<bool> ResetTwoFactorAsync(Guid customerId, string? actor = null, CancellationToken ct = default);
+
     /// <summary>Staff vouch for the address (they checked it another way). False when there is no sign-in.</summary>
     [RequiresPermission(Permissions.CustomersManage)]
     Task<bool> MarkEmailVerifiedAsync(Guid customerId, string? actor = null, CancellationToken ct = default);
@@ -117,11 +124,12 @@ internal sealed partial class CustomerAccountService : ICustomerSignInAdminServi
                 Verified = l != null ? l.EmailVerifiedUtc : null,
             }).FirstOrDefaultAsync(ct);
         if (row is null) return null;
+        var twoFactor = await db.Set<CustomerTwoFactor>().AsNoTracking().AnyAsync(t => t.CustomerId == customerId && t.EnabledUtc != null, ct);
 
         var now = DateTimeOffset.UtcNow;
         var state = StateOf(row.HasLogin, row.Active, row.LockoutEnd, now);
         return new CustomerSignInDto(customerId, state, row.HasLogin, row.Active,
-            state == SignInState.Locked ? row.LockoutEnd : null, row.Failed, row.Created, row.Changed, row.Verified);
+            state == SignInState.Locked ? row.LockoutEnd : null, row.Failed, row.Created, row.Changed, row.Verified, twoFactor);
     }
 
     public async Task<IReadOnlyDictionary<Guid, SignInState>> GetStatesAsync(IReadOnlyCollection<Guid> customerIds, CancellationToken ct = default)
@@ -175,6 +183,14 @@ internal sealed partial class CustomerAccountService : ICustomerSignInAdminServi
         var outcome = customer.Active ? await SendResetLinkCoreAsync(customerId, customer.Email, ct) : ResetLinkOutcome.Inactive;
         await RecordAsync(customerId, "reset-link", actor, outcome.ToString(), ct); // attempts are recorded too, not just successes
         return outcome;
+    }
+
+    public async Task<bool> ResetTwoFactorAsync(Guid customerId, string? actor = null, CancellationToken ct = default)
+    {
+        await db.Set<CustomerRecoveryCode>().Where(r => r.CustomerId == customerId).ExecuteDeleteAsync(ct);
+        var removed = await db.Set<CustomerTwoFactor>().Where(t => t.CustomerId == customerId).ExecuteDeleteAsync(ct) > 0;
+        if (removed) await RecordAsync(customerId, "two-factor-reset", actor, null, ct);
+        return removed;
     }
 
     public async Task<bool> MarkEmailVerifiedAsync(Guid customerId, string? actor = null, CancellationToken ct = default)

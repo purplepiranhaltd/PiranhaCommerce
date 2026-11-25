@@ -65,9 +65,15 @@ internal sealed class CustomerStorefrontEndpoints : IStorefrontEndpointContribut
 
         auth.MapPost("/token", async (SignInInput input, ICustomerAccountService accounts, ICustomerTokenIssuer tokens, ICustomerRefreshService refresh, HttpContext http, CancellationToken ct) =>
             {
-                var result = await accounts.CheckAsync(input.Email, input.Password, ct);
-                // Wrong password, unknown email, no account, inactive and locked out all look the same.
+                var result = await accounts.SignInAsync(input.Email, input.Password, input.Code, ct);
+                // Wrong password, unknown email, no account, inactive, locked out and a wrong code all look the same.
                 if (result.Status == SignInStatus.Unverified) return Results.Json(new { error = "email_not_verified" }, statusCode: StatusCodes.Status403Forbidden);
+                // Only ever said for a correct password. The caller asks for the code and sends the request again with it as "code".
+                if (result.Status == SignInStatus.TwoFactorRequired)
+                    return Results.Json(new { error = "two_factor_required", message = "This account uses two-factor sign-in. Send the code from the authenticator app (or a recovery code) as \"code\" with the email and password." }, statusCode: StatusCodes.Status401Unauthorized);
+                // The shop requires it and this shopper has none yet: the setup token lets them set it up (at /auth/two-factor/setup and /enable) and sign in.
+                if (result.Status == SignInStatus.TwoFactorSetupRequired)
+                    return Results.Json(new { error = "two_factor_setup_required", setupToken = result.SetupToken, message = "This shop requires two-factor sign-in. Use the setup token at /auth/two-factor/setup and /auth/two-factor/enable to set up an authenticator app and sign in." }, statusCode: StatusCodes.Status403Forbidden);
                 return result is { Status: SignInStatus.Valid, CustomerId: { } id, Email: { } email }
                     ? Results.Ok(await SignedInAsync(tokens, refresh, http, id, email, result.SessionVersion, ct))
                     : Results.Unauthorized();
@@ -115,7 +121,54 @@ internal sealed class CustomerStorefrontEndpoints : IStorefrontEndpointContribut
                     : Results.ValidationProblem(new Dictionary<string, string[]> { [nameof(ResetPasswordInput.Token)] = ["This link is not valid, or has expired or already been used."] }))
             .AllowAnonymous();
 
+        // Setting up two-factor when the shop requires it: the shopper has proved their password and holds a short-lived single-use setup token,
+        // but has no access token yet.
+        var setup = auth.MapGroup("/two-factor");
+        setup.MapPost("/setup", async (TwoFactorSetupTokenInput input, ICustomerTwoFactorService twoFactor, CancellationToken ct) =>
+        {
+            ModelValidator.ValidateOrThrow(input);
+            return await twoFactor.CheckSetupTokenAsync(input.SetupToken, ct) is { } id && await twoFactor.BeginSetupAsync(id, ct) is { } started
+                ? Results.Ok(started) : Results.Unauthorized();
+        }).AllowAnonymous();
+        setup.MapPost("/enable", async (TwoFactorEnableWithTokenInput input, ICustomerTwoFactorService twoFactor, ICustomerTokenIssuer tokens, ICustomerRefreshService refresh, HttpContext http, CancellationToken ct) =>
+        {
+            ModelValidator.ValidateOrThrow(input);
+            if (await twoFactor.CheckSetupTokenAsync(input.SetupToken, ct) is not { } id) return Results.Unauthorized();
+            if (await twoFactor.EnableAsync(id, input.Code, ct) is not { } codes)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { [nameof(TwoFactorEnableWithTokenInput.Code)] = ["That code is not right. Check the app and try again."] });
+            if (await twoFactor.CompleteSetupSignInAsync(input.SetupToken, ct) is not { CustomerId: { } who, Email: { } email } done) return Results.Unauthorized();
+            return Results.Ok(new SignedInWithRecoveryCodesDto(codes, await SignedInAsync(tokens, refresh, http, who, email, done.SessionVersion, ct)));
+        }).AllowAnonymous();
+
         var me = storefront.MapGroup("/me").WithTags("Storefront account").AddEndpointFilter<ActiveCustomerFilter>();
+
+        // Their own two-factor sign-in. Turning it off and making new recovery codes need a current code (turning it off needs the password too).
+        var twoFactorMe = me.MapGroup("/two-factor");
+        twoFactorMe.MapGet("/", async (ClaimsPrincipal user, ICustomerTwoFactorService twoFactor, CancellationToken ct) =>
+            await twoFactor.GetStatusAsync(user.CustomerId()!.Value, ct) is { } status ? Results.Ok(status) : Results.Unauthorized());
+        twoFactorMe.MapPost("/setup", async (ClaimsPrincipal user, ICustomerTwoFactorService twoFactor, CancellationToken ct) =>
+            await twoFactor.BeginSetupAsync(user.CustomerId()!.Value, ct) is { } started ? Results.Ok(started) : Results.NotFound());
+        twoFactorMe.MapPost("/enable", async (TwoFactorCodeInput input, ClaimsPrincipal user, ICustomerTwoFactorService twoFactor, CancellationToken ct) =>
+        {
+            ModelValidator.ValidateOrThrow(input);
+            return await twoFactor.EnableAsync(user.CustomerId()!.Value, input.Code, ct) is { } codes
+                ? Results.Ok(new TwoFactorEnabledDto(codes))
+                : Results.ValidationProblem(new Dictionary<string, string[]> { [nameof(TwoFactorCodeInput.Code)] = ["That code is not right. Check the app and try again."] });
+        });
+        twoFactorMe.MapPost("/disable", async (TwoFactorDisableInput input, ClaimsPrincipal user, ICustomerTwoFactorService twoFactor, CancellationToken ct) =>
+        {
+            ModelValidator.ValidateOrThrow(input);
+            return await twoFactor.DisableAsync(user.CustomerId()!.Value, input.Password, input.Code, ct)
+                ? Results.NoContent()
+                : Results.ValidationProblem(new Dictionary<string, string[]> { [nameof(TwoFactorDisableInput.Code)] = ["The password or the code is not right."] });
+        });
+        twoFactorMe.MapPost("/recovery-codes", async (TwoFactorCodeInput input, ClaimsPrincipal user, ICustomerTwoFactorService twoFactor, CancellationToken ct) =>
+        {
+            ModelValidator.ValidateOrThrow(input);
+            return await twoFactor.RegenerateRecoveryCodesAsync(user.CustomerId()!.Value, input.Code, ct) is { } codes
+                ? Results.Ok(new TwoFactorEnabledDto(codes))
+                : Results.ValidationProblem(new Dictionary<string, string[]> { [nameof(TwoFactorCodeInput.Code)] = ["That code is not right."] });
+        });
 
         me.MapGet("/", async (ClaimsPrincipal user, ICustomerAccountService accounts, CancellationToken ct) =>
             await accounts.GetProfileAsync(user.CustomerId()!.Value, ct) is { } p ? Results.Ok(p) : Results.Unauthorized());
@@ -184,3 +237,6 @@ public sealed class EraseOwnAccountInput
 }
 
 public sealed record RegisteredDto(ProfileDto Profile, TokenResponse Token);
+
+/// <summary>Two-factor was just set up as part of signing in: the recovery codes (shown once) and the shopper's token.</summary>
+public sealed record SignedInWithRecoveryCodesDto(IReadOnlyList<string> RecoveryCodes, TokenResponse Token);

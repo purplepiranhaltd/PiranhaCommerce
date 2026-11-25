@@ -58,7 +58,7 @@ public sealed class EraseCustomerInput
 
 public sealed record CustomerExportDto(
     DateTimeOffset ExportedUtc, CustomerDto Customer, IReadOnlyList<AddressDto> Addresses, bool HasSignIn, IReadOnlyList<SignInEventDto> SignInHistory,
-    IReadOnlyDictionary<string, object?> Sections, IReadOnlyList<string>? Groups = null);
+    IReadOnlyDictionary<string, object?> Sections, IReadOnlyList<string>? Groups = null, bool TwoFactorEnabled = false);
 
 public sealed record CustomerErasureResultDto(Guid CustomerId, DateTimeOffset ErasedUtc, IReadOnlyDictionary<string, int> Changed);
 
@@ -102,7 +102,8 @@ internal sealed class CustomerErasureService(PiranhaCommerceDbContext db, IEnume
         foreach (var contributor in contributors.OrderBy(x => x.Name, StringComparer.Ordinal))
             sections[contributor.Name] = await contributor.ExportAsync(subject, ct);
         var groups = await (from m in db.Set<CustomerGroupMember>().AsNoTracking() join g in db.Set<CustomerGroup>().AsNoTracking() on m.GroupId equals g.Id where m.CustomerId == customerId orderby g.NormalizedName select g.Name).ToListAsync(ct);
-        return new CustomerExportDto(DateTimeOffset.UtcNow, c, addresses, hasLogin, history, sections, groups);
+        var twoFactor = await db.Set<CustomerTwoFactor>().AsNoTracking().AnyAsync(t => t.CustomerId == customerId && t.EnabledUtc != null, ct); // never the key or the codes
+        return new CustomerExportDto(DateTimeOffset.UtcNow, c, addresses, hasLogin, history, sections, groups, twoFactor);
     }
 
     public async Task<CustomerErasureResultDto?> EraseAsync(Guid customerId, EraseCustomerInput input, string? actor = null, CancellationToken ct = default)

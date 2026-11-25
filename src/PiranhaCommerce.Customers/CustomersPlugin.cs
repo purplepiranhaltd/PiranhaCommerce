@@ -28,6 +28,7 @@ public sealed class CustomersPlugin : IPiranhaCommercePlugin
         services.AddScoped<ICustomerAccountService, CustomerAccountService>();
         services.AddScoped<ICustomerSignInAdminService>(sp => (CustomerAccountService)sp.GetRequiredService<ICustomerAccountService>());
         services.AddScoped<ICustomerRefreshService>(sp => (CustomerAccountService)sp.GetRequiredService<ICustomerAccountService>());
+        services.AddScoped<ICustomerTwoFactorService>(sp => (CustomerAccountService)sp.GetRequiredService<ICustomerAccountService>());
         services.AddSingleton<IStorefrontEndpointContributor, CustomerStorefrontEndpoints>();
         services.AddSingleton<PiranhaCommerce.Core.Email.IEmailTemplateContributor, CustomerEmailContributor>();
     }
@@ -96,6 +97,23 @@ internal sealed class CustomersModelContributor : IModelContributor
             e.Property(l => l.PasswordHash).HasMaxLength(512).IsRequired();
             e.Property(l => l.SessionVersion).HasDefaultValue(0);
             e.HasOne<Customer>().WithOne().HasForeignKey<CustomerLogin>(l => l.CustomerId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<CustomerTwoFactor>(e =>
+        {
+            e.ToTable("CustomerTwoFactor", Schema);
+            e.HasKey(t => t.CustomerId);
+            e.Property(t => t.SecretKey).HasMaxLength(64).IsRequired();
+            e.HasOne<Customer>().WithOne().HasForeignKey<CustomerTwoFactor>(t => t.CustomerId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<CustomerRecoveryCode>(e =>
+        {
+            e.ToTable("CustomerRecoveryCode", Schema);
+            e.HasKey(r => r.Id);
+            e.Property(r => r.CodeHash).HasMaxLength(64).IsRequired();
+            e.HasIndex(r => new { r.CustomerId, r.CodeHash });
+            e.HasOne<Customer>().WithMany().HasForeignKey(r => r.CustomerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         b.Entity<CustomerRefreshToken>(e =>
@@ -180,6 +198,11 @@ internal sealed class CustomerApiEndpoints : IApiEndpointContributor
 
         customers.MapPost("/{id:guid}/sign-in/reset-link", async (Guid id, HttpContext http, ICustomerSignInAdminService svc, CancellationToken ct) =>
                 await svc.SendResetLinkAsync(id, http.User.FindFirst("email")?.Value, ct) is { } outcome ? Results.Ok(new ResetLinkResultDto(outcome == ResetLinkOutcome.Sent, outcome)) : Results.NotFound())
+            .RequirePermission(Permissions.CustomersManage);
+
+        // For a shopper who has lost their phone and their recovery codes. Staff check who they are talking to first.
+        customers.MapPost("/{id:guid}/sign-in/reset-two-factor", async (Guid id, HttpContext http, ICustomerSignInAdminService svc, CancellationToken ct) =>
+                await svc.ResetTwoFactorAsync(id, http.User.FindFirst("email")?.Value, ct) ? Results.NoContent() : Results.NotFound())
             .RequirePermission(Permissions.CustomersManage);
 
         customers.MapPost("/{id:guid}/sign-in/verify-email", async (Guid id, HttpContext http, ICustomerSignInAdminService svc, CancellationToken ct) =>

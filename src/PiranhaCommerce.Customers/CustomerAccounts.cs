@@ -79,6 +79,15 @@ public sealed class CustomerAccountOptions
     /// <summary>The longest a sign-in on one device can be kept going by refreshing, however often it is used.</summary>
     [System.ComponentModel.DataAnnotations.Range(1, 3650)]
     public int RefreshTokenMaxDays { get; set; } = 180;
+
+    /// <summary>
+    /// When true every shopper must use two-factor sign-in with a password: one who has not set it up is asked to, at their next sign-in, before
+    /// they get a token. Off by default (shoppers may turn it on themselves). Sessions already signed in carry on until they end.
+    /// </summary>
+    public bool RequireTwoFactor { get; set; }
+
+    /// <summary>The name an authenticator app shows beside the shopper's code. Set it to the shop's name.</summary>
+    public string TwoFactorIssuer { get; set; } = "Shop";
 }
 
 public sealed class VerifyEmailInput
@@ -98,7 +107,8 @@ public sealed class RegisterInput
     [StringLength(100)] public string? LastName { get; set; }
 }
 
-public sealed record SignInInput(string Email, string Password);
+/// <param name="Code">The authenticator-app code (or a recovery code), when the shopper has two-factor sign-in on.</param>
+public sealed record SignInInput(string Email, string Password, string? Code = null);
 
 public sealed class ChangePasswordInput
 {
@@ -141,9 +151,16 @@ public class CustomerToken
 }
 
 /// <summary>Unverified is only ever returned for a CORRECT password, so it tells nobody that an address has an account.</summary>
-public enum SignInStatus { Valid, Invalid, LockedOut, Unverified }
+public enum SignInStatus
+{
+    Valid, Invalid, LockedOut, Unverified,
+    /// <summary>The password is right and two-factor is on: ask for the code. Only said for a correct password.</summary>
+    TwoFactorRequired,
+    /// <summary>The password is right, the shop requires two-factor and this shopper has not set it up: <see cref="SignInResult.SetupToken"/> lets them.</summary>
+    TwoFactorSetupRequired,
+}
 
-public sealed record SignInResult(SignInStatus Status, Guid? CustomerId, string? Email, int SessionVersion = 0);
+public sealed record SignInResult(SignInStatus Status, Guid? CustomerId, string? Email, int SessionVersion = 0, string? SetupToken = null);
 
 /// <summary>The result of a successful password change: the version a fresh token for the device that changed it must carry.</summary>
 public sealed record PasswordChangeResult(string Email, int SessionVersion);
@@ -157,8 +174,14 @@ public interface ICustomerAccountService
     /// </summary>
     Task<ProfileDto> RegisterAsync(RegisterInput input, CancellationToken ct = default);
 
-    /// <summary>One check for wrong passwords, unknown emails, customers without an account and inactive customers: all Invalid.</summary>
+    /// <summary>One check for wrong passwords, unknown emails, customers without an account and inactive customers: all Invalid. Checks the password only.</summary>
     Task<SignInResult> CheckAsync(string email, string password, CancellationToken ct = default);
+
+    /// <summary>
+    /// The sign-in itself: the password, and then the code when two-factor is on. A wrong code counts toward the same lockout as a wrong
+    /// password, and a right password alone does not clear that count, so the code cannot be guessed at leisure.
+    /// </summary>
+    Task<SignInResult> SignInAsync(string email, string password, string? code, CancellationToken ct = default);
 
     /// <summary>Null when the customer is missing or inactive (a token outlives deactivation, this does not).</summary>
     Task<ProfileDto?> GetProfileAsync(Guid customerId, CancellationToken ct = default);
@@ -227,7 +250,32 @@ internal sealed partial class CustomerAccountService(
         return ToProfile(customer);
     }
 
-    public async Task<SignInResult> CheckAsync(string email, string password, CancellationToken ct = default)
+    public Task<SignInResult> CheckAsync(string email, string password, CancellationToken ct = default) => CheckAsync(email, password, resetFailures: true, ct);
+
+    public async Task<SignInResult> SignInAsync(string email, string password, string? code, CancellationToken ct = default)
+    {
+        // The count of wrong passwords is kept until the code is right too.
+        var check = await CheckAsync(email, password, resetFailures: false, ct);
+        if (check is not { Status: SignInStatus.Valid, CustomerId: { } id }) return check;
+
+        var enabled = await db.Set<CustomerTwoFactor>().AsNoTracking().AnyAsync(t => t.CustomerId == id && t.EnabledUtc != null, ct);
+        if (enabled)
+        {
+            if (string.IsNullOrWhiteSpace(code)) return new(SignInStatus.TwoFactorRequired, null, null);
+            if (!await VerifyCodeAsync(id, code, ct))
+                return new(await RecordFailureAsync(id, ct) ? SignInStatus.LockedOut : SignInStatus.Invalid, null, null);
+        }
+        else if (options.Value.RequireTwoFactor)
+        {
+            return new(SignInStatus.TwoFactorSetupRequired, id, check.Email, check.SessionVersion, await CreateSetupTokenAsync(id, ct));
+        }
+
+        await ClearFailuresAsync(id, ct);
+        return check;
+    }
+
+    /// <param name="resetFailures">True for a plain password check, which forgets earlier wrong passwords when this one is right. False while a second step is still to come.</param>
+    private async Task<SignInResult> CheckAsync(string email, string password, bool resetFailures, CancellationToken ct)
     {
         password ??= "";
         var normalized = string.IsNullOrWhiteSpace(email) ? null : Normalize(email);
@@ -254,9 +302,9 @@ internal sealed partial class CustomerAccountService(
 
         // Granted only if the account is STILL unlocked at this instant (one atomic statement), as for staff sign-in.
         var now = DateTimeOffset.UtcNow;
-        var granted = await db.Set<CustomerLogin>().Where(l => l.CustomerId == row.CustomerId && (l.LockoutEnd == null || l.LockoutEnd <= now))
-            .ExecuteUpdateAsync(s => s.SetProperty(l => l.AccessFailedCount, 0), ct);
-        return granted > 0 ? new(SignInStatus.Valid, row.CustomerId, row.Email, row.SessionVersion) : new(SignInStatus.LockedOut, null, null);
+        var open = db.Set<CustomerLogin>().Where(l => l.CustomerId == row.CustomerId && (l.LockoutEnd == null || l.LockoutEnd <= now));
+        var granted = resetFailures ? await open.ExecuteUpdateAsync(s => s.SetProperty(l => l.AccessFailedCount, 0), ct) > 0 : await open.AnyAsync(ct);
+        return granted ? new(SignInStatus.Valid, row.CustomerId, row.Email, row.SessionVersion) : new(SignInStatus.LockedOut, null, null);
     }
 
     private async Task<bool> RecordFailureAsync(Guid customerId, CancellationToken ct)

@@ -58,6 +58,16 @@ public sealed class ShopSession(IHttpContextAccessor accessor, IDataProtectionPr
     public Guid? LastOrderId => Read<Guid?>(OrderCookie);
     public void SetLastOrder(Guid orderId) => Write(OrderCookie, orderId, TimeSpan.FromHours(1), "/");
 
+    // Recovery codes, shown once: handed from the form that made them to the page that shows them, in a protected cookie that lives five minutes.
+    private const string RecoveryCookie = "shop_recovery";
+    public void SetRecoveryCodes(IReadOnlyList<string> codes) => Write(RecoveryCookie, codes, TimeSpan.FromMinutes(5), "/account");
+    public IReadOnlyList<string>? TakeRecoveryCodes()
+    {
+        var codes = Read<List<string>>(RecoveryCookie);
+        if (codes is not null) Http.Response.Cookies.Delete(RecoveryCookie, Options(null, "/account"));
+        return codes;
+    }
+
     // Messages.
     public string Protect(Flash flash) => _data.ToTimeLimitedDataProtector().Protect(JsonSerializer.Serialize(flash), TimeSpan.FromMinutes(10));
 

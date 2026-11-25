@@ -35,6 +35,24 @@
                 }
             </p>
         }
+        @if (_status.HasSignIn)
+        {
+            <p>Two-factor sign-in: <strong>@(_status.TwoFactorEnabled ? "on" : "off")</strong>
+                @if (_status.TwoFactorEnabled)
+                {
+                    @if (_confirmTwoFactor)
+                    {
+                        <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button type="button" class="danger" disabled="@_busy" @onclick="ResetTwoFactorAsync">Confirm: turn off two-factor</button></PiranhaCommerce.Admin.Components.Can>
+                        <button type="button" class="secondary" @onclick="() => _confirmTwoFactor = false">Cancel</button>
+                        <span class="pc-muted"> Only do this once you are sure who you are speaking to. They can set it up again.</span>
+                    }
+                    else
+                    {
+                        <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button type="button" class="secondary" disabled="@_busy" @onclick="() => _confirmTwoFactor = true">Turn off two-factor</button></PiranhaCommerce.Admin.Components.Can>
+                    }
+                }
+            </p>
+        }
         <p class="pc-muted">
             To switch a customer off, untick Active above and save: that also ends their live sessions straight away.
             Orders and addresses are never affected by anything here.
@@ -129,6 +147,10 @@
     private async Task UnlockAsync() { var id = CustomerId; var who = await ActorAsync(); await RunAsync(async s => await s.UnlockAsync(id, who) ? "Unlocked." : "They have no sign-in."); }
 
     private async Task SignOutAsync() { var id = CustomerId; var who = await ActorAsync(); await RunAsync(async s => await s.SignOutEverywhereAsync(id, who) ? "Signed out everywhere. They can sign in again." : "They have no sign-in."); }
+
+    private bool _confirmTwoFactor;
+
+    private async Task ResetTwoFactorAsync() { var id = CustomerId; var who = await ActorAsync(); _confirmTwoFactor = false; await RunAsync(async s => await s.ResetTwoFactorAsync(id, who) ? "Two-factor turned off. They can set it up again." : "It was not on."); }
 
     private async Task RemoveAsync() { var id = CustomerId; var who = await ActorAsync(); await RunAsync(async s => await s.RemoveAsync(id, who) ? "Sign-in removed." : "They had no sign-in."); }
 

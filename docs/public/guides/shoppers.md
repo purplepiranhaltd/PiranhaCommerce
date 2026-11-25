@@ -90,6 +90,29 @@ Turn on `PiranhaCommerce:Customers:RequireVerifiedEmail` (off by default) to mak
 - A staff edit that changes the address clears the verification and ends the sessions, because the new address is unproven.
 - Sign-ins that existed when this was added count as verified, so turning the option on locks no one out. With it off, new shoppers are simply recorded as unverified.
 
+## Two-factor sign-in
+
+A shopper can add a second step to signing in: a six-digit code from an authenticator app (Google Authenticator, Microsoft Authenticator, Authy and the like). It is optional for each shopper. It is separate from staff two-factor, which uses the staff login.
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `PiranhaCommerce:Customers:RequireTwoFactor` | `false` | `true` makes it compulsory: a shopper without it is taken through setting it up the next time they sign in with a password. |
+| `PiranhaCommerce:Customers:TwoFactorIssuer` | `Shop` | The name the authenticator app shows beside the code. Set it to your shop's name. |
+
+**Setting it up** (signed in, under `/me/two-factor`): `POST /setup` returns the key and an `otpauth://` address (draw it as a QR code), then `POST /enable` with a code from the app turns it on and returns **ten recovery codes, shown only once**. Until a code is checked it is not on, and starting again within half an hour keeps the same key. `GET /me/two-factor` says whether it is on, how many recovery codes are left, and whether the shop requires it.
+
+**Signing in.** `POST /storefront/auth/token` takes an optional `code`. For an account with two-factor on and no code, the answer is `401` with `error: two_factor_required`, said only after a correct password, so it tells an attacker nothing without it. Send the request again with the code. A code from the app works once (the same code cannot be replayed), and a recovery code works once, typed in any case with or without its dash. A wrong code counts toward the same lockout as a wrong password, and a correct password on its own does not clear that count.
+
+**When the shop requires it.** A shopper without two-factor gets `403` with `error: two_factor_setup_required` and a `setupToken` instead of a session. The token lasts ten minutes, works once, and is good for nothing else. They post it to `/storefront/auth/two-factor/setup` to get the key, then to `/storefront/auth/two-factor/enable` with a code. That turns it on, signs them in and returns the recovery codes with their token. A required shop does not let a shopper turn it off.
+
+**Turning it off, and new recovery codes.** `POST /me/two-factor/disable` needs the password and a current code. `POST /me/two-factor/recovery-codes` needs a current code and replaces all ten.
+
+**If they lose their phone and their codes**, staff turn it off on the Sign-in card ("Turn off two-factor", for anyone with `customers.manage`) or with `POST /customers/{id}/sign-in/reset-two-factor`. That is recorded in the sign-in history as `two-factor-reset`. Only do it once you are sure who you are talking to. The shopper can then set it up again.
+
+The key is stored in the database, so protect backups as you do the rest of the customer data. Recovery codes are stored only as hashes. The customer export says whether two-factor is on, never the key or the codes, and erasing a customer deletes both.
+
+The Petalwick sample shop has the whole thing: a code box on sign-in, a Sign-in security page at `/account/security` with the QR code and recovery codes, and the required-setup page.
+
 ## Shopper sign-ins, for staff
 
 Staff manage a customer's sign-in on the Sign-in card on the customer page (and a Sign-in column in the list), or at `/customers/{id}/sign-in`. They can see whether a customer has no sign-in, can sign in, is locked out or is switched off, and they can:

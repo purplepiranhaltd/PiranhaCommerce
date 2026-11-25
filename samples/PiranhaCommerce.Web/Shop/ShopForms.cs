@@ -149,19 +149,66 @@ internal static class ShopForms
         {
             var returnTo = form["returnTo"].ToString();
             var email = form["email"].ToString().Trim();
-            var result = await accounts.CheckAsync(email, form["password"].ToString(), ct);
+            var result = await accounts.SignInAsync(email, form["password"].ToString(), form["code"].ToString(), ct);
             var typed = new Dictionary<string, string> { ["signInEmail"] = email };
             switch (result.Status)
             {
                 case SignInStatus.Valid:
                     return await StartSessionAsync(session, shopBaskets, accounts, result, ShopSession.SafePath(returnTo, "/account"), ct);
+                case SignInStatus.TwoFactorRequired: // said only for a right password
+                    return Results.Redirect(session.Back("/account/sign-in", new Flash("Enter the 6-digit code from your authenticator app (or a recovery code) as well.", null, typed)));
+                case SignInStatus.TwoFactorSetupRequired: // the shop requires it: set it up now, then they are signed in
+                    return Results.Redirect(session.Back("/account/two-factor/setup", new Flash(null, null, new Dictionary<string, string> { ["setupToken"] = result.SetupToken!, ["returnTo"] = ShopSession.SafePath(returnTo, "/account") })));
                 case SignInStatus.LockedOut:
                     return Results.Redirect(session.Back("/account/sign-in", new Flash("Too many wrong attempts. Please wait a while, then try again.", null, typed)));
                 case SignInStatus.Unverified:
                     return Results.Redirect(session.Back("/account/sign-in", new Flash("Please follow the link we emailed you to confirm your address first.", null, typed)));
                 default: // wrong password, no such account, no sign-in or inactive: one answer, so it cannot be used to find out who has an account
-                    return Results.Redirect(session.Back("/account/sign-in", new Flash("That email and password do not match an account.", null, typed)));
+                    return Results.Redirect(session.Back("/account/sign-in", new Flash("That email, password and code do not match an account.", null, typed)));
             }
+        });
+
+        // Two-factor sign-in, from the account's security page.
+        account.MapPost("/two-factor/enable", async (IFormCollection form, ShopSession session, ShopBaskets shopBaskets, ICustomerTwoFactorService twoFactor, CancellationToken ct) =>
+        {
+            if (await shopBaskets.ShopperAsync(ct) is not { } shopper) return Results.Redirect("/account/sign-in?returnTo=/account/security");
+            if (await twoFactor.EnableAsync(shopper.Id, form["code"].ToString(), ct) is not { } codes)
+                return Results.Redirect(session.Back("/account/security", new Flash("That code is not right. Check the app and try again."), null) + "&setup=1");
+            session.SetRecoveryCodes(codes);
+            return Results.Redirect("/account/security");
+        });
+
+        account.MapPost("/two-factor/disable", async (IFormCollection form, ShopSession session, ShopBaskets shopBaskets, ICustomerTwoFactorService twoFactor, CancellationToken ct) =>
+        {
+            if (await shopBaskets.ShopperAsync(ct) is not { } shopper) return Results.Redirect("/account/sign-in?returnTo=/account/security");
+            return await twoFactor.DisableAsync(shopper.Id, form["password"].ToString(), form["code"].ToString(), ct)
+                ? Results.Redirect(session.Back("/account/security", new Flash(null, "Two-factor sign-in is off.")))
+                : Results.Redirect(session.Back("/account/security", new Flash("The password or the code is not right.")));
+        });
+
+        account.MapPost("/two-factor/recovery-codes", async (IFormCollection form, ShopSession session, ShopBaskets shopBaskets, ICustomerTwoFactorService twoFactor, CancellationToken ct) =>
+        {
+            if (await shopBaskets.ShopperAsync(ct) is not { } shopper) return Results.Redirect("/account/sign-in?returnTo=/account/security");
+            if (await twoFactor.RegenerateRecoveryCodesAsync(shopper.Id, form["code"].ToString(), ct) is not { } codes)
+                return Results.Redirect(session.Back("/account/security", new Flash("That code is not right.")));
+            session.SetRecoveryCodes(codes);
+            return Results.Redirect("/account/security");
+        });
+
+        // When the shop requires two-factor: the shopper has proved their password and holds a setup token. Finishing signs them in.
+        account.MapPost("/two-factor/finish", async (IFormCollection form, ShopSession session, ShopBaskets shopBaskets, ICustomerAccountService accounts, ICustomerTwoFactorService twoFactor, CancellationToken ct) =>
+        {
+            var setupToken = form["setupToken"].ToString();
+            var returnTo = ShopSession.SafePath(form["returnTo"].ToString(), "/account");
+            var again = new Flash(null, null, new Dictionary<string, string> { ["setupToken"] = setupToken, ["returnTo"] = returnTo, ["wrong"] = "1" });
+            if (await twoFactor.CheckSetupTokenAsync(setupToken, ct) is not { } id)
+                return Results.Redirect(session.Back("/account/sign-in", new Flash("That took too long. Please sign in again.")));
+            if (await twoFactor.EnableAsync(id, form["code"].ToString(), ct) is not { } codes)
+                return Results.Redirect(session.Back("/account/two-factor/setup", again));
+            if (await twoFactor.CompleteSetupSignInAsync(setupToken, ct) is not { Status: SignInStatus.Valid } done)
+                return Results.Redirect(session.Back("/account/sign-in", new Flash("That took too long. Please sign in again.")));
+            session.SetRecoveryCodes(codes);
+            return await StartSessionAsync(session, shopBaskets, accounts, done, "/account/security", ct);
         });
 
         account.MapPost("/register", async (IFormCollection form, ShopSession session, ShopBaskets shopBaskets, ICustomerAccountService accounts, CancellationToken ct) =>
