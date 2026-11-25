@@ -92,6 +92,16 @@ public interface ICustomerTwoFactorService
     Task<Guid?> CheckSetupTokenAsync(string setupToken, CancellationToken ct = default);
 
     /// <summary>
+    /// The second step of signing in, for a shop that asks for the code on its own page. <paramref name="challenge"/> came back with
+    /// <see cref="SignInStatus.TwoFactorRequired"/> from the password step. A wrong code counts toward the lockout like a wrong password and
+    /// leaves the challenge usable until it runs out or the account locks; a right one spends it. Anything that is not a live challenge is <see cref="SignInStatus.Invalid"/>.
+    /// </summary>
+    Task<SignInResult> CompleteChallengeAsync(string challenge, string code, CancellationToken ct = default);
+
+    /// <summary>Whether the challenge is still live (not used, not run out), so a page can say "try the code again" rather than "start over".</summary>
+    Task<bool> CheckChallengeAsync(string challenge, CancellationToken ct = default);
+
+    /// <summary>
     /// Uses the token up and returns the sign-in it stands for (the shopper proved their password to get it), so the caller can issue their
     /// token. Null when it was already used or has run out.
     /// </summary>
@@ -166,6 +176,8 @@ internal static class Base32
 internal sealed partial class CustomerAccountService : ICustomerTwoFactorService
 {
     private const string SetupPurpose = "TwoFactorSetup";
+    private const string ChallengePurpose = "TwoFactorChallenge";
+    private const int ChallengeMinutes = 5;
     private const int SetupTokenMinutes = 10;
     private const int RecoveryCodeCount = 10;
     // No 0/O or 1/I/L, so a code read off paper is not misread.
@@ -291,27 +303,45 @@ internal sealed partial class CustomerAccountService : ICustomerTwoFactorService
     }
 
     /// <summary>A single-use value that lets someone who has just proved their password set up two-factor, when the shop requires it. Not a sign-in.</summary>
-    private async Task<string> CreateSetupTokenAsync(Guid customerId, CancellationToken ct)
+    private Task<string> CreateSetupTokenAsync(Guid customerId, CancellationToken ct) => CreateTokenAsync(customerId, SetupPurpose, SetupTokenMinutes, ct);
+
+    private async Task<string> CreateTokenAsync(Guid customerId, string purpose, int minutes, CancellationToken ct)
     {
         var now = DateTimeOffset.UtcNow;
-        await db.Set<CustomerToken>().Where(t => t.CustomerId == customerId && t.Purpose == SetupPurpose && t.UsedUtc == null)
+        await db.Set<CustomerToken>().Where(t => t.CustomerId == customerId && t.Purpose == purpose && t.UsedUtc == null)
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.UsedUtc, (DateTimeOffset?)now), ct); // only the newest one works
         var secret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-        var token = new CustomerToken { Id = Guid.NewGuid(), CustomerId = customerId, Purpose = SetupPurpose, TokenHash = Hash(secret), CreatedUtc = now, ExpiresUtc = now.AddMinutes(SetupTokenMinutes) };
+        var token = new CustomerToken { Id = Guid.NewGuid(), CustomerId = customerId, Purpose = purpose, TokenHash = Hash(secret), CreatedUtc = now, ExpiresUtc = now.AddMinutes(minutes) };
         db.Add(token);
         await db.SaveChangesAsync(ct);
         return $"{token.Id:N}.{secret}";
     }
 
-    public async Task<Guid?> CheckSetupTokenAsync(string setupToken, CancellationToken ct = default)
+    public Task<Guid?> CheckSetupTokenAsync(string setupToken, CancellationToken ct = default) => CheckTokenAsync(setupToken, SetupPurpose, ct);
+
+    private async Task<Guid?> CheckTokenAsync(string token, string purpose, CancellationToken ct)
     {
-        var parts = (setupToken ?? "").Split('.', 2);
+        var parts = (token ?? "").Split('.', 2);
         if (parts.Length != 2 || !Guid.TryParseExact(parts[0], "N", out var tokenId)) return null;
-        var row = await db.Set<CustomerToken>().AsNoTracking().Where(t => t.Id == tokenId && t.Purpose == SetupPurpose)
+        var row = await db.Set<CustomerToken>().AsNoTracking().Where(t => t.Id == tokenId && t.Purpose == purpose)
             .Select(t => new { t.CustomerId, t.TokenHash, t.UsedUtc, t.ExpiresUtc }).FirstOrDefaultAsync(ct);
         if (row is null || row.UsedUtc is not null || row.ExpiresUtc <= DateTimeOffset.UtcNow) return null;
         if (!CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(row.TokenHash), Encoding.ASCII.GetBytes(Hash(parts[1])))) return null;
         return await db.Set<Customer>().AnyAsync(c => c.Id == row.CustomerId && c.Active, ct) ? row.CustomerId : null;
+    }
+
+    public async Task<bool> CheckChallengeAsync(string challenge, CancellationToken ct = default) => await CheckTokenAsync(challenge, ChallengePurpose, ct) is not null;
+
+    public async Task<SignInResult> CompleteChallengeAsync(string challenge, string code, CancellationToken ct = default)
+    {
+        if (await CheckTokenAsync(challenge, ChallengePurpose, ct) is not { } customerId) return new(SignInStatus.Invalid, null, null);
+        var result = await ((ICustomerExternalAccess)this).SignInAsync(customerId, code, ct); // active, not locked out, then the code (a wrong one counts toward the lockout)
+        if (result.Status != SignInStatus.Valid) return result.Status == SignInStatus.TwoFactorRequired ? new(SignInStatus.Invalid, null, null) : result;
+        var tokenId = Guid.ParseExact(challenge.Split('.', 2)[0], "N");
+        var now = DateTimeOffset.UtcNow;
+        var spent = await db.Set<CustomerToken>().Where(t => t.Id == tokenId && t.Purpose == ChallengePurpose && t.UsedUtc == null && t.ExpiresUtc > now)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.UsedUtc, (DateTimeOffset?)now), ct) > 0;
+        return spent ? result : new(SignInStatus.Invalid, null, null); // two requests with the same challenge and code: one wins
     }
 
     public async Task<SignInResult?> CompleteSetupSignInAsync(string setupToken, CancellationToken ct = default)

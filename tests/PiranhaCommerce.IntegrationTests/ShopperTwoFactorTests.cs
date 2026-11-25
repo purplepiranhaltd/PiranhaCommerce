@@ -180,6 +180,39 @@ public class ShopperTwoFactorTests(PiranhaCommerceFactory factory) : IClassFixtu
     }
 
     [Fact]
+    public async Task A_shop_can_ask_for_the_code_on_a_second_page_using_a_challenge_that_holds_no_password()
+    {
+        var e = await EnrolAsync();
+        using var scope = factory.Services.CreateScope();
+        var accounts = scope.ServiceProvider.GetRequiredService<ICustomerAccountService>();
+        var twoFactor = scope.ServiceProvider.GetRequiredService<ICustomerTwoFactorService>();
+
+        // Only the right password gets a challenge; a wrong one gets nothing to go on.
+        Assert.Null((await accounts.SignInAsync(e.Shopper.Email, "not-the-password", null)).Challenge);
+        var first = await accounts.SignInAsync(e.Shopper.Email, Password, null);
+        Assert.Equal(SignInStatus.TwoFactorRequired, first.Status);
+        var challenge = first.Challenge!;
+        Assert.False(string.IsNullOrEmpty(challenge));
+
+        Assert.Equal(SignInStatus.Invalid, (await twoFactor.CompleteChallengeAsync("nonsense", "123456")).Status);
+        // A wrong code leaves the challenge usable.
+        Assert.NotEqual(SignInStatus.Valid, (await twoFactor.CompleteChallengeAsync(challenge, "000000")).Status);
+        Assert.True(await twoFactor.CheckChallengeAsync(challenge));
+        var done = await twoFactor.CompleteChallengeAsync(challenge, CodeFor(e.Secret));
+        Assert.Equal(SignInStatus.Valid, done.Status);
+        Assert.Equal(e.Shopper.Id, done.CustomerId);
+        // And once used, it is spent, even with a recovery code.
+        Assert.False(await twoFactor.CheckChallengeAsync(challenge));
+        Assert.Equal(SignInStatus.Invalid, (await twoFactor.CompleteChallengeAsync(challenge, e.RecoveryCodes[0])).Status);
+
+        // A newer challenge replaces the older one, and a setup token is not a challenge.
+        var older = (await accounts.SignInAsync(e.Shopper.Email, Password, null)).Challenge!;
+        var newer = (await accounts.SignInAsync(e.Shopper.Email, Password, null)).Challenge!;
+        Assert.False(await twoFactor.CheckChallengeAsync(older));
+        Assert.True(await twoFactor.CheckChallengeAsync(newer));
+    }
+
+    [Fact]
     public async Task Turning_it_off_needs_the_password_and_a_code()
     {
         var e = await EnrolAsync();

@@ -50,14 +50,30 @@ public partial class ShopTwoFactorPageTests(PiranhaCommerceFactory factory) : IC
         Assert.Contains("Two-factor sign-in is on", shown);
         Assert.Empty(RecoveryPattern().Matches(await b.GetStringAsync("/account/security"))); // not shown again
 
-        // Signing in again needs the code.
+        // The sign-in page never asks for a code. Only once the password is right does an account with two-factor get a second page for it.
         var other = Browser(factory);
-        var noCode = await PostAsync(other, "/account/sign-in", "/account/sign-in", ("email", email), ("password", Password), ("returnTo", ""));
-        Assert.StartsWith("/account/sign-in", noCode.Headers.Location!.OriginalString);
-        var withCode = await PostAsync(other, "/account/sign-in", "/account/sign-in", ("email", email), ("password", Password), ("returnTo", ""),
+        Assert.DoesNotContain("name=\"code\"", await other.GetStringAsync("/account/sign-in"));
+        var wrongPassword = await PostAsync(other, "/account/sign-in", "/account/sign-in", ("email", email), ("password", "not-the-password"), ("returnTo", ""));
+        Assert.StartsWith("/account/sign-in", wrongPassword.Headers.Location!.OriginalString); // a wrong password learns nothing about two-factor
+        var step = await PostAsync(other, "/account/sign-in", "/account/sign-in", ("email", email), ("password", Password), ("returnTo", ""));
+        var codePage = step.Headers.Location!.OriginalString;
+        Assert.StartsWith("/account/two-factor/code", codePage);
+        Assert.Contains("name=\"code\"", await other.GetStringAsync(codePage));
+        Assert.DoesNotContain(Password, codePage); // the password is not carried to the second step
+
+        var wrongCode = await PostAsync(other, codePage, "/account/two-factor/verify", ("challenge", ChallengeIn(await other.GetStringAsync(codePage))), ("returnTo", "/account"), ("code", "000000"));
+        Assert.StartsWith("/account/two-factor/code", wrongCode.Headers.Location!.OriginalString); // try again
+        var again = wrongCode.Headers.Location.OriginalString;
+        var withCode = await PostAsync(other, again, "/account/two-factor/verify", ("challenge", ChallengeIn(await other.GetStringAsync(again))), ("returnTo", "/account"),
             ("code", Totp.CodeFor(secret, Totp.StepAt(DateTimeOffset.UtcNow) + 1)));
         Assert.Equal("/account", withCode.Headers.Location!.OriginalString);
+        Assert.Contains(email, await other.GetStringAsync("/account"));
     }
+
+    [GeneratedRegex("name=\"challenge\" value=\"([^\"]+)\"")]
+    private static partial Regex ChallengePattern();
+
+    private static string ChallengeIn(string page) => System.Net.WebUtility.HtmlDecode(ChallengePattern().Match(page).Groups[1].Value);
 
     [Fact]
     public async Task When_the_shop_requires_it_signing_in_leads_to_the_setup_page_which_signs_them_in()

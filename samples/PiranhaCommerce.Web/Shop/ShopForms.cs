@@ -151,14 +151,14 @@ internal static class ShopForms
         {
             var returnTo = form["returnTo"].ToString();
             var email = form["email"].ToString().Trim();
-            var result = await accounts.SignInAsync(email, form["password"].ToString(), form["code"].ToString(), ct);
+            var result = await accounts.SignInAsync(email, form["password"].ToString(), null, ct);
             var typed = new Dictionary<string, string> { ["signInEmail"] = email };
             switch (result.Status)
             {
                 case SignInStatus.Valid:
                     return await StartSessionAsync(session, shopBaskets, accounts, result, ShopSession.SafePath(returnTo, "/account"), ct);
-                case SignInStatus.TwoFactorRequired: // said only for a right password
-                    return Results.Redirect(session.Back("/account/sign-in", new Flash("Enter the 6-digit code from your authenticator app (or a recovery code) as well.", null, typed)));
+                case SignInStatus.TwoFactorRequired: // said only for a right password: the code is asked for next, on its own page
+                    return Results.Redirect(session.Back("/account/two-factor/code", new Flash(null, null, new Dictionary<string, string> { ["challenge"] = result.Challenge!, ["returnTo"] = ShopSession.SafePath(returnTo, "/account") })));
                 case SignInStatus.TwoFactorSetupRequired: // the shop requires it: set it up now, then they are signed in
                     return Results.Redirect(session.Back("/account/two-factor/setup", new Flash(null, null, new Dictionary<string, string> { ["setupToken"] = result.SetupToken!, ["returnTo"] = ShopSession.SafePath(returnTo, "/account") })));
                 case SignInStatus.LockedOut:
@@ -166,7 +166,7 @@ internal static class ShopForms
                 case SignInStatus.Unverified:
                     return Results.Redirect(session.Back("/account/sign-in", new Flash("Please follow the link we emailed you to confirm your address first.", null, typed)));
                 default: // wrong password, no such account, no sign-in or inactive: one answer, so it cannot be used to find out who has an account
-                    return Results.Redirect(session.Back("/account/sign-in", new Flash("That email, password and code do not match an account.", null, typed)));
+                    return Results.Redirect(session.Back("/account/sign-in", new Flash("That email and password do not match an account.", null, typed)));
             }
         });
 
@@ -226,6 +226,28 @@ internal static class ShopForms
             if (await shopBaskets.ShopperAsync(ct) is not { } shopper) return Results.Redirect("/account/sign-in?returnTo=/account/security");
             await social.UnlinkAsync(shopper.Id, provider, ct);
             return Results.Redirect(session.Back("/account/security", new Flash(null, "That account is no longer linked.")));
+        });
+
+        // The second step of signing in, for an account with two-factor on: the code, with the challenge the password step handed out.
+        account.MapPost("/two-factor/verify", async (IFormCollection form, ShopSession session, ShopBaskets shopBaskets, ICustomerAccountService accounts, ICustomerTwoFactorService twoFactor, CancellationToken ct) =>
+        {
+            var challenge = form["challenge"].ToString();
+            var returnTo = ShopSession.SafePath(form["returnTo"].ToString(), "/account");
+            var result = await twoFactor.CompleteChallengeAsync(challenge, form["code"].ToString(), ct);
+            switch (result.Status)
+            {
+                case SignInStatus.Valid:
+                    return await StartSessionAsync(session, shopBaskets, accounts, result, returnTo, ct);
+                case SignInStatus.LockedOut:
+                    return Results.Redirect(session.Back("/account/sign-in", new Flash("Too many wrong attempts. Please wait a while, then try again.")));
+                case SignInStatus.Unverified:
+                    return Results.Redirect(session.Back("/account/sign-in", new Flash("Please follow the link we emailed you to confirm your address first.")));
+                default:
+                    // The challenge is still good when only the code was wrong: ask again. Otherwise it ran out, so start over.
+                    return await twoFactor.CheckChallengeAsync(challenge, ct)
+                        ? Results.Redirect(session.Back("/account/two-factor/code", new Flash(null, null, new Dictionary<string, string> { ["challenge"] = challenge, ["returnTo"] = returnTo, ["wrong"] = "1" })))
+                        : Results.Redirect(session.Back("/account/sign-in", new Flash("That took too long. Please sign in again.")));
+            }
         });
 
         // Two-factor sign-in, from the account's security page.

@@ -160,7 +160,9 @@ public enum SignInStatus
     TwoFactorSetupRequired,
 }
 
-public sealed record SignInResult(SignInStatus Status, Guid? CustomerId, string? Email, int SessionVersion = 0, string? SetupToken = null);
+/// <param name="SetupToken">For <see cref="SignInStatus.TwoFactorSetupRequired"/>: lets them set it up and sign in.</param>
+/// <param name="Challenge">For <see cref="SignInStatus.TwoFactorRequired"/>: proof, for five minutes, that the password was right, so a shop can ask for the code on a second page without holding the password. Give it to <see cref="ICustomerTwoFactorService.CompleteChallengeAsync"/>.</param>
+public sealed record SignInResult(SignInStatus Status, Guid? CustomerId, string? Email, int SessionVersion = 0, string? SetupToken = null, string? Challenge = null);
 
 /// <summary>The result of a successful password change: the version a fresh token for the device that changed it must carry.</summary>
 public sealed record PasswordChangeResult(string Email, int SessionVersion);
@@ -257,7 +259,9 @@ internal sealed partial class CustomerAccountService(
         // The count of wrong passwords is kept until the code is right too.
         var check = await CheckAsync(email, password, resetFailures: false, ct);
         if (check is not { Status: SignInStatus.Valid }) return check;
-        return await SecondStepAsync(check, code, ct);
+        var result = await SecondStepAsync(check, code, ct);
+        // The right password, and a code is needed: hand back a challenge so the code can be asked for on its own page, without the password again.
+        return result.Status == SignInStatus.TwoFactorRequired ? result with { Challenge = await CreateTokenAsync(check.CustomerId!.Value, ChallengePurpose, ChallengeMinutes, ct) } : result;
     }
 
     /// <summary>Two-factor, after the shopper has been identified (by password, or by a provider). Clears the failure count only once everything is right.</summary>

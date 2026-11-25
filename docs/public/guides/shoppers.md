@@ -111,7 +111,9 @@ A shopper can add a second step to signing in: a six-digit code from an authenti
 
 The key is stored in the database, so protect backups as you do the rest of the customer data. Recovery codes are stored only as hashes. The customer export says whether two-factor is on, never the key or the codes, and erasing a customer deletes both.
 
-The Petalwick sample shop has the whole thing: a code box on sign-in, a Sign-in security page at `/account/security` with the QR code and recovery codes, and the required-setup page.
+The Petalwick sample shop has the whole thing. The sign-in page asks only for email and password. When the password is right and the account has two-factor on, the shopper is taken to a second page for the code, so shoppers without it never see a code box. There is also a Sign-in security page at `/account/security` with the QR code and recovery codes, and the required-setup page.
+
+**Asking for the code on a second page** (for a server-rendered shop like the sample). `ICustomerAccountService.SignInAsync` returns `TwoFactorRequired` with a `Challenge` for a correct password. It is good for five minutes, holds no password, and a newer one replaces the older. Pass it with the code to `ICustomerTwoFactorService.CompleteChallengeAsync`. A wrong code counts toward the lockout and leaves the challenge usable, and a right one spends it. The storefront API does not need this: it is stateless, so the app just sends the request again with `code`.
 
 ## Social sign-in
 

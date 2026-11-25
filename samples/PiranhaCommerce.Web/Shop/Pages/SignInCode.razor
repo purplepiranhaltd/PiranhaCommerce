@@ -1,0 +1,45 @@
+@page "/account/two-factor/code"
+@inject ShopSession Session
+
+<PageTitle>Enter your code</PageTitle>
+
+<div class="wrap">
+    <h1>Enter your code</h1>
+    @if (_challenge is null)
+    {
+        <p>That took too long. <a href="/account/sign-in">Please sign in again</a>.</p>
+    }
+    else
+    {
+        <p>Your account uses two-factor sign-in. Enter the 6-digit code from your authenticator app, or one of your recovery codes.</p>
+        @if (_wrong)
+        {
+            <p class="error" role="alert">That code is not right. Try again.</p>
+        }
+        <form method="post" action="/account/two-factor/verify" class="stack">
+            <AntiforgeryToken />
+            <input type="hidden" name="challenge" value="@_challenge" />
+            <input type="hidden" name="returnTo" value="@_returnTo" />
+            <label>Code <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" required autofocus /></label>
+            <button type="submit">Sign in</button>
+        </form>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "f")] private string? F { get; set; }
+
+    private string? _challenge;
+    private string _returnTo = "/account";
+    private bool _wrong;
+
+    protected override void OnInitialized()
+    {
+        // Carried in the protected message that sign-in redirected here with. The challenge is good for five minutes and holds no password.
+        var values = Session.Open(F)?.Values;
+        if (values is null || !values.TryGetValue("challenge", out var challenge)) return;
+        _challenge = challenge;
+        _returnTo = values.GetValueOrDefault("returnTo") ?? "/account";
+        _wrong = values.ContainsKey("wrong");
+    }
+}
