@@ -54,6 +54,18 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           allow-no-subscriptions: true
 
+      - name: Validate (the checks Azure runs before it deploys)
+        env:
+          APP_SUB: ${{ secrets.AZURE_APP_SUBSCRIPTION_ID }}
+          SQL_SUB: ${{ secrets.AZURE_SQL_SUBSCRIPTION_ID }}
+          JWT_PRODUCTION: ${{ secrets.JWT_SIGNING_KEY_PRODUCTION }}
+          JWT_STAGING: ${{ secrets.JWT_SIGNING_KEY_STAGING }}
+          SQL_SERVER: ${{ secrets.SQL_SERVER_NAME }}
+          SQL_POOL: ${{ secrets.SQL_POOL_NAME }}
+        run: |
+          az deployment group validate --subscription "$APP_SUB" --resource-group PiranhaCommerce             --template-file infra/app.bicep --parameters sqlServerName="$SQL_SERVER" productionJwtSigningKey="$JWT_PRODUCTION" stagingJwtSigningKey="$JWT_STAGING" --output none
+          az deployment group validate --subscription "$SQL_SUB" --resource-group PROD-SQL             --template-file infra/sql.bicep --parameters serverName="$SQL_SERVER" poolName="$SQL_POOL" --output none
+
       - name: Preview (what-if)
         env:
           APP_SUB: ${{ secrets.AZURE_APP_SUBSCRIPTION_ID }}

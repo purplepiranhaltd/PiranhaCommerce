@@ -12,14 +12,9 @@ param planId string
 param isApex bool
 param tags object = {}
 
-resource appBinding 'Microsoft.Web/sites/hostNameBindings@2023-12-01' = if (empty(slotName)) {
-  name: '${appName}/${hostName}'
-  properties: { siteName: appName, hostNameType: 'Verified', sslState: 'Disabled' }
-}
-
-resource slotBinding 'Microsoft.Web/sites/slots/hostNameBindings@2023-12-01' = if (!empty(slotName)) {
-  name: '${appName}/${slotName}/${hostName}'
-  properties: { siteName: '${appName}/${slotName}', hostNameType: 'Verified', sslState: 'Disabled' }
+module bind 'plainbinding.bicep' = {
+  name: 'bind-${replace(hostName, '.', '-')}'
+  params: { appName: appName, slotName: slotName, hostName: hostName }
 }
 
 resource certificate 'Microsoft.Web/certificates@2023-12-01' = {
@@ -31,7 +26,7 @@ resource certificate 'Microsoft.Web/certificates@2023-12-01' = {
     canonicalName: hostName
     domainValidationMethod: isApex ? 'http-token' : 'cname-delegation'
   }
-  dependsOn: [appBinding, slotBinding]
+  dependsOn: [bind]
 }
 
 module secure 'securebinding.bicep' = {
