@@ -144,6 +144,8 @@ The optional package `PiranhaCommerce.Customers.SocialSignIn` lets shoppers sign
 
 **The shop's other rules still apply.** A shopper with two-factor on is asked for their code after a social sign-in (`401 two_factor_required`, then send the same ID token again with `code`), and with `RequireTwoFactor` they are taken through setup (`403 two_factor_setup_required`) like anyone else. Switched-off customers, lockout and `RequireVerifiedEmail` all apply. A stolen social login alone gets nobody in whose account is protected by two-factor.
 
+**In the Petalwick sample shop** the sign-in page shows Google's own "Sign in with Google" button whenever a `google` provider is configured, and the Sign-in security page lets a signed-in shopper add or remove a Google account. The button runs in the browser and posts Google's ID token to the shop in a form, so the shop needs no script of its own. The shop asks Google to put a one-time `nonce` in the token and checks it, and checks Google's double-submit `g_csrf_token` cookie. A shopper with two-factor is taken to a page asking for their code. The route, `/account/social/{provider}`, uses `ISocialSignInService`, which is public so a server-rendered shop of your own can do the same. For other providers, use their sign-in button the same way and post the ID token to `/account/social/{provider}`.
+
 Accounts made by social sign-up have a random password nobody knows. They can choose one with "forgot password". The sign-in history records `social-linked`, `social-unlinked` and `social-sign-in`, linked accounts are in the customer export, and erasing a customer removes them. The sign-in routes share the shop's sign-in rate limit.
 
 ## Shopper sign-ins, for staff

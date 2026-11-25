@@ -3,7 +3,7 @@
 @using PiranhaCommerce.Customers
 @inject ShopSession Session
 @inject NavigationManager Nav
-@inject ICustomerTwoFactorService TwoFactor
+@inject ShopFront Front
 
 <PageTitle>Set up two-factor sign-in</PageTitle>
 
@@ -50,10 +50,10 @@
         // The setup token travels in the protected message that sign-in redirected here with; it lasts ten minutes and works once.
         var values = Session.Open(F)?.Values;
         if (values is null || !values.TryGetValue("setupToken", out var token)) return;
-        if (await TwoFactor.CheckSetupTokenAsync(token) is not { } id) return;
+        if (await Front.SetupForTokenAsync(token) is not { } setup) return;
         _setupToken = token;
         _returnTo = values.GetValueOrDefault("returnTo") ?? "/account";
         _wrong = values.ContainsKey("wrong");
-        _setup = await TwoFactor.BeginSetupAsync(id);
+        _setup = setup;
     }
 }

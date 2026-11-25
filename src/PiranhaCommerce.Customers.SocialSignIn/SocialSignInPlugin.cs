@@ -32,6 +32,7 @@ public sealed class SocialSignInPlugin : IPiranhaCommercePlugin
         services.TryAddSingleton<IOidcConfigurationSource, HttpOidcConfigurationSource>();
         services.TryAddSingleton<IExternalIdentityVerifier, OidcIdentityVerifier>();
         services.AddSingleton<IModelContributor, SocialModelContributor>();
+        services.AddScoped<ISocialSignInService, SocialSignInService>();
         services.AddSingleton<IStorefrontEndpointContributor, SocialStorefrontEndpoints>();
         services.AddScoped<ICustomerDataContributor, SocialDataContributor>();
     }
@@ -61,127 +62,53 @@ internal sealed class SocialStorefrontEndpoints : IStorefrontEndpointContributor
         var auth = storefront.MapGroup("/auth/external").WithTags("Storefront social sign-in");
 
         // What the shop offers, so an app knows which buttons to show.
-        auth.MapGet("/", (IOptions<SocialSignInOptions> o) =>
-                Results.Ok(o.Value.Providers.Select(p => new ExternalProviderDto(p.Key.ToLowerInvariant(), p.Value.DisplayName ?? p.Key)).OrderBy(p => p.Name)))
-            .AllowAnonymous();
+        auth.MapGet("/", (ISocialSignInService social) => Results.Ok(social.Providers)).AllowAnonymous();
 
-        auth.MapPost("/{provider}", SignInAsync).AllowAnonymous();
+        auth.MapPost("/{provider}", async (string provider, ExternalSignInInput input, ISocialSignInService social, ICustomerTokenIssuer tokens, ICustomerRefreshService refresh, HttpContext http, CancellationToken ct) =>
+        {
+            ModelValidator.ValidateOrThrow(input);
+            var r = await social.SignInAsync(provider, input.IdToken, input.Nonce, input.Code, ct);
+            if (r is { Outcome: SocialOutcome.SignedIn, SignIn: { CustomerId: { } id, Email: { } email } si })
+            {
+                var issued = await refresh.IssueRefreshTokenAsync(id, si.SessionVersion, http.Request.Headers.UserAgent.ToString(), ct);
+                return Results.Ok(tokens.Issue(id, email, si.SessionVersion, issued?.SessionId) with { RefreshToken = issued?.Token });
+            }
+            return Failure(r);
+        }).AllowAnonymous();
 
         var me = storefront.MapGroup("/me/external").WithTags("Storefront social sign-in").AddEndpointFilter<ActiveCustomerFilter>();
 
-        me.MapGet("/", async (ClaimsPrincipal user, PiranhaCommerceDbContext db, CancellationToken ct) =>
-        {
-            var id = user.CustomerId()!.Value;
-            return Results.Ok(await db.Set<CustomerExternalLogin>().AsNoTracking().Where(l => l.CustomerId == id).OrderBy(l => l.Provider)
-                .Select(l => new LinkedIdentityDto(l.Provider, l.Email, l.LinkedUtc, l.LastUsedUtc)).ToListAsync(ct));
-        });
+        me.MapGet("/", async (ClaimsPrincipal user, ISocialSignInService social, CancellationToken ct) => Results.Ok(await social.LinkedAsync(user.CustomerId()!.Value, ct)));
 
         // Adds a social account to the signed-in shopper. Nothing about the two emails is compared: the shopper is proven by their shop session
         // and the social account by its token, and the provider's own id is what gets stored.
-        me.MapPost("/{provider}", async (string provider, ExternalLinkInput input, ClaimsPrincipal user, IOptions<SocialSignInOptions> o, IExternalIdentityVerifier verifier,
-            ICustomerExternalAccess access, PiranhaCommerceDbContext db, CancellationToken ct) =>
+        me.MapPost("/{provider}", async (string provider, ExternalLinkInput input, ClaimsPrincipal user, ISocialSignInService social, CancellationToken ct) =>
         {
             ModelValidator.ValidateOrThrow(input);
-            var name = provider.ToLowerInvariant();
-            if (!o.Value.Providers.TryGetValue(name, out var p)) return Results.NotFound(new { error = "unknown_provider" });
-            if (await verifier.VerifyAsync(p, input.IdToken, input.Nonce, ct) is not { } who) return Results.Json(new { error = "invalid_token" }, statusCode: StatusCodes.Status401Unauthorized);
-
-            var customerId = user.CustomerId()!.Value;
-            var existing = await db.Set<CustomerExternalLogin>().FirstOrDefaultAsync(l => l.Provider == name && l.Subject == who.Subject, ct);
-            if (existing is not null)
-                return existing.CustomerId == customerId ? Results.Ok(ToDto(existing)) // already done: saying so again changes nothing
-                    : Results.Json(new { error = "already_linked", message = "That social account is already linked to another account here." }, statusCode: StatusCodes.Status409Conflict);
-            if (await db.Set<CustomerExternalLogin>().AnyAsync(l => l.CustomerId == customerId && l.Provider == name, ct))
-                return Results.Json(new { error = "provider_already_linked", message = "You already have an account linked from this provider. Remove it first." }, statusCode: StatusCodes.Status409Conflict);
-
-            var link = await TryLinkAsync(db, customerId, name, who, ct);
-            if (link is null) return Results.Json(new { error = "already_linked", message = "That social account is already linked to another account here." }, statusCode: StatusCodes.Status409Conflict);
-            await access.RecordAsync(customerId, "social-linked", name, ct);
-            return Results.Created("/api/v1/storefront/me/external", ToDto(link));
+            var r = await social.LinkAsync(user.CustomerId()!.Value, provider, input.IdToken, input.Nonce, ct);
+            return r.Outcome != SocialOutcome.SignedIn ? Failure(r) : r.Unchanged ? Results.Ok(r.Linked) : Results.Created("/api/v1/storefront/me/external", r.Linked);
         });
 
         // Removing one is always allowed: the shopper can always choose a password with "forgot password", their address being the proof.
-        me.MapDelete("/{provider}", async (string provider, ClaimsPrincipal user, ICustomerExternalAccess access, PiranhaCommerceDbContext db, CancellationToken ct) =>
-        {
-            var customerId = user.CustomerId()!.Value;
-            var name = provider.ToLowerInvariant();
-            if (await db.Set<CustomerExternalLogin>().Where(l => l.CustomerId == customerId && l.Provider == name).ExecuteDeleteAsync(ct) == 0) return Results.NotFound();
-            await access.RecordAsync(customerId, "social-unlinked", name, ct);
-            return Results.NoContent();
-        });
+        me.MapDelete("/{provider}", async (string provider, ClaimsPrincipal user, ISocialSignInService social, CancellationToken ct) =>
+            await social.UnlinkAsync(user.CustomerId()!.Value, provider, ct) ? Results.NoContent() : Results.NotFound());
     }
 
-    private static LinkedIdentityDto ToDto(CustomerExternalLogin l) => new(l.Provider, l.Email, l.LinkedUtc, l.LastUsedUtc);
-
-    private static async Task<CustomerExternalLogin?> TryLinkAsync(PiranhaCommerceDbContext db, Guid customerId, string provider, ExternalIdentity who, CancellationToken ct)
+    private static IResult Failure(SocialSignInOutcome r) => r.Outcome switch
     {
-        var link = new CustomerExternalLogin { CustomerId = customerId, Provider = provider, Subject = who.Subject, Email = who.Email, LinkedUtc = DateTimeOffset.UtcNow };
-        db.Add(link);
-        try { await db.SaveChangesAsync(ct); return link; }
-        catch (DbUpdateException) { db.ChangeTracker.Clear(); return null; } // lost a race on one of the unique indexes
-    }
-
-    private static async Task<IResult> SignInAsync(string provider, ExternalSignInInput input, IOptions<SocialSignInOptions> options, IExternalIdentityVerifier verifier,
-        ICustomerExternalAccess access, ICustomerTokenIssuer tokens, ICustomerRefreshService refresh, PiranhaCommerceDbContext db, HttpContext http, CancellationToken ct)
-    {
-        ModelValidator.ValidateOrThrow(input);
-        var o = options.Value;
-        var name = provider.ToLowerInvariant();
-        if (!o.Providers.TryGetValue(name, out var p)) return Results.NotFound(new { error = "unknown_provider" });
-        if (await verifier.VerifyAsync(p, input.IdToken, input.Nonce, ct) is not { } who) return Results.Json(new { error = "invalid_token" }, statusCode: StatusCodes.Status401Unauthorized);
-
-        var link = await db.Set<CustomerExternalLogin>().FirstOrDefaultAsync(l => l.Provider == name && l.Subject == who.Subject, ct);
-        Guid customerId;
-        var needsLink = false;
-        if (link is not null)
-        {
-            customerId = link.CustomerId;
-        }
-        else
-        {
-            // Not linked to anyone. The address is only ever used to decide what is ALLOWED, never to find an account without the shop's say-so.
-            if (string.IsNullOrWhiteSpace(who.Email))
-                return Results.Json(new { error = "no_email", message = "That social account did not share an email address, which this shop needs." }, statusCode: StatusCodes.Status400BadRequest);
-
-            if (await access.FindByEmailAsync(who.Email, ct) is { } existing)
-            {
-                if (o.AccountMatching != SocialAccountMatching.LinkVerifiedEmail || !who.EmailVerified)
-                    return Results.Json(new { error = "account_exists", message = "There is already an account with that email. Sign in the usual way, then add this social account from your profile." }, statusCode: StatusCodes.Status409Conflict);
-                // The shop trusts this provider's verification. Whoever registered the address without proving it loses their password and sessions.
-                if (!(existing.HasSignIn && existing.EmailVerified)) await access.AdoptAsync(existing.Id, ct);
-                customerId = existing.Id;
-            }
-            else
-            {
-                if (!o.AllowSignUp) return Results.Json(new { error = "sign_up_disabled", message = "No account here is linked to that social account." }, statusCode: StatusCodes.Status403Forbidden);
-                if (!who.EmailVerified) return Results.Json(new { error = "email_not_verified_by_provider", message = "That social account has not confirmed its email address, so we cannot create an account from it." }, statusCode: StatusCodes.Status403Forbidden);
-                customerId = (await access.CreateAsync(who.Email, who.FirstName, who.LastName, emailVerified: true, ct)).Id;
-            }
-            needsLink = true;
-        }
-
-        var result = await access.SignInAsync(customerId, input.Code, ct);
-        switch (result.Status)
-        {
-            case SignInStatus.Unverified: return Results.Json(new { error = "email_not_verified" }, statusCode: StatusCodes.Status403Forbidden);
-            case SignInStatus.TwoFactorRequired:
-                // Their shop password is not needed, but the shop's second step is: a stolen social login alone does not get in.
-                return Results.Json(new { error = "two_factor_required", message = "This account uses two-factor sign-in. Send the code from the authenticator app (or a recovery code) as \"code\" with the same ID token." }, statusCode: StatusCodes.Status401Unauthorized);
-            case SignInStatus.TwoFactorSetupRequired when needsLink:
-            case SignInStatus.Valid when needsLink:
-                if (await TryLinkAsync(db, customerId, name, who, ct) is null) return Results.Json(new { error = "already_linked" }, statusCode: StatusCodes.Status409Conflict);
-                await access.RecordAsync(customerId, "social-linked", name, ct);
-                break;
-        }
-        if (result.Status == SignInStatus.TwoFactorSetupRequired)
-            return Results.Json(new { error = "two_factor_setup_required", setupToken = result.SetupToken, message = "This shop requires two-factor sign-in. Use the setup token at /auth/two-factor/setup and /auth/two-factor/enable to set up an authenticator app and sign in." }, statusCode: StatusCodes.Status403Forbidden);
-        if (result is not { Status: SignInStatus.Valid, CustomerId: { } id, Email: { } email }) return Results.Unauthorized();
-
-        await db.Set<CustomerExternalLogin>().Where(l => l.CustomerId == id && l.Provider == name).ExecuteUpdateAsync(s => s.SetProperty(l => l.LastUsedUtc, (DateTimeOffset?)DateTimeOffset.UtcNow), ct);
-        await access.RecordAsync(id, "social-sign-in", name, ct);
-        var issued = await refresh.IssueRefreshTokenAsync(id, result.SessionVersion, http.Request.Headers.UserAgent.ToString(), ct);
-        return Results.Ok(tokens.Issue(id, email, result.SessionVersion, issued?.SessionId) with { RefreshToken = issued?.Token });
-    }
+        SocialOutcome.UnknownProvider => Results.NotFound(new { error = "unknown_provider" }),
+        SocialOutcome.InvalidToken => Results.Json(new { error = "invalid_token" }, statusCode: StatusCodes.Status401Unauthorized),
+        SocialOutcome.NoEmail => Results.Json(new { error = "no_email", message = r.Message }, statusCode: StatusCodes.Status400BadRequest),
+        SocialOutcome.AccountExists => Results.Json(new { error = "account_exists", message = r.Message }, statusCode: StatusCodes.Status409Conflict),
+        SocialOutcome.AlreadyLinked => Results.Json(new { error = "already_linked", message = r.Message }, statusCode: StatusCodes.Status409Conflict),
+        SocialOutcome.ProviderAlreadyLinked => Results.Json(new { error = "provider_already_linked", message = r.Message }, statusCode: StatusCodes.Status409Conflict),
+        SocialOutcome.SignUpDisabled => Results.Json(new { error = "sign_up_disabled", message = r.Message }, statusCode: StatusCodes.Status403Forbidden),
+        SocialOutcome.EmailNotVerifiedByProvider => Results.Json(new { error = "email_not_verified_by_provider", message = r.Message }, statusCode: StatusCodes.Status403Forbidden),
+        SocialOutcome.EmailNotVerified => Results.Json(new { error = "email_not_verified" }, statusCode: StatusCodes.Status403Forbidden),
+        SocialOutcome.TwoFactorRequired => Results.Json(new { error = "two_factor_required", message = r.Message }, statusCode: StatusCodes.Status401Unauthorized),
+        SocialOutcome.TwoFactorSetupRequired => Results.Json(new { error = "two_factor_setup_required", setupToken = r.SignIn?.SetupToken, message = r.Message }, statusCode: StatusCodes.Status403Forbidden),
+        _ => Results.Unauthorized(),
+    };
 }
 
 /// <summary>Linked social accounts in a customer's export, and gone when they are erased.</summary>

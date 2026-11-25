@@ -4,7 +4,7 @@
 @inject ShopFront Front
 @inject ShopSession Session
 @inject NavigationManager Nav
-@inject ICustomerTwoFactorService TwoFactor
+@inject PiranhaCommerce.Customers.SocialSignIn.ISocialSignInService Social
 
 <PageTitle>Sign-in security</PageTitle>
 
@@ -75,6 +75,31 @@
             <p>Add a second step when you sign in: a code from an app on your phone. Then a stolen password is not enough to get into your account.</p>
             <p><a class="button" href="/account/security?setup=1">Set it up</a></p>
         }
+
+        @if (Social.Providers.Count > 0)
+        {
+            <h2>Sign in with another account</h2>
+            @if (_linked is { Count: > 0 })
+            {
+                <ul>
+                    @foreach (var l in _linked)
+                    {
+                        <li>
+                            @(char.ToUpperInvariant(l.Provider[0]) + l.Provider[1..]) account@(l.Email is null ? "" : " (" + l.Email + ")") is linked.
+                            <form method="post" action="/account/social/@l.Provider/remove" class="inline">
+                                <AntiforgeryToken />
+                                <button type="submit" class="small ghost">Remove</button>
+                            </form>
+                        </li>
+                    }
+                </ul>
+            }
+            @if (_linked is null || !_linked.Any(l => l.Provider == "google"))
+            {
+                <p class="muted">Link a Google account to sign in with it next time. It does not need to use the same email address as this one.</p>
+                <SocialButtons Linking="true" />
+            }
+        }
     }
 </div>
 
@@ -86,13 +111,13 @@
     private TwoFactorStatusDto? _status;
     private TwoFactorSetupDto? _setup;
     private IReadOnlyList<string>? _codes;
+    private IReadOnlyList<PiranhaCommerce.Customers.SocialSignIn.LinkedIdentityDto>? _linked;
 
     protected override async Task OnInitializedAsync()
     {
         _profile = await Front.ProfileAsync();
         if (_profile is null) { Nav.NavigateTo("/account/sign-in?returnTo=/account/security"); return; }
         _codes = Session.TakeRecoveryCodes();
-        _status = await TwoFactor.GetStatusAsync(_profile.Id);
-        if (SetupRequested == 1 && _status is { Enabled: false }) _setup = await TwoFactor.BeginSetupAsync(_profile.Id);
+        if (await Front.SecurityAsync(SetupRequested == 1) is { } security) (_status, _setup, _linked) = security;
     }
 }

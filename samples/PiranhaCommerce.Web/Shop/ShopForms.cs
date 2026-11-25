@@ -1,5 +1,7 @@
 using PiranhaCommerce.Core.Validation;
+using Microsoft.AspNetCore.Antiforgery;
 using PiranhaCommerce.Customers;
+using PiranhaCommerce.Customers.SocialSignIn;
 using PiranhaCommerce.Ecommerce;
 
 namespace PiranhaCommerce.Web.Shop;
@@ -166,6 +168,64 @@ internal static class ShopForms
                 default: // wrong password, no such account, no sign-in or inactive: one answer, so it cannot be used to find out who has an account
                     return Results.Redirect(session.Back("/account/sign-in", new Flash("That email, password and code do not match an account.", null, typed)));
             }
+        });
+
+        // Sign in with a social account. Google's button posts the ID token here from the browser, so this one route cannot carry our antiforgery
+        // token: it is checked the way Google asks (their g_csrf_token cookie must equal the form's), and the nonce we asked for must be in the token.
+        // The same route takes the form with the two-factor code, which does carry ours.
+        account.MapPost("/social/{provider}", async (string provider, HttpContext http, IFormCollection form, IAntiforgery antiforgery, ShopSession session, ShopBaskets shopBaskets,
+            ISocialSignInService social, ICustomerAccountService accounts, CancellationToken ct) =>
+        {
+            string idToken, nonce;
+            if (form.ContainsKey("credential"))
+            {
+                var cookie = http.Request.Cookies["g_csrf_token"];
+                if (string.IsNullOrEmpty(cookie) || cookie != form["g_csrf_token"].ToString()) return Results.BadRequest();
+                idToken = form["credential"].ToString();
+                nonce = session.TakeSocialNonce() ?? "-"; // no cookie: a made-up nonce, which no token can match
+            }
+            else
+            {
+                try { await antiforgery.ValidateRequestAsync(http); } catch (AntiforgeryValidationException) { return Results.BadRequest(); }
+                idToken = form["idToken"].ToString();
+                nonce = form["nonce"].ToString();
+            }
+
+            var r = await social.SignInAsync(provider, idToken, nonce, form["code"].ToString(), ct);
+            switch (r.Outcome)
+            {
+                case SocialOutcome.SignedIn:
+                    return await StartSessionAsync(session, shopBaskets, accounts, r.SignIn!, "/account", ct);
+                case SocialOutcome.TwoFactorRequired:
+                    var values = new Dictionary<string, string> { ["idToken"] = idToken, ["provider"] = provider, ["nonce"] = nonce };
+                    if (!string.IsNullOrEmpty(form["code"].ToString())) values["wrong"] = "1";
+                    return Results.Redirect(session.Back("/account/social/code", new Flash(null, null, values)));
+                case SocialOutcome.TwoFactorSetupRequired:
+                    return Results.Redirect(session.Back("/account/two-factor/setup", new Flash(null, null, new Dictionary<string, string> { ["setupToken"] = r.SignIn!.SetupToken!, ["returnTo"] = "/account" })));
+                case SocialOutcome.EmailNotVerified:
+                    return Results.Redirect(session.Back("/account/sign-in", new Flash("Please follow the link we emailed you to confirm your address first.")));
+                default:
+                    return Results.Redirect(session.Back("/account/sign-in", new Flash(r.Message ?? "We could not sign you in with that account.")));
+            }
+        }).DisableAntiforgery();
+
+        // Adding a social account to the signed-in shopper's account, from the security page.
+        account.MapPost("/social/{provider}/link", async (string provider, HttpContext http, IFormCollection form, ShopSession session, ShopBaskets shopBaskets, ISocialSignInService social, CancellationToken ct) =>
+        {
+            var cookie = http.Request.Cookies["g_csrf_token"];
+            if (string.IsNullOrEmpty(cookie) || cookie != form["g_csrf_token"].ToString()) return Results.BadRequest();
+            if (await shopBaskets.ShopperAsync(ct) is not { } shopper) return Results.Redirect("/account/sign-in?returnTo=/account/security");
+            var r = await social.LinkAsync(shopper.Id, provider, form["credential"].ToString(), session.TakeSocialNonce() ?? "-", ct);
+            return Results.Redirect(session.Back("/account/security", r.Outcome == SocialOutcome.SignedIn
+                ? new Flash(null, "That account is linked. You can now sign in with it.")
+                : new Flash(r.Message ?? "We could not link that account.")));
+        }).DisableAntiforgery();
+
+        account.MapPost("/social/{provider}/remove", async (string provider, ShopSession session, ShopBaskets shopBaskets, ISocialSignInService social, CancellationToken ct) =>
+        {
+            if (await shopBaskets.ShopperAsync(ct) is not { } shopper) return Results.Redirect("/account/sign-in?returnTo=/account/security");
+            await social.UnlinkAsync(shopper.Id, provider, ct);
+            return Results.Redirect(session.Back("/account/security", new Flash(null, "That account is no longer linked.")));
         });
 
         // Two-factor sign-in, from the account's security page.

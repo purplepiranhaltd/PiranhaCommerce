@@ -1,0 +1,44 @@
+@page "/account/social/code"
+@inject ShopSession Session
+
+<PageTitle>Enter your code</PageTitle>
+
+<div class="wrap">
+    <h1>One more step</h1>
+    @if (_idToken is null)
+    {
+        <p>That took too long. <a href="/account/sign-in">Please sign in again</a>.</p>
+    }
+    else
+    {
+        <p>Your account uses two-factor sign-in. Enter the 6-digit code from your authenticator app, or a recovery code.</p>
+        @if (_wrong) { <p class="error" role="alert">That code is not right. Try again.</p> }
+        <form method="post" action="/account/social/@_provider" class="stack">
+            <AntiforgeryToken />
+            <input type="hidden" name="idToken" value="@_idToken" />
+            <input type="hidden" name="nonce" value="@_nonce" />
+            <label>Code <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" required /></label>
+            <button type="submit">Sign in</button>
+        </form>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "f")] private string? F { get; set; }
+
+    private string? _idToken;
+    private string _provider = "google";
+    private string? _nonce;
+    private bool _wrong;
+
+    protected override void OnInitialized()
+    {
+        // Carried in the protected message that sign-in redirected here with; it lasts ten minutes.
+        var values = Session.Open(F)?.Values;
+        if (values is null || !values.TryGetValue("idToken", out var token)) return;
+        _idToken = token;
+        _provider = values.GetValueOrDefault("provider") ?? "google";
+        _nonce = values.GetValueOrDefault("nonce");
+        _wrong = values.ContainsKey("wrong");
+    }
+}

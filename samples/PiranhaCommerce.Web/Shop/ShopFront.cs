@@ -23,7 +23,8 @@ public sealed record DeliveryChoice(ShippingOptionDto Option, QuoteDto Quote);
 
 public sealed class ShopFront(
     IShopCatalogueService catalogue, IProductRelationService relations, IGroupPricingService pricing, IBasketService baskets, ShopBaskets shopBaskets,
-    IOrderService orders, ICustomerAccountService accounts, IWishlistService wishlists, IReviewService reviews, ShopSession session, IOptions<ShopOptions> shop)
+    IOrderService orders, ICustomerAccountService accounts, IWishlistService wishlists, IReviewService reviews, ShopSession session, IOptions<ShopOptions> shop,
+    ICustomerTwoFactorService twoFactor, PiranhaCommerce.Customers.SocialSignIn.ISocialSignInService social)
 {
     private readonly SemaphoreSlim _turn = new(1, 1);
     private IReadOnlyList<ShopCategoryDto>? _categories;
@@ -105,6 +106,22 @@ public sealed class ShopFront(
         var me = await CustomerIdAsync();
         return session.LastOrderId is { } id && await orders.GetAsync(id) is { } order && (order.CustomerId is null || order.CustomerId == me) ? order : null;
     });
+
+    // Two-factor and linked accounts. Pages must reach the database only through here: the layout queries the same scoped context at the same moment,
+    // and a context cannot run two queries at once.
+
+    /// <summary>Their two-factor state, and (when asked and it is off) a fresh key to set it up with. Null when not signed in.</summary>
+    public Task<(TwoFactorStatusDto? Status, TwoFactorSetupDto? Setup, IReadOnlyList<PiranhaCommerce.Customers.SocialSignIn.LinkedIdentityDto> Linked)?> SecurityAsync(bool startSetup) => InTurn(async () =>
+    {
+        if (await CustomerIdAsync() is not { } id) return ((TwoFactorStatusDto?, TwoFactorSetupDto?, IReadOnlyList<PiranhaCommerce.Customers.SocialSignIn.LinkedIdentityDto>)?)null;
+        var status = await twoFactor.GetStatusAsync(id);
+        var setup = startSetup && status is { Enabled: false } ? await twoFactor.BeginSetupAsync(id) : null;
+        return (status, setup, await social.LinkedAsync(id));
+    });
+
+    /// <summary>The key for a shopper who holds a setup token (the shop requires two-factor and they have none yet). Null when the token is not good.</summary>
+    public Task<TwoFactorSetupDto?> SetupForTokenAsync(string setupToken) => InTurn(async () =>
+        await twoFactor.CheckSetupTokenAsync(setupToken) is { } id ? await twoFactor.BeginSetupAsync(id) : null);
 
     public Task<ProfileDto?> ProfileAsync() => InTurn(async () => await CustomerIdAsync() is { } id ? await accounts.GetProfileAsync(id) : null);
 

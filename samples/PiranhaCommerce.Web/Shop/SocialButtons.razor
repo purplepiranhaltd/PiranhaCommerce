@@ -1,0 +1,33 @@
+@using Microsoft.Extensions.Options
+@using PiranhaCommerce.Customers.SocialSignIn
+@inject IOptions<SocialSignInOptions> Social
+@inject ShopSession Session
+@inject NavigationManager Nav
+
+@* "Sign in with Google", by Google's own button. It runs in the browser and posts Google's ID token to this shop in a form (no script of ours),
+   and the shop's /account/social endpoint checks it. Shown only when a google provider is configured under PiranhaCommerce:Customers:Social. *@
+@if (_clientId is not null)
+{
+    <div class="social">
+        <script src="https://accounts.google.com/gsi/client" async></script>
+        <div id="g_id_onload" data-client_id="@_clientId" data-ux_mode="redirect" data-login_uri="@_loginUri" data-nonce="@_nonce" data-auto_prompt="false"></div>
+        <div class="g_id_signin" data-type="standard" data-shape="rectangular" data-theme="outline" data-text="@(Linking ? "continue_with" : "signin_with")" data-size="large"></div>
+    </div>
+}
+
+@code {
+    /// <summary>True on the security page, where the shopper is already signed in and is adding the account instead of signing in.</summary>
+    [Parameter] public bool Linking { get; set; }
+
+    private string? _clientId;
+    private string _loginUri = "";
+    private string _nonce = "";
+
+    protected override void OnInitialized()
+    {
+        if (!Social.Value.Providers.TryGetValue("google", out var google) || google.ClientIds.Count == 0) return;
+        _clientId = google.ClientIds[0];
+        _loginUri = new Uri(new Uri(Nav.BaseUri), Linking ? "account/social/google/link" : "account/social/google").ToString();
+        _nonce = Session.NewSocialNonce(); // asked for in the token, and checked against this cookie when it comes back
+    }
+}

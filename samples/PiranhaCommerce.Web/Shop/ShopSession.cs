@@ -68,6 +68,21 @@ public sealed class ShopSession(IHttpContextAccessor accessor, IDataProtectionPr
         return codes;
     }
 
+    // The nonce asked of the social provider: it comes back inside the signed token, and the token is refused if it is not this one.
+    private const string NonceCookie = "shop_social_nonce";
+    public string NewSocialNonce()
+    {
+        var nonce = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16));
+        Write(NonceCookie, nonce, TimeSpan.FromMinutes(10), "/account");
+        return nonce;
+    }
+    public string? TakeSocialNonce()
+    {
+        var nonce = Read<string>(NonceCookie);
+        if (nonce is not null) Http.Response.Cookies.Delete(NonceCookie, Options(null, "/account"));
+        return nonce;
+    }
+
     // Messages.
     public string Protect(Flash flash) => _data.ToTimeLimitedDataProtector().Protect(JsonSerializer.Serialize(flash), TimeSpan.FromMinutes(10));
 
