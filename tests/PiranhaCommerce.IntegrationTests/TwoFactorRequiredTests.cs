@@ -46,7 +46,9 @@ public class TwoFactorRequiredTests(PiranhaCommerceFactory factory) : IClassFixt
 
         var refused = await client.PostAsJsonAsync("/api/v1/auth/token", new { email = staff.Email, password = staff.Password });
         Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
-        Assert.Contains("two_factor_setup_required", await refused.Content.ReadAsStringAsync());
+        var body = await refused.Content.ReadAsStringAsync();
+        Assert.Contains("two_factor_setup_required", body);
+        Assert.Contains("RequireTwoFactor", body); // says how to put it right
 
         var key = await EnrolAsync(host, staff.UserId);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync("/api/v1/auth/token", new { email = staff.Email, password = staff.Password })).StatusCode);

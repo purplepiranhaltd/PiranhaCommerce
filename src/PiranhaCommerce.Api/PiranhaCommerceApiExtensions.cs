@@ -3,7 +3,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using System.Security.Cryptography;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using PiranhaCommerce.Api.Auth;
@@ -35,7 +38,20 @@ public static class PiranhaCommerceApiExtensions
     {
         var services = builder.Services;
         services.AddOpenApi();
-        services.AddOptions<PiranhaCommerceJwtOptions>().BindConfiguration(PiranhaCommerceJwtOptions.SectionName);
+        services.AddOptions<PiranhaCommerceJwtOptions>().BindConfiguration(PiranhaCommerceJwtOptions.SectionName)
+            // No signing key: in Development make a temporary one, so a new project works without setup (tokens stop working when the
+            // app restarts). Anywhere else the app refuses to start, so a missing key is found at deployment and not on the first sign-in.
+            .PostConfigure<IHostEnvironment, ILoggerFactory>((o, env, logs) =>
+            {
+                if (!string.IsNullOrEmpty(o.SigningKey) || !env.IsDevelopment()) return;
+                o.SigningKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(48));
+                logs.CreateLogger("PiranhaCommerce.Api").LogWarning(
+                    "{Setting} is not set, so a temporary key is being used and API tokens stop working when the app restarts. Set it (32 or more characters, from a secret store) for a fixed key.",
+                    $"{PiranhaCommerceJwtOptions.SectionName}:SigningKey");
+            })
+            .Validate(o => o.SigningKey is { Length: >= 32 },
+                $"{PiranhaCommerceJwtOptions.SectionName}:SigningKey must be set to a secret of 32 or more characters (keep it in a secret store, not in a file). Without it the API cannot sign tokens.")
+            .ValidateOnStart();
         services.AddScoped<JwtTokenService>();
         services.AddSignInRateLimiting();
 
@@ -97,8 +113,8 @@ public static class PiranhaCommerceApiExtensions
                 var (token, status) = await tokens.IssueWithStatusAsync(request);
                 if (token is not null) return Results.Ok(token);
                 // The password was right but the person has two-factor on: say so, so the caller can ask for the code and send it as "code".
-                if (status == CredentialStatus.TwoFactorSetupRequired) return Results.Json(new { error = "two_factor_setup_required" }, statusCode: StatusCodes.Status403Forbidden);
-                return status == CredentialStatus.TwoFactorRequired ? Results.Json(new { error = "two_factor_required" }, statusCode: StatusCodes.Status401Unauthorized) : Results.Unauthorized();
+                if (status == CredentialStatus.TwoFactorSetupRequired) return Results.Json(new { error = "two_factor_setup_required", message = "Two-factor sign-in is compulsory for staff and this account has not set it up. Sign in to the admin, open My account > Security and set up an authenticator app. For local development only, set PiranhaCommerce:Staff:RequireTwoFactor to false." }, statusCode: StatusCodes.Status403Forbidden);
+                return status == CredentialStatus.TwoFactorRequired ? Results.Json(new { error = "two_factor_required", message = "This account uses two-factor sign-in. Send the code from the authenticator app (or a recovery code) as \"code\" with the email and password." }, statusCode: StatusCodes.Status401Unauthorized) : Results.Unauthorized();
             })
             .AllowAnonymous().WithTags("Auth");
 

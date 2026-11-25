@@ -120,14 +120,14 @@ Create `appsettings.Development.json`:
 - **`SeedAdmin`** creates the first administrator when the app starts in `Development`. Choose your own password; never use one like it in production.
 - **`Staff:RequireTwoFactor`** is `false` here for the walkthrough only. Two-factor sign-in is **compulsory for staff by default**, so with the default a new administrator cannot get an API token until they have set up an authenticator app in the admin (Account security). In production leave it on. See [Staff and permissions](../guides/staff.md#two-factor-sign-in).
 
-The API needs a signing key for its tokens, at least 32 characters. Keep it out of your files, in user secrets:
+The API signs its tokens with a key of at least 32 characters. **In Development you can skip this:** a temporary key is made when the app starts (the log says so), and tokens stop working when the app restarts, so sign in again. For a fixed key, and always outside Development, keep it out of your files, in user secrets or your host's secret store:
 
 ```
 dotnet user-secrets init
 dotnet user-secrets set "PiranhaCommerce:Jwt:SigningKey" "<a long random string, 32 characters or more>"
 ```
 
-Without it, asking for a token fails with `PiranhaCommerce:Jwt:SigningKey must be configured with at least 32 characters`.
+Outside Development the app refuses to start without a valid key, and says so.
 
 ## 5. Create the migrations
 

@@ -79,7 +79,9 @@ public class TwoFactorTests(PiranhaCommerceFactory factory) : IClassFixture<Pira
 
         var without = await TokenAsync(staff.Email, staff.Password);
         Assert.Equal(HttpStatusCode.Unauthorized, without.StatusCode);
-        Assert.Contains("two_factor_required", await without.Content.ReadAsStringAsync());
+        var asked = await without.Content.ReadAsStringAsync();
+        Assert.Contains("two_factor_required", asked);
+        Assert.Contains("authenticator app", asked); // says what to send
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await TokenAsync(staff.Email, staff.Password, "123456" == CodeFor(staff.Key) ? "654321" : "123456")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await TokenAsync(staff.Email, "wrong password 1!", CodeFor(staff.Key))).StatusCode);

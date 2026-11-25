@@ -74,7 +74,7 @@ Then:
 2. **Add the connection string** (`ConnectionStrings:PiranhaCommerce`) and, for PostgreSQL, set `PiranhaCommerce:Provider` to `PostgreSql`.
 3. **Create the migrations** in your host: `dotnet ef migrations add Initial --project <your host> --output-dir Migrations`. See [Migrations](../advanced/migrations.md). The database provider's migration set must live in an assembly you own.
 4. **Apply them** as a deployment step. (The sample applies them on startup in Development only.)
-5. **Create an administrator** and set `PiranhaCommerce:Jwt:SigningKey` from a secret store.
+5. **Create an administrator** and set `PiranhaCommerce:Jwt:SigningKey` (32 or more characters) from a secret store. Outside Development the app refuses to start without it. In Development a temporary key is made for you, and API tokens stop working each time the app restarts.
 6. **Choose where files go:** add a storage plugin (`LocalDiskStoragePlugin` or the Azure Blob one) for product pictures, and `SkiaImagingPlugin` if you want smaller copies made on upload.
 7. **Choose email and payments** if you need them: the SMTP plugin, and the Stripe plugin (which stays inert until its keys are set).
 
