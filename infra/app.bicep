@@ -183,6 +183,8 @@ module dns 'modules/dnsrecords.bicep' = {
   params: { domains: domains }
 }
 
+// One at a time: App Service refuses a change to an app while another change to it is still in progress, so parallel bindings fail with Conflict.
+@batchSize(1)
 module customDomains 'modules/customdomain.bicep' = [for d in domainNames: {
   name: 'domain-${replace(d.host, '.', '-')}'
   params: {
