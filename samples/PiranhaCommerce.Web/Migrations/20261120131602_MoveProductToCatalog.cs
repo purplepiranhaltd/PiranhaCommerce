@@ -36,7 +36,8 @@ namespace PiranhaCommerce.Web.Migrations
                 });
 
             // Carry the existing online flag over before the column is dropped.
-            migrationBuilder.Sql("INSERT INTO [ecom].[ProductListing] ([ProductId], [Published]) SELECT [Id], [Published] FROM [catalog].[Product]");
+            // EXEC: in a script for a whole database this statement is in the same batch as the change it depends on, and SQL Server checks column names before running any of it.
+            migrationBuilder.Sql("EXEC(N'INSERT INTO [ecom].[ProductListing] ([ProductId], [Published]) SELECT [Id], [Published] FROM [catalog].[Product]')");
 
             migrationBuilder.DropColumn(name: "Published", schema: "catalog", table: "Product");
         }

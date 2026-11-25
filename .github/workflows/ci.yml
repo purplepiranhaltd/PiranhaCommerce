@@ -79,6 +79,18 @@ jobs:
         if: matrix.provider == 'SqlServer'
         run: dotnet ef migrations has-pending-model-changes --project samples/PiranhaCommerce.Web --configuration Release --no-build
 
+      # The deployment applies one idempotent script to a whole database, which SQL Server compiles as large batches. A migration that works one step at a
+      # time can still fail there (for example raw SQL that uses a column added earlier in the same migration), so run exactly that script on an empty database, twice.
+      - name: Deployment migration script works on an empty database (SQL Server)
+        if: matrix.provider == 'SqlServer'
+        run: |
+          dotnet ef migrations script --idempotent --project samples/PiranhaCommerce.Web --configuration Release --no-build --output migrate.sql
+          docker exec db /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$DB_PASSWORD" -Q "CREATE DATABASE migration_script_check"
+          docker cp migrate.sql db:/tmp/migrate.sql
+          for run in 1 2; do
+            docker exec db /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$DB_PASSWORD" -d migration_script_check -I -b -i /tmp/migrate.sql
+          done
+
       - name: Migrations are up to date (PostgreSQL)
         if: matrix.provider == 'PostgreSql'
         env:

@@ -19,7 +19,8 @@ namespace PiranhaCommerce.Web.Migrations
                 nullable: true);
 
             // Sign-ins that exist now keep working if a shop later requires verified emails: they count as verified from when they were made.
-            migrationBuilder.Sql("UPDATE [customer].[CustomerLogin] SET [EmailVerifiedUtc] = [CreatedUtc]");
+            // EXEC: in a script for a whole database this statement is in the same batch as the change it depends on, and SQL Server checks column names before running any of it.
+            migrationBuilder.Sql("EXEC(N'UPDATE [customer].[CustomerLogin] SET [EmailVerifiedUtc] = [CreatedUtc]')");
         }
 
         /// <inheritdoc />

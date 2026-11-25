@@ -28,7 +28,8 @@ namespace PiranhaCommerce.Web.Migrations
                 defaultValue: 0);
 
             // Orders completed before shipments existed were sent whole: say so, or nothing on them could ever be returned.
-            migrationBuilder.Sql(@"UPDATE ol SET ol.QuantityShipped = ol.Quantity FROM [ecom].[OrderLine] ol INNER JOIN [ecom].[Order] o ON o.Id = ol.OrderId WHERE o.Stage = 'Completed'");
+            // EXEC: in a script for a whole database this statement is in the same batch as the change it depends on, and SQL Server checks column names before running any of it.
+            migrationBuilder.Sql(@"EXEC(N'UPDATE ol SET ol.QuantityShipped = ol.Quantity FROM [ecom].[OrderLine] ol INNER JOIN [ecom].[Order] o ON o.Id = ol.OrderId WHERE o.Stage = ''Completed''')");
 
             migrationBuilder.CreateTable(
                 name: "OrderReturn",
