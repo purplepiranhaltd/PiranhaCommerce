@@ -42,6 +42,10 @@ param stagingDemoSeed bool = true
 param dnsZones array = ['piranhacommerce.com', 'piranhacommerce.co.uk']
 param dnsResourceGroup string = 'PROD-DNS'
 
+@description('Where the promo site links to the demo shop: the live demo for production, the staging demo for the staging slot.')
+param productionDemoUrl string = 'https://demo.piranhacommerce.com'
+param stagingDemoUrl string = 'https://demo.staging.piranhacommerce.com'
+
 param tags object = {}
 
 var storageSuffix = environment().suffixes.storage
@@ -77,8 +81,8 @@ module site 'modules/webapp.bicep' = {
     location: location
     planId: plan.id
     linuxFxVersion: linuxFxVersion
-    productionSettings: common
-    stagingSettings: common
+    productionSettings: union(common, { Site__DemoUrl: productionDemoUrl })
+    stagingSettings: union(common, { Site__DemoUrl: stagingDemoUrl })
     tags: tags
   }
 }

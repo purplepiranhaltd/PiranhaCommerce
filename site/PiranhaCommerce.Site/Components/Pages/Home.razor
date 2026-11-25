@@ -59,6 +59,7 @@
         <figure><img src="img/shop-basket.png" alt="A basket with a promo code box, a summary and a Goes well with section" loading="lazy" width="1200" height="860" /><figcaption>Basket, promo code and suggestions</figcaption></figure>
     </div>
     <p>Guest and account checkout, order history, password reset, reviews, wishlists and back-in-stock emails are all there, and every one is covered by tests that drive the real forms.</p>
+    @if (!string.IsNullOrWhiteSpace(Options.Value.DemoUrl)) { <p class="actions"><a class="button" href="@Options.Value.DemoUrl" target="_blank" rel="noopener">Try the Petalwick shop</a></p> }
 </section>
 
 <section class="container cta">

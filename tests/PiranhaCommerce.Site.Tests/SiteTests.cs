@@ -19,6 +19,19 @@ public class SiteTests(WebApplicationFactory<Program> factory) : IClassFixture<W
     private DocsLibrary Library => factory.Services.GetRequiredService<DocsLibrary>();
 
     [Fact]
+    public async Task The_sample_shop_section_links_to_the_demo_in_a_new_tab_when_one_is_configured()
+    {
+        using var configured = factory.WithWebHostBuilder(b => b.UseSetting("Site:DemoUrl", "https://demo.example.com"));
+        var html = await Client(configured).GetStringAsync("/");
+        var section = html[html.IndexOf("id=\"sample\"", StringComparison.Ordinal)..];
+        section = section[..section.IndexOf("</section>", StringComparison.Ordinal)];
+        Assert.Matches("<a[^>]*href=\"https://demo.example.com\"[^>]*target=\"_blank\"[^>]*rel=\"noopener\"", section);
+
+        var without = await Client(factory).GetStringAsync("/");
+        Assert.DoesNotContain("Try the Petalwick shop", without);
+    }
+
+    [Fact]
     public async Task The_secondary_domain_redirects_to_the_main_one_keeping_path_and_query()
     {
         using var configured = factory.WithWebHostBuilder(b =>
