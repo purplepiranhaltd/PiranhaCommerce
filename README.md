@@ -45,6 +45,7 @@ The documentation covers installation, your first store, configuration, every fe
 | `PiranhaCommerce.Imaging.Skia` | Reads image sizes and makes smaller copies when a picture is uploaded, with SkiaSharp (MIT licensed). Optional: without it the original is stored as it is. |
 | `PiranhaCommerce.Customers` | Customers and their address books, shared by every sales channel, with API. Customers are not admin users. |
 | `PiranhaCommerce.Customers.SocialSignIn` | Shopper sign-in with Google, Microsoft, Apple or any OpenID Connect provider, by ID-token exchange. Optional, and inert until a provider is set. |
+| `PiranhaCommerce.Customers.SocialSignIn.Admin` | Linked social accounts on the customer page, with unlink. |
 | `PiranhaCommerce.Customers.Admin` | Customer list/edit pages and an address book panel (contributed through the `customer.edit.panels` slot). |
 | `PiranhaCommerce.Ecommerce` | Online store layered on the catalogue: listings (`ecom.ProductListing`), baskets, checkout and orders. Needs Catalog and Customers. A future `PiranhaCommerce.Epos` is a sibling with its own tables. |
 | `PiranhaCommerce.Ecommerce.Admin` | Order list and detail pages, plus an "Online store" panel on the product edit page through the `ProductEditPanels` admin slot. |

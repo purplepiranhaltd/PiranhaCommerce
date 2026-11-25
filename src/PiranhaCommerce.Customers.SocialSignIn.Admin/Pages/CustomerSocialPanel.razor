@@ -1,0 +1,81 @@
+@inject AdminScopeRunner Scope
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider Auth
+
+<div class="pc-card">
+    <h2 style="margin-top:0">Linked social accounts</h2>
+
+    @if (_error is not null) { <p class="pc-error" role="alert">@_error</p> }
+    @if (_notice is not null) { <p role="status">@_notice</p> }
+
+    @if (_linked is null)
+    {
+        <p class="pc-muted">Loading...</p>
+    }
+    else if (_linked.Count == 0)
+    {
+        <p class="pc-muted">None. The customer can add one from their own account page.</p>
+    }
+    else
+    {
+        <table class="pc-table">
+            <thead><tr><th>Provider</th><th>Email at the provider</th><th>Linked</th><th>Last used</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var l in _linked)
+                {
+                    <tr>
+                        <td>@l.Provider</td>
+                        <td>@(l.Email ?? "")</td>
+                        <td>@l.LinkedUtc.ToString("d MMM yyyy")</td>
+                        <td>@(l.LastUsedUtc?.ToString("d MMM yyyy HH:mm") ?? "never")</td>
+                        <td>
+                            @if (_confirm == l.Provider)
+                            {
+                                <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button type="button" class="danger" disabled="@_busy" @onclick="() => UnlinkAsync(l.Provider)">Confirm: unlink</button></PiranhaCommerce.Admin.Components.Can>
+                                <button type="button" class="secondary" @onclick="() => _confirm = null">Cancel</button>
+                            }
+                            else
+                            {
+                                <PiranhaCommerce.Admin.Components.Can Permission="customers.manage"><button type="button" class="secondary" disabled="@_busy" @onclick="() => _confirm = l.Provider">Unlink</button></PiranhaCommerce.Admin.Components.Can>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <p class="pc-muted">Unlinking stops that social account signing in. The customer keeps their shop account and can choose a password with "forgot password".</p>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid CustomerId { get; set; }
+
+    private IReadOnlyList<LinkedIdentityDto>? _linked;
+    private string? _error, _notice, _confirm;
+    private bool _busy;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var id = CustomerId;
+            _linked = await Scope.RunAsync<ISocialSignInAdminService, IReadOnlyList<LinkedIdentityDto>>(s => s.ListAsync(id));
+        }
+        catch (Exception ex) { _error = "Could not load: " + ex.Message; _linked = []; }
+    }
+
+    private async Task UnlinkAsync(string provider)
+    {
+        _busy = true; _error = null; _notice = null; _confirm = null;
+        try
+        {
+            var id = CustomerId;
+            var who = await Auth.GetActorAsync();
+            _notice = await Scope.RunAsync<ISocialSignInAdminService, string>(async s => await s.UnlinkAsync(id, provider, who) ? "Unlinked." : "It was not linked.");
+        }
+        catch (Exception ex) { _error = "Could not do that: " + ex.Message; }
+        _busy = false;
+        await LoadAsync();
+    }
+}

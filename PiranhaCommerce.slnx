@@ -20,6 +20,7 @@
     <Project Path="src/PiranhaCommerce.Customers.Admin/PiranhaCommerce.Customers.Admin.csproj" />
     <Project Path="src/PiranhaCommerce.Customers/PiranhaCommerce.Customers.csproj" />
     <Project Path="src/PiranhaCommerce.Customers.SocialSignIn/PiranhaCommerce.Customers.SocialSignIn.csproj" />
+    <Project Path="src/PiranhaCommerce.Customers.SocialSignIn.Admin/PiranhaCommerce.Customers.SocialSignIn.Admin.csproj" />
     <Project Path="src/PiranhaCommerce.Data.PostgreSql/PiranhaCommerce.Data.PostgreSql.csproj" />
     <Project Path="src/PiranhaCommerce.Data.SqlServer/PiranhaCommerce.Data.SqlServer.csproj" />
     <Project Path="src/PiranhaCommerce.Data/PiranhaCommerce.Data.csproj" />

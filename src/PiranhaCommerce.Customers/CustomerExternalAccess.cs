@@ -41,6 +41,9 @@ public interface ICustomerExternalAccess
 
     /// <summary>Adds a line to the customer's sign-in history, with no actor (it was the shopper).</summary>
     Task RecordAsync(Guid customerId, string action, string? detail, CancellationToken ct = default);
+
+    /// <summary>Adds a line to the customer's sign-in history for something a member of staff did.</summary>
+    Task RecordByStaffAsync(Guid customerId, string action, string? actor, string? detail, CancellationToken ct = default);
 }
 
 internal sealed partial class CustomerAccountService : ICustomerExternalAccess
@@ -107,6 +110,9 @@ internal sealed partial class CustomerAccountService : ICustomerExternalAccess
 
     public async Task RecordAsync(Guid customerId, string action, string? detail, CancellationToken ct = default)
         => await RecordAsync(customerId, action, actor: null, detail, ct);
+
+    public async Task RecordByStaffAsync(Guid customerId, string action, string? actor, string? detail, CancellationToken ct = default)
+        => await RecordAsync(customerId, action, actor, detail, ct);
 
     private CustomerLogin NewPlaceholderLogin(Guid customerId, DateTimeOffset now, bool verified) => new()
     {

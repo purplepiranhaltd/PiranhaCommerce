@@ -305,6 +305,32 @@ public class SocialSignInTests(PiranhaCommerceFactory factory) : IClassFixture<P
     }
 
     [Fact]
+    public async Task Staff_can_see_and_unlink_a_customers_social_accounts_with_the_right_permission_and_it_is_recorded()
+    {
+        using var host = Host();
+        var s = await RegisterAsync(host);
+        var sub = "g-" + Guid.NewGuid();
+        Assert.Equal(HttpStatusCode.Created, (await s.Client.PostAsJsonAsync("/api/v1/storefront/me/external/google", new ExternalLinkInput { IdToken = IdToken(sub, NewEmail()) })).StatusCode);
+
+        var staff = await factory.CreateAuthenticatedApiClientAsync();
+        var listed = await staff.GetFromJsonAsync<JsonElement>($"/api/v1/customers/{s.Id}/social");
+        Assert.Equal("google", listed[0].GetProperty("provider").GetString());
+        Assert.Equal(HttpStatusCode.NotFound, (await staff.GetAsync($"/api/v1/customers/{Guid.NewGuid()}/social")).StatusCode);
+
+        // Someone who may only look can see it but not unlink it.
+        var (readerEmail, readerPassword) = await factory.CreateReadOnlyUserAsync();
+        var reader = await factory.CreateAuthenticatedApiClientAsync(readerEmail, readerPassword);
+        Assert.Equal(HttpStatusCode.OK, (await reader.GetAsync($"/api/v1/customers/{s.Id}/social")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await reader.DeleteAsync($"/api/v1/customers/{s.Id}/social/google")).StatusCode);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await staff.DeleteAsync($"/api/v1/customers/{s.Id}/social/google")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await staff.DeleteAsync($"/api/v1/customers/{s.Id}/social/google")).StatusCode);
+        Assert.Equal(0, (await staff.GetFromJsonAsync<JsonElement>($"/api/v1/customers/{s.Id}/social")).GetArrayLength());
+        Assert.Equal(HttpStatusCode.BadRequest, (await SocialAsync(host, IdToken(sub, null))).StatusCode); // the link is gone: it is treated as unlinked (and has no email)
+        Assert.Contains("social-unlinked", await staff.GetStringAsync($"/api/v1/customers/{s.Id}/sign-in/history"));
+    }
+
+    [Fact]
     public void A_provider_must_say_which_apps_it_is_for_and_use_https()
     {
         var validator = new SocialSignInOptionsValidator();

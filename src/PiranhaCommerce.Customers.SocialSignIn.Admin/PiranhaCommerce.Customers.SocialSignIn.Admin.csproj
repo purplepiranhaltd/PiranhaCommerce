@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <Description>Admin panel for PiranhaCommerce social sign-in: a customer's linked social accounts, with unlink.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\PiranhaCommerce.Admin\PiranhaCommerce.Admin.csproj" />
+    <ProjectReference Include="..\PiranhaCommerce.Customers.Admin\PiranhaCommerce.Customers.Admin.csproj" />
+    <ProjectReference Include="..\PiranhaCommerce.Customers.SocialSignIn\PiranhaCommerce.Customers.SocialSignIn.csproj" />
+  </ItemGroup>
+</Project>

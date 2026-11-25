@@ -48,6 +48,31 @@ public interface ISocialSignInService
     Task<IReadOnlyList<LinkedIdentityDto>> LinkedAsync(Guid customerId, CancellationToken ct = default);
 }
 
+/// <summary>What staff can do about a customer's linked social accounts.</summary>
+public interface ISocialSignInAdminService
+{
+    Task<IReadOnlyList<LinkedIdentityDto>> ListAsync(Guid customerId, CancellationToken ct = default);
+
+    /// <summary>Unlinks it, so that social account can no longer sign in. Recorded in their sign-in history. False when it was not linked.</summary>
+    [PiranhaCommerce.Core.Identity.RequiresPermission(PiranhaCommerce.Core.Identity.Permissions.CustomersManage)]
+    Task<bool> UnlinkAsync(Guid customerId, string provider, string? actor = null, CancellationToken ct = default);
+}
+
+internal sealed class SocialSignInAdminService(PiranhaCommerceDbContext db, ICustomerExternalAccess access) : ISocialSignInAdminService
+{
+    public async Task<IReadOnlyList<LinkedIdentityDto>> ListAsync(Guid customerId, CancellationToken ct = default)
+        => await db.Set<CustomerExternalLogin>().AsNoTracking().Where(l => l.CustomerId == customerId).OrderBy(l => l.Provider)
+            .Select(l => new LinkedIdentityDto(l.Provider, l.Email, l.LinkedUtc, l.LastUsedUtc)).ToListAsync(ct);
+
+    public async Task<bool> UnlinkAsync(Guid customerId, string provider, string? actor = null, CancellationToken ct = default)
+    {
+        var name = provider.ToLowerInvariant();
+        if (await db.Set<CustomerExternalLogin>().Where(l => l.CustomerId == customerId && l.Provider == name).ExecuteDeleteAsync(ct) == 0) return false;
+        await access.RecordByStaffAsync(customerId, "social-unlinked", actor, name, ct);
+        return true;
+    }
+}
+
 internal sealed class SocialSignInService(IOptions<SocialSignInOptions> options, IExternalIdentityVerifier verifier, ICustomerExternalAccess access, PiranhaCommerceDbContext db) : ISocialSignInService
 {
     private const string AccountExistsMessage = "There is already an account with that email. Sign in the usual way, then add this social account from your profile.";

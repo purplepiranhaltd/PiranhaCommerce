@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using PiranhaCommerce.Api;
 using PiranhaCommerce.Api.Auth;
 using PiranhaCommerce.Core;
+using PiranhaCommerce.Core.Identity;
 using PiranhaCommerce.Core.Plugins;
 using PiranhaCommerce.Core.Validation;
 using PiranhaCommerce.Data;
@@ -33,6 +34,8 @@ public sealed class SocialSignInPlugin : IPiranhaCommercePlugin
         services.TryAddSingleton<IExternalIdentityVerifier, OidcIdentityVerifier>();
         services.AddSingleton<IModelContributor, SocialModelContributor>();
         services.AddScoped<ISocialSignInService, SocialSignInService>();
+        services.AddScoped<ISocialSignInAdminService, SocialSignInAdminService>();
+        services.AddSingleton<IApiEndpointContributor, SocialApiEndpoints>();
         services.AddSingleton<IStorefrontEndpointContributor, SocialStorefrontEndpoints>();
         services.AddScoped<ICustomerDataContributor, SocialDataContributor>();
     }
@@ -52,6 +55,21 @@ internal sealed class SocialModelContributor : IModelContributor
             e.HasIndex(x => new { x.CustomerId, x.Provider }).IsUnique(); // and a customer has one account at each provider
             e.HasOne<Customer>().WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
         });
+    }
+}
+
+internal sealed class SocialApiEndpoints : IApiEndpointContributor
+{
+    public void MapEndpoints(IEndpointRouteBuilder api)
+    {
+        var customers = api.MapGroup("/customers").WithTags("Customers").RequirePermission(Permissions.CustomersView);
+
+        customers.MapGet("/{id:guid}/social", async (Guid id, ISocialSignInAdminService svc, PiranhaCommerceDbContext db, CancellationToken ct) =>
+            await db.Set<Customer>().AnyAsync(c => c.Id == id, ct) ? Results.Ok(await svc.ListAsync(id, ct)) : Results.NotFound());
+
+        customers.MapDelete("/{id:guid}/social/{provider}", async (Guid id, string provider, HttpContext http, ISocialSignInAdminService svc, CancellationToken ct) =>
+                await svc.UnlinkAsync(id, provider, http.User.FindFirst("email")?.Value, ct) ? Results.NoContent() : Results.NotFound())
+            .RequirePermission(Permissions.CustomersManage);
     }
 }
 

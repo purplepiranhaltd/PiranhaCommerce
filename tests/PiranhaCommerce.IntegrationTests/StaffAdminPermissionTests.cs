@@ -221,7 +221,7 @@ public partial class StaffAdminPermissionTests(PiranhaCommerceFactory factory) :
     private static readonly string[] AdminServices =
     [
         "IBarcodeService", "IBrandService", "ICatalogTransferService", "ICategoryService", "ICustomerErasureService", "ICustomerGroupService", "ICustomerService",
-        "ICustomerSignInAdminService", "IDiscountRuleService", "IDisputeService", "IEmailTemplateService", "IFulfilmentService", "IGatewayService",
+        "ICustomerSignInAdminService", "ISocialSignInAdminService", "IDiscountRuleService", "IDisputeService", "IEmailTemplateService", "IFulfilmentService", "IGatewayService",
         "IGroupPricingService", "IOrderService", "IPaymentService", "IPriceBreakService", "IProductImageService", "IProductListingService", "IProductRelationService",
         "IProductService", "IProductVariantService", "IPromotionService", "IReportService", "IReturnRequestService", "IReviewPhotoService", "IReviewService",
         "ISaleService", "IShippingCarrierService", "IShippingService", "IShippingZoneService", "ISpecificationService", "IStaffLocationService", "IStockAlertService",

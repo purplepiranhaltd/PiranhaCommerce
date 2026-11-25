@@ -91,6 +91,7 @@ builder.Services.AddPiranhaCommerceCore()
     .AddPlugin<LocalDiskStoragePlugin>()
     .AddPlugin<SkiaImagingPlugin>()
     .AddPlugin<PiranhaCommerce.Customers.SocialSignIn.SocialSignInPlugin>()
+    .AddPlugin<PiranhaCommerce.Customers.SocialSignIn.Admin.SocialSignInAdminPlugin>()
     .AddPlugin<WarrantyPlugin>();
 
 var app = builder.Build();
@@ -118,7 +119,7 @@ Get-ChildItem $warranty -Include *.cs,*.razor -Recurse | Where-Object { $_.FullN
 
 # (RequiresAspNetWebAssets is a documented host requirement, see README.)
 # Reference ONLY the two top-level plugin packages + the provider; everything else must arrive transitively.
-foreach ($id in 'PiranhaCommerce.Audit.Admin', 'PiranhaCommerce.Webhooks.Admin', 'PiranhaCommerce.Ecommerce.Admin', 'PiranhaCommerce.Customers.Admin', 'PiranhaCommerce.Email.Smtp.Admin', 'PiranhaCommerce.Storage.LocalDisk', 'PiranhaCommerce.Imaging.Skia', 'PiranhaCommerce.Customers.SocialSignIn', 'PiranhaCommerce.Data.SqlServer') {
+foreach ($id in 'PiranhaCommerce.Audit.Admin', 'PiranhaCommerce.Webhooks.Admin', 'PiranhaCommerce.Ecommerce.Admin', 'PiranhaCommerce.Customers.Admin', 'PiranhaCommerce.Email.Smtp.Admin', 'PiranhaCommerce.Storage.LocalDisk', 'PiranhaCommerce.Imaging.Skia', 'PiranhaCommerce.Customers.SocialSignIn.Admin', 'PiranhaCommerce.Data.SqlServer') {
     Run dotnet @('add', 'package', $id, '--version', $version, '--no-restore') $app | Out-Null
 }
 Run dotnet @('add', 'package', 'Microsoft.EntityFrameworkCore.Design', '--version', '10.0.15', '--no-restore') $app | Out-Null

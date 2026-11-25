@@ -145,7 +145,7 @@ Not built:
 - Guest order lookup (an order placed as a guest can only be seen from the checkout response and the confirmation email), and offering a guest to turn their order into an account.
 - Customer data export and erasure are built for staff (orders anonymised, never deleted). Shoppers can export and erase their own account through the storefront API.
   Not built: a scheduled retention clean-up, and erasure in the payment provider and email provider.
-- Social sign-in is built as an optional package. The sample shop has a Google button. Not built: buttons for other providers, Facebook (it does not give an ID token to verify), and showing a customer's linked accounts to staff.
+- Social sign-in is built as an optional package. The sample shop has a Google button. Not built: buttons for other providers, Facebook (it does not give an ID token to verify).
 - Shopper sign-in is rate limited by client address (with the staff limits) but there is no CAPTCHA or breached-password check.
 
 ## Baskets and orders: decisions and what is left
