@@ -47,9 +47,17 @@ commerce
     .AddPlugin<PiranhaCommerce.Customers.SocialSignIn.SocialSignInPlugin>() // inert until a provider is set under PiranhaCommerce:Customers:Social:Providers
     .AddPlugin<PiranhaCommerce.Customers.SocialSignIn.Admin.SocialSignInAdminPlugin>() // linked social accounts on the customer page
     .AddPlugin<PiranhaCommerce.Email.Smtp.Admin.SmtpEmailAdminPlugin>() // SMTP sending (needs PiranhaCommerce:Email:Smtp settings) and its template editor
-    .AddPlugin<PiranhaCommerce.Storage.LocalDisk.LocalDiskStoragePlugin>() // uploaded files (PiranhaCommerce:Storage:LocalDisk:Path, default App_Data/files)
     .AddPlugin<PiranhaCommerce.Imaging.Skia.SkiaImagingPlugin>() // makes sizes of product images
     .AddPlugin<WarrantyPlugin>();
+
+// Uploaded files: Azure Blob Storage when PiranhaCommerce:Storage:Provider is AzureBlob (the hosted demo), otherwise a folder on disk
+// (PiranhaCommerce:Storage:LocalDisk:Path, default App_Data/files).
+if (builder.Configuration["PiranhaCommerce:Storage:Provider"] == "AzureBlob")
+    commerce.AddPlugin<PiranhaCommerce.Storage.AzureBlob.AzureBlobStoragePlugin>();
+else
+    commerce.AddPlugin<PiranhaCommerce.Storage.LocalDisk.LocalDiskStoragePlugin>();
+
+// Behind App Service's front end: trust X-Forwarded-For/Proto (ASPNETCORE_FORWARDEDHEADERS_ENABLED=true) so the shopper's address and https are right.
 
 builder.Services.Configure<SampleDataOptions>(builder.Configuration.GetSection(SampleDataOptions.SectionName));
 builder.Services.AddSingleton<SampleDataSeeder>();
@@ -63,17 +71,39 @@ builder.Services.Configure<ShopOptions>(builder.Configuration.GetSection(ShopOpt
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment() && !EF.IsDesignTime) // EF tooling executes Program.cs too
+// Hosted under two domains (.com and .co.uk): send the secondary one to the main one, keeping the path and query.
+// Set Hosting:RedirectFrom (piranhacommerce.co.uk) and Hosting:RedirectTo (piranhacommerce.com); both empty means no redirect.
+// The same suffix swap covers staging.* and demo.*. Certificate and domain-ownership checks under /.well-known are left alone.
+var redirectFrom = app.Configuration["Hosting:RedirectFrom"];
+var redirectTo = app.Configuration["Hosting:RedirectTo"];
+if (!string.IsNullOrEmpty(redirectFrom) && !string.IsNullOrEmpty(redirectTo))
+    app.Use(async (context, next) =>
+    {
+        var host = context.Request.Host.Host;
+        if (host.EndsWith(redirectFrom, StringComparison.OrdinalIgnoreCase) && !context.Request.Path.StartsWithSegments("/.well-known"))
+        {
+            var target = host[..^redirectFrom.Length] + redirectTo;
+            context.Response.Redirect($"https://{target}{context.Request.PathBase}{context.Request.Path}{context.Request.QueryString}", permanent: true);
+            return;
+        }
+        await next();
+    });
+
+// The hosted demo sets PiranhaCommerce:Demo:SeedOnStartup so its administrator and sample catalogue exist. Real shops never set it.
+var seedDemo = app.Configuration.GetValue<bool>("PiranhaCommerce:Demo:SeedOnStartup");
+
+if ((app.Environment.IsDevelopment() || seedDemo) && !EF.IsDesignTime) // EF tooling executes Program.cs too
 {
-    // Development convenience only: production deployments apply migrations as a deployment step.
-    using (var scope = app.Services.CreateScope())
-        await scope.ServiceProvider.GetRequiredService<PiranhaCommerceDbContext>().Database.MigrateAsync();
+    // Development convenience only: deployments apply migrations as a pipeline step, and the app's database login cannot change the schema.
+    if (app.Environment.IsDevelopment())
+        using (var scope = app.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<PiranhaCommerceDbContext>().Database.MigrateAsync();
 
     var seed = app.Configuration.GetSection("PiranhaCommerce:SeedAdmin");
     if (seed["Email"] is { Length: > 0 } email && seed["Password"] is { Length: > 0 } password)
         await app.Services.EnsureAdministratorAsync(email, password);
 
-    // The sample shop's catalogue (PiranhaCommerce:SampleData:Enabled). Only ever in Development.
+    // The sample shop's catalogue (PiranhaCommerce:SampleData:Enabled).
     if (app.Configuration.GetValue<bool>($"{SampleDataOptions.SectionName}:Enabled"))
         await app.Services.GetRequiredService<SampleDataSeeder>().SeedAsync();
 }

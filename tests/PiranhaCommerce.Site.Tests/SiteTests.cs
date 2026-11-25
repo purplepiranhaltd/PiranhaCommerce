@@ -19,6 +19,24 @@ public class SiteTests(WebApplicationFactory<Program> factory) : IClassFixture<W
     private DocsLibrary Library => factory.Services.GetRequiredService<DocsLibrary>();
 
     [Fact]
+    public async Task The_secondary_domain_redirects_to_the_main_one_keeping_path_and_query()
+    {
+        using var configured = factory.WithWebHostBuilder(b =>
+        {
+            b.UseSetting("Hosting:RedirectFrom", "piranhacommerce.co.uk");
+            b.UseSetting("Hosting:RedirectTo", "piranhacommerce.com");
+        });
+        var client = Client(configured, "demo.staging.piranhacommerce.co.uk");
+
+        var response = await client.GetAsync("/docs/x?a=1");
+        Assert.Equal(HttpStatusCode.MovedPermanently, response.StatusCode);
+        Assert.Equal("https://demo.staging.piranhacommerce.com/docs/x?a=1", response.Headers.Location!.ToString());
+
+        var main = await Client(configured, "piranhacommerce.com").GetAsync("/");
+        Assert.NotEqual(HttpStatusCode.MovedPermanently, main.StatusCode);
+    }
+
+    [Fact]
     public void The_docs_load_with_no_broken_links_anchors_or_missing_front_matter()
     {
         Assert.NotEmpty(Library.Pages);

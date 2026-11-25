@@ -10,6 +10,24 @@ builder.Services.AddSingleton(sp => DocsLibrary.Load(DocsLocator.Find(builder.En
 
 var app = builder.Build();
 
+// Hosted under two domains (.com and .co.uk): send the secondary one to the main one, keeping the path and query.
+// Set Hosting:RedirectFrom (piranhacommerce.co.uk) and Hosting:RedirectTo (piranhacommerce.com); both empty means no redirect.
+// The same suffix swap covers staging.* and demo.*. Certificate and domain-ownership checks under /.well-known are left alone.
+var redirectFrom = app.Configuration["Hosting:RedirectFrom"];
+var redirectTo = app.Configuration["Hosting:RedirectTo"];
+if (!string.IsNullOrEmpty(redirectFrom) && !string.IsNullOrEmpty(redirectTo))
+    app.Use(async (context, next) =>
+    {
+        var host = context.Request.Host.Host;
+        if (host.EndsWith(redirectFrom, StringComparison.OrdinalIgnoreCase) && !context.Request.Path.StartsWithSegments("/.well-known"))
+        {
+            var target = host[..^redirectFrom.Length] + redirectTo;
+            context.Response.Redirect($"https://{target}{context.Request.PathBase}{context.Request.Path}{context.Request.QueryString}", permanent: true);
+            return;
+        }
+        await next();
+    });
+
 if (!app.Environment.IsDevelopment()) app.UseExceptionHandler("/error", createScopeForErrors: true);
 
 // docs.<domain> serves the documentation at its root: /guides/pricing is answered as /docs/guides/pricing. Anything with a file extension

@@ -1,0 +1,162 @@
+name: Deploy sites
+
+# Publishes the promo and docs site and the sample shop to Azure App Service.
+#   main passes CI  ->  staging slots (and the staging database)  ->  a reviewer approves  ->  production (database migrated, slots swapped).
+# It runs from the default branch's copy of this file only, and only for a push to this repository's main, never for a fork or a pull request.
+# Signing in to Azure uses OIDC with no stored key, and the Azure credentials exist only for the "staging" and "production" environments.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  RESOURCE_GROUP: PiranhaCommerce
+  SITE_APP: awa-piranhacommerce
+  SHOP_APP: awa-piranhacommerce-demo
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    # Only a green CI run of a push to main in THIS repository (a fork's branch called "main" does not count), or someone running it by hand.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Publish the site and the shop
+        run: |
+          dotnet publish site/PiranhaCommerce.Site -c Release -o publish/site
+          dotnet publish samples/PiranhaCommerce.Web -c Release -o publish/shop
+          (cd publish/site && zip -qr ../site.zip .)
+          (cd publish/shop && zip -qr ../shop.zip .)
+
+      - name: Make the database migration script
+        run: |
+          dotnet tool restore
+          # Idempotent: it can be run against a database at any version, and only applies what is missing.
+          dotnet ef migrations script --idempotent --project samples/PiranhaCommerce.Web --output publish/migrate.sql
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: |
+            publish/site.zip
+            publish/shop.zip
+            publish/migrate.sql
+          retention-days: 14
+
+  staging:
+    name: Staging
+    needs: build
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: release
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Migrate the staging database
+        shell: pwsh
+        env:
+          SQL_SERVER: ${{ secrets.SQL_SERVER_NAME }}.database.windows.net
+        run: |
+          Install-Module SqlServer -Force -Scope CurrentUser -AcceptLicense
+          $token = az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv
+          Invoke-Sqlcmd -ServerInstance $env:SQL_SERVER -Database piranhacommerce_staging -AccessToken $token -InputFile release/migrate.sql -QueryTimeout 600
+
+      - name: Deploy to the staging slots
+        env:
+          APP_SUB: ${{ secrets.AZURE_APP_SUBSCRIPTION_ID }}
+        run: |
+          az webapp deploy --subscription "$APP_SUB" -g "$RESOURCE_GROUP" -n "$SITE_APP" --slot staging --src-path release/site.zip --type zip
+          az webapp deploy --subscription "$APP_SUB" -g "$RESOURCE_GROUP" -n "$SHOP_APP" --slot staging --src-path release/shop.zip --type zip
+
+      - name: Check the staging slots answer
+        env:
+          APP_SUB: ${{ secrets.AZURE_APP_SUBSCRIPTION_ID }}
+        run: |
+          for app in "$SITE_APP" "$SHOP_APP"; do
+            host=$(az webapp show --subscription "$APP_SUB" -g "$RESOURCE_GROUP" -n "$app" --slot staging --query defaultHostName -o tsv)
+            curl --fail --silent --show-error --location --retry 12 --retry-delay 10 --retry-all-errors --max-time 30 "https://$host/" -o /dev/null
+            echo "$app (staging) answers"
+          done
+
+  production:
+    name: Production
+    needs: staging
+    runs-on: ubuntu-latest
+    environment: production   # require a reviewer on this environment
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: release
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      # Before the swap, while the old code is still serving: a migration must work with the code that is live and the code about to be.
+      - name: Migrate the production database
+        shell: pwsh
+        env:
+          SQL_SERVER: ${{ secrets.SQL_SERVER_NAME }}.database.windows.net
+        run: |
+          Install-Module SqlServer -Force -Scope CurrentUser -AcceptLicense
+          $token = az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv
+          Invoke-Sqlcmd -ServerInstance $env:SQL_SERVER -Database piranhacommerce_live -AccessToken $token -InputFile release/migrate.sql -QueryTimeout 600
+
+      - name: Swap staging into production
+        env:
+          APP_SUB: ${{ secrets.AZURE_APP_SUBSCRIPTION_ID }}
+        run: |
+          for app in "$SITE_APP" "$SHOP_APP"; do
+            az webapp deployment slot swap --subscription "$APP_SUB" -g "$RESOURCE_GROUP" -n "$app" --slot staging --target-slot production
+          done
+
+      - name: Check production answers
+        env:
+          APP_SUB: ${{ secrets.AZURE_APP_SUBSCRIPTION_ID }}
+        run: |
+          for app in "$SITE_APP" "$SHOP_APP"; do
+            host=$(az webapp show --subscription "$APP_SUB" -g "$RESOURCE_GROUP" -n "$app" --query defaultHostName -o tsv)
+            curl --fail --silent --show-error --location --retry 12 --retry-delay 10 --retry-all-errors --max-time 30 "https://$host/" -o /dev/null
+            echo "$app (production) answers"
+          done

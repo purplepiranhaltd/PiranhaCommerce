@@ -1,0 +1,85 @@
+name: Infrastructure
+
+# Creates and updates the Azure resources (web apps, storage, the two databases) from infra/*.bicep.
+# Pull requests only get the free check that the Bicep compiles. Nothing signs in to Azure on a pull request: the Azure app registration has no
+# credential for them, so a pull request (from a fork or not) can never reach the subscriptions, whatever it changes in this file.
+# A change to the infrastructure is applied only from main, or by hand, in the "infra" environment, which should require a reviewer.
+
+on:
+  pull_request:
+    paths: ['infra/**', '.github/workflows/infra.yml']
+  push:
+    branches: [main]
+    paths: ['infra/**', '.github/workflows/infra.yml']
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Apply the change. Leave off to only preview it.'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infrastructure
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Bicep builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build both templates
+        run: |
+          az bicep build --file infra/app.bicep --stdout > /dev/null
+          az bicep build --file infra/sql.bicep --stdout > /dev/null
+
+  deploy:
+    name: Preview and apply
+    needs: validate
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: infra
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Preview (what-if)
+        env:
+          APP_SUB: ${{ secrets.AZURE_APP_SUBSCRIPTION_ID }}
+          SQL_SUB: ${{ secrets.AZURE_SQL_SUBSCRIPTION_ID }}
+          JWT_PRODUCTION: ${{ secrets.JWT_SIGNING_KEY_PRODUCTION }}
+          JWT_STAGING: ${{ secrets.JWT_SIGNING_KEY_STAGING }}
+          SQL_SERVER: ${{ secrets.SQL_SERVER_NAME }}
+          SQL_POOL: ${{ secrets.SQL_POOL_NAME }}
+        run: |
+          az deployment group what-if --subscription "$APP_SUB" --resource-group PiranhaCommerce --name piranhacommerce-app \
+            --template-file infra/app.bicep --parameters sqlServerName="$SQL_SERVER" productionJwtSigningKey="$JWT_PRODUCTION" stagingJwtSigningKey="$JWT_STAGING"
+          az deployment group what-if --subscription "$SQL_SUB" --resource-group PROD-SQL --name piranhacommerce-sql \
+            --template-file infra/sql.bicep --parameters serverName="$SQL_SERVER" poolName="$SQL_POOL"
+
+      - name: Apply
+        if: github.event_name == 'push' || inputs.apply
+        env:
+          APP_SUB: ${{ secrets.AZURE_APP_SUBSCRIPTION_ID }}
+          SQL_SUB: ${{ secrets.AZURE_SQL_SUBSCRIPTION_ID }}
+          JWT_PRODUCTION: ${{ secrets.JWT_SIGNING_KEY_PRODUCTION }}
+          JWT_STAGING: ${{ secrets.JWT_SIGNING_KEY_STAGING }}
+          SQL_SERVER: ${{ secrets.SQL_SERVER_NAME }}
+          SQL_POOL: ${{ secrets.SQL_POOL_NAME }}
+        run: |
+          # Databases first, so they exist when the apps start.
+          az deployment group create --subscription "$SQL_SUB" --resource-group PROD-SQL --name piranhacommerce-sql \
+            --template-file infra/sql.bicep --parameters serverName="$SQL_SERVER" poolName="$SQL_POOL" --output none
+          az deployment group create --subscription "$APP_SUB" --resource-group PiranhaCommerce --name piranhacommerce-app \
+            --template-file infra/app.bicep --parameters sqlServerName="$SQL_SERVER" productionJwtSigningKey="$JWT_PRODUCTION" stagingJwtSigningKey="$JWT_STAGING" --output none
