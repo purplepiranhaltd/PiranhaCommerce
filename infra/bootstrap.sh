@@ -72,6 +72,13 @@ done
 echo "5. Access in the SQL subscription: create the two databases (this role cannot read their data, and has no access to the other databases)"
 SQL_ID="/subscriptions/$SQL_SUB/resourceGroups/$SQL_RG/providers/Microsoft.Sql/servers/$SQL_SERVER"
 az role assignment create --assignee-object-id "$SP_ID" --assignee-principal-type ServicePrincipal --role "SQL DB Contributor" --scope "$SQL_ID" --output none
+# Running a deployment in the SQL resource group needs the right to deploy, which "SQL DB Contributor" does not include. A custom role gives only that.
+ROLE="PiranhaCommerce deployments ($SQL_RG)"
+SQL_RG_ID="/subscriptions/$SQL_SUB/resourceGroups/$SQL_RG"
+if [ -z "$(az role definition list --subscription "$SQL_SUB" --name "$ROLE" --query "[].name" -o tsv)" ]; then
+  az role definition create --role-definition "{\"Name\":\"$ROLE\",\"Description\":\"Run and preview deployments in this resource group. Nothing else.\",\"Actions\":[\"Microsoft.Resources/deployments/*\",\"Microsoft.Resources/subscriptions/resourceGroups/read\"],\"AssignableScopes\":[\"$SQL_RG_ID\"]}" --subscription "$SQL_SUB" --output none
+fi
+az role assignment create --assignee-object-id "$SP_ID" --assignee-principal-type ServicePrincipal --role "$ROLE" --scope "$SQL_RG_ID" --output none
 
 TENANT_ID=$(az account show --query tenantId -o tsv)
 cat <<EOF
