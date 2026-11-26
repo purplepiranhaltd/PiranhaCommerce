@@ -34,8 +34,8 @@ param productionJwtSigningKey string
 @secure()
 param stagingJwtSigningKey string
 
-@description('Seed the sample catalogue and administrator at startup (PiranhaCommerce:Demo:SeedOnStartup).')
-param productionDemoSeed bool = false
+@description('Fill the demo shop at startup with the sample catalogue and its demo shoppers (and an administrator, if PiranhaCommerce:SeedAdmin is set). Safe on every start.')
+param productionDemoSeed bool = true
 param stagingDemoSeed bool = true
 
 @description('The Azure DNS zones (piranhacommerce.com and piranhacommerce.co.uk) and the resource group that holds them.')
