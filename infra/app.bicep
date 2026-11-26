@@ -46,6 +46,11 @@ param dnsResourceGroup string = 'PROD-DNS'
 param productionDemoUrl string = 'https://demo.piranhacommerce.com'
 param stagingDemoUrl string = 'https://demo.staging.piranhacommerce.com'
 
+@description('Plausible Analytics, production only (the staging slots get no domain, so no script). Blank switches it off. The names must match the sites set up in Plausible.')
+param sitePlausibleDomain string = 'piranhacommerce.com'
+param shopPlausibleDomain string = 'demo.piranhacommerce.com'
+param plausibleHost string = 'https://pa.purplepiranha.co.uk'
+
 param tags object = {}
 
 var storageSuffix = environment().suffixes.storage
@@ -81,8 +86,8 @@ module site 'modules/webapp.bicep' = {
     location: location
     planId: plan.id
     linuxFxVersion: linuxFxVersion
-    productionSettings: union(common, { Site__DemoUrl: productionDemoUrl })
-    stagingSettings: union(common, { Site__DemoUrl: stagingDemoUrl })
+    productionSettings: union(common, { Site__DemoUrl: productionDemoUrl, Analytics__PlausibleDomain: sitePlausibleDomain, Analytics__PlausibleHost: plausibleHost })
+    stagingSettings: union(common, { Site__DemoUrl: stagingDemoUrl, Analytics__PlausibleDomain: '', Analytics__PlausibleHost: plausibleHost })
     tags: tags
   }
 }
@@ -106,6 +111,8 @@ module shop 'modules/webapp.bicep' = {
       PiranhaCommerce__Storage__Provider: 'AzureBlob'
       PiranhaCommerce__Demo__SeedOnStartup: string(productionDemoSeed)
       PiranhaCommerce__SampleData__Enabled: string(productionDemoSeed)
+      Analytics__PlausibleDomain: shopPlausibleDomain
+      Analytics__PlausibleHost: plausibleHost
     })
     stagingSettings: union(common, {
       PiranhaCommerce__Provider: 'SqlServer'
@@ -115,6 +122,8 @@ module shop 'modules/webapp.bicep' = {
       PiranhaCommerce__Storage__Provider: 'AzureBlob'
       PiranhaCommerce__Demo__SeedOnStartup: string(stagingDemoSeed)
       PiranhaCommerce__SampleData__Enabled: string(stagingDemoSeed)
+      Analytics__PlausibleDomain: ''
+      Analytics__PlausibleHost: plausibleHost
     })
     tags: tags
   }

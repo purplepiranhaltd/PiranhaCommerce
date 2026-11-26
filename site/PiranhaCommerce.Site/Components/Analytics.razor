@@ -1,0 +1,7 @@
+@inject IConfiguration Configuration
+@* Plausible Analytics, only where Analytics:PlausibleDomain is set (the live site). *@
+@if (Configuration["Analytics:PlausibleDomain"] is { } domain && !string.IsNullOrWhiteSpace(domain))
+{
+    var host = (Configuration["Analytics:PlausibleHost"] is { Length: > 0 } configured ? configured : "https://plausible.io").TrimEnd('/');
+    <script defer data-domain="@domain.Trim()" data-api="@(host + "/api/event")" src="@(host + "/js/script.js")"></script>
+}

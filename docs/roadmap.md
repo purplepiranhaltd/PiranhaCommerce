@@ -41,6 +41,14 @@ Also open from the comparison, with where each stands:
   To settle first: which EF Core provider to use (the Oracle one or Pomelo) and whether it supports the EF Core version we are on; the minimum MySQL version; and the collation, since the suite
   already catches providers that sort or compare text differently (PostgreSQL sorts case-sensitively; our sorts are done in code for that reason). Also check decimal precision for money,
   `DateTimeOffset` handling, and any cascade or index rules that differ. Done when the full suite passes on MySQL in CI and the docs list it as supported.
+- **Analytics plugins** (the sample shop and promo site only add the plain Plausible script to pages today):
+  - `PiranhaCommerce.Analytics.Plausible`: full ecommerce tracking, not only page views. Product views, add to basket, each checkout step and purchases with revenue (Plausible custom events and
+    revenue goals), and refunds if Plausible can express them. Settings for the site domain and script host, off when the domain is blank. Purchases should be reported from the server (Plausible's
+    Events API) so they are not lost when the shopper does not return from the payment gateway. It must keep the rule the sample follows: no tokens, email addresses or other personal data in a
+    reported address or event (`ShopAnalytics`).
+  - `PiranhaCommerce.Analytics.GoogleAnalytics`: a good idea alongside it. GA4's ecommerce events (and the Measurement Protocol for server-side purchases). Unlike Plausible it uses cookies, so it
+    needs the shopper's consent first: the plugin has to work with a consent banner (Consent Mode) and send nothing without consent.
+  - Design the ecommerce events once, as one contract both plugins (and any other) listen to.
 - **Operations:** message queueing with retries, a scheduled task view, search-engine integration (Elasticsearch and the like), and a shared (Redis) rate limiter.
 - **Selling through others:** multi-store and vendors who sign in to manage their own products and orders (item 10).
 - **Ecosystem and accessibility:** nopCommerce has fifteen-plus years in production, a plugin and theme marketplace and a partner network, and 4.90 added accessibility changes for the European Accessibility Act. PiranhaCommerce has none of these; an accessibility pass on the admin and the sample shop is worth doing.

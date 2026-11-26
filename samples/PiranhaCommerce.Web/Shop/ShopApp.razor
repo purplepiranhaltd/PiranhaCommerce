@@ -3,9 +3,11 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="strict-origin" /> @* other pages learn only the shop's address, never a page's path or query *@
     <base href="/" />
     <link rel="stylesheet" href="shop.css" />
     <HeadOutlet />
+    <Analytics />
 </head>
 <body>
     <ShopRoutes />

@@ -1,0 +1,23 @@
+@inject IConfiguration Configuration
+@inject ShopSession Session
+@* Plausible Analytics, only where Analytics:PlausibleDomain is set (the live sites), and only on pages whose address is safe to report. *@
+@if (_domain is not null)
+{
+    <script defer data-domain="@_domain" data-api="@(_host + "/api/event")" src="@(_host + "/js/script.js")"></script>
+}
+
+@code {
+    [CascadingParameter] private HttpContext? Context { get; set; }
+
+    private string? _domain;
+    private string _host = "";
+
+    protected override void OnInitialized()
+    {
+        var domain = Configuration["Analytics:PlausibleDomain"];
+        if (string.IsNullOrWhiteSpace(domain) || Context is null || !ShopAnalytics.MayReport(Context.Request.Query, Session)) return;
+        _domain = domain.Trim();
+        // Where the script and its events come from: Plausible itself, or your own proxy for it.
+        _host = (Configuration["Analytics:PlausibleHost"] is { Length: > 0 } host ? host : "https://plausible.io").TrimEnd('/');
+    }
+}

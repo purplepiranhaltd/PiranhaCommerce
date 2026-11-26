@@ -20,6 +20,12 @@ The same names under `piranhacommerce.co.uk`. `app.bicep` creates the DNS record
 
 The names of the apps, storage and databases are agreed. Defaults can still be changed: change the defaults at the top of `app.bicep` and `sql.bicep`, and in `bootstrap.sh` and `deploy.yml`, before the first deployment.
 
+## Analytics
+
+Plausible, on the live promo site and the live demo shop only, through the proxy at `pa.purplepiranha.co.uk`. `app.bicep` sets `Analytics__PlausibleDomain` (`piranhacommerce.com` and `demo.piranhacommerce.com`; add both as sites in Plausible). It is blank on the staging slots, and a blank domain leaves the script out. The setting stays with its slot when slots are swapped.
+
+The script reports a page's whole address, so the shop loads it only when every query parameter is on the harmless list in `ShopAnalytics.cs`: reset and unsubscribe links, and sign-in steps, are never reported. The admin does not load it.
+
 ## Files
 
 - `app.bicep`: web apps, slots, storage and role assignments (deploys to resource group `PiranhaCommerce`, app subscription).

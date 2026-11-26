@@ -37,6 +37,23 @@ public class SiteTests(WebApplicationFactory<Program> factory) : IClassFixture<W
     }
 
     [Fact]
+    public async Task Analytics_is_only_on_pages_when_a_domain_is_configured()
+    {
+        Assert.DoesNotContain("data-domain", await Client(factory).GetStringAsync("/"));
+
+        using var configured = factory.WithWebHostBuilder(b =>
+        {
+            b.UseSetting("Analytics:PlausibleDomain", "shop.example.com");
+            b.UseSetting("Analytics:PlausibleHost", "https://pa.example.com/");
+        });
+        foreach (var path in new[] { "/", "/pricing", "/docs" })
+        {
+            var html = await Client(configured).GetStringAsync(path);
+            Assert.Contains("<script defer data-domain=\"shop.example.com\" data-api=\"https://pa.example.com/api/event\" src=\"https://pa.example.com/js/script.js\"></script>", html);
+        }
+    }
+
+    [Fact]
     public async Task The_secondary_domain_redirects_to_the_main_one_keeping_path_and_query()
     {
         using var configured = factory.WithWebHostBuilder(b =>
