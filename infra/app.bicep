@@ -42,6 +42,9 @@ param stagingDemoSeed bool = true
 param dnsZones array = ['piranhacommerce.com', 'piranhacommerce.co.uk']
 param dnsResourceGroup string = 'PROD-DNS'
 
+@description('Bind the custom domains and issue their certificates. Only for the first set-up or when a domain is added: it re-binds each name without its certificate before putting it back, so HTTPS on a live name is interrupted. Existing bindings are left alone when this is false.')
+param bindCustomDomains bool = false
+
 @description('Where the promo site links to the demo shop: the live demo for production, the staging demo for the staging slot.')
 param productionDemoUrl string = 'https://demo.piranhacommerce.com'
 param stagingDemoUrl string = 'https://demo.staging.piranhacommerce.com'
@@ -198,7 +201,7 @@ module dns 'modules/dnsrecords.bicep' = {
 
 // One at a time: App Service refuses a change to an app while another change to it is still in progress, so parallel bindings fail with Conflict.
 @batchSize(1)
-module customDomains 'modules/customdomain.bicep' = [for d in domainNames: {
+module customDomains 'modules/customdomain.bicep' = [for d in domainNames: if (bindCustomDomains) {
   name: 'domain-${replace(d.host, '.', '-')}'
   params: {
     appName: d.app

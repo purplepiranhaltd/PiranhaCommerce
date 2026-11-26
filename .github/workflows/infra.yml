@@ -17,6 +17,10 @@ on:
         description: 'Apply the change. Leave off to only preview it.'
         type: boolean
         default: false
+      bindDomains:
+        description: 'Also (re)bind the custom domains and certificates. First set-up or a new domain only: it interrupts HTTPS on live names.'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -62,8 +66,9 @@ jobs:
           JWT_STAGING: ${{ secrets.JWT_SIGNING_KEY_STAGING }}
           SQL_SERVER: ${{ secrets.SQL_SERVER_NAME }}
           SQL_POOL: ${{ secrets.SQL_POOL_NAME }}
+          BIND_DOMAINS: ${{ inputs.bindDomains || false }}
         run: |
-          az deployment group validate --subscription "$APP_SUB" --resource-group PiranhaCommerce             --template-file infra/app.bicep --parameters sqlServerName="$SQL_SERVER" productionJwtSigningKey="$JWT_PRODUCTION" stagingJwtSigningKey="$JWT_STAGING" --output none
+          az deployment group validate --subscription "$APP_SUB" --resource-group PiranhaCommerce             --template-file infra/app.bicep --parameters sqlServerName="$SQL_SERVER" productionJwtSigningKey="$JWT_PRODUCTION" stagingJwtSigningKey="$JWT_STAGING" bindCustomDomains="$BIND_DOMAINS" --output none
           az deployment group validate --subscription "$SQL_SUB" --resource-group PROD-SQL             --template-file infra/sql.bicep --parameters serverName="$SQL_SERVER" poolName="$SQL_POOL" --output none
 
       - name: Preview (what-if)
@@ -74,9 +79,10 @@ jobs:
           JWT_STAGING: ${{ secrets.JWT_SIGNING_KEY_STAGING }}
           SQL_SERVER: ${{ secrets.SQL_SERVER_NAME }}
           SQL_POOL: ${{ secrets.SQL_POOL_NAME }}
+          BIND_DOMAINS: ${{ inputs.bindDomains || false }}
         run: |
           az deployment group what-if --subscription "$APP_SUB" --resource-group PiranhaCommerce --name piranhacommerce-app \
-            --template-file infra/app.bicep --parameters sqlServerName="$SQL_SERVER" productionJwtSigningKey="$JWT_PRODUCTION" stagingJwtSigningKey="$JWT_STAGING"
+            --template-file infra/app.bicep --parameters sqlServerName="$SQL_SERVER" productionJwtSigningKey="$JWT_PRODUCTION" stagingJwtSigningKey="$JWT_STAGING" bindCustomDomains="$BIND_DOMAINS"
           az deployment group what-if --subscription "$SQL_SUB" --resource-group PROD-SQL --name piranhacommerce-sql \
             --template-file infra/sql.bicep --parameters serverName="$SQL_SERVER" poolName="$SQL_POOL"
 
@@ -89,9 +95,10 @@ jobs:
           JWT_STAGING: ${{ secrets.JWT_SIGNING_KEY_STAGING }}
           SQL_SERVER: ${{ secrets.SQL_SERVER_NAME }}
           SQL_POOL: ${{ secrets.SQL_POOL_NAME }}
+          BIND_DOMAINS: ${{ inputs.bindDomains || false }}
         run: |
           # Databases first, so they exist when the apps start.
           az deployment group create --subscription "$SQL_SUB" --resource-group PROD-SQL --name piranhacommerce-sql \
             --template-file infra/sql.bicep --parameters serverName="$SQL_SERVER" poolName="$SQL_POOL" --output none
           az deployment group create --subscription "$APP_SUB" --resource-group PiranhaCommerce --name piranhacommerce-app \
-            --template-file infra/app.bicep --parameters sqlServerName="$SQL_SERVER" productionJwtSigningKey="$JWT_PRODUCTION" stagingJwtSigningKey="$JWT_STAGING" --output none
+            --template-file infra/app.bicep --parameters sqlServerName="$SQL_SERVER" productionJwtSigningKey="$JWT_PRODUCTION" stagingJwtSigningKey="$JWT_STAGING" bindCustomDomains="$BIND_DOMAINS" --output none

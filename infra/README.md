@@ -37,7 +37,7 @@ The script reports a page's whole address, so the shop loads it only when every 
 
 1. `az login`, set `APP_SUB`, `SQL_SUB`, `SQL_SERVER` and `SQL_POOL` in your shell (the subscription ids and SQL server details are deliberately not in the repository), then `bash infra/bootstrap.sh`.
 2. Create the GitHub environments `infra`, `staging`, `production` (required reviewers on `production` and `infra`) and add the secrets the script prints.
-3. Run the **Infrastructure** workflow (preview first, then again with *apply*).
+3. Run the **Infrastructure** workflow (preview first, then again with *apply*). On the first set-up, and when a domain is added, also tick *bindDomains*; leave it off otherwise, because re-binding interrupts HTTPS on live names.
 4. Run `sql/grant-access.sql` in both databases.
 5. Merge to `main`: CI, then **Deploy sites** goes to staging, waits for approval, migrates production, swaps the slots.
 
@@ -50,5 +50,5 @@ The script reports a page's whole address, so the shop loads it only when every 
 
 ## Still to decide
 
-- The demo administrator for staging and production (`PiranhaCommerce:SeedAdmin:*` app settings) and whether the public demo should be reset on a schedule.
+- The demo administrator for staging and production (`PiranhaCommerce:SeedAdmin:*` app settings) and whether the public demo should be reset on a schedule. Both demos are seeded with the sample catalogue and its demo shoppers, whose password is in the source.
 - Tags and any mandatory-tag policy (`tags` parameter, currently empty).
