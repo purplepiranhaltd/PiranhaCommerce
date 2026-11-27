@@ -26,6 +26,12 @@ Plausible, on the live promo site and the live demo shop only, through the proxy
 
 The script reports a page's whole address, so the shop loads it only when every query parameter is on the harmless list in `ShopAnalytics.cs`: reset and unsubscribe links, and sign-in steps, are never reported. The admin does not load it.
 
+## Search engines
+
+Only the live promo site is meant to be listed. `app.bicep` sets `Hosting__NoIndex` to `true` on both staging slots and on the live demo shop, and `false` on the live promo site. The setting stays with its slot when slots are swapped. When it is on, every response carries `X-Robots-Tag: noindex, nofollow`. The admin (`/admin`) sends it whatever the setting says, and so does the promo site on its `*.azurewebsites.net` addresses.
+
+There is no `robots.txt` block on purpose: a crawler that may not fetch a page never sees the `noindex`, and can still list a linked address. This is a request that well-behaved search engines follow. It does not close a site to visitors.
+
 ## Files
 
 - `app.bicep`: web apps, slots, storage and role assignments (deploys to resource group `PiranhaCommerce`, app subscription).

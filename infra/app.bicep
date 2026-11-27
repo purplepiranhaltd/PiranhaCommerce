@@ -89,8 +89,8 @@ module site 'modules/webapp.bicep' = {
     location: location
     planId: plan.id
     linuxFxVersion: linuxFxVersion
-    productionSettings: union(common, { Site__DemoUrl: productionDemoUrl, Analytics__PlausibleDomain: sitePlausibleDomain, Analytics__PlausibleHost: plausibleHost })
-    stagingSettings: union(common, { Site__DemoUrl: stagingDemoUrl, Analytics__PlausibleDomain: '', Analytics__PlausibleHost: plausibleHost })
+    productionSettings: union(common, { Hosting__NoIndex: 'false', Site__DemoUrl: productionDemoUrl, Analytics__PlausibleDomain: sitePlausibleDomain, Analytics__PlausibleHost: plausibleHost })
+    stagingSettings: union(common, { Hosting__NoIndex: 'true', Site__DemoUrl: stagingDemoUrl, Analytics__PlausibleDomain: '', Analytics__PlausibleHost: plausibleHost })
     tags: tags
   }
 }
@@ -115,6 +115,7 @@ module shop 'modules/webapp.bicep' = {
       PiranhaCommerce__Demo__SeedOnStartup: string(productionDemoSeed)
       PiranhaCommerce__SampleData__Enabled: string(productionDemoSeed)
       Analytics__PlausibleDomain: shopPlausibleDomain
+      Hosting__NoIndex: 'true' // the live demo too: its made-up shop should not turn up in searches
       Analytics__PlausibleHost: plausibleHost
     })
     stagingSettings: union(common, {
@@ -127,6 +128,7 @@ module shop 'modules/webapp.bicep' = {
       PiranhaCommerce__SampleData__Enabled: string(stagingDemoSeed)
       Analytics__PlausibleDomain: ''
       Analytics__PlausibleHost: plausibleHost
+      Hosting__NoIndex: 'true'
     })
     tags: tags
   }

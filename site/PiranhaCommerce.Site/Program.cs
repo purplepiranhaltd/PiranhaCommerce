@@ -10,6 +10,21 @@ builder.Services.AddSingleton(sp => DocsLibrary.Load(DocsLocator.Find(builder.En
 
 var app = builder.Build();
 
+// Asks search engines not to list this site: Hosting:NoIndex (set on staging), and always on the *.azurewebsites.net addresses, which would
+// otherwise be a second copy of the live site. It is added as the response starts, so redirects, files and error pages carry it too.
+// There is deliberately no robots.txt block: a crawler has to be able to fetch a page to see that it must not list it.
+var noIndex = app.Configuration.GetValue<bool>("Hosting:NoIndex");
+app.Use((context, next) =>
+{
+    if (noIndex || context.Request.Host.Host.EndsWith(".azurewebsites.net", StringComparison.OrdinalIgnoreCase))
+        context.Response.OnStarting(() =>
+        {
+            context.Response.Headers["X-Robots-Tag"] = "noindex, nofollow";
+            return Task.CompletedTask;
+        });
+    return next(context);
+});
+
 // Hosted under two domains (.com and .co.uk): send the secondary one to the main one, keeping the path and query.
 // Set Hosting:RedirectFrom (piranhacommerce.co.uk) and Hosting:RedirectTo (piranhacommerce.com); both empty means no redirect.
 // The same suffix swap covers staging.* and demo.*. Certificate and domain-ownership checks under /.well-known are left alone.

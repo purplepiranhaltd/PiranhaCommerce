@@ -53,6 +53,37 @@ public class SiteTests(WebApplicationFactory<Program> factory) : IClassFixture<W
         }
     }
 
+    [Theory]
+    [InlineData("/")]
+    [InlineData("/docs")]
+    [InlineData("/site.css")]
+    [InlineData("/no-such-page")]
+    public async Task Search_engines_are_asked_not_to_list_a_site_only_when_it_is_set_to(string path)
+    {
+        Assert.False((await Client(factory).GetAsync(path)).Headers.Contains("X-Robots-Tag"));
+
+        using var hidden = factory.WithWebHostBuilder(b => b.UseSetting("Hosting:NoIndex", "true"));
+        Assert.Equal("noindex, nofollow", Assert.Single((await Client(hidden).GetAsync(path)).Headers.GetValues("X-Robots-Tag")));
+
+        // The Azure address of the live site is a copy of it, so it is never listed.
+        var azure = await Client(factory, "awa-example.azurewebsites.net").GetAsync(path);
+        Assert.True(azure.Headers.Contains("X-Robots-Tag"));
+    }
+
+    [Fact]
+    public async Task A_redirect_from_a_hidden_site_is_not_listed_either()
+    {
+        using var hidden = factory.WithWebHostBuilder(b =>
+        {
+            b.UseSetting("Hosting:NoIndex", "true");
+            b.UseSetting("Hosting:RedirectFrom", "example.co.uk");
+            b.UseSetting("Hosting:RedirectTo", "example.com");
+        });
+        var response = await Client(hidden, "staging.example.co.uk").GetAsync("/pricing");
+        Assert.Equal(HttpStatusCode.MovedPermanently, response.StatusCode);
+        Assert.True(response.Headers.Contains("X-Robots-Tag"));
+    }
+
     [Fact]
     public async Task The_secondary_domain_redirects_to_the_main_one_keeping_path_and_query()
     {

@@ -31,3 +31,10 @@ a minute is the limit for everybody:
 builder.Services.Configure<ForwardedHeadersOptions>(o => o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto);
 // ...and app.UseForwardedHeaders(); first in the pipeline, with KnownProxies/KnownNetworks set to your proxy.
 ```
+
+## Search engines
+
+The admin's pages carry a `noindex` tag, so search engines are asked not to list them. Nothing else is changed: whether your
+shop is listed is up to your host application. To hide a whole test or staging copy, send an `X-Robots-Tag: noindex, nofollow`
+header with every response (the sample shop does this when `Hosting:NoIndex` is `true`). Do not also block it in `robots.txt`:
+a crawler that cannot fetch a page never sees the `noindex`. Neither one stops anybody visiting.
